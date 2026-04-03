@@ -485,7 +485,9 @@ const UI = {
     // Ranger unlock button visibility
     const unlockBtn = document.getElementById('unlock-ranger-btn')
     if (unlockBtn && save) {
-      unlockBtn.classList.toggle('hidden', save.ranger?.unlocked ?? false)
+      const rangerUnlocked = save.ranger?.unlocked ?? false
+      const canAfford = (save.persistentGold ?? 0) >= (CONFIG.rangerUnlockCost ?? 20)
+      unlockBtn.classList.toggle('hidden', rangerUnlocked || !canAfford)
     }
     // Character select tabs
     document.querySelectorAll('.char-tab').forEach(tab => {
