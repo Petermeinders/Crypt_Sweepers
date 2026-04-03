@@ -3,6 +3,7 @@ import GameController  from './core/GameController.js'
 import MetaProgression from './systems/MetaProgression.js'
 import SaveManager     from './save/SaveManager.js'
 import AudioManager    from './systems/AudioManager.js'
+import EventBus        from './core/EventBus.js'
 import Logger          from './core/Logger.js'
 import { WARRIOR_UPGRADES, SHOP_ITEMS } from './data/upgrades.js'
 import { ITEMS }                        from './data/items.js'
@@ -23,10 +24,14 @@ async function boot() {
   }
   // Migrate old saves missing keys
   if (save.settings.tileColors === undefined) save.settings.tileColors = false
+  if (save.settings.musicOn === undefined)    save.settings.musicOn    = true
+  if (save.settings.sfxOn   === undefined)    save.settings.sfxOn      = true
   if (!save.settings.cheats) save.settings.cheats = {}
 
-  // Apply saved visual settings immediately
+  // Apply saved visual/audio settings immediately
   if (save.settings.tileColors) document.body.classList.add('tile-colors')
+  AudioManager.setMusicEnabled(save.settings.musicOn ?? true)
+  AudioManager.setSfxEnabled(save.settings.sfxOn ?? true)
 
   // Migrate old saves missing ranger key
   if (!save.ranger) {
@@ -68,6 +73,11 @@ async function boot() {
   )
   document.getElementById('retreat-btn').addEventListener('click', () => GameController.doRetreat())
 
+  // ── Menu button click sound ──────────────────────────────
+  document.getElementById('main-menu').addEventListener('click', e => {
+    if (e.target.closest('button')) EventBus.emit('audio:play', { sfx: 'menu' })
+  })
+
   // ── Main menu buttons ────────────────────────────────────
   document.getElementById('new-run-btn').addEventListener('click', () => GameController.newGame())
 
@@ -98,6 +108,8 @@ async function boot() {
   document.getElementById('settings-btn').addEventListener('click', () => {
     const s = GameController.getSave()
     const c = s.settings.cheats ?? {}
+    document.getElementById('setting-music').checked        = s.settings.musicOn    ?? true
+    document.getElementById('setting-sfx').checked          = s.settings.sfxOn      ?? true
     document.getElementById('setting-tile-colors').checked  = s.settings.tileColors ?? false
     document.getElementById('cheat-god-mode').checked       = c.godMode      ?? false
     document.getElementById('cheat-instant-kill').checked   = c.instantKill  ?? false
@@ -108,6 +120,19 @@ async function boot() {
   document.getElementById('settings-back').addEventListener('click', () => {
     document.getElementById('settings-overlay').classList.add('hidden')
   })
+  document.getElementById('setting-music').addEventListener('change', e => {
+    const s = GameController.getSave()
+    s.settings.musicOn = e.target.checked
+    AudioManager.setMusicEnabled(e.target.checked)
+    SaveManager.save(s)
+  })
+  document.getElementById('setting-sfx').addEventListener('change', e => {
+    const s = GameController.getSave()
+    s.settings.sfxOn = e.target.checked
+    AudioManager.setSfxEnabled(e.target.checked)
+    SaveManager.save(s)
+  })
+
   const tileColorsCb = document.getElementById('setting-tile-colors')
   tileColorsCb.addEventListener('change', () => {
     const s = GameController.getSave()
@@ -197,6 +222,8 @@ async function boot() {
   UI.updateMenuStats(save.persistentGold, xp, char, save)
   UI.setActiveDifficulty(save.settings.difficulty)
   UI.showMainMenu()
+  // Music starts on first user interaction (AudioManager unlocks AudioContext on click/touch)
+  EventBus.emit('audio:music', { track: 'menu' })
 
   Logger.debug('[main] boot complete')
 }

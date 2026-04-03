@@ -30,7 +30,12 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--bg-dark);
+  background-color: var(--bg-dark);
+  background-image: url('../assets/DungeonBackground.png');
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
   color: var(--text-primary);
   font-family: Georgia, 'Times New Roman', serif;
 }

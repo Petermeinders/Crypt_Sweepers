@@ -2,7 +2,7 @@
 // Strategy: Cache-first for assets, network-first for HTML.
 // Version bump CACHE_NAME to force cache refresh on deploy.
 
-const CACHE_NAME = 'crypt-sweepers-v1'
+const CACHE_NAME = 'crypt-sweepers-v3'
 
 const PRECACHE_ASSETS = [
   './',
@@ -10,6 +10,7 @@ const PRECACHE_ASSETS = [
   './manifest.json',
   './css/main.css',
   './css/tiles.css',
+  './assets/DungeonBackground.png',
   './assets/sprites/tiles/dungeon-tile-back.webp',
   './assets/sprites/tiles/dungeon-tile-floor.png',
   './css/hud.css',
@@ -41,6 +42,19 @@ const PRECACHE_ASSETS = [
   './assets/sprites/Items/potionBlue.png',
   './assets/sprites/Items/heart.png',
   './js/data/items.js',
+  './audio/sfx/flip.ogg',
+  './audio/sfx/hit.ogg',
+  './audio/sfx/spell.ogg',
+  './audio/sfx/gold.ogg',
+  './audio/sfx/levelup.ogg',
+  './audio/sfx/death.ogg',
+  './audio/sfx/merchant.ogg',
+  './audio/sfx/retreat.ogg',
+  './audio/sfx/chest.ogg',
+  './audio/sfx/trap.ogg',
+  './audio/sfx/slam.ogg',
+  './audio/sfx/heal.ogg',
+  './audio/sfx/menu.ogg',
   './assets/sprites/monsters/goblin/goblin-idle.gif',
   './assets/sprites/monsters/vine_witch/vine-witch-idle.gif',
   './assets/sprites/monsters/ogre/ogre-idle.gif',
@@ -73,7 +87,31 @@ self.addEventListener('activate', event => {
   )
 })
 
-// ── Fetch: cache-first for assets, network-first for HTML ─────
+// ── Fetch ─────────────────────────────────────────────────────
+// Network-first for HTML/JS/CSS so code changes are immediate.
+// Cache-first for images and audio (large, rarely change).
+
+function networkFirst(request) {
+  return fetch(request)
+    .then(res => {
+      const clone = res.clone()
+      caches.open(CACHE_NAME).then(c => c.put(request, clone))
+      return res
+    })
+    .catch(() => caches.match(request))
+}
+
+function cacheFirst(request) {
+  return caches.match(request).then(cached => {
+    if (cached) return cached
+    return fetch(request).then(res => {
+      const clone = res.clone()
+      caches.open(CACHE_NAME).then(c => c.put(request, clone))
+      return res
+    })
+  })
+}
+
 self.addEventListener('fetch', event => {
   const { request } = event
   const url = new URL(request.url)
@@ -81,29 +119,14 @@ self.addEventListener('fetch', event => {
   // Skip non-GET and cross-origin
   if (request.method !== 'GET' || url.origin !== location.origin) return
 
-  // HTML: network-first so updates are picked up immediately
-  if (request.headers.get('accept')?.includes('text/html')) {
-    event.respondWith(
-      fetch(request)
-        .then(res => {
-          const clone = res.clone()
-          caches.open(CACHE_NAME).then(c => c.put(request, clone))
-          return res
-        })
-        .catch(() => caches.match(request))
-    )
+  const path = url.pathname
+
+  // Cache-first only for images and audio (static assets)
+  if (/\.(png|webp|gif|jpg|jpeg|svg|ogg|mp3|wav)$/i.test(path)) {
+    event.respondWith(cacheFirst(request))
     return
   }
 
-  // Everything else: cache-first
-  event.respondWith(
-    caches.match(request).then(cached => {
-      if (cached) return cached
-      return fetch(request).then(res => {
-        const clone = res.clone()
-        caches.open(CACHE_NAME).then(c => c.put(request, clone))
-        return res
-      })
-    })
-  )
+  // Network-first for everything else (HTML, JS, CSS, JSON)
+  event.respondWith(networkFirst(request))
 })

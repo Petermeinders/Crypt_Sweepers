@@ -80,6 +80,7 @@ function init(saveData) {
 function newGame() {
   run = buildRunState()
   UI.hideMainMenu()
+  EventBus.emit('audio:stop')
   _startFloor()
 }
 
@@ -92,6 +93,7 @@ function returnToMenu(autoSave = false) {
   UI.updateMenuStats(_save.persistentGold, xp, char, _save)
   UI.setActiveDifficulty(_save.settings.difficulty)
   UI.showMainMenu()
+  EventBus.emit('audio:music', { track: 'menu' })
 }
 
 function _startFloor() {
@@ -249,6 +251,7 @@ async function revealTile(tile) {
   tile.revealed = true
   run.tilesRevealed++
   UI.setPortraitAnim('run')
+  EventBus.emit('audio:play', { sfx: 'flip' })
   await TileEngine.flipTile(tile)
   UI.setPortraitAnim('idle')
   _gainXP(CONFIG.xp.perTileReveal, tile.element)
@@ -264,6 +267,7 @@ function _openChest(tile) {
   tile.element?.classList.remove('chest-ready')
   const loot = tile.chestLoot
 
+  EventBus.emit('audio:play', { sfx: 'chest' })
   if (loot.type === 'potion-red') {
     _addToBackpack('potion-red')
     UI.spawnFloat(tile.element, '🧪 Red Potion', 'heal')
@@ -330,6 +334,7 @@ function _resolveEffect(tile) {
     case 'trap': {
       const rawDmg = _rand(...CONFIG.trap.damage)
       const dmg    = Math.max(1, rawDmg - (p.trapReduction ?? 0))
+      EventBus.emit('audio:play', { sfx: 'trap' })
       _takeDamage(dmg, tile.element)
       const reduced = rawDmg !== dmg ? ` (reduced from ${rawDmg})` : ''
       UI.setMessage(`A trap snaps shut! You take ${dmg} damage${reduced}.`)
@@ -577,6 +582,7 @@ function slamAction() {
   }
 
   UI.playSlam()
+  EventBus.emit('audio:play', { sfx: 'slam' })
 
   // Collect all revealed living enemies
   const grid = TileEngine.getGrid()
@@ -921,6 +927,7 @@ function useItem(id) {
   const item = ITEMS[id]
   if (!item) return
 
+  EventBus.emit('audio:play', { sfx: 'heal' })
   const { effect } = item
   if (effect.type === 'heal') {
     const missing = run.player.maxHp - run.player.hp

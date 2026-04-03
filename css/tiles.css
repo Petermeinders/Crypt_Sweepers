@@ -16,11 +16,7 @@
   align-items: center;
   justify-content: center;
   padding: 8px 6px;
-  background:
-    radial-gradient(ellipse 70% 60% at 50% 45%,
-      rgba(232,132,26,0.07) 0%,
-      transparent 70%),
-    var(--bg-dark);
+  background: transparent;
   overflow: visible;
   /* 3. Mild perspective tilt on the container — doesn't interfere with tile flip */
   perspective: 1200px;

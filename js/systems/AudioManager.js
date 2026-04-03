@@ -10,35 +10,43 @@ import Logger   from '../core/Logger.js'
 import { SETTINGS } from '../config.js'
 
 const SFX_FILES = {
-  flip:     'audio/sfx/flip.mp3',
-  hit:      'audio/sfx/hit.mp3',
-  spell:    'audio/sfx/spell.mp3',
-  gold:     'audio/sfx/gold.mp3',
-  levelup:  'audio/sfx/levelup.mp3',
-  death:    'audio/sfx/death.mp3',
-  shrine:   'audio/sfx/shrine.mp3',
-  merchant: 'audio/sfx/merchant.mp3',
-  retreat:  'audio/sfx/retreat.mp3',
+  flip:     'audio/sfx/flip.ogg',
+  hit:      'audio/sfx/hit.ogg',
+  spell:    'audio/sfx/spell.ogg',
+  gold:     'audio/sfx/gold.ogg',
+  levelup:  'audio/sfx/levelup.ogg',
+  death:    'audio/sfx/death.ogg',
+  merchant: 'audio/sfx/merchant.ogg',
+  retreat:  'audio/sfx/retreat.ogg',
+  chest:    'audio/sfx/chest.ogg',
+  trap:     'audio/sfx/trap.ogg',
+  slam:     'audio/sfx/slam.ogg',
+  heal:     'audio/sfx/heal.ogg',
+  menu:     'audio/sfx/menu.ogg',
 }
 
 const MUSIC_FILES = {
+  menu:    'audio/music/menu.mp3',
   dungeon: 'audio/music/dungeon.mp3',
   boss:    'audio/music/boss.mp3',
 }
 
-let _ctx        = null
-let _sfxBuffers = {}
-let _musicEl    = null  // current <audio> element for music
-let _sfxVol     = SETTINGS.sfxVolume
-let _musicVol   = SETTINGS.musicVolume
-let _ready      = false
+let _ctx          = null
+let _sfxBuffers   = {}
+let _musicEl      = null  // current <audio> element for music
+let _sfxVol       = SETTINGS.sfxVolume
+let _musicVol     = SETTINGS.musicVolume
+let _ready        = false
+let _pendingTrack   = null  // track requested before user interaction
+let _currentTrack   = null  // last track requested (for re-enable)
+let _musicOn        = true
+let _sfxOn          = true
 
 function init() {
   // Wire EventBus listeners
   EventBus.on('audio:play',    ({ sfx })   => playSfx(sfx))
   EventBus.on('audio:music',   ({ track }) => playMusic(track))
   EventBus.on('audio:stop',    ()          => stopMusic())
-  EventBus.on('tile:revealed', ()          => playSfx('flip'))
 
   // Unlock AudioContext on first user interaction (iOS)
   const unlock = async () => {
@@ -48,6 +56,8 @@ function init() {
       await _loadSfx()
       _ready = true
       Logger.debug('[AudioManager] AudioContext unlocked')
+      // Replay any music that was blocked before interaction
+      if (_pendingTrack) { playMusic(_pendingTrack); _pendingTrack = null }
     } catch (e) {
       Logger.error('[AudioManager] AudioContext failed', e)
     }
@@ -72,7 +82,7 @@ async function _loadSfx() {
 }
 
 function playSfx(key) {
-  if (!_ready || !_ctx || !_sfxBuffers[key]) return
+  if (!_sfxOn || !_ready || !_ctx || !_sfxBuffers[key]) return
   try {
     const source = _ctx.createBufferSource()
     source.buffer = _sfxBuffers[key]
@@ -88,12 +98,17 @@ function playSfx(key) {
 
 function playMusic(track) {
   stopMusic()
+  _currentTrack = track
+  if (!_musicOn) return
   const path = MUSIC_FILES[track]
   if (!path) return
   _musicEl = new Audio(path)
   _musicEl.loop   = true
   _musicEl.volume = _musicVol
-  _musicEl.play().catch(() => {}) // fail silently if autoplay blocked
+  _musicEl.play().catch(() => {
+    // Autoplay blocked — remember track so it starts on first interaction
+    _pendingTrack = track
+  })
 }
 
 function stopMusic() {
@@ -102,6 +117,20 @@ function stopMusic() {
     _musicEl.src = ''
     _musicEl = null
   }
+}
+
+function setMusicEnabled(on) {
+  _musicOn = on
+  if (!on) {
+    stopMusic()
+  } else {
+    const track = _pendingTrack || _currentTrack
+    if (track) { _pendingTrack = null; playMusic(track) }
+  }
+}
+
+function setSfxEnabled(on) {
+  _sfxOn = on
 }
 
 function setVolumes({ sfx, music } = {}) {
@@ -113,4 +142,4 @@ function setVolumes({ sfx, music } = {}) {
   }
 }
 
-export default { init, playSfx, playMusic, stopMusic, setVolumes }
+export default { init, playSfx, playMusic, stopMusic, setVolumes, setMusicEnabled, setSfxEnabled }

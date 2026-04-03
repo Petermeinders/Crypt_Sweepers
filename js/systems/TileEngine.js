@@ -214,7 +214,7 @@ function _tileFaceIconHTML(tile, def) {
   if (!src) {
     return `<span class="tile-icon-wrap tile-icon-fallback"><span class="tile-emoji">${emoji}</span></span>`
   }
-  return `<span class="tile-icon-wrap"><img class="tile-icon-img" src="${src}" alt="" decoding="async" loading="lazy" draggable="false"/></span>`
+  return `<span class="tile-icon-wrap"><img class="tile-icon-img" src="${src}" alt="" decoding="async" draggable="false"/></span>`
 }
 
 function _wireTileIconFallback(tileEl, emojiFallback) {

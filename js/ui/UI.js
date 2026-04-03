@@ -137,10 +137,12 @@ const UI = {
 
   showActionPanel(manaCost, canCast) {
     el.actionBtns.classList.remove('hidden')
-    el.spellBtn.disabled = !canCast
-    el.spellBtn.textContent = canCast
-      ? `✨ Spell (${manaCost}🔵)`
-      : `✨ Spell (no mana)`
+    if (el.spellBtn) {
+      el.spellBtn.disabled = !canCast
+      el.spellBtn.textContent = canCast
+        ? `✨ Spell (${manaCost}🔵)`
+        : `✨ Spell (no mana)`
+    }
   },
 
   hideActionPanel() {
@@ -148,6 +150,7 @@ const UI = {
   },
 
   setSpellTargeting(active, manaCost) {
+    if (!el.spellBtn) return
     el.spellBtn.classList.toggle('targeting', active)
     if (active) {
       el.spellBtn.textContent = '✨ Cancel Spell'
