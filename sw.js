@@ -41,6 +41,7 @@ const PRECACHE_ASSETS = [
   './assets/sprites/Items/potionRed.png',
   './assets/sprites/Items/potionBlue.png',
   './assets/sprites/Items/heart.png',
+  './assets/sprites/Items/chest.gif',
   './js/data/items.js',
   './audio/sfx/flip.ogg',
   './audio/sfx/hit.ogg',

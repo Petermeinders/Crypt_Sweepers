@@ -5,9 +5,41 @@ import SaveManager     from './save/SaveManager.js'
 import AudioManager    from './systems/AudioManager.js'
 import EventBus        from './core/EventBus.js'
 import Logger          from './core/Logger.js'
-import { WARRIOR_UPGRADES, SHOP_ITEMS } from './data/upgrades.js'
-import { ITEMS }                        from './data/items.js'
-import { RANGER_UPGRADES }              from './data/ranger.js'
+import { CONFIG }                           from './config.js'
+import { WARRIOR_UPGRADES, SHOP_ITEMS }     from './data/upgrades.js'
+import { ITEMS }                            from './data/items.js'
+import { RANGER_UPGRADES }                  from './data/ranger.js'
+
+// ── Character roster ──────────────────────────────────────────
+
+const CHARACTERS = [
+  {
+    id:         'warrior',
+    name:       'Warrior',
+    tagline:    'Battle-hardened fighter. Slow but hits hard.',
+    gif:        'assets/sprites/Heroes/Warrior/__Idle.gif',
+    attackGif:  'assets/sprites/Heroes/Warrior/__AttackCombo2hit.gif',
+    attackMs:   1100,
+    emoji:      null,
+    upgrades:   WARRIOR_UPGRADES,
+    unlockCost: null,
+    baseHP:     40,
+    baseMana:   30,
+    baseDmg:    '1',
+  },
+  {
+    id:         'ranger',
+    name:       'Ranger',
+    tagline:    "Swift and elusive. Enemy reveals don't lock adjacent tiles.",
+    gif:        null,
+    emoji:      '🏹',
+    upgrades:   RANGER_UPGRADES,
+    unlockCost: CONFIG.rangerUnlockCost,
+    baseHP:     80,
+    baseMana:   80,
+    baseDmg:    '8–18',
+  },
+]
 
 // ── Boot sequence ─────────────────────────────────────────────
 
@@ -81,29 +113,61 @@ async function boot() {
   // ── Main menu buttons ────────────────────────────────────
   document.getElementById('new-run-btn').addEventListener('click', () => GameController.newGame())
 
-  // Character tabs
-  document.querySelectorAll('.char-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      const s = GameController.getSave()
-      if (tab.dataset.char === 'ranger' && !s.ranger.unlocked) return
-      s.selectedCharacter = tab.dataset.char
-      SaveManager.save(s)
-      const xp = tab.dataset.char === 'ranger' ? s.ranger.totalXP : s.warrior.totalXP
-      UI.updateMenuStats(s.persistentGold, xp, tab.dataset.char, s)
-    })
+  // Hero select
+  document.getElementById('hero-select-open-btn').addEventListener('click', _openHeroSelect)
+  document.getElementById('hero-select-back').addEventListener('click', () => {
+    document.getElementById('hero-select-overlay').classList.add('hidden')
+    _updateMenuHeroPreview()
+  })
+  document.getElementById('hero-prev').addEventListener('click', () => {
+    _heroIdx = Math.max(0, _heroIdx - 1)
+    _selectedUpgradeId = null
+    _renderHeroSelect()
+  })
+  document.getElementById('hero-next').addEventListener('click', () => {
+    _heroIdx = Math.min(CHARACTERS.length - 1, _heroIdx + 1)
+    _selectedUpgradeId = null
+    _renderHeroSelect()
+  })
+  document.getElementById('hero-select-btn').addEventListener('click', () => {
+    const s = GameController.getSave()
+    s.selectedCharacter = CHARACTERS[_heroIdx].id
+    SaveManager.save(s)
+    _renderHeroSelect()
+  })
+  // Dismiss upgrade detail on backdrop click
+  document.getElementById('hero-upgrade-backdrop').addEventListener('click', e => {
+    if (e.target === document.getElementById('hero-upgrade-backdrop')) {
+      _selectedUpgradeId = null
+      document.getElementById('hero-upgrade-backdrop').classList.add('hidden')
+      const s        = GameController.getSave()
+      const char     = CHARACTERS[_heroIdx]
+      const charSave = char.id === 'ranger' ? s.ranger : s.warrior
+      _renderHeroUpgradeGrid(char, charSave.upgrades ?? [], charSave.totalXP ?? 0, char.id === 'ranger' && !s.ranger.unlocked)
+    }
   })
 
-  // Ranger unlock
-  const unlockRangerBtn = document.getElementById('unlock-ranger-btn')
-  if (unlockRangerBtn) {
-    unlockRangerBtn.addEventListener('click', () => {
-      const s = GameController.getSave()
-      if (MetaProgression.unlockRanger(s)) {
-        SaveManager.save(s)
-        UI.updateMenuStats(s.persistentGold, s.warrior.totalXP, s.selectedCharacter, s)
-      }
-    })
-  }
+  // Tap hero to play attack animation
+  let _heroAttackTimer = null
+  document.getElementById('hero-display-gif').addEventListener('click', () => {
+    const char = CHARACTERS[_heroIdx]
+    if (!char.attackGif || _heroAttackTimer) return
+    const gifEl = document.getElementById('hero-display-gif')
+    gifEl.src = char.attackGif + '?t=' + Date.now()
+    _heroAttackTimer = setTimeout(() => {
+      gifEl.src = char.gif + '?t=' + Date.now()
+      _heroAttackTimer = null
+    }, char.attackMs)
+  })
+
+  document.getElementById('hero-unlock-btn').addEventListener('click', () => {
+    const s = GameController.getSave()
+    const char = CHARACTERS[_heroIdx]
+    if (char.id === 'ranger' && MetaProgression.unlockRanger(s)) {
+      SaveManager.save(s)
+      _renderHeroSelect()
+    }
+  })
 
   document.getElementById('settings-btn').addEventListener('click', () => {
     const s = GameController.getSave()
@@ -174,9 +238,6 @@ async function boot() {
     location.reload()
   })
 
-  document.getElementById('warrior-tree-btn').addEventListener('click', _openTree)
-  document.getElementById('warrior-tree-back').addEventListener('click', () => UI.hideWarriorTree())
-
   document.getElementById('gold-shop-btn').addEventListener('click', _openShop)
   document.getElementById('gold-shop-back').addEventListener('click', () => UI.hideGoldShop())
 
@@ -204,10 +265,7 @@ async function boot() {
     const imported = await SaveManager.importJSON(text)
     if (imported) {
       GameController.init(imported)
-      const xp = imported.selectedCharacter === 'ranger'
-        ? imported.ranger.totalXP
-        : imported.warrior.totalXP
-      UI.updateMenuStats(imported.persistentGold, xp, imported.selectedCharacter, imported)
+      _updateMenuHeroPreview()
       UI.setActiveDifficulty(imported.settings.difficulty)
     }
     e.target.value = ''
@@ -217,34 +275,172 @@ async function boot() {
   _wireInstallNudge()
 
   // ── Show main menu ───────────────────────────────────────
-  const char = save.selectedCharacter ?? 'warrior'
-  const xp   = char === 'ranger' ? save.ranger.totalXP : save.warrior.totalXP
-  UI.updateMenuStats(save.persistentGold, xp, char, save)
+  _updateMenuHeroPreview()
   UI.setActiveDifficulty(save.settings.difficulty)
   UI.showMainMenu()
-  // Music starts on first user interaction (AudioManager unlocks AudioContext on click/touch)
   EventBus.emit('audio:music', { track: 'menu' })
 
   Logger.debug('[main] boot complete')
 }
 
-// ── Skill tree panel ──────────────────────────────────────────
+// ── Hero Select ───────────────────────────────────────────────
 
-function _openTree() {
-  const s       = GameController.getSave()
-  const char    = s.selectedCharacter ?? 'warrior'
-  const upgrades = char === 'ranger' ? RANGER_UPGRADES : WARRIOR_UPGRADES
-  const buyFn   = char === 'ranger'
-    ? (id) => MetaProgression.buyRangerUpgrade(s, id)
-    : (id) => MetaProgression.buyUpgrade(s, id)
+let _heroIdx         = 0
+let _selectedUpgradeId = null
 
-  UI.showWarriorTree(s, upgrades, (id) => {
-    if (buyFn(id)) {
-      SaveManager.save(s)
-      UI.hideWarriorTree()
-      _openTree()
+function _openHeroSelect() {
+  const s = GameController.getSave()
+  _heroIdx = CHARACTERS.findIndex(c => c.id === (s.selectedCharacter ?? 'warrior'))
+  if (_heroIdx < 0) _heroIdx = 0
+  _selectedUpgradeId = null
+  _renderHeroSelect()
+  document.getElementById('hero-select-overlay').classList.remove('hidden')
+}
+
+function _renderHeroSelect() {
+  const s        = GameController.getSave()
+  const char     = CHARACTERS[_heroIdx]
+  const charSave = char.id === 'ranger' ? s.ranger : s.warrior
+  const isLocked = char.id === 'ranger' && !s.ranger.unlocked
+  const xp       = charSave.totalXP ?? 0
+  const owned    = charSave.upgrades ?? []
+
+  // Header gold
+  document.getElementById('hero-select-gold-val').textContent = s.persistentGold
+
+  // Name / tagline / XP
+  document.getElementById('hero-select-name').textContent    = char.name
+  document.getElementById('hero-select-tagline').textContent = char.tagline
+  document.getElementById('hero-select-xp').textContent      = xp
+
+  // Hero GIF or emoji
+  const gifEl   = document.getElementById('hero-display-gif')
+  const emojiEl = document.getElementById('hero-display-emoji')
+  if (char.gif) {
+    gifEl.src           = char.gif + '?t=' + Date.now()
+    gifEl.style.display = 'block'
+    emojiEl.style.display = 'none'
+  } else {
+    gifEl.style.display   = 'none'
+    gifEl.src             = ''
+    emojiEl.textContent   = char.emoji
+    emojiEl.style.display = 'block'
+  }
+
+  // Lock overlay
+  const lockOverlay = document.getElementById('hero-locked-overlay')
+  lockOverlay.classList.toggle('hidden', !isLocked)
+  if (isLocked) {
+    const unlockBtn = document.getElementById('hero-unlock-btn')
+    unlockBtn.textContent = `🔓 Unlock (${char.unlockCost}💰)`
+    unlockBtn.disabled    = s.persistentGold < char.unlockCost
+  }
+
+  // Nav arrows
+  document.getElementById('hero-prev').classList.toggle('hidden', _heroIdx === 0)
+  document.getElementById('hero-next').classList.toggle('hidden', _heroIdx === CHARACTERS.length - 1)
+
+  // Upgrade grid
+  _renderHeroUpgradeGrid(char, owned, xp, isLocked)
+
+  // Base stats
+  document.getElementById('hero-stat-hp').textContent   = char.baseHP
+  document.getElementById('hero-stat-mana').textContent = char.baseMana
+  document.getElementById('hero-stat-dmg').textContent  = char.baseDmg
+
+  // Select button
+  const isSelected = s.selectedCharacter === char.id
+  const selectBtn  = document.getElementById('hero-select-btn')
+  selectBtn.textContent = isSelected ? '✓ Selected' : 'Select Hero'
+  selectBtn.disabled    = isLocked
+}
+
+function _renderHeroUpgradeGrid(char, ownedList, xp, isLocked) {
+  const grid = document.getElementById('hero-upgrades-grid')
+  grid.innerHTML = ''
+
+  for (const [id, def] of Object.entries(char.upgrades)) {
+    const isOwned    = ownedList.includes(id)
+    const canAfford  = !isOwned && xp >= def.xpCost && !isLocked
+    const isSelected = id === _selectedUpgradeId
+
+    const btn = document.createElement('button')
+    btn.className = 'hero-upgrade-slot'
+      + (isOwned    ? ' owned'    : '')
+      + (isSelected ? ' selected' : '')
+    btn.innerHTML = `
+      <span class="hero-upgrade-icon">${def.icon}</span>
+      <span class="hero-upgrade-cost">${isOwned ? '✓' : def.xpCost + ' XP'}</span>
+    `
+    btn.addEventListener('click', () => {
+      _selectedUpgradeId = isSelected ? null : id
+      const s        = GameController.getSave()
+      const charSave = char.id === 'ranger' ? s.ranger : s.warrior
+      const locked   = char.id === 'ranger' && !s.ranger.unlocked
+      _renderHeroUpgradeGrid(char, charSave.upgrades ?? [], charSave.totalXP ?? 0, locked)
+      _renderUpgradeDetail(id, def, isOwned, canAfford)
+    })
+    grid.appendChild(btn)
+  }
+
+  // If nothing selected, hide detail panel
+  if (!_selectedUpgradeId) _renderUpgradeDetail(null)
+}
+
+function _renderUpgradeDetail(id, def, isOwned, canAfford) {
+  const backdrop = document.getElementById('hero-upgrade-backdrop')
+  if (!id || !def) { backdrop.classList.add('hidden'); return }
+  backdrop.classList.remove('hidden')
+  document.getElementById('hero-upgrade-detail-name').textContent = def.name
+  document.getElementById('hero-upgrade-detail-desc').textContent = def.desc
+
+  const buyBtn = document.getElementById('hero-upgrade-buy-btn')
+  if (isOwned) {
+    buyBtn.textContent = '✓ Owned'
+    buyBtn.disabled    = true
+    buyBtn.onclick     = null
+  } else {
+    buyBtn.textContent = `Unlock — ${def.xpCost} XP`
+    buyBtn.disabled    = !canAfford
+    buyBtn.onclick     = () => {
+      const s      = GameController.getSave()
+      const char   = CHARACTERS[_heroIdx]
+      const bought = char.id === 'ranger'
+        ? MetaProgression.buyRangerUpgrade(s, id)
+        : MetaProgression.buyUpgrade(s, id)
+      if (bought) {
+        SaveManager.save(s)
+        _selectedUpgradeId = null
+        _renderHeroSelect()
+      }
     }
-  }, char)
+  }
+}
+
+function _updateMenuHeroPreview() {
+  const s    = GameController.getSave()
+  const char = CHARACTERS.find(c => c.id === (s.selectedCharacter ?? 'warrior')) ?? CHARACTERS[0]
+  const xp   = s.selectedCharacter === 'ranger' ? s.ranger.totalXP : s.warrior.totalXP
+
+  const thumb    = document.getElementById('menu-hero-thumb')
+  const emojiEl  = document.getElementById('menu-hero-emoji')
+  const nameEl   = document.getElementById('menu-hero-name')
+  const goldEl   = document.getElementById('menu-gold-val')
+  const xpEl     = document.getElementById('menu-xp-val')
+  const xpBarEl  = document.getElementById('menu-xp-bar')
+
+  if (char.gif) {
+    thumb.src = char.gif
+    thumb.classList.remove('hidden')
+    if (emojiEl) emojiEl.classList.add('hidden')
+  } else {
+    thumb.classList.add('hidden')
+    if (emojiEl) { emojiEl.textContent = char.emoji; emojiEl.classList.remove('hidden') }
+  }
+  if (nameEl)   nameEl.textContent  = char.name
+  if (goldEl)   goldEl.textContent  = s.persistentGold
+  if (xpEl)     xpEl.textContent    = xp
+  if (xpBarEl)  xpBarEl.style.width = ((xp % 100) / 100 * 100) + '%'
 }
 
 // ── Gold shop panel ───────────────────────────────────────────

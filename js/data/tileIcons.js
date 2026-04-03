@@ -8,7 +8,7 @@ export const MONSTER_ICONS_BASE = 'assets/sprites/monsters/'
 export const TILE_TYPE_ICON_FILES = {
   empty:      null,           // nothing to show
   gold:       'coin.png',     // coins = gold
-  chest:      'backpack.png', // container of loot
+  chest:      'chest-closed.png', // static closed; swapped to chest.gif on open
   trap:       'x.png',        // danger marker
   heart:      'heart.png',    // heart container tile
   shrine:     null,           // removed — kept for safety

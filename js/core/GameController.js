@@ -281,15 +281,25 @@ function _openChest(tile) {
     UI.setMessage(`You pry it open — +${loot.amount} gold!`)
   }
 
-  // Animate the chest icon collecting then wipe the tile
+  // Swap static chest image to animated gif, wait for it to finish, then collect
+  const chestImg = tile.element?.querySelector('.tile-icon-img')
   const iconWrap = tile.element?.querySelector('.tile-icon-wrap')
-  if (iconWrap) {
-    iconWrap.classList.add('collecting')
-    setTimeout(() => {
-      iconWrap.innerHTML = ''
-      iconWrap.classList.remove('collecting')
-    }, 560)
-  }
+  const GIF_DURATION = 750 // ms — one play-through of chest.gif
+
+  if (chestImg) chestImg.src = 'assets/sprites/Items/chest.gif?t=' + Date.now()
+
+  setTimeout(() => {
+    // Remove the img so no broken-image box shows during collect animation
+    if (chestImg) chestImg.remove()
+    if (iconWrap) {
+      iconWrap.classList.add('collecting')
+      setTimeout(() => {
+        iconWrap.innerHTML = ''
+        iconWrap.classList.remove('collecting')
+      }, 560)
+    }
+  }, GIF_DURATION)
+
   tile.chestLooted = true
 }
 

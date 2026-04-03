@@ -26,7 +26,7 @@ const SFX_FILES = {
 }
 
 const MUSIC_FILES = {
-  menu:    'audio/music/menu.mp3',
+  menu:    'audio/music/main-menu-theme.mp3',
   dungeon: 'audio/music/dungeon.mp3',
   boss:    'audio/music/boss.mp3',
 }

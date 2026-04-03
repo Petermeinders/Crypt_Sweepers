@@ -81,7 +81,7 @@
       </div>
 
       <div id="hud-keys" class="hud-keys" aria-label="Key items">
-        <button class="hud-key-slot hud-key-backpack" id="hud-backpack-btn" title="Backpack">🎒</button>
+        <button class="hud-key-slot hud-key-backpack" id="hud-backpack-btn" title="Backpack"><img src="assets/sprites/Items/backpack.png" alt="Backpack" style="height:28px;width:auto;image-rendering:pixelated;"></button>
         <div class="hud-key-slot" title="Locked"><span class="hud-key-ghost">🔑</span></div>
         <div class="hud-key-slot" title="Locked"><span class="hud-key-ghost">⛑️</span></div>
       </div>
@@ -151,31 +151,27 @@
   <div id="main-menu">
     <div id="menu-title">CRYPT SWEEPERS</div>
 
-    <!-- Character tabs -->
-    <div id="char-tabs">
-      <button class="char-tab active" data-char="warrior"><img class="char-tab-gif" src="assets/sprites/Heroes/Warrior/__Idle.gif" alt="">Warrior</button>
-      <button class="char-tab" data-char="ranger">🏹 Ranger</button>
-    </div>
-
-    <div id="menu-char-block">
-      <div id="menu-char-preview">
-        <img id="menu-hero-gif" src="assets/sprites/Heroes/Warrior/__Idle.gif" alt="Warrior">
+    <!-- Mini hero preview -->
+    <div id="menu-hero-block">
+      <div id="menu-hero-portrait">
+        <img id="menu-hero-thumb" src="assets/sprites/Heroes/Warrior/__Idle.gif" alt="Warrior">
+        <div id="menu-hero-emoji" class="hidden"></div>
       </div>
-      <div id="menu-char-name">Warrior</div>
-      <div id="menu-char-stats">
-        <span id="menu-gold-display">💰 <span id="menu-gold-val">0</span></span>
-        <span id="menu-xp-display">XP: <span id="menu-xp-val">0</span></span>
+      <div id="menu-hero-info">
+        <div id="menu-hero-name">Warrior</div>
+        <div id="menu-hero-meta">
+          <span>💰 <span id="menu-gold-val">0</span></span>
+          <span>XP: <span id="menu-xp-val">0</span></span>
+        </div>
+        <div id="menu-xp-bar-wrap"><div id="menu-xp-bar"></div></div>
       </div>
-      <div id="menu-xp-bar-wrap"><div id="menu-xp-bar"></div></div>
+      <button id="hero-select-open-btn" class="hero-change-btn">🗡️ Heroes</button>
     </div>
-
-    <button id="unlock-ranger-btn" class="menu-btn secondary hidden">🔓 Unlock Ranger (150💰)</button>
 
     <button id="new-run-btn" class="menu-btn primary">⚔️ New Run</button>
     <button id="settings-btn" class="menu-btn secondary">⚙️ Settings</button>
     <div id="menu-secondary">
-      <button id="warrior-tree-btn" class="menu-btn secondary">🌳 Skill Tree</button>
-      <button id="gold-shop-btn"    class="menu-btn secondary">🛒 Gold Shop</button>
+      <button id="gold-shop-btn" class="menu-btn secondary">🛒 Gold Shop</button>
     </div>
     <div id="difficulty-row">
       <span class="diff-label">Difficulty</span>
@@ -313,14 +309,58 @@
     </div>
   </div>
 
-  <!-- ── Warrior / Ranger XP Tree overlay ── -->
-  <div id="warrior-tree-overlay" class="panel-overlay hidden">
-    <div class="panel-header">
-      <button class="panel-back-btn" id="warrior-tree-back">← Back</button>
-      <div class="panel-title">Warrior Tree</div>
-      <div class="panel-resource" id="tree-xp-val">XP: 0</div>
+  <!-- ── Hero Select overlay ── -->
+  <div id="hero-select-overlay" class="hidden">
+    <div id="hero-select-header">
+      <button id="hero-select-back" class="panel-back-btn">← Back</button>
+      <div id="hero-select-title">Heroes</div>
+      <div id="hero-select-gold">💰 <span id="hero-select-gold-val">0</span></div>
     </div>
-    <div id="tree-list" class="panel-list"></div>
+
+    <div id="hero-select-body">
+      <div id="hero-select-namewrap">
+        <div id="hero-select-name">Warrior</div>
+        <div id="hero-select-tagline">Battle-hardened fighter</div>
+        <div id="hero-select-xp-row">XP: <span id="hero-select-xp">0</span></div>
+      </div>
+
+      <!-- Upgrade slots grid -->
+      <div id="hero-upgrades-grid"></div>
+
+      <!-- Hero display with nav arrows -->
+      <div id="hero-display-row">
+        <button id="hero-prev" class="hero-nav-btn">&#9664;</button>
+        <div id="hero-display-wrap">
+          <img id="hero-display-gif" src="" alt="">
+          <div id="hero-display-emoji" class="hidden"></div>
+          <div id="hero-locked-overlay" class="hidden">
+            <div class="hero-lock-icon">🔒</div>
+            <div class="hero-lock-label">Locked</div>
+            <button id="hero-unlock-btn" class="menu-btn primary">Unlock</button>
+          </div>
+        </div>
+        <button id="hero-next" class="hero-nav-btn">&#9654;</button>
+      </div>
+    </div>
+
+    <!-- Footer: stats + select -->
+    <div id="hero-select-footer">
+      <div id="hero-stats-bar">
+        <span>❤️ <span id="hero-stat-hp">0</span></span>
+        <span>🔵 <span id="hero-stat-mana">0</span></span>
+        <span>⚔️ <span id="hero-stat-dmg">0</span></span>
+      </div>
+      <button id="hero-select-btn" class="menu-btn primary">✓ Select Hero</button>
+    </div>
+
+    <!-- Upgrade detail — floating overlay inside hero select -->
+    <div id="hero-upgrade-backdrop" class="hidden">
+      <div id="hero-upgrade-detail">
+        <div id="hero-upgrade-detail-name"></div>
+        <div id="hero-upgrade-detail-desc"></div>
+        <button id="hero-upgrade-buy-btn" class="menu-btn primary">Unlock</button>
+      </div>
+    </div>
   </div>
 
   <!-- ── Gold Shop overlay ── -->
@@ -330,6 +370,7 @@
       <div class="panel-title">Gold Shop</div>
       <div class="panel-resource" id="shop-gold-val">💰 0</div>
     </div>
+    <div id="shop-desc">These items are one-time consumables — they apply only to your next run and are lost whether you win or die.</div>
     <div id="shop-cart-info" class="hidden">Items in cart are applied to your next run.</div>
     <div id="shop-list" class="panel-list"></div>
   </div>

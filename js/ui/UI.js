@@ -35,9 +35,6 @@ const UI = {
     el.menuXpVal       = document.getElementById('menu-xp-val')
     el.menuXpBar       = document.getElementById('menu-xp-bar')
     // Panel overlays
-    el.warriorTreeOverlay = document.getElementById('warrior-tree-overlay')
-    el.treeXpVal          = document.getElementById('tree-xp-val')
-    el.treeList           = document.getElementById('tree-list')
     el.goldShopOverlay    = document.getElementById('gold-shop-overlay')
     el.shopGoldVal        = document.getElementById('shop-gold-val')
     el.shopCartInfo       = document.getElementById('shop-cart-info')
@@ -476,28 +473,10 @@ const UI = {
     el.mainMenu.classList.add('hidden')
   },
 
-  // charKey: 'warrior' | 'ranger'; save: full save object for character state
-  updateMenuStats(persistentGold, totalXP, charKey = 'warrior', save = null) {
-    el.menuGoldVal.textContent = persistentGold
-    el.menuXpVal.textContent   = totalXP
-    el.menuXpBar.style.width   = ((totalXP % 100) / 100 * 100) + '%'
-    // Update character name display
-    const charName = charKey === 'ranger' ? '🏹 Ranger' : '⚔️ Warrior'
-    const nameEl = document.getElementById('menu-char-name')
-    if (nameEl) nameEl.textContent = charName
-    // Ranger unlock button visibility
-    const unlockBtn = document.getElementById('unlock-ranger-btn')
-    if (unlockBtn && save) {
-      const rangerUnlocked = save.ranger?.unlocked ?? false
-      const canAfford = (save.persistentGold ?? 0) >= (CONFIG.rangerUnlockCost ?? 20)
-      unlockBtn.classList.toggle('hidden', rangerUnlocked || !canAfford)
-    }
-    // Character select tabs
-    document.querySelectorAll('.char-tab').forEach(tab => {
-      const isDisabled = tab.dataset.char === 'ranger' && !(save?.ranger?.unlocked)
-      tab.classList.toggle('active', tab.dataset.char === charKey)
-      tab.disabled = isDisabled
-    })
+  updateMenuStats(persistentGold, totalXP) {
+    if (el.menuGoldVal) el.menuGoldVal.textContent = persistentGold
+    if (el.menuXpVal)   el.menuXpVal.textContent   = totalXP
+    if (el.menuXpBar)   el.menuXpBar.style.width   = ((totalXP % 100) / 100 * 100) + '%'
   },
 
   setActiveDifficulty(diff) {
@@ -508,49 +487,7 @@ const UI = {
 
   // ── XP Tree panel (Warrior or Ranger) ────────
 
-  showWarriorTree(save, upgrades, onBuy, charKey = 'warrior') {
-    const charSave  = charKey === 'ranger' ? save.ranger : save.warrior
-    const totalXP   = charSave.totalXP ?? 0
-    const ownedList = charSave.upgrades ?? []
-    el.treeXpVal.textContent = `XP: ${totalXP}`
-    const title = el.warriorTreeOverlay.querySelector('.panel-title')
-    if (title) title.textContent = charKey === 'ranger' ? 'Ranger Tree' : 'Warrior Tree'
-    el.treeList.innerHTML = ''
-    for (const [id, def] of Object.entries(upgrades)) {
-      const owned = ownedList.includes(id)
-      const canAfford = !owned && totalXP >= def.xpCost
-      const card = document.createElement('div')
-      card.className = 'panel-card' + (owned ? ' owned' : '')
-      card.innerHTML = `
-        <div class="panel-card-icon">${def.icon}</div>
-        <div class="panel-card-info">
-          <div class="panel-card-name">${def.name}</div>
-          <div class="panel-card-desc">${def.desc}</div>
-          <div class="panel-card-cost">${def.xpCost} XP</div>
-        </div>
-        <div class="panel-card-action"></div>`
-      const actionEl = card.querySelector('.panel-card-action')
-      if (owned) {
-        const tag = document.createElement('span')
-        tag.className = 'panel-btn owned-tag'
-        tag.textContent = '✓ Owned'
-        actionEl.appendChild(tag)
-      } else {
-        const btn = document.createElement('button')
-        btn.className = 'panel-btn buy'
-        btn.textContent = 'Unlock'
-        btn.disabled = !canAfford
-        btn.addEventListener('click', () => onBuy(id), { once: true })
-        actionEl.appendChild(btn)
-      }
-      el.treeList.appendChild(card)
-    }
-    el.warriorTreeOverlay.classList.remove('hidden')
-  },
-
-  hideWarriorTree() {
-    el.warriorTreeOverlay.classList.add('hidden')
-  },
+  // showWarriorTree / hideWarriorTree replaced by hero-select-overlay in main.js
 
   // ── Gold Shop panel ───────────────────────────
 
