@@ -1,0 +1,466 @@
+/* Dungeon tile art — relative to this CSS file */
+:root {
+  --tile-art-back:     url('../assets/sprites/tiles/download (33).png');
+  --tile-art-revealed: url('../assets/sprites/tiles/dungeon-tile-floor.png');
+  --tile-art-brick:    url('../assets/sprites/tiles/download (29) (1).png');
+  --tile-art-wood:     url('../assets/sprites/tiles/download (30).png');
+  --tile-art-rubble:   url('../assets/sprites/tiles/download (31).png');
+  --tile-art-plank:    url('../assets/sprites/tiles/download (32).png');
+}
+
+/* ── Grid container ── */
+#grid-container {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 6px;
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 45%,
+      rgba(232,132,26,0.07) 0%,
+      transparent 70%),
+    var(--bg-dark);
+  overflow: visible;
+  /* 3. Mild perspective tilt on the container — doesn't interfere with tile flip */
+  perspective: 1200px;
+}
+
+#grid-container > #grid {
+  transform: rotateX(4deg);
+  transform-origin: center top;
+}
+
+#grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr); /* cols set in JS; default matches base 5×6 */
+  gap: 0;
+  width: 100%;
+  max-width: 360px;
+  overflow: visible;
+}
+
+/* ── Base tile ── */
+.tile {
+  aspect-ratio: 1;
+  perspective: 700px;
+  cursor: pointer;
+  touch-action: none;   /* prevent browser scroll/zoom stealing the long-press */
+  -webkit-user-select: none;
+  user-select: none;
+  /* Allow icon to overflow upward into the tile above */
+  overflow: visible;
+  position: relative;
+  z-index: 1;
+}
+
+/* Each row stacks above the previous so overflowing icons render on top */
+.tile:hover { z-index: 3; }
+
+/* Revealed enemy tiles float above all neighbors so their sprite isn't clipped */
+.tile.is-enemy.revealed { z-index: 4; }
+
+/* Reachable tiles sit above revealed neighbors so the drop shadow is visible */
+.tile.reachable:not(.revealed) { z-index: 2; }
+
+
+.tile-inner {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.42s cubic-bezier(0.35, 0.0, 0.25, 1.0);
+  border-radius: 2px;
+  overflow: visible;
+}
+
+.tile.revealed .tile-inner {
+  transform: rotateY(180deg);
+}
+
+.tile-back,
+.tile-front {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;  /* label + hp bar sit at bottom */
+  gap: 2px;
+  padding-bottom: 4px;
+}
+
+/* Back face — unrevealed: same texture but darkened */
+.tile-back {
+  background-color: #1a1a20;
+  background-image: var(--tile-art-back);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border: none;
+  box-shadow: none;
+}
+
+/* Default: dark (not yet reachable) */
+.tile-back::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.62);
+  pointer-events: none;
+}
+
+/* Reachable: lift the darkness — tile is lit and clickable */
+.tile.reachable .tile-back::after {
+  background: none;
+}
+
+/* Reachable tiles pop up with a dark shadow on all sides */
+.tile.reachable:not(.revealed) .tile-back {
+  box-shadow: 0 0 3px 3px rgba(0, 0, 0, 0.75);
+}
+
+/* Locked by monster + not reachable: dark + X */
+.tile.locked .tile-back::after {
+  background:
+    url('../assets/sprites/Items/x.png') center/52% no-repeat,
+    rgba(0,0,0,0.62);
+}
+
+/* Locked by monster + reachable: lit + X */
+.tile.reachable.locked .tile-back::after {
+  background:
+    url('../assets/sprites/Items/x.png') center/52% no-repeat,
+    rgba(0,0,0,0.08);
+}
+
+/* Front face — revealed content (floor art + type tint) */
+.tile-front {
+  transform: rotateY(180deg);
+  /* 1. Top-edge highlight — light source from above */
+  border-top: 1px solid rgba(255,255,255,0.22);
+  border-left: 1px solid rgba(255,255,255,0.10);
+  border-right: 0;
+  /* 5. Tile thickness — dark bottom border = stone block depth */
+  border-bottom: 0;
+  background-size: cover, cover;
+  background-position: center, center;
+  background-repeat: no-repeat, no-repeat;
+  overflow: visible;
+  /* 4. Inset slab shadow — floor looks recessed */
+  box-shadow:
+    inset 0 3px 7px rgba(0,0,0,0.5),
+    inset 0 -1px 0 rgba(255,255,255,0.04);
+}
+
+/* 2. Drop shadow on tile surface beneath floating enemy icons */
+.tile.is-enemy.revealed .tile-front::after {
+  content: '';
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 55%;
+  height: 6px;
+  background: radial-gradient(ellipse, rgba(0,0,0,0.55) 0%, transparent 75%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+
+/* Enemy stat row — HP and damage displayed on tile face */
+.tile-enemy-stats {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(0.45rem, 2.2vw, 0.72rem);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  color: #fff;
+  text-shadow: 0 0 4px #000, 0 1px 4px rgba(0,0,0,1);
+  background: rgba(0,0,0,0.45);
+  border-radius: 6px;
+  padding: 2px 4px;
+  margin-bottom: 3px;
+}
+
+.tile-enemy-stats .stat-hp  { color: #ff5555; text-shadow: 0 0 5px #000, 0 1px 4px rgba(0,0,0,1); }
+.tile-enemy-stats .stat-dmg { color: #ffd040; text-shadow: 0 0 5px #000, 0 1px 4px rgba(0,0,0,1); }
+
+/* ── Per-type icon placement ── */
+
+/* Chest: sits on the floor — no overflow, bottom-anchored */
+.tile-type-chest .tile-icon-wrap {
+  top: auto;
+  bottom: 20px;
+  height: 60%;
+  align-items: flex-end;
+}
+
+/* Exit: built into the floor — flat, no overflow, centered low */
+.tile-type-exit .tile-icon-wrap {
+  top: auto;
+  bottom: 18px;
+  height: 50%;
+  align-items: flex-end;
+  opacity: 0.88;
+}
+
+/* Gold coin: gentle float, no big overflow */
+.tile-type-gold .tile-icon-wrap {
+  top: -10%;
+  bottom: 22px;
+}
+
+/* Shrine, merchant, checkpoint: slight lift but not full enemy overflow */
+.tile-type-shrine .tile-icon-wrap,
+.tile-type-merchant .tile-icon-wrap,
+.tile-type-checkpoint .tile-icon-wrap {
+  top: -12%;
+  bottom: 22px;
+}
+
+/* Revealed icon art — oversized and shifted upward for 3D pop (default / enemies) */
+.tile-icon-wrap {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  position: absolute;
+  bottom: 28px;           /* sit above label + stats + hp bar */
+  left: 0;
+  right: 0;
+  top: -28%;              /* how far it overflows upward */
+  pointer-events: none;
+  z-index: 2;
+}
+
+.tile-icon-img {
+  width: 88%;
+  max-width: 90px;
+  height: auto;
+  object-fit: contain;
+  pointer-events: none;
+  filter:
+    drop-shadow(0 -2px 0 rgba(0, 0, 0, 0.55))
+    drop-shadow(0 3px 5px rgba(0, 0, 0, 0.80))
+    drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55))
+    drop-shadow(0 0 1px rgba(0, 0, 0, 0.95));
+}
+
+.tile-icon-fallback .tile-emoji {
+  line-height: 1;
+  font-size: 1.85rem;
+  filter:
+    drop-shadow(0 -1px 0 rgba(0, 0, 0, 0.55))
+    drop-shadow(0 3px 5px rgba(0, 0, 0, 0.80))
+    drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55));
+}
+
+.tile-emoji {
+  line-height: 1;
+  font-size: 1.85rem;
+  filter:
+    drop-shadow(0 -1px 0 rgba(0, 0, 0, 0.55))
+    drop-shadow(0 3px 5px rgba(0, 0, 0, 0.80))
+    drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55));
+}
+
+.tile-label {
+  font-size: 0.48rem;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  opacity: 0.92;
+  font-family: sans-serif;
+  color: rgba(255,255,255,0.85);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+}
+
+/* Enemy HP bar on tile front */
+.tile-hp-bar {
+  width: 75%;
+  height: 3px;
+  background: rgba(0,0,0,0.5);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 1px;
+}
+
+.tile-hp-fill {
+  height: 100%;
+  background: #cc2222;
+  border-radius: 2px;
+  transition: width 0.2s ease;
+}
+
+/* ── Tile type styles ── */
+
+/* All revealed tiles: plain floor art by default */
+.tile-front {
+  background-image: var(--tile-art-revealed);
+  background-size: cover;
+  background-position: center;
+}
+
+.tile-front.type-slain {
+  background-image: var(--tile-art-revealed);
+  border-color: #2a2a2a;
+  opacity: 0.5;
+}
+
+.tile-front.type-enemy-fast { animation: pulse-danger 1.1s ease-in-out infinite; }
+.tile-front.type-boss        { animation: pulse-danger 0.8s ease-in-out infinite; }
+
+.tile-front.is-boss .tile-label {
+  color: #dd88ff;
+  font-weight: bold;
+}
+
+.tile-hp-bar.boss-hp { height: 5px; }
+.tile-hp-bar.boss-hp .tile-hp-fill { background: #aa00ee; }
+
+/* ── Tile colours — only active when body.tile-colors is set ── */
+body.tile-colors .tile-front.type-empty {
+  background-image:
+    linear-gradient(180deg, rgba(14,16,26,0.45), rgba(22,22,34,0.58)),
+    var(--tile-art-revealed);
+  color: var(--text-dim);
+}
+body.tile-colors .tile-front.type-gold {
+  background-image:
+    linear-gradient(145deg, rgba(37,26,0,0.72), rgba(61,45,0,0.80)),
+    var(--tile-art-revealed);
+  border-color: #7a6010;
+}
+body.tile-colors .tile-front.type-chest {
+  background-image:
+    linear-gradient(145deg, rgba(40,21,0,0.72), rgba(74,40,0,0.80)),
+    var(--tile-art-revealed);
+  border-color: #7a4010;
+  box-shadow: inset 0 3px 7px rgba(0,0,0,0.5), inset 0 0 12px rgba(180,100,0,0.2);
+}
+body.tile-colors .tile-front.type-checkpoint {
+  background-image:
+    linear-gradient(145deg, rgba(0,21,40,0.72), rgba(0,32,64,0.80)),
+    var(--tile-art-revealed);
+  border-color: #1a5080;
+  box-shadow: inset 0 3px 7px rgba(0,0,0,0.5), inset 0 0 14px rgba(0,100,200,0.2);
+}
+body.tile-colors .tile-front.type-exit {
+  background-image:
+    linear-gradient(145deg, rgba(0,21,8,0.72), rgba(0,40,16,0.80)),
+    var(--tile-art-revealed);
+  border-color: #185030;
+  box-shadow: inset 0 3px 7px rgba(0,0,0,0.5), inset 0 0 16px rgba(0,160,60,0.2);
+}
+body.tile-colors .tile-front.type-trap {
+  background-image:
+    linear-gradient(145deg, rgba(26,16,32,0.78), rgba(45,26,56,0.85)),
+    var(--tile-art-revealed);
+  border-color: #5a2a7a;
+}
+body.tile-colors .tile-front.type-slain {
+  background-image:
+    linear-gradient(180deg, rgba(12,12,12,0.72), rgba(24,24,24,0.82)),
+    var(--tile-art-revealed);
+}
+body.tile-colors .tile-front.type-enemy {
+  background-image:
+    linear-gradient(145deg, rgba(42,8,8,0.78), rgba(74,16,16,0.86)),
+    var(--tile-art-revealed);
+  border-color: #6a1818;
+  box-shadow: inset 0 3px 7px rgba(0,0,0,0.5), inset 0 0 14px rgba(160,0,0,0.25);
+}
+body.tile-colors .tile-front.type-enemy-fast {
+  background-image:
+    linear-gradient(145deg, rgba(56,8,8,0.80), rgba(100,16,16,0.88)),
+    var(--tile-art-revealed);
+  border-color: #aa1818;
+  box-shadow: inset 0 3px 7px rgba(0,0,0,0.5), inset 0 0 18px rgba(220,0,0,0.35);
+}
+body.tile-colors .tile-front.type-boss {
+  background-image:
+    linear-gradient(145deg, rgba(26,0,48,0.84), rgba(56,0,96,0.90)),
+    var(--tile-art-revealed);
+  border-color: #9900cc;
+  box-shadow: inset 0 3px 7px rgba(0,0,0,0.5), inset 0 0 24px rgba(160,0,220,0.4), 0 0 10px rgba(140,0,200,0.3);
+}
+body.tile-colors .tile-front.type-shrine {
+  background-image:
+    linear-gradient(145deg, rgba(0,26,16,0.72), rgba(0,48,32,0.80)),
+    var(--tile-art-revealed);
+  border-color: #00aa66;
+  box-shadow: inset 0 3px 7px rgba(0,0,0,0.5), inset 0 0 14px rgba(0,180,100,0.2);
+}
+body.tile-colors .tile-front.type-merchant {
+  background-image:
+    linear-gradient(145deg, rgba(26,21,0,0.72), rgba(48,40,0,0.80)),
+    var(--tile-art-revealed);
+  border-color: #aa8800;
+  box-shadow: inset 0 3px 7px rgba(0,0,0,0.5), inset 0 0 14px rgba(180,140,0,0.2);
+}
+
+/* ── Tile states ── */
+
+/* Revealed, resolved — no more interaction */
+.tile.revealed {
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Revealed exit — second tap to descend / escape */
+.tile.revealed.exit-pending {
+  cursor: pointer;
+  pointer-events: all;
+}
+
+/* Revealed chest — tap to collect loot */
+.tile.revealed.chest-ready {
+  cursor: pointer;
+  pointer-events: all;
+}
+
+/* Revealed merchant — tap to open trade (not auto) */
+.tile.revealed.merchant-pending {
+  cursor: pointer;
+  pointer-events: all;
+}
+
+/* Revealed enemy still alive — tappable in FLOOR_EXPLORE */
+.tile.revealed.enemy-alive {
+  cursor: pointer;
+  pointer-events: all;
+}
+
+.tile.revealed.enemy-alive .tile-front {
+  box-shadow: inset 0 0 10px rgba(160,0,0,0.3), 0 0 6px rgba(140,0,0,0.2);
+}
+
+/* Active combat — enemy tile tappable (tap = fight action) */
+.tile.active-combat {
+  pointer-events: all !important;
+  cursor: pointer;
+}
+
+.tile.active-combat .tile-front {
+  box-shadow:
+    inset 0 0 18px rgba(220,0,0,0.35),
+    0 0 12px rgba(200,0,0,0.4);
+  animation: pulse-danger 0.9s ease-in-out infinite;
+}
+
+/* Locked tile — X overlay handles the visual; just block interaction */
+.tile.locked {
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+.tile.locked .tile-back {
+  border-color: #1a1a24;
+}

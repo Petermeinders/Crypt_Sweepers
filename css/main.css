@@ -1,0 +1,69 @@
+/* ── Reset & variables ── */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+:root {
+  --bg-dark:       #0f0f1a;
+  --bg-panel:      #13131f;
+  --stone-mid:     #3a3a4f;
+  --stone-light:   #4a4a65;
+  --torch-orange:  #e8841a;
+  --torch-yellow:  #f5c518;
+  --gold:          #ffd700;
+  --hp-red:        #c0392b;
+  --hp-bright:     #e74c3c;
+  --mana-blue:     #2471a3;
+  --mana-bright:   #2e86c1;
+  --text-primary:  #ddd8c8;
+  --text-dim:      #7a7060;
+  --radius:        8px;
+  --hud-bar-bg:    linear-gradient(180deg, #1e1e2d 0%, #12121c 100%);
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-width: 480px;
+  margin: 0 auto;
+  position: relative;
+}
+
+/* ── Header ── */
+#header {
+  padding: 10px 16px 6px;
+  text-align: center;
+  flex-shrink: 0;
+  background: linear-gradient(180deg, #080810 0%, transparent 100%);
+}
+
+#title {
+  font-size: 1.35rem;
+  color: var(--torch-yellow);
+  text-shadow: 0 0 18px var(--torch-orange), 0 0 40px rgba(232,132,26,0.3);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+#floor-info {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+  letter-spacing: 1px;
+  font-style: italic;
+}

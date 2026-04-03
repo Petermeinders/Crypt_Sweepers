@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Package lock (optional — remove this line if you want to commit it)
+# package-lock.json
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.vscode/
+.idea/
+*.suo
+*.user
+
+# Logs
+*.log
+npm-debug.log*
+
+# Generated / build output
+_bmad-output/
+
+# Local scripts / one-off tools
+convert-audio.ps1
+generate-icons.html
+
+# Prototype (old code, not part of the shipped game)
+prototype/
+
+# Environment / secrets
+.env
+.env.local

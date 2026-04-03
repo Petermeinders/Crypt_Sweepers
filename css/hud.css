@@ -1,0 +1,438 @@
+/* ── Messages & combat (above XP / bottom HUD) ── */
+#action-panel {
+  padding: 8px 12px 10px;
+  background: linear-gradient(180deg, rgba(8,8,16,0.95) 0%, #080810 100%);
+  flex-shrink: 0;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+
+#message-box {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  text-align: center;
+  font-style: italic;
+  line-height: 1.45;
+  min-height: 1.45em;
+  transition: color 0.2s;
+}
+
+#message-box.alert {
+  color: #ff8888;
+  font-style: normal;
+}
+
+#action-buttons {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  visibility: visible;
+  opacity: 1;
+  transition: opacity 0.15s;
+}
+
+#action-buttons.hidden,
+#retreat-bar.hidden {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#retreat-bar {
+  margin-top: 6px;
+  visibility: visible;
+  opacity: 1;
+  transition: opacity 0.15s;
+}
+
+/* ── XP strip ── */
+#xp-bar-container {
+  height: 4px;
+  background: rgba(0,0,0,0.55);
+  flex-shrink: 0;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+#xp-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #4040c0, #7070ff);
+  width: 0%;
+  transition: width 0.4s ease;
+  box-shadow: 0 0 6px rgba(100,100,255,0.45);
+}
+
+/* ── Bottom rectangle HUD ── */
+#hud-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px 10px 12px;
+  flex-shrink: 0;
+  overflow: visible;
+  background: var(--hud-bar-bg);
+  border-top: 1px solid rgba(255,255,255,0.07);
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.45);
+}
+
+/* Character portrait */
+#hud-portrait-wrap {
+  flex-shrink: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: stretch;
+  overflow: visible;
+  z-index: 10;
+}
+
+.hud-portrait {
+  width: 72px;
+  align-self: stretch;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.12) 0%, transparent 42%),
+    linear-gradient(180deg, #3a3848 0%, #252530 100%);
+  border: 2px solid rgba(90,85,110,0.85);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.15),
+    inset 0 -2px 0 rgba(0,0,0,0.35),
+    0 3px 10px rgba(0,0,0,0.5);
+}
+
+#hud-portrait-img {
+  position: absolute;
+  height: 140px;
+  width: auto;
+  margin-bottom: 12%;
+  margin-left: 15px;
+  image-rendering: pixelated;
+  pointer-events: none;
+  z-index: 20;
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.9));
+}
+
+#hud-portrait-wrap.is-ranger .hud-portrait {
+  border-color: rgba(80, 140, 90, 0.85);
+  background:
+    linear-gradient(145deg, rgba(120,200,140,0.15) 0%, transparent 45%),
+    linear-gradient(180deg, #283828 0%, #1a241c 100%);
+}
+
+/* Stats column — pill / bar feel */
+#hud-stats {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  justify-content: center;
+}
+
+.hud-stat-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  /* Socket / inset look */
+  background: rgba(0,0,0,0.48);
+  border-radius: 7px;
+  padding: 3px 7px;
+  border: 1px solid rgba(0,0,0,0.7);
+  box-shadow:
+    inset 0 2px 4px rgba(0,0,0,0.55),
+    inset 0 1px 0 rgba(0,0,0,0.4),
+    0 1px 0 rgba(255,255,255,0.07);
+}
+
+.hud-stat-row.hud-stat-dmg {
+  background: rgba(0,0,0,0.48);
+  border-radius: 7px;
+  padding: 3px 7px;
+  border: 1px solid rgba(0,0,0,0.7);
+  box-shadow:
+    inset 0 2px 4px rgba(0,0,0,0.55),
+    inset 0 1px 0 rgba(0,0,0,0.4),
+    0 1px 0 rgba(255,255,255,0.07);
+}
+
+.hud-stat-ic {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  line-height: 1;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,0.6));
+}
+
+.hud-micro-bar {
+  flex: 1;
+  min-width: 0;
+  height: 8px;
+  border-radius: 5px;
+}
+
+.hud-stat-num {
+  flex-shrink: 0;
+  font-size: 0.62rem;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
+  color: rgba(235, 228, 215, 0.92);
+  letter-spacing: 0.3px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.85);
+  min-width: 2.8em;
+  text-align: right;
+}
+
+.hud-dmg-num {
+  font-size: 0.68rem;
+  text-align: left;
+  flex: 1;
+  min-width: 0;
+}
+
+.hud-meta {
+  display: flex;
+  align-items: center;
+  margin-top: 1px;
+}
+
+/* Gold gets its own socket row matching HP/mana */
+.hud-gold-inline {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  font-size: 0.62rem;
+  color: var(--gold);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-weight: 700;
+  text-shadow: 0 0 10px rgba(255,200,0,0.35);
+  background: rgba(0,0,0,0.48);
+  border-radius: 7px;
+  padding: 3px 7px;
+  border: 1px solid rgba(0,0,0,0.7);
+  box-shadow:
+    inset 0 2px 4px rgba(0,0,0,0.55),
+    inset 0 1px 0 rgba(0,0,0,0.4),
+    0 1px 0 rgba(255,255,255,0.07);
+}
+
+.hud-gold-inline .gold-icon {
+  font-size: 0.75rem;
+}
+
+/* Stat bars (shared with legacy class names) */
+.stat-bar {
+  background: rgba(0,0,0,0.65);
+  border-radius: 5px;
+  overflow: hidden;
+  border: 1px solid rgba(0,0,0,0.8);
+  box-shadow:
+    inset 0 2px 3px rgba(0,0,0,0.6),
+    0 1px 0 rgba(255,255,255,0.06);
+}
+
+.stat-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.35s ease;
+}
+
+.hp-fill {
+  width: 100%;
+  background: linear-gradient(90deg, var(--hp-red), var(--hp-bright));
+  box-shadow: 0 0 8px rgba(231,76,60,0.35);
+}
+
+.hp-fill.critical {
+  background: linear-gradient(90deg, #700000, #cc0000);
+  animation: pulse-danger 0.7s ease-in-out infinite;
+}
+
+.mana-fill {
+  width: 100%;
+  background: linear-gradient(90deg, var(--mana-blue), var(--mana-bright));
+  box-shadow: 0 0 8px rgba(46,134,193,0.35);
+}
+
+/* Key items — greyed column */
+.hud-keys {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.hud-key-slot {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
+}
+
+.hud-key-ghost {
+  font-size: 0.85rem;
+  opacity: 0.28;
+  filter: grayscale(0.4);
+}
+
+.hud-key-backpack {
+  font-size: 0.9rem;
+  cursor: pointer;
+  border-color: rgba(245,197,24,0.35);
+  transition: border-color 0.15s, transform 0.1s;
+}
+
+.hud-key-backpack:active {
+  transform: scale(0.9);
+  border-color: rgba(245,197,24,0.7);
+}
+
+/* 2×3 action slots */
+.hud-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(3, 1fr);
+  gap: 4px;
+  align-self: stretch;
+  flex-shrink: 0;
+}
+
+.hud-action-slot {
+  touch-action: none;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  border: 2px solid rgba(245, 197, 24, 0.38);
+  background: linear-gradient(165deg, rgba(40,38,52,0.95) 0%, rgba(18,18,28,0.98) 100%);
+  font-size: 1.15rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--text-primary);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.1),
+    0 2px 6px rgba(0,0,0,0.45);
+  transition: transform 0.1s ease, opacity 0.15s ease;
+}
+
+.hud-action-slot:not(:disabled):active {
+  transform: scale(0.94);
+}
+
+.hud-action-slot.is-backpack:not(:disabled) {
+  border-color: rgba(245, 197, 24, 0.55);
+}
+
+.hud-action-slot:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.hud-action-slot.is-slam {
+  border-color: rgba(255, 120, 20, 0.6);
+  font-size: 1.3rem;
+}
+
+.hud-action-slot.is-slam-active {
+  border-color: #ff7014;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.1),
+    0 0 10px rgba(255,100,0,0.6),
+    0 2px 6px rgba(0,0,0,0.45);
+  animation: pulse-slam 0.9s ease-in-out infinite;
+}
+
+@keyframes pulse-slam {
+  0%, 100% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 0 8px rgba(255,100,0,0.5), 0 2px 6px rgba(0,0,0,0.45); }
+  50%       { box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 0 18px rgba(255,140,0,0.85), 0 2px 6px rgba(0,0,0,0.45); }
+}
+
+.hud-action-slot.is-placeholder {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: rgba(120,115,105,0.7);
+  letter-spacing: 1px;
+}
+
+/* ── Combat / retreat buttons (below message) ── */
+.action-btn {
+  flex: 1;
+  padding: 9px 6px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-family: Georgia, serif;
+  cursor: pointer;
+  transition: transform 0.1s ease, opacity 0.1s ease;
+  letter-spacing: 0.3px;
+  line-height: 1.2;
+}
+
+.action-btn:active  { transform: scale(0.95); opacity: 0.85; }
+.action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.spell-btn {
+  background: linear-gradient(135deg, #101040, #182878);
+  color: #c0d0ff;
+  border: 1px solid #2040a0;
+}
+
+.spell-btn.targeting {
+  background: linear-gradient(135deg, #182060, #2040a0);
+  border-color: #6080ff;
+  color: #e8f0ff;
+  box-shadow: 0 0 10px rgba(80,120,255,0.5);
+  animation: pulse-spell 1s ease-in-out infinite;
+}
+
+@keyframes pulse-spell {
+  0%, 100% { box-shadow: 0 0 8px rgba(80,120,255,0.4); }
+  50%       { box-shadow: 0 0 18px rgba(100,150,255,0.7); }
+}
+
+.flee-btn {
+  background: linear-gradient(135deg, #101a10, #1a3020);
+  color: #b0d8b0;
+  border: 1px solid #2a5030;
+}
+
+.retreat-btn {
+  width: 100%;
+  background: linear-gradient(135deg, #1a1010, #2d1818);
+  color: #c8a888;
+  border: 1px solid #5a3a20;
+  font-size: 0.72rem;
+  padding: 8px;
+}
+
+/* ── Reset button ── */
+#reset-btn {
+  position: fixed;
+  top: 10px;
+  right: 12px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text-dim);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  cursor: pointer;
+  font-family: sans-serif;
+  letter-spacing: 0.5px;
+  transition: background 0.15s;
+  z-index: 10;
+}
+
+#reset-btn:hover  { background: rgba(255,255,255,0.1); }
+#reset-btn:active { background: rgba(255,255,255,0.15); }

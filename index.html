@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f0f1a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Dungeon Sweepers">
+  <link rel="manifest" href="manifest.json">
+  <title>Dungeon Sweepers</title>
+
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/tiles.css">
+  <link rel="stylesheet" href="css/hud.css">
+  <link rel="stylesheet" href="css/animations.css">
+  <link rel="stylesheet" href="css/overlays.css">
+</head>
+<body>
+
+  <!-- ── Game screen ── -->
+  <div id="app">
+
+    <div id="header">
+      <div id="title">Dungeon Sweepers</div>
+      <div id="floor-info">Floor 1 — The Shallow Dark</div>
+    </div>
+
+    <div id="grid-container">
+      <div id="grid"></div>
+      <div id="slam-overlay" class="hidden">
+        <img id="slam-gif" src="" alt="">
+      </div>
+    </div>
+
+    <div id="action-panel">
+      <div id="message-box">Tap a tile to reveal what lurks beneath...</div>
+      <div id="action-buttons" class="hidden"></div>
+      <div id="retreat-bar" class="hidden">
+        <button class="action-btn retreat-btn" id="retreat-btn">🚪 Hasty Retreat (keep 20% loot)</button>
+      </div>
+    </div>
+
+    <div id="xp-bar-container">
+      <div id="xp-bar"></div>
+    </div>
+
+    <!-- Bottom HUD: portrait | stats | key items | 4 action slots -->
+    <div id="hud-bar">
+      <div id="hud-portrait-wrap">
+        <div id="hud-portrait" class="hud-portrait" aria-hidden="true">
+          <img id="hud-portrait-img" src="assets/sprites/Heroes/Warrior/__Idle.gif" alt="Warrior">
+        </div>
+      </div>
+
+      <div id="hud-stats">
+        <div class="hud-stat-row">
+          <span class="hud-stat-ic" title="Health">❤️</span>
+          <div class="stat-bar hud-micro-bar">
+            <div class="stat-fill hp-fill" id="hp-bar"></div>
+          </div>
+          <span class="hud-stat-num" id="hp-value">100/100</span>
+        </div>
+        <div class="hud-stat-row hud-stat-dmg">
+          <span class="hud-stat-ic" title="Attack">⚔️</span>
+          <span class="hud-stat-num hud-dmg-num" id="dmg-value">10–22</span>
+        </div>
+        <div class="hud-stat-row">
+          <span class="hud-stat-ic" title="Mana">🔵</span>
+          <div class="stat-bar hud-micro-bar">
+            <div class="stat-fill mana-fill" id="mana-bar"></div>
+          </div>
+          <span class="hud-stat-num" id="mana-value">60/60</span>
+        </div>
+        <div class="hud-meta">
+          <span class="hud-gold-inline"><span class="gold-icon">🪙</span> <span id="gold-value">0</span></span>
+        </div>
+      </div>
+
+      <div id="hud-keys" class="hud-keys" aria-label="Key items">
+        <button class="hud-key-slot hud-key-backpack" id="hud-backpack-btn" title="Backpack">🎒</button>
+        <div class="hud-key-slot" title="Locked"><span class="hud-key-ghost">🔑</span></div>
+        <div class="hud-key-slot" title="Locked"><span class="hud-key-ghost">⛑️</span></div>
+      </div>
+
+      <div id="hud-actions" class="hud-actions" aria-label="Quick actions">
+        <button type="button" class="hud-action-slot is-placeholder" id="hud-btn-slot-a" title="Reserved" disabled>···</button>
+        <button type="button" class="hud-action-slot is-placeholder" id="hud-btn-slot-b" title="Reserved" disabled>···</button>
+        <button type="button" class="hud-action-slot is-placeholder" id="hud-btn-slot-c" title="Reserved" disabled>···</button>
+        <button type="button" class="hud-action-slot is-placeholder" id="hud-btn-slot-d" title="Reserved" disabled>···</button>
+        <button type="button" class="hud-action-slot is-placeholder" id="hud-btn-slot-e" title="Reserved" disabled>···</button>
+        <button type="button" class="hud-action-slot is-placeholder" id="hud-btn-slot-f" title="Reserved" disabled>···</button>
+      </div>
+    </div>
+
+    <button id="reset-btn">↺ New Run</button>
+
+  </div>
+
+  <!-- ── Backpack overlay ── -->
+  <div id="backpack-overlay" class="panel-overlay hidden">
+    <div class="panel-header">
+      <button class="panel-back-btn" id="backpack-close">← Back</button>
+      <div class="panel-title">Backpack</div>
+    </div>
+    <div id="backpack-grid">
+      <div class="backpack-slot"></div>
+      <div class="backpack-slot"></div>
+      <div class="backpack-slot"></div>
+      <div class="backpack-slot"></div>
+      <div class="backpack-slot"></div>
+      <div class="backpack-slot"></div>
+      <div class="backpack-slot"></div>
+      <div class="backpack-slot"></div>
+      <div class="backpack-slot"></div>
+    </div>
+  </div>
+
+  <!-- ── Info card overlay ── -->
+  <div id="info-card-overlay">
+    <div id="info-card"></div>
+  </div>
+
+  <!-- ── Level-up overlay ── -->
+  <div id="level-up-overlay">
+    <div id="level-up-title">⬆️ Level Up!</div>
+    <div id="level-up-subtitle">Choose an ability</div>
+    <div id="ability-choices"></div>
+  </div>
+
+  <!-- ── Merchant overlay ── -->
+  <div id="merchant-overlay" class="panel-overlay hidden">
+    <div class="panel-header">
+      <div class="panel-title">🎲 Goblin Merchant</div>
+    </div>
+    <div class="merchant-body">
+      <p class="merchant-blurb">"Roll the bones, adventurer! Only <span id="merchant-cost">10</span> 💰."</p>
+      <div id="merchant-result" class="hidden"></div>
+      <button id="merchant-roll-btn" class="menu-btn primary">🎲 Roll the Dice</button>
+      <button id="merchant-close-btn" class="menu-btn secondary hidden">Continue</button>
+    </div>
+  </div>
+
+  <!-- ── Run summary overlay ── -->
+  <div id="run-summary"></div>
+
+  <!-- ── Main menu ── -->
+  <div id="main-menu">
+    <div id="menu-title">DUNGEON SWEEPERS</div>
+
+    <!-- Character tabs -->
+    <div id="char-tabs">
+      <button class="char-tab active" data-char="warrior"><img class="char-tab-gif" src="assets/sprites/Heroes/Warrior/__Idle.gif" alt="">Warrior</button>
+      <button class="char-tab" data-char="ranger">🏹 Ranger</button>
+    </div>
+
+    <div id="menu-char-block">
+      <div id="menu-char-preview">
+        <img id="menu-hero-gif" src="assets/sprites/Heroes/Warrior/__Idle.gif" alt="Warrior">
+      </div>
+      <div id="menu-char-name">Warrior</div>
+      <div id="menu-char-stats">
+        <span id="menu-gold-display">💰 <span id="menu-gold-val">0</span></span>
+        <span id="menu-xp-display">XP: <span id="menu-xp-val">0</span></span>
+      </div>
+      <div id="menu-xp-bar-wrap"><div id="menu-xp-bar"></div></div>
+    </div>
+
+    <button id="unlock-ranger-btn" class="menu-btn secondary hidden">🔓 Unlock Ranger (150💰)</button>
+
+    <button id="new-run-btn" class="menu-btn primary">⚔️ New Run</button>
+    <button id="settings-btn" class="menu-btn secondary">⚙️ Settings</button>
+    <div id="menu-secondary">
+      <button id="warrior-tree-btn" class="menu-btn secondary">🌳 Skill Tree</button>
+      <button id="gold-shop-btn"    class="menu-btn secondary">🛒 Gold Shop</button>
+    </div>
+    <div id="difficulty-row">
+      <span class="diff-label">Difficulty</span>
+      <div id="diff-cards">
+        <button class="diff-btn" data-diff="easy">
+          <span class="diff-name">Easy</span>
+          <span class="diff-stats">−30% dmg taken · −20% XP &amp; gold</span>
+        </button>
+        <button class="diff-btn active" data-diff="normal">
+          <span class="diff-name">Normal</span>
+          <span class="diff-stats">Standard rates</span>
+        </button>
+        <button class="diff-btn" data-diff="hard">
+          <span class="diff-name">Hard</span>
+          <span class="diff-stats">+35% dmg taken · +25% XP &amp; gold</span>
+        </button>
+      </div>
+    </div>
+    <div id="menu-save-row">
+      <button id="export-save-btn" class="save-link">Export Save</button>
+      <button id="import-save-btn" class="save-link">Import Save</button>
+    </div>
+    <input type="file" id="import-file-input" accept=".json" style="display:none">
+
+    <!-- PWA install nudge (shown by JS when available) -->
+    <div id="install-nudge" class="hidden">
+      <button id="install-btn" class="save-link">📲 Add to Home Screen</button>
+      <div id="ios-install-tip" class="hidden">
+        Tap <strong>Share</strong> ( <span style="font-size:1.1em">⎋</span> ) then <strong>"Add to Home Screen"</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Settings overlay ── -->
+  <div id="settings-overlay" class="panel-overlay hidden">
+    <div class="panel-header">
+      <button class="panel-back-btn" id="settings-back">← Back</button>
+      <div class="panel-title">Settings</div>
+    </div>
+    <div class="panel-list">
+
+      <div class="settings-row">
+        <div class="settings-label">
+          <span class="settings-label-title">Tile Colors</span>
+          <span class="settings-label-desc">Color-code revealed tiles by type (enemy, gold, etc.)</span>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="setting-tile-colors">
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+
+      <!-- ── Delete save ── -->
+      <div class="settings-delete-row">
+        <button id="delete-save-btn" class="settings-danger-btn">🗑️ Delete Save</button>
+        <div id="delete-save-confirm" class="hidden">
+          <span class="delete-confirm-label">Are you sure? This cannot be undone.</span>
+          <button id="delete-save-yes" class="settings-danger-btn">Yes, delete</button>
+          <button id="delete-save-no" class="settings-safe-btn">Cancel</button>
+        </div>
+      </div>
+
+      <!-- ── Cheat accordion ── -->
+      <div class="settings-accordion" id="cheat-accordion">
+        <button class="accordion-header" id="cheat-accordion-toggle">
+          <span>☠️ Cheats</span>
+          <span class="accordion-chevron">▸</span>
+        </button>
+        <div class="accordion-body" id="cheat-accordion-body">
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-label-title">God Mode</span>
+              <span class="settings-label-desc">Player takes no damage</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="cheat-god-mode">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-label-title">Instant Kill</span>
+              <span class="settings-label-desc">Enemies die in one hit</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="cheat-instant-kill">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-label-title">999 Gold</span>
+              <span class="settings-label-desc">Sets run gold to 999</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="cheat-999-gold">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-label-title">999 XP</span>
+              <span class="settings-label-desc">Sets run XP to 999</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="cheat-999-xp">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Warrior / Ranger XP Tree overlay ── -->
+  <div id="warrior-tree-overlay" class="panel-overlay hidden">
+    <div class="panel-header">
+      <button class="panel-back-btn" id="warrior-tree-back">← Back</button>
+      <div class="panel-title">Warrior Tree</div>
+      <div class="panel-resource" id="tree-xp-val">XP: 0</div>
+    </div>
+    <div id="tree-list" class="panel-list"></div>
+  </div>
+
+  <!-- ── Gold Shop overlay ── -->
+  <div id="gold-shop-overlay" class="panel-overlay hidden">
+    <div class="panel-header">
+      <button class="panel-back-btn" id="gold-shop-back">← Back</button>
+      <div class="panel-title">Gold Shop</div>
+      <div class="panel-resource" id="shop-gold-val">💰 0</div>
+    </div>
+    <div id="shop-cart-info" class="hidden">Items in cart are applied to your next run.</div>
+    <div id="shop-list" class="panel-list"></div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
