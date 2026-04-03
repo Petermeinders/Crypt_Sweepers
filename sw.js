@@ -1,8 +1,8 @@
-// Dungeon Sweepers — Service Worker
+// Crypt Sweepers — Service Worker
 // Strategy: Cache-first for assets, network-first for HTML.
 // Version bump CACHE_NAME to force cache refresh on deploy.
 
-const CACHE_NAME = 'dungeon-sweepers-v1'
+const CACHE_NAME = 'crypt-sweepers-v1'
 
 const PRECACHE_ASSETS = [
   './',

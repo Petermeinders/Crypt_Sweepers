@@ -1,4 +1,4 @@
-# Dungeon Sweepers — Changelog
+# Crypt Sweepers — Changelog
 
 A summary of features and changes added during development.
 

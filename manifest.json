@@ -1,6 +1,6 @@
 {
-  "name": "Dungeon Sweepers",
-  "short_name": "Dungeon Sweepers",
+  "name": "Crypt Sweepers",
+  "short_name": "Crypt Sweepers",
   "description": "A minesweeper-meets-dungeon-crawler roguelite. Tap tiles, fight monsters, survive the depths.",
   "start_url": "./",
   "display": "standalone",
