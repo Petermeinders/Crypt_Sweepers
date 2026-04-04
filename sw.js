@@ -2,20 +2,21 @@
 // Strategy: Cache-first for assets, network-first for HTML.
 // Version bump CACHE_NAME to force cache refresh on deploy.
 
-const CACHE_NAME = 'crypt-sweepers-v3'
+const CACHE_NAME = 'crypt-sweepers-v4'
 
 const PRECACHE_ASSETS = [
   './',
   './index.html',
   './manifest.json',
+
+  // CSS
   './css/main.css',
   './css/tiles.css',
-  './assets/DungeonBackground.png',
-  './assets/sprites/tiles/dungeon-tile-back.webp',
-  './assets/sprites/tiles/dungeon-tile-floor.png',
   './css/hud.css',
   './css/animations.css',
   './css/overlays.css',
+
+  // JS
   './js/main.js',
   './js/config.js',
   './js/core/GameState.js',
@@ -24,11 +25,12 @@ const PRECACHE_ASSETS = [
   './js/core/GameController.js',
   './js/data/abilities.js',
   './js/data/enemies.js',
+  './js/data/items.js',
   './js/data/tileBlurbs.js',
-  './js/data/ranger.js',
   './js/data/tileIcons.js',
   './js/data/tiles.js',
   './js/data/upgrades.js',
+  './js/data/ranger.js',
   './js/save/SaveManager.js',
   './js/systems/AudioManager.js',
   './js/systems/CombatResolver.js',
@@ -36,15 +38,34 @@ const PRECACHE_ASSETS = [
   './js/systems/ProgressionSystem.js',
   './js/systems/TileEngine.js',
   './js/ui/UI.js',
+
+  // Images
+  './assets/DungeonBackground.png',
+  './assets/sprites/tiles/dungeon-tile-back.webp',
+  './assets/sprites/tiles/dungeon-tile-floor.png',
   './assets/sprites/effects/FireSwordSlash.gif',
   './assets/sprites/effects/HammerSlam.gif',
   './assets/sprites/Items/potionRed.png',
   './assets/sprites/Items/potionBlue.png',
   './assets/sprites/Items/heart.png',
   './assets/sprites/Items/chest.gif',
-  './js/data/items.js',
+  './assets/sprites/Items/chest-closed.png',
+  './assets/sprites/Items/backpack.png',
+  './assets/sprites/monsters/goblin/goblin-idle.gif',
+  './assets/sprites/monsters/goblin/goblin-strike.gif',
+  './assets/sprites/monsters/vine_witch/vine-witch-idle.gif',
+  './assets/sprites/monsters/ogre/ogre-idle.gif',
+  './assets/sprites/Heroes/Warrior/__Idle.gif',
+  './assets/sprites/Heroes/Warrior/__AttackCombo2hit.gif',
+  './assets/sprites/Heroes/Warrior/__Hit.gif',
+  './assets/sprites/Heroes/Warrior/__Run.gif',
+  './assets/sprites/Heroes/Warrior/__DeathNoMovement.gif',
+
+  // SFX
   './audio/sfx/flip.ogg',
-  './audio/sfx/hit.ogg',
+  './audio/sfx/hit.mp3',
+  './audio/sfx/hit2.mp3',
+  './audio/sfx/slam.mp3',
   './audio/sfx/spell.ogg',
   './audio/sfx/gold.ogg',
   './audio/sfx/levelup.ogg',
@@ -53,18 +74,13 @@ const PRECACHE_ASSETS = [
   './audio/sfx/retreat.ogg',
   './audio/sfx/chest.ogg',
   './audio/sfx/trap.ogg',
-  './audio/sfx/slam.ogg',
   './audio/sfx/heal.ogg',
   './audio/sfx/menu.ogg',
-  './assets/sprites/monsters/goblin/goblin-idle.gif',
-  './assets/sprites/monsters/vine_witch/vine-witch-idle.gif',
-  './assets/sprites/monsters/ogre/ogre-idle.gif',
-  './assets/sprites/monsters/goblin/goblin-strike.gif',
-  './assets/sprites/Heroes/Warrior/__Idle.gif',
-  './assets/sprites/Heroes/Warrior/__AttackCombo2hit.gif',
-  './assets/sprites/Heroes/Warrior/__Hit.gif',
-  './assets/sprites/Heroes/Warrior/__Run.gif',
-  './assets/sprites/Heroes/Warrior/__DeathNoMovement.gif',
+
+  // Music
+  './audio/music/main-menu-theme.mp3',
+  './audio/music/dungeon.mp3',
+  './audio/music/boss.mp3',
 ]
 
 // ── Install: precache all assets ──────────────────────────────
