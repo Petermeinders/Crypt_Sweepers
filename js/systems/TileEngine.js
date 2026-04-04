@@ -82,7 +82,7 @@ function _pickEnemyType(floor, tileType) {
   }
   // Pool of available non-boss enemies unlocked by floor
   const pool = ['skeleton', 'goblin', 'vine_witch']
-  if (floor >= 2) pool.push('zombie', 'goblin_fast')
+  if (floor >= 2) pool.push('zombie', 'goblin_fast', 'slime')
   if (floor >= 3) pool.push('spider')
   if (floor >= 4) pool.push('wraith')
   if (floor >= 6) pool.push('troll')

@@ -192,6 +192,21 @@
 .tile-enemy-stats .stat-hp  { color: #ff5555; text-shadow: 0 0 5px #000, 0 1px 4px rgba(0,0,0,1); }
 .tile-enemy-stats .stat-dmg { color: #ffd040; text-shadow: 0 0 5px #000, 0 1px 4px rgba(0,0,0,1); }
 
+/* ── Slime split ── */
+.tile-icon-wrap.slime-split {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+}
+
+.slime-half {
+  width: 46% !important;
+  height: auto !important;
+  object-fit: contain;
+}
+
 /* ── Per-type icon placement ── */
 
 /* Chest: sits on the floor — no overflow, bottom-anchored */

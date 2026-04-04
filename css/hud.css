@@ -341,7 +341,10 @@
 
 .hud-action-slot.is-slam {
   border-color: rgba(255, 120, 20, 0.6);
-  font-size: 1.3rem;
+  padding: 2px;
+  overflow: hidden;
+  width: 44px;
+  height: 44px;
 }
 
 .hud-action-slot.is-slam-active {
@@ -363,6 +366,60 @@
   font-weight: 700;
   color: rgba(120,115,105,0.7);
   letter-spacing: 1px;
+}
+
+.ability-btn-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.ability-btn-img {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 6px;
+  display: block;
+  flex-shrink: 0;
+}
+
+.ability-btn-cost {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #82b4e7;
+  -webkit-text-stroke: 1px #2a3fa3;
+  text-shadow: 0 0 4px #000, 0 0 8px #000, 0 1px 2px #000;
+  pointer-events: none;
+  line-height: 1;
+}
+
+.hud-action-slot.is-blinding-light {
+  border-color: rgba(100, 180, 255, 0.6);
+  padding: 2px;
+  overflow: hidden;
+  width: 44px;
+  height: 44px;
+}
+
+.hud-action-slot.is-blinding-light-active {
+  border-color: #64b4ff;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.1),
+    0 0 14px rgba(100,180,255,0.7),
+    0 2px 6px rgba(0,0,0,0.45);
+  animation: pulse-blinding 1s ease-in-out infinite;
+}
+
+@keyframes pulse-blinding {
+  0%, 100% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 0 10px rgba(100,180,255,0.5), 0 2px 6px rgba(0,0,0,0.45); }
+  50%       { box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 0 20px rgba(100,180,255,0.9), 0 2px 6px rgba(0,0,0,0.45); }
 }
 
 /* ── Combat / retreat buttons (below message) ── */

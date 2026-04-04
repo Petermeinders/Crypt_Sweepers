@@ -97,8 +97,10 @@ function returnToMenu(autoSave = false) {
 }
 
 function _startFloor() {
-  _spellTargeting = false
-  _combatBusy     = false
+  _spellTargeting         = false
+  _combatBusy             = false
+  _lanternTargeting       = false
+  _blindingLightTargeting = false
   TileEngine.generateGrid(run.floor)
   TileEngine.renderGrid(UI.getGridEl(), onTileTap, onTileHold)
   _revealStartTile()
@@ -115,8 +117,12 @@ function _startFloor() {
   }
   UI.setHudCharacter(_charKey())
   // Slam button — warrior only, and only if unlocked in the skill tree
-  const slamUnlocked = _charKey() === 'warrior' && (_save.warrior?.upgrades ?? []).includes('slam')
+  const warriorUpgrades = _save.warrior?.upgrades ?? []
+  const slamUnlocked = _charKey() === 'warrior' && warriorUpgrades.includes('slam')
   UI.setSlamBtn(slamUnlocked, WARRIOR_UPGRADES.slam.manaCost)
+  // Blinding Light button — warrior only, slot-b
+  const blindingUnlocked = _charKey() === 'warrior' && warriorUpgrades.includes('blinding-light')
+  UI.setBlindingLightBtn(blindingUnlocked, WARRIOR_UPGRADES['blinding-light'].manaCost)
   // Show spell button always — player can target any enemy at any time
   const effectiveCost = Math.max(1, CONFIG.spell.manaCost - (run.player.spellCostReduction ?? 0))
   UI.showActionPanel(effectiveCost, run.player.mana >= effectiveCost)
@@ -164,8 +170,10 @@ function _revealStartTile() {
 
 // ── Tile tap router ──────────────────────────────────────────
 
-let _spellTargeting = false
-let _combatBusy     = false
+let _spellTargeting         = false
+let _combatBusy             = false
+let _lanternTargeting       = false
+let _blindingLightTargeting = false
 
 function onTileTap(row, col) {
   const state = GameState.current()
@@ -178,6 +186,22 @@ function onTileTap(row, col) {
   if (_spellTargeting) {
     if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
       _castSpell(tile)
+    }
+    return
+  }
+
+  // Lantern targeting: any unrevealed tile (ignores reachable restriction)
+  if (_lanternTargeting) {
+    if (!tile.revealed) {
+      _useLanternOn(tile)
+    }
+    return
+  }
+
+  // Blinding Light targeting: revealed living enemy
+  if (_blindingLightTargeting) {
+    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      _castBlindingLight(tile)
     }
     return
   }
@@ -276,6 +300,18 @@ function _openChest(tile) {
     _addToBackpack('potion-blue')
     UI.spawnFloat(tile.element, '🔵 Mana Potion', 'mana')
     UI.setMessage('You pry it open — a Mana Potion inside!')
+  } else if (loot.type === 'fire-ring') {
+    _addToBackpack('fire-ring')
+    UI.spawnFloat(tile.element, '🔥 Fire Ring', 'xp')
+    UI.setMessage('You pry it open — a Fire Ring! Passive: 10% chance to ignite on hit.')
+  } else if (loot.type === 'lantern') {
+    _addToBackpack('lantern')
+    UI.spawnFloat(tile.element, '🏮 Lantern', 'xp')
+    UI.setMessage('You pry it open — a Lantern! Use it to reveal any hidden tile.')
+  } else if (loot.type === 'mana-ring') {
+    _addToBackpack('mana-ring')
+    UI.spawnFloat(tile.element, '💍 Mana Ring', 'mana')
+    UI.setMessage('You pry it open — a Mana Ring! Passive: 10% chance for double mana on tile flips.')
   } else {
     _gainGold(loot.amount, tile.element)
     UI.setMessage(`You pry it open — +${loot.amount} gold!`)
@@ -329,11 +365,17 @@ function _resolveEffect(tile) {
     case 'chest': {
       // Pre-roll the loot so it's fixed when the player taps to open
       const roll = Math.random()
-      tile.chestLoot = roll < 0.30
-        ? { type: 'potion-red' }
-        : roll < 0.55
-          ? { type: 'potion-blue' }
-          : { type: 'gold', amount: _rand(...CONFIG.chest.goldDrop) }
+      tile.chestLoot = roll < 0.02
+        ? { type: 'fire-ring' }
+        : roll < 0.04
+          ? { type: 'mana-ring' }
+          : roll < 0.14
+            ? { type: 'lantern' }
+            : roll < 0.42
+              ? { type: 'potion-red' }
+              : roll < 0.65
+                ? { type: 'potion-blue' }
+                : { type: 'gold', amount: _rand(...CONFIG.chest.goldDrop) }
       tile.chestReady = true
       if (tile.element) tile.element.classList.add('chest-ready')
       UI.setMessage('A locked chest — tap again to pry it open.')
@@ -541,11 +583,23 @@ function fightAction(tile) {
   const newEnemyHP = _save.settings.cheats?.instantKill ? 0 : Math.max(0, tile.enemyData.currentHP - playerDmg)
   const killsEnemy = newEnemyHP <= 0
 
+  // Fire Ring: 10% chance to ignite on hit
+  const hasFireRing = run.player.inventory.some(e => e.id === 'fire-ring')
+  const ignite = hasFireRing && !killsEnemy && Math.random() < 0.10
+
+  // Stun: enemy is stunned if stunTurns > 0
+  const isStunned = (tile.enemyData.stunTurns ?? 0) > 0
+
   UI.setPortraitAnim('attack')
   UI.spawnSlash(tile.element)
   EventBus.emit('audio:play', { sfx: Math.random() < 0.5 ? 'hit' : 'hit2' })
 
-  if (killsEnemy) {
+  // Slime split: first kill restores half HP and splits visually
+  const canSplit = killsEnemy
+    && tile.enemyData?.attributes?.includes('splits')
+    && !tile.enemyData.hasSplit
+
+  if (killsEnemy && !canSplit) {
     // Fatal blow — enemy never gets to counter
     setTimeout(() => {
       tile.enemyData.currentHP = 0
@@ -557,25 +611,67 @@ function fightAction(tile) {
       _combatBusy = false
       _endCombatVictory(tile)
     }, 400)
-  } else {
-    // Enemy survives → counter-attack
+  } else if (canSplit) {
     setTimeout(() => {
-      _setEnemySprite(tile, 'attack')
-      _takeDamage(result.enemyDmg, tile.element, true, tile.enemyData)
-      UI.shakeTile(tile.element)
-      if (GameState.is(States.DEATH)) { _combatBusy = false; return }
-      UI.setPortraitAnim('hit')
+      const splitHP = Math.max(1, Math.floor(tile.enemyData.hp / 2))
+      tile.enemyData.currentHP = splitHP
+      tile.enemyData.hasSplit  = true
+      UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp')
+      UI.spawnFloat(tile.element, '🟢 Split!', 'damage')
+      UI.splitSlime(tile.element)
+      UI.updateEnemyHP(tile.element, splitHP)
+      UI.setMessage(`The slime splits in two! Each half still fights. (${splitHP} HP remaining)`)
+      UI.setPortraitAnim('idle')
+      _combatBusy = false
+    }, 400)
+  } else {
+    setTimeout(() => {
+      tile.enemyData.currentHP = newEnemyHP
+
+      if (ignite) {
+        tile.enemyData.burnTurns = 3
+        UI.spawnFloat(tile.element, '🔥 Ignited!', 'damage')
+      }
+
+      // Tick burn damage if active
+      if ((tile.enemyData.burnTurns ?? 0) > 0) {
+        const burnDmg = Math.max(1, Math.floor(tile.enemyData.currentHP * 0.2))
+        tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - burnDmg)
+        tile.enemyData.burnTurns--
+        UI.spawnFloat(tile.element, `🔥 ${burnDmg}`, 'damage')
+        if (tile.enemyData.currentHP <= 0) {
+          UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp')
+          _gainGold(result.goldDrop, tile.element)
+          _gainXP(result.xpDrop ?? 0, tile.element)
+          UI.setPortraitAnim('idle')
+          _combatBusy = false
+          _endCombatVictory(tile)
+          return
+        }
+      }
+
+      // Decrement stun
+      if (isStunned) tile.enemyData.stunTurns--
+
+      // Enemy counter-attack (skipped if stunned)
+      if (!isStunned) {
+        _setEnemySprite(tile, 'attack')
+        _takeDamage(result.enemyDmg, tile.element, true, tile.enemyData)
+        UI.shakeTile(tile.element)
+        if (GameState.is(States.DEATH)) { _combatBusy = false; return }
+        UI.setPortraitAnim('hit')
+      }
 
       setTimeout(() => {
         _setEnemySprite(tile, 'idle')
-        tile.enemyData.currentHP = newEnemyHP
         UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp')
         EventBus.emit('combat:damage', { amount: playerDmg, target: 'enemy' })
         UI.setPortraitAnim('idle')
-        UI.setMessage(`You strike for ${playerDmg}${bonusSuffix}! Enemy has ${newEnemyHP} HP left.`)
-        UI.updateEnemyHP(tile.element, newEnemyHP)
+        const stunMsg = isStunned ? ' (stunned — no counter!)' : ''
+        UI.setMessage(`You strike for ${playerDmg}${bonusSuffix}${stunMsg}! Enemy has ${tile.enemyData.currentHP} HP left.`)
+        UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
         _combatBusy = false
-      }, 500)
+      }, isStunned ? 200 : 500)
     }, 400)
   }
 }
@@ -655,6 +751,75 @@ function spellAction() {
   } else {
     UI.setMessage('Spell cancelled.')
   }
+}
+
+function lanternAction() {
+  const inv = run.player.inventory
+  const entry = inv.find(e => e.id === 'lantern')
+  if (!entry) return
+  if (_combatBusy) return
+
+  _lanternTargeting = !_lanternTargeting
+  UI.setLanternTargeting(_lanternTargeting)
+  if (_lanternTargeting) {
+    UI.setMessage('🏮 Lantern lit — tap any hidden tile to reveal it.')
+  } else {
+    UI.setMessage('Lantern extinguished.')
+  }
+}
+
+function _useLanternOn(tile) {
+  _lanternTargeting = false
+  UI.setLanternTargeting(false)
+
+  const inv   = run.player.inventory
+  const entry = inv.find(e => e.id === 'lantern')
+  if (!entry) return
+
+  // Consume lantern
+  entry.qty--
+  if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
+
+  revealTile(tile)
+  UI.setMessage('🏮 The lantern burns bright — a tile revealed!')
+}
+
+function blindingLightAction() {
+  if (!(_save.warrior?.upgrades ?? []).includes('blinding-light')) return
+  if (_combatBusy) return
+  const cost = WARRIOR_UPGRADES['blinding-light'].manaCost
+  if (run.player.mana < cost) {
+    UI.setMessage('Not enough mana for Blinding Light!', true)
+    return
+  }
+
+  _blindingLightTargeting = !_blindingLightTargeting
+  UI.setBlindingLightActive(_blindingLightTargeting)
+  if (_blindingLightTargeting) {
+    UI.setMessage('✨ Choose an enemy to blind.')
+  } else {
+    UI.setMessage('Blinding Light cancelled.')
+  }
+}
+
+function _castBlindingLight(tile) {
+  _blindingLightTargeting = false
+  UI.setBlindingLightActive(false)
+
+  const cost = WARRIOR_UPGRADES['blinding-light'].manaCost
+  if (run.player.mana < cost) {
+    UI.setMessage('Not enough mana!', true)
+    return
+  }
+
+  run.player.mana = Math.max(0, run.player.mana - cost)
+  UI.updateMana(run.player.mana, run.player.maxMana)
+
+  tile.enemyData.stunTurns = (tile.enemyData.stunTurns ?? 0) + 2
+  UI.spawnFloat(tile.element, '✨ Stunned!', 'mana')
+  UI.flashTile(tile.element)
+  EventBus.emit('audio:play', { sfx: 'spell' })
+  UI.setMessage(`✨ Blinding Light! ${tile.enemyData.label} is stunned for 2 turns.`)
 }
 
 function _castSpell(tile) {
@@ -792,7 +957,12 @@ function _gainGold(amount, tileEl) {
 function _gainXP(amount, tileEl) {
   const regen = CONFIG.player.manaRegenPerTile
   if (regen > 0 && run.player.mana < run.player.maxMana) {
-    run.player.mana = Math.min(run.player.maxMana, run.player.mana + regen)
+    const hasManaRing = run.player.inventory.some(e => e.id === 'mana-ring')
+    const manaGain = (hasManaRing && Math.random() < 0.10) ? regen * 2 : regen
+    run.player.mana = Math.min(run.player.maxMana, run.player.mana + manaGain)
+    if (hasManaRing && manaGain > regen) {
+      UI.spawnFloat(tileEl, `+${manaGain}🔵`, 'mana')
+    }
     UI.updateMana(run.player.mana, run.player.maxMana)
   }
 
@@ -857,8 +1027,10 @@ function _playerDamageRange(player) {
 // ── Death ────────────────────────────────────────────────────
 
 function _die(killerData = null) {
-  _spellTargeting = false
-  _combatBusy     = false
+  _spellTargeting         = false
+  _combatBusy             = false
+  _lanternTargeting       = false
+  _blindingLightTargeting = false
   UI.setPortraitAnim('death')
   GameState.transition(States.DEATH)
   UI.hideActionPanel()
@@ -937,8 +1109,21 @@ function useItem(id) {
   const item = ITEMS[id]
   if (!item) return
 
-  EventBus.emit('audio:play', { sfx: 'heal' })
   const { effect } = item
+
+  // Passive items: just show a message explaining they're always active
+  if (effect.type === 'passive-fire-ring' || effect.type === 'passive-mana-ring') {
+    UI.setMessage(`${item.name} is a passive item — it's always active in your bag.`, true)
+    return
+  }
+
+  // Lantern: delegate to dedicated action
+  if (effect.type === 'lantern') {
+    lanternAction()
+    return
+  }
+
+  EventBus.emit('audio:play', { sfx: 'heal' })
   if (effect.type === 'heal') {
     const missing = run.player.maxHp - run.player.hp
     if (missing <= 0) { UI.setMessage('Already at full health!', true); return }
@@ -986,6 +1171,8 @@ export default {
   onTileTap,
   spellAction,
   slamAction,
+  blindingLightAction,
+  lanternAction,
   doRetreat,
   applyCheat,
   useItem,

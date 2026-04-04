@@ -2,7 +2,7 @@
 // Strategy: Cache-first for assets, network-first for HTML.
 // Version bump CACHE_NAME to force cache refresh on deploy.
 
-const CACHE_NAME = 'crypt-sweepers-v4'
+const CACHE_NAME = 'crypt-sweepers-v11'
 
 const PRECACHE_ASSETS = [
   './',
@@ -40,6 +40,8 @@ const PRECACHE_ASSETS = [
   './js/ui/UI.js',
 
   // Images
+  './assets/sprites/abilities/blinding-light.jpg',
+  './assets/sprites/abilities/slam.png',
   './assets/DungeonBackground.png',
   './assets/sprites/tiles/dungeon-tile-back.webp',
   './assets/sprites/tiles/dungeon-tile-floor.png',
@@ -51,10 +53,14 @@ const PRECACHE_ASSETS = [
   './assets/sprites/Items/chest.gif',
   './assets/sprites/Items/chest-closed.png',
   './assets/sprites/Items/backpack.png',
+  './assets/sprites/monsters/skeleton/skeleton-idle.gif',
+  './assets/sprites/monsters/slime/slime-idle.gif',
   './assets/sprites/monsters/goblin/goblin-idle.gif',
   './assets/sprites/monsters/goblin/goblin-strike.gif',
   './assets/sprites/monsters/vine_witch/vine-witch-idle.gif',
   './assets/sprites/monsters/ogre/ogre-idle.gif',
+  './assets/sprites/Heroes/Ranger/__Idle.gif',
+  './assets/sprites/Heroes/Ranger/__Attack.gif',
   './assets/sprites/Heroes/Warrior/__Idle.gif',
   './assets/sprites/Heroes/Warrior/__AttackCombo2hit.gif',
   './assets/sprites/Heroes/Warrior/__Hit.gif',

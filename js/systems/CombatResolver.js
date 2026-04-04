@@ -16,8 +16,7 @@ function resolveFight(player, enemyData) {
   const bd = CONFIG.player.baseDamage
   const playerDmg = Array.isArray(bd) ? rand(...bd) : bd
 
-  const [gMin, gMax] = enemyData?.goldDrop ?? CONFIG.enemy.goldDrop
-  const goldDrop = rand(gMin, gMax)
+  const goldDrop = 1
   const xpDrop   = enemyData?.xpDrop ?? 5
 
   Logger.debug(`[CombatResolver] fight — enemy:${enemyDmg}, player:${playerDmg}, gold:${goldDrop}`)
@@ -33,8 +32,7 @@ function resolveSpell(player, enemyData) {
   }
 
   const damage   = rand(...CONFIG.spell.damage)
-  const [gMin, gMax] = enemyData?.goldDrop ?? CONFIG.enemy.goldDrop
-  const goldDrop = rand(gMin, gMax)
+  const goldDrop = 1
   const xpDrop   = enemyData?.xpDrop ?? 5
 
   Logger.debug(`[CombatResolver] spell — damage:${damage}, gold:${goldDrop}`)

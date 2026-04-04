@@ -43,6 +43,7 @@ const UI = {
     el.infoCardOverlay    = document.getElementById('info-card-overlay')
     el.infoCard           = document.getElementById('info-card')
     el.hudSlotA           = document.getElementById('hud-btn-slot-a')
+    el.hudSlotB           = document.getElementById('hud-btn-slot-b')
   },
 
   // ── HUD ──────────────────────────────────────
@@ -64,10 +65,14 @@ const UI = {
     if (el.dmgValue) el.dmgValue.textContent = `${low}–${high}`
   },
 
-  setSlamBtn(visible, manaCost = 4) {
+  setSlamBtn(visible, manaCost = 10) {
     if (!el.hudSlotA) return
     if (visible) {
-      el.hudSlotA.innerHTML   = `<span style="font-size:1.1rem">💥</span><span style="font-size:0.55rem;color:#88aaff;display:block;line-height:1">${manaCost}🔵</span>`
+      el.hudSlotA.innerHTML   = `
+        <span class="ability-btn-wrap">
+          <img src="assets/sprites/abilities/slam.png" class="ability-btn-img" alt="Slam" draggable="false"/>
+          <span class="ability-btn-cost">${manaCost}</span>
+        </span>`
       el.hudSlotA.title       = `Slam — double damage, no counter (${manaCost} mana)`
       el.hudSlotA.disabled    = false
       el.hudSlotA.classList.remove('is-placeholder')
@@ -85,13 +90,64 @@ const UI = {
     el.hudSlotA?.classList.toggle('is-slam-active', active)
   },
 
+  setBlindingLightBtn(visible, manaCost = 10) {
+    if (!el.hudSlotB) return
+    if (visible) {
+      el.hudSlotB.innerHTML   = `
+        <span class="ability-btn-wrap">
+          <img src="assets/sprites/abilities/blinding-light.jpg" class="ability-btn-img" alt="Blinding Light" draggable="false"/>
+          <span class="ability-btn-cost">${manaCost}</span>
+        </span>`
+      el.hudSlotB.title       = `Blinding Light — stun an enemy for 2 turns (${manaCost} mana)`
+      el.hudSlotB.disabled    = false
+      el.hudSlotB.classList.remove('is-placeholder')
+      el.hudSlotB.classList.add('is-blinding-light')
+    } else {
+      el.hudSlotB.textContent = '···'
+      el.hudSlotB.title       = 'Reserved'
+      el.hudSlotB.disabled    = true
+      el.hudSlotB.classList.add('is-placeholder')
+      el.hudSlotB.classList.remove('is-blinding-light', 'is-blinding-light-active')
+    }
+  },
+
+  setBlindingLightActive(active) {
+    el.hudSlotB?.classList.toggle('is-blinding-light-active', active)
+  },
+
+  setLanternTargeting(active) {
+    document.getElementById('grid-container')?.classList.toggle('lantern-mode', active)
+  },
+
+  flashTile(tileEl) {
+    if (!tileEl) return
+    tileEl.classList.add('flash-blind')
+    setTimeout(() => tileEl.classList.remove('flash-blind'), 600)
+  },
+
+  splitSlime(tileEl) {
+    if (!tileEl) return
+    const iconWrap = tileEl.querySelector('.tile-icon-wrap')
+    if (!iconWrap) return
+    const img = iconWrap.querySelector('.tile-icon-img')
+    if (!img) return
+    const src = img.src.split('?')[0]
+    // Replace single slime with two smaller side-by-side slimes
+    iconWrap.classList.add('slime-split')
+    iconWrap.innerHTML = `
+      <img class="tile-icon-img slime-half" src="${src}?t=${Date.now()}" alt="" draggable="false"/>
+      <img class="tile-icon-img slime-half" src="${src}?t=${Date.now() + 1}" alt="" draggable="false"/>
+    `
+  },
+
   setHudCharacter(characterId) {
     if (!el.hudPortraitWrap) return
     const isRanger = characterId === 'ranger'
     el.hudPortraitWrap.classList.toggle('is-ranger', isRanger)
-    // Update portrait GIF for current character (warrior only for now)
-    if (el.hudPortraitImg && !isRanger) {
-      el.hudPortraitImg.src = 'assets/sprites/Heroes/Warrior/__Idle.gif'
+    if (el.hudPortraitImg) {
+      el.hudPortraitImg.src = isRanger
+        ? 'assets/sprites/Heroes/Ranger/__Idle.gif'
+        : 'assets/sprites/Heroes/Warrior/__Idle.gif'
     }
   },
 
@@ -300,13 +356,18 @@ const UI = {
       ? `<div class="card-type">${data.type}</div>`
       : ''
 
-    const spriteHTML = data.spriteSrc
-      ? `<img class="card-sprite" src="${data.spriteSrc}?${Date.now()}" alt="${data.name}">`
-      : `<div class="card-emoji-large">${data.emoji}</div>`
+    const aboveHeaderHTML = data.spriteSrc
+      ? `<div class="card-portrait-above"><img class="card-sprite-large" src="${data.spriteSrc}?${Date.now()}" alt="${data.name}"></div>`
+      : ''
+
+    const inlinePortrait = !data.spriteSrc
+      ? `<div class="card-portrait"><div class="card-emoji-large">${data.emoji ?? ''}</div></div>`
+      : ''
 
     el.infoCard.innerHTML = `
+      ${aboveHeaderHTML}
       <div class="card-header">
-        <div class="card-portrait">${spriteHTML}</div>
+        ${inlinePortrait}
         <div class="card-header-text">
           <div class="card-name">${data.name}</div>
           ${typeHTML}
@@ -340,8 +401,11 @@ const UI = {
       if (!item) return null
       const slot = document.createElement('div')
       slot.className = 'backpack-slot occupied'
+      const bpIcon = item.spriteSrc
+        ? `<img class="bp-item-img" src="${item.spriteSrc}" alt="${item.name}">`
+        : `<span class="bp-item-emoji">${item.icon}</span>`
       slot.innerHTML = `
-        <img class="bp-item-img" src="${item.spriteSrc}" alt="${item.name}">
+        ${bpIcon}
         ${entry.qty > 1 ? `<span class="bp-item-qty">${entry.qty}</span>` : ''}
       `
 

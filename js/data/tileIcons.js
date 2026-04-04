@@ -22,13 +22,14 @@ export const TILE_TYPE_ICON_FILES = {
  *  Both paths relative to MONSTER_ICONS_BASE. null = emoji fallback.
  */
 export const ENEMY_SPRITES = {
-  skeleton:      null,
+  skeleton:      { idle: 'skeleton/skeleton-idle.gif', attack: 'skeleton/skeleton-idle.gif' },
   zombie:        null,
   wraith:        null,
   goblin:        { idle: 'goblin/goblin-idle.gif', attack: 'goblin/goblin-strike.gif' },
   goblin_fast:   { idle: 'goblin/goblin-idle.gif', attack: 'goblin/goblin-strike.gif' },
   troll:         { idle: 'ogre/ogre-idle.gif', attack: 'ogre/ogre-idle.gif' },
   vine_witch:    { idle: 'vine_witch/vine-witch-idle.gif', attack: 'vine_witch/vine-witch-idle.gif' },
+  slime:         { idle: 'slime/slime-idle.gif', attack: 'slime/slime-idle.gif' },
   spider:        null,
   skeleton_lord: null,
   goblin_king:   null,

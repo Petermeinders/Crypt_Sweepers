@@ -9,9 +9,19 @@ export const WARRIOR_UPGRADES = {
     name:     'Slam',
     desc:     'Bring your weapon down with crushing force. The next enemy you strike takes double damage and cannot counter-attack.',
     icon:     '💥',
+    iconSrc:  'assets/sprites/abilities/slam.png',
     xpCost:   50,
     manaCost: 10,
     effect:   { type: 'active-ability', ability: 'slam' },
+  },
+  'blinding-light': {
+    name:     'Blinding Light',
+    desc:     'A flash of searing light stuns an enemy for 2 turns. They take damage but cannot counter-attack while stunned.',
+    icon:     '✨',
+    iconSrc:  'assets/sprites/abilities/blinding-light.jpg',
+    xpCost:   75,
+    manaCost: 10,
+    effect:   { type: 'active-ability', ability: 'blinding-light' },
   },
 }
 

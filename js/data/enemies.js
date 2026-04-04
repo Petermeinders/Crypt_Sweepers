@@ -92,6 +92,19 @@ export const ENEMY_DEFS = {
     attributes: [],
   },
 
+  slime: {
+    hp:         4,
+    dmg:        [1, 1],
+    type:       'beast',
+    behaviour:  'standard',
+    emoji:      '🟢',
+    label:      'Slime',
+    goldDrop:   [1, 2],
+    xpDrop:     4,
+    blurb:      'A quivering mass of corrosive ooze. Cut it down and it simply splits in two — each half hungry for more.',
+    attributes: ['splits'],
+  },
+
   // ── Beast ────────────────────────────────────────────────────
   spider: {
     hp:         1,

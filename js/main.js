@@ -31,13 +31,15 @@ const CHARACTERS = [
     id:         'ranger',
     name:       'Ranger',
     tagline:    "Swift and elusive. Enemy reveals don't lock adjacent tiles.",
-    gif:        null,
-    emoji:      '🏹',
+    gif:        'assets/sprites/Heroes/Ranger/__Idle.gif',
+    attackGif:  'assets/sprites/Heroes/Ranger/__Attack.gif',
+    attackMs:   4000,
+    emoji:      null,
     upgrades:   RANGER_UPGRADES,
     unlockCost: CONFIG.rangerUnlockCost,
     baseHP:     80,
     baseMana:   80,
-    baseDmg:    '8–18',
+    baseDmg:    '1',
   },
 ]
 
@@ -92,7 +94,7 @@ async function boot() {
     document.getElementById('hud-btn-slot-a'),
     () => GameController.slamAction(),
     () => UI.showInfoCard({
-      emoji:  '💥',
+      spriteSrc: WARRIOR_UPGRADES.slam.iconSrc,
       name:   'Slam',
       type:   'Warrior Ability',
       blurb:  'Bring your weapon down with crushing force. Strikes every revealed enemy on the floor for 1 damage.',
@@ -100,6 +102,21 @@ async function boot() {
         { icon: '🔵', label: 'Mana Cost',  desc: `${WARRIOR_UPGRADES.slam.manaCost} mana per use` },
         { icon: '🌀', label: 'AOE',         desc: 'Hits all revealed enemies simultaneously' },
         { icon: '💥', label: 'Damage',      desc: '1 damage per target' },
+      ],
+    })
+  )
+  _wireAbilityHold(
+    document.getElementById('hud-btn-slot-b'),
+    () => GameController.blindingLightAction(),
+    () => UI.showInfoCard({
+      spriteSrc: WARRIOR_UPGRADES['blinding-light'].iconSrc,
+      name:   'Blinding Light',
+      type:   'Warrior Ability',
+      blurb:  'A flash of searing light stuns an enemy for 2 turns. They take damage but cannot counter-attack while stunned.',
+      details: [
+        { icon: '🔵', label: 'Mana Cost', desc: `${WARRIOR_UPGRADES['blinding-light'].manaCost} mana per use` },
+        { icon: '🎯', label: 'Targeting', desc: 'Tap an enemy to stun it' },
+        { icon: '⏱️', label: 'Duration',  desc: '2 turns: enemy attacks are suppressed' },
       ],
     })
   )
@@ -130,10 +147,19 @@ async function boot() {
     _renderHeroSelect()
   })
   document.getElementById('hero-select-btn').addEventListener('click', () => {
-    const s = GameController.getSave()
-    s.selectedCharacter = CHARACTERS[_heroIdx].id
-    SaveManager.save(s)
-    _renderHeroSelect()
+    const s    = GameController.getSave()
+    const char = CHARACTERS[_heroIdx]
+    const btn  = document.getElementById('hero-select-btn')
+    if (btn.dataset.mode === 'unlock') {
+      if (char.id === 'ranger' && MetaProgression.unlockRanger(s)) {
+        SaveManager.save(s)
+        _renderHeroSelect()
+      }
+    } else {
+      s.selectedCharacter = char.id
+      SaveManager.save(s)
+      _renderHeroSelect()
+    }
   })
   // Dismiss upgrade detail on backdrop click
   document.getElementById('hero-upgrade-backdrop').addEventListener('click', e => {
@@ -148,26 +174,19 @@ async function boot() {
   })
 
   // Tap hero to play attack animation
-  let _heroAttackTimer = null
   document.getElementById('hero-display-gif').addEventListener('click', () => {
     const char = CHARACTERS[_heroIdx]
     if (!char.attackGif || _heroAttackTimer) return
     const gifEl = document.getElementById('hero-display-gif')
     gifEl.src = char.attackGif + '?t=' + Date.now()
     _heroAttackTimer = setTimeout(() => {
-      gifEl.src = char.gif + '?t=' + Date.now()
       _heroAttackTimer = null
-    }, char.attackMs)
+      if (CHARACTERS[_heroIdx] === char && char.gif) {
+        gifEl.src = char.gif + '?t=' + Date.now()
+      }
+    }, char.attackMs ?? 4000)
   })
 
-  document.getElementById('hero-unlock-btn').addEventListener('click', () => {
-    const s = GameController.getSave()
-    const char = CHARACTERS[_heroIdx]
-    if (char.id === 'ranger' && MetaProgression.unlockRanger(s)) {
-      SaveManager.save(s)
-      _renderHeroSelect()
-    }
-  })
 
   document.getElementById('settings-btn').addEventListener('click', () => {
     const s = GameController.getSave()
@@ -285,8 +304,9 @@ async function boot() {
 
 // ── Hero Select ───────────────────────────────────────────────
 
-let _heroIdx         = 0
+let _heroIdx           = 0
 let _selectedUpgradeId = null
+let _heroAttackTimer   = null
 
 function _openHeroSelect() {
   const s = GameController.getSave()
@@ -313,12 +333,12 @@ function _renderHeroSelect() {
   document.getElementById('hero-select-tagline').textContent = char.tagline
   document.getElementById('hero-select-xp').textContent      = xp
 
-  // Hero GIF or emoji
+  // Hero GIF or emoji — don't interrupt an in-progress attack animation
   const gifEl   = document.getElementById('hero-display-gif')
   const emojiEl = document.getElementById('hero-display-emoji')
   if (char.gif) {
-    gifEl.src           = char.gif + '?t=' + Date.now()
-    gifEl.style.display = 'block'
+    if (!_heroAttackTimer) gifEl.src = char.gif + '?t=' + Date.now()
+    gifEl.style.display   = 'block'
     emojiEl.style.display = 'none'
   } else {
     gifEl.style.display   = 'none'
@@ -330,11 +350,6 @@ function _renderHeroSelect() {
   // Lock overlay
   const lockOverlay = document.getElementById('hero-locked-overlay')
   lockOverlay.classList.toggle('hidden', !isLocked)
-  if (isLocked) {
-    const unlockBtn = document.getElementById('hero-unlock-btn')
-    unlockBtn.textContent = `🔓 Unlock (${char.unlockCost}💰)`
-    unlockBtn.disabled    = s.persistentGold < char.unlockCost
-  }
 
   // Nav arrows
   document.getElementById('hero-prev').classList.toggle('hidden', _heroIdx === 0)
@@ -348,11 +363,18 @@ function _renderHeroSelect() {
   document.getElementById('hero-stat-mana').textContent = char.baseMana
   document.getElementById('hero-stat-dmg').textContent  = char.baseDmg
 
-  // Select button
+  // Select / Unlock button
   const isSelected = s.selectedCharacter === char.id
   const selectBtn  = document.getElementById('hero-select-btn')
-  selectBtn.textContent = isSelected ? '✓ Selected' : 'Select Hero'
-  selectBtn.disabled    = isLocked
+  if (isLocked) {
+    selectBtn.textContent = `🔓 Unlock (${char.unlockCost}💰)`
+    selectBtn.disabled    = s.persistentGold < char.unlockCost
+    selectBtn.dataset.mode = 'unlock'
+  } else {
+    selectBtn.textContent = isSelected ? '✓ Selected' : 'Select Hero'
+    selectBtn.disabled    = isSelected
+    selectBtn.dataset.mode = 'select'
+  }
 }
 
 function _renderHeroUpgradeGrid(char, ownedList, xp, isLocked) {
@@ -368,8 +390,11 @@ function _renderHeroUpgradeGrid(char, ownedList, xp, isLocked) {
     btn.className = 'hero-upgrade-slot'
       + (isOwned    ? ' owned'    : '')
       + (isSelected ? ' selected' : '')
+    const iconHTML = def.iconSrc
+      ? `<img class="hero-upgrade-icon-img" src="${def.iconSrc}" alt="${def.name}" draggable="false"/>`
+      : `<span class="hero-upgrade-icon">${def.icon}</span>`
     btn.innerHTML = `
-      <span class="hero-upgrade-icon">${def.icon}</span>
+      ${iconHTML}
       <span class="hero-upgrade-cost">${isOwned ? '✓' : def.xpCost + ' XP'}</span>
     `
     btn.addEventListener('click', () => {
