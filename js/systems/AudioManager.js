@@ -11,7 +11,8 @@ import { SETTINGS } from '../config.js'
 
 const SFX_FILES = {
   flip:     'audio/sfx/flip.ogg',
-  hit:      'audio/sfx/hit.ogg',
+  hit:      'audio/sfx/hit.mp3',
+  hit2:     'audio/sfx/hit2.mp3',
   spell:    'audio/sfx/spell.ogg',
   gold:     'audio/sfx/gold.ogg',
   levelup:  'audio/sfx/levelup.ogg',
@@ -20,7 +21,7 @@ const SFX_FILES = {
   retreat:  'audio/sfx/retreat.ogg',
   chest:    'audio/sfx/chest.ogg',
   trap:     'audio/sfx/trap.ogg',
-  slam:     'audio/sfx/slam.ogg',
+  slam:     'audio/sfx/slam.mp3',
   heal:     'audio/sfx/heal.ogg',
   menu:     'audio/sfx/menu.ogg',
 }
@@ -44,9 +45,10 @@ let _sfxOn          = true
 
 function init() {
   // Wire EventBus listeners
-  EventBus.on('audio:play',    ({ sfx })   => playSfx(sfx))
-  EventBus.on('audio:music',   ({ track }) => playMusic(track))
-  EventBus.on('audio:stop',    ()          => stopMusic())
+  EventBus.on('audio:play',      ({ sfx })              => playSfx(sfx))
+  EventBus.on('audio:music',     ({ track })            => playMusic(track))
+  EventBus.on('audio:crossfade', ({ track, duration })  => crossfadeTo(track, duration))
+  EventBus.on('audio:stop',      ()                     => stopMusic())
 
   // Unlock AudioContext on first user interaction (iOS)
   const unlock = async () => {
@@ -119,6 +121,36 @@ function stopMusic() {
   }
 }
 
+function crossfadeTo(track, duration = 1500) {
+  if (!_musicOn) { playMusic(track); return }
+  const path = MUSIC_FILES[track]
+  if (!path) return
+
+  _currentTrack = track
+  const outgoing = _musicEl
+  const incoming = new Audio(path)
+  incoming.loop   = true
+  incoming.volume = 0
+  incoming.play().catch(() => {})
+
+  _musicEl = incoming
+
+  const steps    = 30
+  const interval = duration / steps
+  let   step     = 0
+
+  const tick = setInterval(() => {
+    step++
+    const t = step / steps
+    if (outgoing) outgoing.volume = Math.max(0, _musicVol * (1 - t))
+    incoming.volume = Math.min(_musicVol, _musicVol * t)
+    if (step >= steps) {
+      clearInterval(tick)
+      if (outgoing) { outgoing.pause(); outgoing.src = '' }
+    }
+  }, interval)
+}
+
 function setMusicEnabled(on) {
   _musicOn = on
   if (!on) {
@@ -142,4 +174,4 @@ function setVolumes({ sfx, music } = {}) {
   }
 }
 
-export default { init, playSfx, playMusic, stopMusic, setVolumes, setMusicEnabled, setSfxEnabled }
+export default { init, playSfx, playMusic, stopMusic, crossfadeTo, setVolumes, setMusicEnabled, setSfxEnabled }

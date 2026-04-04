@@ -80,7 +80,7 @@ function init(saveData) {
 function newGame() {
   run = buildRunState()
   UI.hideMainMenu()
-  EventBus.emit('audio:stop')
+  EventBus.emit('audio:crossfade', { track: 'dungeon', duration: 1500 })
   _startFloor()
 }
 
@@ -93,7 +93,7 @@ function returnToMenu(autoSave = false) {
   UI.updateMenuStats(_save.persistentGold, xp, char, _save)
   UI.setActiveDifficulty(_save.settings.difficulty)
   UI.showMainMenu()
-  EventBus.emit('audio:music', { track: 'menu' })
+  EventBus.emit('audio:crossfade', { track: 'menu', duration: 1500 })
 }
 
 function _startFloor() {
@@ -543,7 +543,7 @@ function fightAction(tile) {
 
   UI.setPortraitAnim('attack')
   UI.spawnSlash(tile.element)
-  EventBus.emit('audio:play', { sfx: 'hit' })
+  EventBus.emit('audio:play', { sfx: Math.random() < 0.5 ? 'hit' : 'hit2' })
 
   if (killsEnemy) {
     // Fatal blow — enemy never gets to counter
