@@ -120,7 +120,16 @@ async function boot() {
       ],
     })
   )
-  document.getElementById('retreat-btn').addEventListener('click', () => GameController.doRetreat())
+  document.getElementById('retreat-btn').addEventListener('click', () => {
+    document.getElementById('retreat-confirm').classList.remove('hidden')
+  })
+  document.getElementById('retreat-confirm-yes').addEventListener('click', () => {
+    document.getElementById('retreat-confirm').classList.add('hidden')
+    GameController.doRetreat()
+  })
+  document.getElementById('retreat-confirm-no').addEventListener('click', () => {
+    document.getElementById('retreat-confirm').classList.add('hidden')
+  })
 
   // ── Menu button click sound ──────────────────────────────
   document.getElementById('main-menu').addEventListener('click', e => {
@@ -486,7 +495,14 @@ function _renderBackpack() {
   UI.renderBackpack(
     GameController.getInventory(),
     ITEMS,
-    (id) => { GameController.useItem(id); _renderBackpack() },
+    (id) => {
+      GameController.useItem(id)
+      if (ITEMS[id]?.effect?.type === 'lantern') {
+        document.getElementById('backpack-overlay').classList.add('hidden')
+      } else {
+        _renderBackpack()
+      }
+    },
     (id) => { const item = ITEMS[id]; if (item) UI.showInfoCard({ ...item }) },
   )
 }

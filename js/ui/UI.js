@@ -5,6 +5,7 @@ import { ITEM_ICONS_BASE, TILE_SLAIN_ICON } from '../data/tileIcons.js'
 // Cache element references once at init(), expose named update functions.
 
 const el = {}  // element cache
+const _logHistory = []
 
 const UI = {
   init() {
@@ -23,7 +24,7 @@ const UI = {
     el.actionBtns  = document.getElementById('action-buttons')
     el.spellBtn    = document.getElementById('spell-btn')
     el.fleeBtn     = document.getElementById('flee-btn')
-    el.retreatBar  = document.getElementById('retreat-bar')
+    el.retreatBtn  = document.getElementById('retreat-btn')
     el.grid        = document.getElementById('grid')
     el.levelUpOverlay  = document.getElementById('level-up-overlay')
     el.abilityChoices  = document.getElementById('ability-choices')
@@ -44,6 +45,30 @@ const UI = {
     el.infoCard           = document.getElementById('info-card')
     el.hudSlotA           = document.getElementById('hud-btn-slot-a')
     el.hudSlotB           = document.getElementById('hud-btn-slot-b')
+    el.msgLogWrap         = document.getElementById('message-log-wrap')
+    el.msgLogExpanded     = document.getElementById('message-log-expanded')
+    el.msgLogScroll       = document.getElementById('message-log-scroll')
+
+    // Toggle log on message-box click
+    el.messageBox.addEventListener('click', () => {
+      const isOpen = !el.msgLogExpanded.classList.contains('hidden')
+      if (isOpen) {
+        el.msgLogExpanded.classList.add('hidden')
+      } else {
+        el.msgLogScroll.innerHTML = _logHistory.map((e, i) =>
+          `<div class="log-entry${e.isAlert ? ' log-alert' : ''}${i === 0 ? ' log-latest' : ''}">${e.msg}</div>`
+        ).join('')
+        el.msgLogExpanded.classList.remove('hidden')
+        el.msgLogScroll.scrollTop = 0
+      }
+    })
+
+    // Collapse log when clicking outside
+    document.addEventListener('click', e => {
+      if (!el.msgLogWrap.contains(e.target)) {
+        el.msgLogExpanded.classList.add('hidden')
+      }
+    })
   },
 
   // ── HUD ──────────────────────────────────────
@@ -184,6 +209,12 @@ const UI = {
   setMessage(msg, isAlert = false) {
     el.messageBox.textContent = msg
     el.messageBox.classList.toggle('alert', isAlert)
+    _logHistory.unshift({ msg, isAlert })
+    if (_logHistory.length > 80) _logHistory.pop()
+  },
+
+  clearLog() {
+    _logHistory.length = 0
   },
 
   // ── Action panel ──────────────────────────────
@@ -216,11 +247,12 @@ const UI = {
   },
 
   showRetreat() {
-    el.retreatBar.classList.remove('hidden')
+    el.retreatBtn.classList.remove('hidden')
   },
 
   hideRetreat() {
-    el.retreatBar.classList.add('hidden')
+    el.retreatBtn.classList.add('hidden')
+    document.getElementById('retreat-confirm').classList.add('hidden')
   },
 
   // ── Grid ─────────────────────────────────────
@@ -253,7 +285,7 @@ const UI = {
     if (wrap) {
       if (TILE_SLAIN_ICON) {
         wrap.classList.remove('tile-icon-fallback')
-        wrap.innerHTML = `<img class="tile-icon-img" src="${ITEM_ICONS_BASE}${TILE_SLAIN_ICON}" alt="" decoding="async" draggable="false"/>`
+        wrap.innerHTML = `<img class="tile-icon-img" src="${TILE_SLAIN_ICON}" alt="" decoding="async" draggable="false"/>`
         const img = wrap.querySelector('.tile-icon-img')
         if (img) {
           img.addEventListener('error', () => {

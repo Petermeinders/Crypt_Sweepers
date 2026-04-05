@@ -212,6 +212,7 @@ function _tileFaceIconHTML(tile, def) {
   const emoji = tile.enemyData?.emoji ?? def.emoji
   const src = _resolveTileIconSrc(tile, def)
   if (!src) {
+    if (!emoji) return ''
     return `<span class="tile-icon-wrap tile-icon-fallback"><span class="tile-emoji">${emoji}</span></span>`
   }
   return `<span class="tile-icon-wrap"><img class="tile-icon-img" src="${src}" alt="" decoding="async" draggable="false"/></span>`
@@ -249,6 +250,13 @@ function renderGrid(gridEl, onTap, onHold) {
       div.dataset.col = c
       div.setAttribute('aria-label', 'hidden tile')
 
+      // Random back-face texture — picked now, applied after innerHTML is set
+      const _backImages = [
+        'assets/sprites/tiles/tile-unflipped2.1.png',
+        'assets/sprites/tiles/tile-unflipped3.png',
+      ]
+      const backSrc = _backImages[Math.floor(Math.random() * _backImages.length)]
+
       const isBoss = tile.enemyData?.isBoss
       const hpBarHTML = ''
 
@@ -276,6 +284,9 @@ function renderGrid(gridEl, onTap, onHold) {
             ${hpBarHTML}
           </div>
         </div>`
+
+      // Apply random back texture directly to the .tile-back element
+      div.querySelector('.tile-back').style.backgroundImage = `url('${backSrc}')`
 
       _wireTileIconFallback(div, emojiFallback)
 

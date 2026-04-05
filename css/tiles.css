@@ -1,7 +1,7 @@
 /* Dungeon tile art — relative to this CSS file */
 :root {
-  --tile-art-back:     url('../assets/sprites/tiles/download (33).png');
-  --tile-art-revealed: url('../assets/sprites/tiles/dungeon-tile-floor.png');
+  --tile-art-back:     url('../assets/sprites/tiles/tile-unflipped2.1.png');
+  --tile-art-revealed: url('../assets/sprites/tiles/tile-flipped2.1.png');
   --tile-art-brick:    url('../assets/sprites/tiles/download (29) (1).png');
   --tile-art-wood:     url('../assets/sprites/tiles/download (30).png');
   --tile-art-rubble:   url('../assets/sprites/tiles/download (31).png');
@@ -106,7 +106,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(0,0,0,0.62);
+  background: rgba(0,0,0,0.7);
   pointer-events: none;
 }
 
@@ -209,12 +209,12 @@
 
 /* ── Per-type icon placement ── */
 
-/* Chest: sits on the floor — no overflow, bottom-anchored */
+/* Chest: centered in the tile */
 .tile-type-chest .tile-icon-wrap {
-  top: auto;
-  bottom: 20px;
-  height: 60%;
-  align-items: flex-end;
+  top: 0;
+  bottom: 0;
+  height: 100%;
+  align-items: center;
 }
 
 /* Exit: built into the floor — flat, no overflow, centered low */
@@ -240,7 +240,7 @@
   bottom: 22px;
 }
 
-/* Revealed icon art — oversized and shifted upward for 3D pop (default / enemies) */
+/* Revealed icon art — sits just above the hp/dmg stats */
 .tile-icon-wrap {
   display: flex;
   align-items: flex-end;
@@ -249,7 +249,7 @@
   bottom: 28px;           /* sit above label + stats + hp bar */
   left: 0;
   right: 0;
-  top: -28%;              /* how far it overflows upward */
+  top: 4%;                /* reduced upward overflow — keeps enemy closer to stats */
   pointer-events: none;
   z-index: 2;
 }
@@ -321,10 +321,51 @@
   background-position: center;
 }
 
+.tile-front::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.58);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.tile-front > * {
+  position: relative;
+  z-index: 1;
+}
+
 .tile-front.type-slain {
   background-image: var(--tile-art-revealed);
   border-color: #2a2a2a;
-  filter: brightness(0.45) saturate(0.4);
+}
+
+/* Darken the background without affecting the icon */
+.tile-front.type-slain::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.58);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Anchor ashes to the floor — centered, no upward overflow */
+.tile-front.type-slain .tile-icon-wrap {
+  top: auto;
+  bottom: 8px;
+  height: 65%;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 1;
+}
+
+.tile-front.type-slain .tile-icon-img {
+  width: 80%;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 -2px 0 rgba(0, 0, 0, 0.55))
+          drop-shadow(0 0 1px rgba(0, 0, 0, 0.95));
 }
 
 .tile-front.type-enemy-fast { animation: pulse-danger 1.1s ease-in-out infinite; }
@@ -379,9 +420,7 @@ body.tile-colors .tile-front.type-trap {
   border-color: #5a2a7a;
 }
 body.tile-colors .tile-front.type-slain {
-  background-image:
-    linear-gradient(180deg, rgba(12,12,12,0.72), rgba(24,24,24,0.82)),
-    var(--tile-art-revealed);
+  background-image: var(--tile-art-revealed);
 }
 body.tile-colors .tile-front.type-enemy {
   background-image:

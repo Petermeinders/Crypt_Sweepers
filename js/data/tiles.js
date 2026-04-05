@@ -3,7 +3,7 @@
 // Weights are tuned for floor 1; TileEngine applies floor-depth adjustments.
 
 export const TILE_DEFS = {
-  empty:      { emoji: '·',    label: '',           cssClass: 'type-empty',      weight: 29, isEnemy: false },
+  empty:      { emoji: '',     label: '',           cssClass: 'type-empty',      weight: 29, isEnemy: false },
   enemy:      { emoji: '💀',   label: 'enemy',      cssClass: 'type-enemy',      weight: 22, isEnemy: true,  enemyType: 'skeleton'    },
   enemy_fast: { emoji: '⚡',   label: 'fast!',      cssClass: 'type-enemy-fast', weight:  7, isEnemy: true,  enemyType: 'goblin_fast' },
   gold:       { emoji: '🪙',   label: '',           cssClass: 'type-gold',       weight: 16, isEnemy: false },

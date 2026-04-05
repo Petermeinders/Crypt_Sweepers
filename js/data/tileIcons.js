@@ -52,4 +52,4 @@ export const ENEMY_ICON_FILES = {
 }
 
 /** Shown when an enemy tile is defeated */
-export const TILE_SLAIN_ICON = null
+export const TILE_SLAIN_ICON = 'assets/sprites/effects/ashes.png'

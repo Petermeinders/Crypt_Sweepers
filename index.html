@@ -34,14 +34,24 @@
       <div id="slam-overlay" class="hidden">
         <img id="slam-gif" src="" alt="">
       </div>
+      <button id="retreat-btn" class="hidden">🚪</button>
+      <div id="retreat-confirm" class="hidden">
+        <p>Flee the dungeon?<br><span>You'll keep only 20% of your gold.</span></p>
+        <div class="retreat-confirm-btns">
+          <button id="retreat-confirm-yes">Yes, flee!</button>
+          <button id="retreat-confirm-no">Stay & fight</button>
+        </div>
+      </div>
     </div>
 
     <div id="action-panel">
-      <div id="message-box">Tap a tile to reveal what lurks beneath...</div>
-      <div id="action-buttons" class="hidden"></div>
-      <div id="retreat-bar" class="hidden">
-        <button class="action-btn retreat-btn" id="retreat-btn">🚪 Hasty Retreat (keep 20% loot)</button>
+      <div id="message-log-wrap">
+        <div id="message-log-expanded" class="hidden">
+          <div id="message-log-scroll"></div>
+        </div>
+        <div id="message-box">Tap a tile to reveal what lurks beneath...</div>
       </div>
+      <div id="action-buttons" class="hidden"></div>
     </div>
 
     <div id="xp-bar-container">

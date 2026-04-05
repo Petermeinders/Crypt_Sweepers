@@ -50,6 +50,16 @@ function init() {
   EventBus.on('audio:crossfade', ({ track, duration })  => crossfadeTo(track, duration))
   EventBus.on('audio:stop',      ()                     => stopMusic())
 
+  // Pause/resume music when app is backgrounded (Android Edge, PWA, etc.)
+  document.addEventListener('visibilitychange', () => {
+    if (!_musicEl) return
+    if (document.hidden) {
+      _musicEl.pause()
+    } else if (_musicOn) {
+      _musicEl.play().catch(() => {})
+    }
+  })
+
   // Unlock AudioContext on first user interaction (iOS)
   const unlock = async () => {
     if (_ctx) return
