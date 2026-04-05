@@ -25,22 +25,29 @@
   <div id="app">
 
     <div id="header">
-      <div id="title">Crypt Sweepers</div>
-      <div id="floor-info">Floor 1 — The Shallow Dark</div>
+      <div id="header-row">
+        <div class="header-spacer" aria-hidden="true"></div>
+        <div id="header-title-block">
+          <div id="title">Crypt Sweepers</div>
+          <div id="floor-info">Floor 1 — The Shallow Dark</div>
+        </div>
+        <div class="header-actions">
+          <button type="button" id="retreat-btn" class="hidden" title="Flee the dungeon" aria-label="Flee the dungeon">🚪</button>
+          <div id="retreat-confirm" class="hidden">
+            <p>Flee the dungeon?<br><span>You'll keep only 20% of your gold.</span></p>
+            <div class="retreat-confirm-btns">
+              <button type="button" id="retreat-confirm-yes">Yes, flee!</button>
+              <button type="button" id="retreat-confirm-no">Stay & fight</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div id="grid-container">
       <div id="grid"></div>
       <div id="slam-overlay" class="hidden">
         <img id="slam-gif" src="" alt="">
-      </div>
-      <button id="retreat-btn" class="hidden">🚪</button>
-      <div id="retreat-confirm" class="hidden">
-        <p>Flee the dungeon?<br><span>You'll keep only 20% of your gold.</span></p>
-        <div class="retreat-confirm-btns">
-          <button id="retreat-confirm-yes">Yes, flee!</button>
-          <button id="retreat-confirm-no">Stay & fight</button>
-        </div>
       </div>
     </div>
 
@@ -105,8 +112,6 @@
         <button type="button" class="hud-action-slot is-placeholder" id="hud-btn-slot-f" title="Reserved" disabled>···</button>
       </div>
     </div>
-
-    <button id="reset-btn">↺ New Run</button>
 
   </div>
 

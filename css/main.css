@@ -51,10 +51,36 @@ html, body {
 
 /* ── Header ── */
 #header {
-  padding: 10px 16px 6px;
-  text-align: center;
+  padding: 10px 12px 6px;
   flex-shrink: 0;
   background: linear-gradient(180deg, #080810 0%, transparent 100%);
+  position: relative;
+  z-index: 15;
+}
+
+#header-row {
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  gap: 4px;
+}
+
+.header-spacer {
+  width: 44px;
+  pointer-events: none;
+}
+
+#header-title-block {
+  text-align: center;
+  min-width: 0;
+}
+
+.header-actions {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  min-height: 40px;
 }
 
 #title {

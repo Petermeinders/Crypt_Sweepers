@@ -122,12 +122,9 @@
   pointer-events: none;
 }
 
-/* ── Retreat button — top-left of grid ── */
+/* ── Retreat button — header top-right ── */
 #retreat-btn {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  z-index: 10;
+  flex-shrink: 0;
   background: rgba(10,6,4,0.82);
   border: 1px solid rgba(180,60,40,0.5);
   border-radius: 8px;
@@ -154,9 +151,10 @@
 /* ── Retreat confirmation popup ── */
 #retreat-confirm {
   position: absolute;
-  top: 54px;
-  left: 8px;
-  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  left: auto;
+  z-index: 25;
   background: linear-gradient(160deg, rgba(20,10,8,0.97), rgba(10,6,4,0.99));
   border: 1px solid rgba(180,60,40,0.55);
   border-radius: 10px;
@@ -253,12 +251,13 @@
 .hud-portrait {
   width: 72px;
   align-self: stretch;
+  position: relative;
   border-radius: 10px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  overflow: visible;
+  overflow: hidden;
   background:
     linear-gradient(145deg, rgba(255,255,255,0.12) 0%, transparent 42%),
     linear-gradient(180deg, #3a3848 0%, #252530 100%);
@@ -271,10 +270,12 @@
 
 #hud-portrait-img {
   position: absolute;
-  height: 140px;
-  width: auto;
-  margin-bottom: 12%;
-  margin-left: 15px;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  object-fit: contain;
+  object-position: center center;
   image-rendering: pixelated;
   pointer-events: none;
   z-index: 20;
@@ -639,23 +640,3 @@
   padding: 8px;
 }
 
-/* ── Reset button ── */
-#reset-btn {
-  position: fixed;
-  top: 10px;
-  right: 12px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.08);
-  color: var(--text-dim);
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 0.65rem;
-  cursor: pointer;
-  font-family: sans-serif;
-  letter-spacing: 0.5px;
-  transition: background 0.15s;
-  z-index: 10;
-}
-
-#reset-btn:hover  { background: rgba(255,255,255,0.1); }
-#reset-btn:active { background: rgba(255,255,255,0.15); }

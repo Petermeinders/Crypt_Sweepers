@@ -58,6 +58,20 @@
   animation: shake 0.35s ease;
 }
 
+/* ── Ranger arrow projectile ── */
+.arrow-projectile {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80%;
+  max-width: 72px;
+  height: auto;
+  pointer-events: none;
+  z-index: 20;
+  image-rendering: pixelated;
+}
+
 /* ── Strike slash effect ── */
 .strike-slash {
   position: absolute;

@@ -1,5 +1,5 @@
 // Ranger character definition and ability tree.
-// Ranger unique mechanic: enemy reveals do NOT lock adjacent tiles.
+// Ranger passive: each enemy reveal has a 10% chance to skip locking adjacent tiles.
 
 export const RANGER_BASE = {
   hp:      80,

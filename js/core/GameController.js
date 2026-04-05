@@ -22,6 +22,11 @@ function _charKey() {
   return _save?.selectedCharacter ?? 'warrior'
 }
 
+/** Ranger __Attack.gif length — portrait stays on "attack" until this elapses. */
+const RANGER_FIGHT_ATTACK_PORTRAIT_MS = 4000
+/** Ranger passive: chance per enemy reveal to skip locking adjacent tiles. */
+const RANGER_PASSIVE_SKIP_ADJ_LOCK = 0.1
+
 function buildRunState() {
   const isRanger = _charKey() === 'ranger'
   const baseHP   = isRanger ? RANGER_BASE.hp   : CONFIG.player.baseHP
@@ -49,8 +54,6 @@ function buildRunState() {
     extraAbilityChoice: false,
     damageTakenMult:    1,
     isRanger,
-    // Ranger unique: enemy reveals don't lock adjacent tiles
-    noLockOnReveal:     isRanger,
     inventory:          [],   // [{ id, qty }]
   }
 
@@ -126,7 +129,9 @@ function _startFloor() {
   // Show spell button always — player can target any enemy at any time
   const effectiveCost = Math.max(1, CONFIG.spell.manaCost - (run.player.spellCostReduction ?? 0))
   UI.showActionPanel(effectiveCost, run.player.mana >= effectiveCost)
-  UI.hideRetreat()
+  // Start tile is already revealed — player can flee; only close dialog if it was open.
+  document.getElementById('retreat-confirm')?.classList.add('hidden')
+  UI.showRetreat()
   UI.hideRunSummary()
   UI.hideMerchant()
 
@@ -438,7 +443,8 @@ function _resolveEffect(tile) {
       _takeDamage(dmg, tile.element)
       UI.shakeTile(tile.element)
       if (!GameState.is(States.DEATH)) {
-        if (!p.noLockOnReveal) {
+        const rangerSkipLock = p.isRanger && Math.random() < RANGER_PASSIVE_SKIP_ADJ_LOCK
+        if (!rangerSkipLock) {
           TileEngine.lockAdjacent(tile.row, tile.col, UI.lockTile.bind(UI))
         }
         UI.markTileEnemyAlive(tile.element)
@@ -450,8 +456,9 @@ function _resolveEffect(tile) {
       break
     }
 
-    case 'enemy':
-      if (!p.noLockOnReveal) {
+    case 'enemy': {
+      const rangerSkipLock = p.isRanger && Math.random() < RANGER_PASSIVE_SKIP_ADJ_LOCK
+      if (!rangerSkipLock) {
         TileEngine.lockAdjacent(tile.row, tile.col, UI.lockTile.bind(UI))
       }
       UI.markTileEnemyAlive(tile.element)
@@ -466,6 +473,7 @@ function _resolveEffect(tile) {
       UI.showRetreat()
       EventBus.emit('tile:locked', {})
       break
+    }
 
     case 'exit':
       tile.exitResolved = false
@@ -591,8 +599,23 @@ function fightAction(tile) {
   const isStunned = (tile.enemyData.stunTurns ?? 0) > 0
 
   UI.setPortraitAnim('attack')
-  UI.spawnSlash(tile.element)
-  EventBus.emit('audio:play', { sfx: Math.random() < 0.5 ? 'hit' : 'hit2' })
+  if (_charKey() === 'ranger') UI.spawnArrow(tile.element)
+  else UI.spawnSlash(tile.element)
+  const attackSfx = _charKey() === 'ranger'
+    ? 'arrowShot'
+    : (Math.random() < 0.5 ? 'hit' : 'hit2')
+  EventBus.emit('audio:play', { sfx: attackSfx })
+
+  const attackPortraitT0 = performance.now()
+  const isRanger = _charKey() === 'ranger'
+  const afterRangerAttackPortrait = (fn) => {
+    if (!isRanger) {
+      fn()
+      return
+    }
+    const elapsed = performance.now() - attackPortraitT0
+    setTimeout(fn, Math.max(0, RANGER_FIGHT_ATTACK_PORTRAIT_MS - elapsed))
+  }
 
   // Slime split: first kill restores half HP and splits visually
   const canSplit = killsEnemy
@@ -607,9 +630,11 @@ function fightAction(tile) {
       UI.setMessage(`You strike for ${playerDmg}${bonusSuffix}! +${result.goldDrop} gold.`)
       _gainGold(result.goldDrop, tile.element)
       _gainXP(result.xpDrop ?? 0, tile.element)
-      UI.setPortraitAnim('idle')
-      _combatBusy = false
       _endCombatVictory(tile)
+      afterRangerAttackPortrait(() => {
+        UI.setPortraitAnim('idle')
+      })
+      _combatBusy = false
     }, 400)
   } else if (canSplit) {
     setTimeout(() => {
@@ -621,7 +646,9 @@ function fightAction(tile) {
       UI.splitSlime(tile.element)
       UI.updateEnemyHP(tile.element, splitHP)
       UI.setMessage(`The slime splits in two! Each half still fights. (${splitHP} HP remaining)`)
-      UI.setPortraitAnim('idle')
+      afterRangerAttackPortrait(() => {
+        UI.setPortraitAnim('idle')
+      })
       _combatBusy = false
     }, 400)
   } else {
@@ -643,9 +670,11 @@ function fightAction(tile) {
           UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp')
           _gainGold(result.goldDrop, tile.element)
           _gainXP(result.xpDrop ?? 0, tile.element)
-          UI.setPortraitAnim('idle')
-          _combatBusy = false
           _endCombatVictory(tile)
+          afterRangerAttackPortrait(() => {
+            UI.setPortraitAnim('idle')
+          })
+          _combatBusy = false
           return
         }
       }
@@ -659,17 +688,27 @@ function fightAction(tile) {
         _takeDamage(result.enemyDmg, tile.element, true, tile.enemyData)
         UI.shakeTile(tile.element)
         if (GameState.is(States.DEATH)) { _combatBusy = false; return }
-        UI.setPortraitAnim('hit')
+        if (!isRanger) UI.setPortraitAnim('hit')
       }
 
       setTimeout(() => {
         _setEnemySprite(tile, 'idle')
         UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp')
         EventBus.emit('combat:damage', { amount: playerDmg, target: 'enemy' })
-        UI.setPortraitAnim('idle')
         const stunMsg = isStunned ? ' (stunned — no counter!)' : ''
         UI.setMessage(`You strike for ${playerDmg}${bonusSuffix}${stunMsg}! Enemy has ${tile.enemyData.currentHP} HP left.`)
         UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
+
+        if (!isRanger) {
+          UI.setPortraitAnim('idle')
+        } else {
+          afterRangerAttackPortrait(() => {
+            if (!isStunned) UI.setPortraitAnim('hit')
+            setTimeout(() => {
+              UI.setPortraitAnim('idle')
+            }, isStunned ? 0 : 500)
+          })
+        }
         _combatBusy = false
       }, isStunned ? 200 : 500)
     }, 400)

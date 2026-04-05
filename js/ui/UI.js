@@ -7,6 +7,25 @@ import { ITEM_ICONS_BASE, TILE_SLAIN_ICON } from '../data/tileIcons.js'
 const el = {}  // element cache
 const _logHistory = []
 
+/** HUD portrait gifs per animation state (hero-specific). */
+const PORTRAIT_ANIM = {
+  warrior: {
+    idle:   'assets/sprites/Heroes/Warrior/__Idle.gif',
+    attack: 'assets/sprites/Heroes/Warrior/__AttackCombo2hit.gif',
+    hit:    'assets/sprites/Heroes/Warrior/__Hit.gif',
+    run:    'assets/sprites/Heroes/Warrior/__Run.gif',
+    death:  'assets/sprites/Heroes/Warrior/__DeathNoMovement.gif',
+  },
+  // Ranger folder currently has only Idle + Attack; reuse idle for other states.
+  ranger: {
+    idle:   'assets/sprites/Heroes/Ranger/__Idle.gif',
+    attack: 'assets/sprites/Heroes/Ranger/__Attack.gif',
+    hit:    'assets/sprites/Heroes/Ranger/__Idle.gif',
+    run:    'assets/sprites/Heroes/Ranger/__Idle.gif',
+    death:  'assets/sprites/Heroes/Ranger/__Idle.gif',
+  },
+}
+
 const UI = {
   init() {
     el.hpBar       = document.getElementById('hp-bar')
@@ -29,7 +48,6 @@ const UI = {
     el.levelUpOverlay  = document.getElementById('level-up-overlay')
     el.abilityChoices  = document.getElementById('ability-choices')
     el.runSummary      = document.getElementById('run-summary')
-    el.resetBtn        = document.getElementById('reset-btn')
     // Main menu
     el.mainMenu        = document.getElementById('main-menu')
     el.menuGoldVal     = document.getElementById('menu-gold-val')
@@ -48,6 +66,7 @@ const UI = {
     el.msgLogWrap         = document.getElementById('message-log-wrap')
     el.msgLogExpanded     = document.getElementById('message-log-expanded')
     el.msgLogScroll       = document.getElementById('message-log-scroll')
+    el.hudCharacterId     = 'warrior'
 
     // Toggle log on message-box click
     el.messageBox.addEventListener('click', () => {
@@ -144,6 +163,15 @@ const UI = {
     document.getElementById('grid-container')?.classList.toggle('lantern-mode', active)
   },
 
+  spawnArrow(tileEl) {
+    if (!tileEl) return
+    const img = document.createElement('img')
+    img.src = 'assets/sprites/effects/ranger-arrow-shot.gif?t=' + Date.now()
+    img.className = 'arrow-projectile'
+    tileEl.appendChild(img)
+    setTimeout(() => img.remove(), 700)
+  },
+
   flashTile(tileEl) {
     if (!tileEl) return
     tileEl.classList.add('flash-blind')
@@ -167,26 +195,21 @@ const UI = {
 
   setHudCharacter(characterId) {
     if (!el.hudPortraitWrap) return
-    const isRanger = characterId === 'ranger'
+    const id = characterId === 'ranger' ? 'ranger' : 'warrior'
+    el.hudCharacterId = id
+    const isRanger = id === 'ranger'
     el.hudPortraitWrap.classList.toggle('is-ranger', isRanger)
     if (el.hudPortraitImg) {
-      el.hudPortraitImg.src = isRanger
-        ? 'assets/sprites/Heroes/Ranger/__Idle.gif'
-        : 'assets/sprites/Heroes/Warrior/__Idle.gif'
+      el.hudPortraitImg.src = PORTRAIT_ANIM[id].idle
     }
   },
 
   // State: 'idle' | 'attack' | 'hit' | 'run' | 'death'
   setPortraitAnim(state) {
     if (!el.hudPortraitImg) return
-    const MAP = {
-      idle:   'assets/sprites/Heroes/Warrior/__Idle.gif',
-      attack: 'assets/sprites/Heroes/Warrior/__AttackCombo2hit.gif',
-      hit:    'assets/sprites/Heroes/Warrior/__Hit.gif',
-      run:    'assets/sprites/Heroes/Warrior/__Run.gif',
-      death:  'assets/sprites/Heroes/Warrior/__DeathNoMovement.gif',
-    }
-    if (MAP[state]) el.hudPortraitImg.src = MAP[state]
+    const id  = el.hudCharacterId === 'ranger' ? 'ranger' : 'warrior'
+    const MAP = PORTRAIT_ANIM[id]
+    if (MAP && MAP[state]) el.hudPortraitImg.src = MAP[state]
   },
 
   updateGold(amount) {

@@ -82,7 +82,6 @@ async function boot() {
   AudioManager.init()
 
   // ── In-run buttons ───────────────────────────────────────
-  document.getElementById('reset-btn').addEventListener('click', () => GameController.newGame())
   document.getElementById('info-card-overlay').addEventListener('pointerdown', () => UI.hideInfoCard())
   document.getElementById('hud-backpack-btn').addEventListener('click', () => {
     _openBackpack()
