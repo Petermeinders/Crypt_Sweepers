@@ -36,6 +36,26 @@
   overflow: visible;
 }
 
+/* Ricochet target order badge */
+.ricochet-marker {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  z-index: 8;
+  min-width: 1.15em;
+  height: 1.15em;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(0, 170, 210, 0.92);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.15em;
+  text-align: center;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
 /* ── Base tile ── */
 .tile {
   aspect-ratio: 1;

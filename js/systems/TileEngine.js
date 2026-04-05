@@ -16,6 +16,40 @@ let _currentFloor = 1
 
 // ── Factories ────────────────────────────────────────────────
 
+function _randInt(lo, hi) {
+  return Math.floor(Math.random() * (hi - lo + 1)) + lo
+}
+
+/**
+ * Display string for enemy attack on tiles / cards.
+ * After reveal, `hitDamage` is set once (see rollEnemyHitDamage); until then shows potential range from `dmg`.
+ */
+function formatEnemyDamageDisplay(dmg, hitDamage) {
+  if (hitDamage != null) return String(hitDamage)
+  if (dmg == null) return '—'
+  if (!Array.isArray(dmg)) return String(dmg)
+  const [lo, hi] = dmg
+  return lo === hi ? String(lo) : `${lo}–${hi}`
+}
+
+/** Roll once from scaled `dmg` [lo, hi]; idempotent. Call when the tile is revealed. */
+function rollEnemyHitDamage(enemyData) {
+  if (!enemyData || enemyData.hitDamage != null) return enemyData?.hitDamage
+  const raw = enemyData.dmg
+  const [lo, hi] = Array.isArray(raw) ? raw : [Number(raw), Number(raw)]
+  enemyData.hitDamage = _randInt(lo, hi)
+  return enemyData.hitDamage
+}
+
+/** Update ⚔️ line after hitDamage is rolled (tile already in DOM). */
+function refreshEnemyDamageOnTile(tile) {
+  if (!tile?.element || !tile.enemyData) return
+  const el = tile.element.querySelector('.stat-dmg')
+  if (!el) return
+  const str = formatEnemyDamageDisplay(tile.enemyData.dmg, tile.enemyData.hitDamage)
+  el.textContent = `⚔️ ${str}`
+}
+
 function _scaleEnemy(def, floor) {
   // Scale HP and damage per floor depth
   const hpMult  = 1 + CONFIG.enemy.floorScaleHP  * (floor - 1)
@@ -267,7 +301,7 @@ function renderGrid(gridEl, onTap, onHold) {
       if (def.isEnemy && tile.enemyData) {
         const hp  = tile.enemyData.currentHP ?? tile.enemyData.hp
         const dmg = tile.enemyData.dmg
-        const dmgStr = Array.isArray(dmg) ? dmg[0] : dmg
+        const dmgStr = formatEnemyDamageDisplay(dmg, tile.enemyData.hitDamage)
         enemyStatsHTML = `<div class="tile-enemy-stats">
           <span class="stat-hp">❤️ ${hp}</span>
           <span class="stat-dmg">⚔️ ${dmgStr}</span>
@@ -414,4 +448,7 @@ export default {
   getGrid,
   getTile,
   getCurrentFloor,
+  formatEnemyDamageDisplay,
+  rollEnemyHitDamage,
+  refreshEnemyDamageOnTile,
 }

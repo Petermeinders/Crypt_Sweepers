@@ -1,4 +1,5 @@
 import { CONFIG } from '../config.js'
+import { RANGER_BASE } from '../data/ranger.js'
 import Logger    from '../core/Logger.js'
 
 // Resolves combat actions. Pure logic — no DOM, no state transitions.
@@ -10,11 +11,22 @@ function rand(min, max) {
 
 // Returns { enemyDmg, playerDmg, goldDrop, xpDrop, message }
 function resolveFight(player, enemyData) {
-  // Enemy dmg comes from the enemy definition (already floor-scaled by TileEngine)
+  // Enemy per-hit damage: fixed when tile was revealed (hitDamage); else roll from range (defensive fallback)
   const [dmgMin, dmgMax] = enemyData?.dmg ?? CONFIG.enemy.damage
-  const enemyDmg = rand(dmgMin, dmgMax)
-  const bd = CONFIG.player.baseDamage
-  const playerDmg = Array.isArray(bd) ? rand(...bd) : bd
+  const enemyDmg = typeof enemyData?.hitDamage === 'number'
+    ? enemyData.hitDamage
+    : rand(dmgMin, dmgMax)
+  const bonus = player.damageBonus ?? 0
+
+  let playerDmg
+  if (player.isRanger) {
+    const [lo, hi] = RANGER_BASE.damage
+    playerDmg = rand(lo + bonus, hi + bonus)
+  } else {
+    const bd = CONFIG.player.baseDamage
+    const base = Array.isArray(bd) ? rand(...bd) : bd
+    playerDmg = base + bonus
+  }
 
   const goldDrop = 1
   const xpDrop   = enemyData?.xpDrop ?? 5
@@ -54,7 +66,9 @@ function resolveFlee() {
 // Fast enemy: hits on reveal before combat starts. Returns { dmg }
 function resolveFastReveal(enemyData) {
   const [dmgMin, dmgMax] = enemyData?.dmg ?? CONFIG.enemy.fastDamage
-  const dmg = rand(dmgMin, dmgMax)
+  const dmg = typeof enemyData?.hitDamage === 'number'
+    ? enemyData.hitDamage
+    : rand(dmgMin, dmgMax)
   Logger.debug(`[CombatResolver] fast reveal hit — dmg:${dmg}`)
   return { dmg }
 }

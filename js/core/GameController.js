@@ -8,7 +8,7 @@ import ProgressionSystem     from '../systems/ProgressionSystem.js'
 import MetaProgression       from '../systems/MetaProgression.js'
 import SaveManager           from '../save/SaveManager.js'
 import UI                    from '../ui/UI.js'
-import { RANGER_BASE }       from '../data/ranger.js'
+import { RANGER_BASE, RANGER_UPGRADES } from '../data/ranger.js'
 import { WARRIOR_UPGRADES }  from '../data/upgrades.js'
 import { ENEMY_SPRITES, MONSTER_ICONS_BASE } from '../data/tileIcons.js'
 import { TILE_BLURBS }       from '../data/tileBlurbs.js'
@@ -104,6 +104,11 @@ function _startFloor() {
   _combatBusy             = false
   _lanternTargeting       = false
   _blindingLightTargeting = false
+  _ricochetSelecting = false
+  _ricochetTiles     = []
+  UI.clearRicochetMarks()
+  UI.setRicochetActive(false)
+  UI.setGridRicochetMode(false)
   TileEngine.generateGrid(run.floor)
   TileEngine.renderGrid(UI.getGridEl(), onTileTap, onTileHold)
   _revealStartTile()
@@ -119,10 +124,15 @@ function _startFloor() {
     UI.updateDamageRange(d0, d1)
   }
   UI.setHudCharacter(_charKey())
-  // Slam button — warrior only, and only if unlocked in the skill tree
+  // Slot A — Warrior Slam or Ranger Ricochet when unlocked in XP tree
   const warriorUpgrades = _save.warrior?.upgrades ?? []
-  const slamUnlocked = _charKey() === 'warrior' && warriorUpgrades.includes('slam')
-  UI.setSlamBtn(slamUnlocked, WARRIOR_UPGRADES.slam.manaCost)
+  const rangerUpgrades  = _save.ranger?.upgrades ?? []
+  const slamUnlocked    = _charKey() === 'warrior' && warriorUpgrades.includes('slam')
+  if (_charKey() === 'ranger') {
+    UI.setRicochetBtn(rangerUpgrades.includes('ricochet'), RANGER_UPGRADES.ricochet.manaCost)
+  } else {
+    UI.setSlamBtn(slamUnlocked, WARRIOR_UPGRADES.slam.manaCost)
+  }
   // Blinding Light button — warrior only, slot-b
   const blindingUnlocked = _charKey() === 'warrior' && warriorUpgrades.includes('blinding-light')
   UI.setBlindingLightBtn(blindingUnlocked, WARRIOR_UPGRADES['blinding-light'].manaCost)
@@ -179,6 +189,32 @@ let _spellTargeting         = false
 let _combatBusy             = false
 let _lanternTargeting       = false
 let _blindingLightTargeting = false
+let _ricochetSelecting = false
+let _ricochetTiles     = []
+
+function _cancelRicochetMode() {
+  _ricochetSelecting = false
+  _ricochetTiles     = []
+  UI.clearRicochetMarks()
+  UI.setRicochetActive(false)
+  UI.setGridRicochetMode(false)
+}
+
+function _cancelSpellLanternBlindingForRicochet() {
+  if (_spellTargeting) {
+    _spellTargeting = false
+    const effectiveCost = Math.max(1, CONFIG.spell.manaCost - (run.player.spellCostReduction ?? 0))
+    UI.setSpellTargeting(false, effectiveCost)
+  }
+  if (_lanternTargeting) {
+    _lanternTargeting = false
+    UI.setLanternTargeting(false)
+  }
+  if (_blindingLightTargeting) {
+    _blindingLightTargeting = false
+    UI.setBlindingLightActive(false)
+  }
+}
 
 function onTileTap(row, col) {
   const state = GameState.current()
@@ -207,6 +243,22 @@ function onTileTap(row, col) {
   if (_blindingLightTargeting) {
     if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
       _castBlindingLight(tile)
+    }
+    return
+  }
+
+  // Ricochet: mark up to 3 enemies in tap order
+  if (_ricochetSelecting) {
+    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      const idx = _ricochetTiles.findIndex(t => t.row === tile.row && t.col === tile.col)
+      if (idx >= 0) {
+        _ricochetTiles.splice(idx, 1)
+      } else if (_ricochetTiles.length < 3) {
+        _ricochetTiles.push(tile)
+      } else {
+        UI.setMessage('Ricochet — max 3 targets.', true)
+      }
+      UI.refreshRicochetMarks(_ricochetTiles)
     }
     return
   }
@@ -245,7 +297,7 @@ function onTileHold(row, col) {
       emoji:      e.emoji,
       hp:         e.currentHP ?? e.hp,
       maxHp:      e.hp,
-      dmg:        Array.isArray(e.dmg) ? e.dmg[0] : e.dmg,
+      dmg:        TileEngine.formatEnemyDamageDisplay(e.dmg, e.hitDamage),
       type:       e.type,
       blurb:      e.blurb ?? '',
       attributes: e.attributes ?? [],
@@ -282,6 +334,10 @@ async function revealTile(tile) {
   UI.setPortraitAnim('run')
   EventBus.emit('audio:play', { sfx: 'flip' })
   await TileEngine.flipTile(tile)
+  if (tile.enemyData) {
+    TileEngine.rollEnemyHitDamage(tile.enemyData)
+    TileEngine.refreshEnemyDamageOnTile(tile)
+  }
   UI.setPortraitAnim('idle')
   _gainXP(CONFIG.xp.perTileReveal, tile.element)
   EventBus.emit('tile:revealed', { tile })
@@ -317,6 +373,16 @@ function _openChest(tile) {
     _addToBackpack('mana-ring')
     UI.spawnFloat(tile.element, '💍 Mana Ring', 'mana')
     UI.setMessage('You pry it open — a Mana Ring! Passive: 10% chance for double mana on tile flips.')
+  } else if (loot.type === 'smiths-tools') {
+    const def = ITEMS['smiths-tools']
+    const amt = def?.effect?.amount ?? 1
+    run.player.damageBonus = (run.player.damageBonus ?? 0) + amt
+    {
+      const [d0, d1] = _playerDamageRange(run.player)
+      UI.updateDamageRange(d0, d1)
+    }
+    UI.spawnFloat(tile.element, `🔧 ${def.name}`, 'xp')
+    UI.setMessage(`You pry it open — ${def.name}! +${amt} attack damage for this run.`)
   } else {
     _gainGold(loot.amount, tile.element)
     UI.setMessage(`You pry it open — +${loot.amount} gold!`)
@@ -380,7 +446,9 @@ function _resolveEffect(tile) {
               ? { type: 'potion-red' }
               : roll < 0.65
                 ? { type: 'potion-blue' }
-                : { type: 'gold', amount: _rand(...CONFIG.chest.goldDrop) }
+                : roll < 0.70
+                  ? { type: 'smiths-tools' }
+                  : { type: 'gold', amount: _rand(...CONFIG.chest.goldDrop) }
       tile.chestReady = true
       if (tile.element) tile.element.classList.add('chest-ready')
       UI.setMessage('A locked chest — tap again to pry it open.')
@@ -464,7 +532,8 @@ function _resolveEffect(tile) {
       UI.markTileEnemyAlive(tile.element)
       // Fast enemies get a free strike the moment they're revealed
       if (tile.enemyData?.attributes?.includes('fast')) {
-        const ambushDmg = Array.isArray(tile.enemyData.dmg) ? tile.enemyData.dmg[0] : tile.enemyData.dmg
+        const d = tile.enemyData.dmg
+        const ambushDmg = tile.enemyData.hitDamage ?? (Array.isArray(d) ? d[0] : d)
         _takeDamage(ambushDmg, tile.element, false, tile.enemyData)
         UI.setMessage(`⚡ The ${tile.enemyData.label} strikes first for ${ambushDmg}! Tap to fight back.`)
       } else {
@@ -581,7 +650,7 @@ function fightAction(tile) {
 
   const result = CombatResolver.resolveFight(run.player, tile.enemyData)
 
-  let playerDmg = result.playerDmg + (run.player.damageBonus ?? 0)
+  let playerDmg = result.playerDmg
   const isUndead = tile.enemyData?.type === 'undead'
   const isBeast  = tile.enemyData?.type === 'beast'
   if (run.player.undeadBonus && isUndead) playerDmg = Math.round(playerDmg * 2)
@@ -751,15 +820,16 @@ function slamAction() {
 
   _combatBusy = true
   UI.setPortraitAnim('attack')
-  UI.setMessage(`💥 Slam! ${targets.length} enem${targets.length > 1 ? 'ies' : 'y'} struck!`)
+  const slamDmg = _slamDamagePerTarget()
+  UI.setMessage(`💥 Slam! ${targets.length} enem${targets.length > 1 ? 'ies' : 'y'} struck for ${slamDmg} each!`)
 
   // Stagger slash effects across targets
   targets.forEach((target, i) => {
     setTimeout(() => {
       UI.spawnSlash(target.element)
       UI.shakeTile(target.element)
-      target.enemyData.currentHP = Math.max(0, target.enemyData.currentHP - 1)
-      UI.spawnFloat(target.element, '💥 1', 'xp')
+      target.enemyData.currentHP = Math.max(0, target.enemyData.currentHP - slamDmg)
+      UI.spawnFloat(target.element, `💥 ${slamDmg}`, 'xp')
       if (target.enemyData.currentHP <= 0) {
         _gainGold(target.enemyData.goldDrop ? _rand(...target.enemyData.goldDrop) : 1, target.element)
         _gainXP(target.enemyData.xpDrop ?? 0, target.element)
@@ -776,6 +846,92 @@ function slamAction() {
   }, targets.length * 120 + 400)
 }
 
+function abilitySlotAAction() {
+  if (_charKey() === 'ranger') ricochetAction()
+  else slamAction()
+}
+
+function ricochetAction() {
+  if (!(_save.ranger?.upgrades ?? []).includes('ricochet')) return
+  if (_combatBusy) return
+  const cost = RANGER_UPGRADES.ricochet.manaCost
+
+  if (!_ricochetSelecting) {
+    if (run.player.mana < cost) {
+      UI.setMessage('Not enough mana for Ricochet!', true)
+      return
+    }
+    _cancelSpellLanternBlindingForRicochet()
+    _ricochetSelecting = true
+    _ricochetTiles     = []
+    UI.setRicochetActive(true)
+    UI.setGridRicochetMode(true)
+    UI.clearRicochetMarks()
+    UI.setMessage('🏹 Ricochet — tap up to 3 enemies (order matters), then tap Ricochet again to fire.')
+    return
+  }
+
+  if (_ricochetTiles.length === 0) {
+    _cancelRicochetMode()
+    UI.setMessage('Ricochet cancelled.')
+    return
+  }
+
+  if (run.player.mana < cost) {
+    UI.setMessage('Not enough mana for Ricochet!', true)
+    return
+  }
+
+  _executeRicochet()
+}
+
+function _executeRicochet() {
+  const cost    = RANGER_UPGRADES.ricochet.manaCost
+  const ordered = _ricochetTiles.slice()
+  _cancelRicochetMode()
+
+  const targets = ordered.filter(t => t.enemyData && !t.enemyData._slain)
+  if (targets.length === 0) {
+    UI.setMessage('Ricochet — no valid targets left.', true)
+    return
+  }
+
+  run.player.mana = Math.max(0, run.player.mana - cost)
+  UI.updateMana(run.player.mana, run.player.maxMana)
+
+  _combatBusy = true
+  UI.setPortraitAnim('attack')
+  const dmgSeq = _ricochetDamageSequence(targets.length)
+  UI.setMessage(`🏹 Ricochet — ${targets.length} shot${targets.length > 1 ? 's' : ''}! (${dmgSeq.join(' → ')})`)
+
+  targets.forEach((target, i) => {
+    const dmg = dmgSeq[i]
+    setTimeout(() => {
+      if (!target.enemyData || target.enemyData._slain) return
+      UI.spawnArrow(target.element)
+      EventBus.emit('audio:play', { sfx: 'arrowShot' })
+      UI.shakeTile(target.element)
+      target.enemyData.currentHP = Math.max(0, target.enemyData.currentHP - dmg)
+      UI.spawnFloat(target.element, `🏹 ${dmg}`, 'xp')
+      if (target.enemyData.currentHP <= 0) {
+        _gainGold(target.enemyData.goldDrop ? _rand(...target.enemyData.goldDrop) : 1, target.element)
+        _gainXP(target.enemyData.xpDrop ?? 0, target.element)
+        _endCombatVictory(target)
+      } else {
+        UI.updateEnemyHP(target.element, target.enemyData.currentHP)
+      }
+    }, i * 120)
+  })
+
+  // Unlike Ranger melee, Ricochet is a short volley — do not hold _combatBusy for
+  // RANGER_FIGHT_ATTACK_PORTRAIT_MS (4s) or the next enemy tap is silently ignored.
+  const doneMs = targets.length * 120 + 400
+  setTimeout(() => {
+    UI.setPortraitAnim('idle')
+    _combatBusy = false
+  }, doneMs)
+}
+
 function spellAction() {
   const effectiveCost = Math.max(1, CONFIG.spell.manaCost - (run.player.spellCostReduction ?? 0))
   if (run.player.mana < effectiveCost) {
@@ -786,6 +942,7 @@ function spellAction() {
   _spellTargeting = !_spellTargeting
   UI.setSpellTargeting(_spellTargeting, effectiveCost)
   if (_spellTargeting) {
+    _cancelRicochetMode()
     UI.setMessage('✨ Choose an enemy to target.')
   } else {
     UI.setMessage('Spell cancelled.')
@@ -801,6 +958,7 @@ function lanternAction() {
   _lanternTargeting = !_lanternTargeting
   UI.setLanternTargeting(_lanternTargeting)
   if (_lanternTargeting) {
+    _cancelRicochetMode()
     UI.setMessage('🏮 Lantern lit — tap any hidden tile to reveal it.')
   } else {
     UI.setMessage('Lantern extinguished.')
@@ -835,6 +993,7 @@ function blindingLightAction() {
   _blindingLightTargeting = !_blindingLightTargeting
   UI.setBlindingLightActive(_blindingLightTargeting)
   if (_blindingLightTargeting) {
+    _cancelRicochetMode()
     UI.setMessage('✨ Choose an enemy to blind.')
   } else {
     UI.setMessage('Blinding Light cancelled.')
@@ -1057,10 +1216,34 @@ function _xpNeeded() {
 }
 
 function _playerDamageRange(player) {
-  const base = player.isRanger ? RANGER_BASE.damage : CONFIG.player.baseDamage
   const bonus = player.damageBonus ?? 0
+  if (player.isRanger) {
+    const [lo, hi] = RANGER_BASE.damage
+    return [lo + bonus, hi + bonus]
+  }
+  const base = CONFIG.player.baseDamage
   const b = Array.isArray(base) ? base[0] : base
   return [b + bonus, b + bonus]
+}
+
+function _avgMeleeDamage() {
+  const [lo, hi] = _playerDamageRange(run.player)
+  return (lo + hi) / 2
+}
+
+function _slamDamagePerTarget() {
+  const avg = _avgMeleeDamage()
+  const m   = CONFIG.ability.slamPerTargetMult
+  return Math.max(1, Math.round(avg * m))
+}
+
+/** Returns [1st, 2nd, 3rd] shot damage for Ricochet (length matches targets). */
+function _ricochetDamageSequence(targetCount) {
+  const avg = _avgMeleeDamage()
+  const m   = CONFIG.ability.ricochetUnitMult
+  const unit = Math.max(1, Math.round(avg * m))
+  const seq  = [3 * unit, 2 * unit, 1 * unit]
+  return seq.slice(0, targetCount)
 }
 
 // ── Death ────────────────────────────────────────────────────
@@ -1070,6 +1253,7 @@ function _die(killerData = null) {
   _combatBusy             = false
   _lanternTargeting       = false
   _blindingLightTargeting = false
+  _cancelRicochetMode()
   UI.setPortraitAnim('death')
   GameState.transition(States.DEATH)
   UI.hideActionPanel()
@@ -1170,6 +1354,7 @@ function useItem(id) {
     run.player.hp += healed
     UI.updateHP(run.player.hp, run.player.maxHp)
     UI.spawnFloat(document.getElementById('hud-portrait'), `+${healed} HP`, 'heal')
+    UI.setMessage(`❤️ You drink a ${item.name} and restore ${healed} HP.`)
   } else if (effect.type === 'mana') {
     const missing = run.player.maxMana - run.player.mana
     if (missing <= 0) { UI.setMessage('Already at full mana!', true); return }
@@ -1177,6 +1362,7 @@ function useItem(id) {
     run.player.mana += restored
     UI.updateMana(run.player.mana, run.player.maxMana)
     UI.spawnFloat(document.getElementById('hud-portrait'), `+${restored} MP`, 'mana')
+    UI.setMessage(`🔵 You drink a ${item.name} and restore ${restored} mana.`)
   }
 
   entry.qty--
@@ -1210,6 +1396,8 @@ export default {
   onTileTap,
   spellAction,
   slamAction,
+  abilitySlotAAction,
+  ricochetAction,
   blindingLightAction,
   lanternAction,
   doRetreat,

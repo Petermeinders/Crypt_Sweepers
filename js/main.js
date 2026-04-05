@@ -23,22 +23,22 @@ const CHARACTERS = [
     emoji:      null,
     upgrades:   WARRIOR_UPGRADES,
     unlockCost: null,
-    baseHP:     40,
+    baseHP:     50,
     baseMana:   30,
     baseDmg:    '1',
   },
   {
     id:         'ranger',
     name:       'Ranger',
-    tagline:    "Swift and elusive. Enemy reveals don't lock adjacent tiles.",
+    tagline:    "Swift and elusive. Enemy reveals don't lock adjacent tiles 10% of the time.",
     gif:        'assets/sprites/Heroes/Ranger/__Idle.gif',
     attackGif:  'assets/sprites/Heroes/Ranger/__Attack.gif',
     attackMs:   4000,
     emoji:      null,
     upgrades:   RANGER_UPGRADES,
     unlockCost: CONFIG.rangerUnlockCost,
-    baseHP:     80,
-    baseMana:   80,
+    baseHP:     40,
+    baseMana:   35,
     baseDmg:    '1',
   },
 ]
@@ -91,18 +91,36 @@ async function boot() {
   })
   _wireAbilityHold(
     document.getElementById('hud-btn-slot-a'),
-    () => GameController.slamAction(),
-    () => UI.showInfoCard({
-      spriteSrc: WARRIOR_UPGRADES.slam.iconSrc,
-      name:   'Slam',
-      type:   'Warrior Ability',
-      blurb:  'Bring your weapon down with crushing force. Strikes every revealed enemy on the floor for 1 damage.',
-      details: [
-        { icon: '🔵', label: 'Mana Cost',  desc: `${WARRIOR_UPGRADES.slam.manaCost} mana per use` },
-        { icon: '🌀', label: 'AOE',         desc: 'Hits all revealed enemies simultaneously' },
-        { icon: '💥', label: 'Damage',      desc: '1 damage per target' },
-      ],
-    })
+    () => GameController.abilitySlotAAction(),
+    () => {
+      const s = GameController.getSave()
+      if ((s.selectedCharacter ?? 'warrior') === 'ranger') {
+        UI.showInfoCard({
+          spriteSrc:   RANGER_UPGRADES.ricochet.iconSrc,
+          spriteSrcBg: RANGER_UPGRADES.ricochet.iconBgSrc,
+          name:   'Ricochet',
+          type:   'Ranger Ability',
+          blurb:  'Mark up to three enemies in order, then tap Ricochet again. Shot damage scales with your attack (HUD) in a 3 : 2 : 1 ratio.',
+          details: [
+            { icon: '🔵', label: 'Mana Cost',  desc: `${RANGER_UPGRADES.ricochet.manaCost} mana when you confirm` },
+            { icon: '🎯', label: 'Targeting',  desc: 'Tap enemies in chain order; tap again to fire' },
+            { icon: '🏹', label: 'Damage',      desc: 'Three shots at 3×, 2×, 1× a scaling unit (grows with your attack damage)' },
+          ],
+        })
+      } else {
+        UI.showInfoCard({
+          spriteSrc: WARRIOR_UPGRADES.slam.iconSrc,
+          name:   'Slam',
+          type:   'Warrior Ability',
+          blurb:  'Bring your weapon down with crushing force. Strikes every revealed enemy; damage per hit scales with your attack (HUD), reduced for hitting many targets.',
+          details: [
+            { icon: '🔵', label: 'Mana Cost',  desc: `${WARRIOR_UPGRADES.slam.manaCost} mana per use` },
+            { icon: '🌀', label: 'AOE',         desc: 'Hits all revealed enemies simultaneously' },
+            { icon: '💥', label: 'Damage',      desc: 'Each enemy takes damage based on your attack (tuned below a full melee swing)' },
+          ],
+        })
+      }
+    }
   )
   _wireAbilityHold(
     document.getElementById('hud-btn-slot-b'),
@@ -398,9 +416,14 @@ function _renderHeroUpgradeGrid(char, ownedList, xp, isLocked) {
     btn.className = 'hero-upgrade-slot'
       + (isOwned    ? ' owned'    : '')
       + (isSelected ? ' selected' : '')
-    const iconHTML = def.iconSrc
-      ? `<img class="hero-upgrade-icon-img" src="${def.iconSrc}" alt="${def.name}" draggable="false"/>`
-      : `<span class="hero-upgrade-icon">${def.icon}</span>`
+    const iconHTML = def.iconBgSrc && def.iconSrc
+      ? `<span class="hero-upgrade-icon-stack">
+           <img class="hero-upgrade-icon-bg" src="${def.iconBgSrc}" alt="" draggable="false"/>
+           <img class="hero-upgrade-icon-fg" src="${def.iconSrc}" alt="${def.name}" draggable="false"/>
+         </span>`
+      : def.iconSrc
+        ? `<img class="hero-upgrade-icon-img" src="${def.iconSrc}" alt="${def.name}" draggable="false"/>`
+        : `<span class="hero-upgrade-icon">${def.icon}</span>`
     btn.innerHTML = `
       ${iconHTML}
       <span class="hero-upgrade-cost">${isOwned ? '✓' : def.xpCost + ' XP'}</span>

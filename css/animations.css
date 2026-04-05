@@ -39,6 +39,12 @@
   cursor: crosshair;
 }
 
+/* Ricochet targeting: living enemies */
+.ricochet-mode .tile.enemy-alive {
+  cursor: crosshair;
+  box-shadow: 0 0 8px 1px rgba(56, 200, 255, 0.4);
+}
+
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   20%      { transform: translateX(-5px); }

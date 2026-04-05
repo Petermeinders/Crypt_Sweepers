@@ -28,6 +28,19 @@ export const ITEMS = {
     effect: { type: 'heal', amount: 5 },
   },
 
+  'smiths-tools': {
+    name:      "Smith's Tools",
+    icon:      '🔧',
+    spriteSrc: 'assets/sprites/Items/smiths-tools.png',
+    stackable: false,
+    blurb:     'Crossed hammer and wrench — just enough kit to tune an edge before the next fight.',
+    details: [
+      { icon: '⚔️', label: 'Effect',  desc: '+1 attack damage for the rest of this run' },
+      { icon: '📦', label: 'Chest',   desc: '~5% chance from chests; consumed on find; stacks each find' },
+    ],
+    effect: { type: 'instant-damage-up', amount: 1 },
+  },
+
   'fire-ring': {
     name:      'Fire Ring',
     icon:      '🔥',

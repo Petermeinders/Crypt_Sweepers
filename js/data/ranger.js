@@ -2,9 +2,9 @@
 // Ranger passive: each enemy reveal has a 10% chance to skip locking adjacent tiles.
 
 export const RANGER_BASE = {
-  hp:      80,
-  mana:    80,
-  damage:  [8, 18],   // slightly lower than Warrior
+  hp:      40,
+  mana:    35,
+  damage:  [1, 1],    // base per strike; variance comes from damageBonus (abilities, chest, etc.)
   gold:    0,
 }
 
@@ -68,6 +68,16 @@ export const RANGER_ABILITIES = {
 }
 
 export const RANGER_UPGRADES = {
+  'ricochet': {
+    name:  'Ricochet',
+    desc:  'Active ability: tap up to 3 enemies in order, then tap Ricochet again to fire for 3 / 2 / 1 damage.',
+    icon:  '🔁',
+    iconSrc:   'assets/sprites/abilities/ricochet-badge.png',
+    iconBgSrc: 'assets/sprites/abilities/ricochet-bg.png',
+    xpCost:  50,
+    manaCost: 10,
+    effect:  { type: 'active-ability', ability: 'ricochet' },
+  },
   'keen-senses': {
     name:  'Keen Senses',
     desc:  'Start each run with +8 max HP',

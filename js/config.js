@@ -20,7 +20,7 @@ export const CONFIG = {
   },
 
   player: {
-    baseHP:          40,
+    baseHP:          50,
     baseMana:        30,
     startGold:       0,
     baseDamage:      1,
@@ -40,6 +40,16 @@ export const CONFIG = {
   spell: {
     manaCost: 3,
     damage:   [3, 5],
+  },
+
+  /**
+   * Slot-A actives (Slam / Ricochet): damage scales with melee potency — the average
+   * of the HUD damage range (same inputs as normal attacks: base + damageBonus).
+   * Mults are < 1 so multi-hit / AOE does not outscale single-target melee.
+   */
+  ability: {
+    slamPerTargetMult: 0.3,   // each Slam hit: max(1, round(avgMelee × this))
+    ricochetUnitMult:  0.5,   // unit = max(1, round(avgMelee × this)); shots 3×, 2×, 1× unit
   },
 
   xp: {

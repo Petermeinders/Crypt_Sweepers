@@ -106,11 +106,13 @@ const UI = {
   },
 
   updateDamageRange(low, high) {
-    if (el.dmgValue) el.dmgValue.textContent = `${low}–${high}`
+    if (!el.dmgValue) return
+    el.dmgValue.textContent = low === high ? String(low) : `${low}–${high}`
   },
 
   setSlamBtn(visible, manaCost = 10) {
     if (!el.hudSlotA) return
+    el.hudSlotA.classList.remove('is-ricochet', 'is-ricochet-active')
     if (visible) {
       el.hudSlotA.innerHTML   = `
         <span class="ability-btn-wrap">
@@ -132,6 +134,52 @@ const UI = {
 
   setSlamActive(active) {
     el.hudSlotA?.classList.toggle('is-slam-active', active)
+  },
+
+  setRicochetBtn(visible, manaCost = 10) {
+    if (!el.hudSlotA) return
+    el.hudSlotA.classList.remove('is-slam', 'is-slam-active')
+    if (visible) {
+      el.hudSlotA.innerHTML   = `
+        <span class="ability-btn-wrap ability-btn-wrap--ricochet">
+          <img src="assets/sprites/abilities/ricochet-bg.png" class="ability-btn-bg" alt="" draggable="false"/>
+          <img src="assets/sprites/abilities/ricochet-badge.png" class="ability-btn-badge" alt="Ricochet" draggable="false"/>
+          <span class="ability-btn-cost">${manaCost}</span>
+        </span>`
+      el.hudSlotA.title       = `Ricochet — mark up to 3 enemies, then tap again (${manaCost} mana)`
+      el.hudSlotA.disabled    = false
+      el.hudSlotA.classList.remove('is-placeholder')
+      el.hudSlotA.classList.add('is-ricochet')
+    } else {
+      el.hudSlotA.textContent = '···'
+      el.hudSlotA.title       = 'Reserved'
+      el.hudSlotA.disabled    = true
+      el.hudSlotA.classList.add('is-placeholder')
+      el.hudSlotA.classList.remove('is-ricochet', 'is-ricochet-active')
+    }
+  },
+
+  setRicochetActive(active) {
+    el.hudSlotA?.classList.toggle('is-ricochet-active', active)
+  },
+
+  clearRicochetMarks() {
+    document.querySelectorAll('.ricochet-marker').forEach(n => n.remove())
+  },
+
+  refreshRicochetMarks(tiles) {
+    this.clearRicochetMarks()
+    tiles.forEach((tile, i) => {
+      if (!tile.element) return
+      const badge = document.createElement('div')
+      badge.className = 'ricochet-marker'
+      badge.textContent = String(i + 1)
+      tile.element.appendChild(badge)
+    })
+  },
+
+  setGridRicochetMode(active) {
+    document.getElementById('grid-container')?.classList.toggle('ricochet-mode', active)
   },
 
   setBlindingLightBtn(visible, manaCost = 10) {
@@ -411,9 +459,14 @@ const UI = {
       ? `<div class="card-type">${data.type}</div>`
       : ''
 
-    const aboveHeaderHTML = data.spriteSrc
-      ? `<div class="card-portrait-above"><img class="card-sprite-large" src="${data.spriteSrc}?${Date.now()}" alt="${data.name}"></div>`
-      : ''
+    const aboveHeaderHTML = data.spriteSrcBg && data.spriteSrc
+      ? `<div class="card-portrait-above card-portrait-stack">
+           <img class="card-sprite-bg" src="${data.spriteSrcBg}" alt="" draggable="false"/>
+           <img class="card-sprite-large card-sprite-fg-layer" src="${data.spriteSrc}?${Date.now()}" alt="${data.name}" draggable="false"/>
+         </div>`
+      : data.spriteSrc
+        ? `<div class="card-portrait-above"><img class="card-sprite-large" src="${data.spriteSrc}?${Date.now()}" alt="${data.name}"></div>`
+        : ''
 
     const inlinePortrait = !data.spriteSrc
       ? `<div class="card-portrait"><div class="card-emoji-large">${data.emoji ?? ''}</div></div>`
