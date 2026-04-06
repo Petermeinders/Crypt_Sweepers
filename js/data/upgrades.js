@@ -16,7 +16,7 @@ export const WARRIOR_UPGRADES = {
   },
   'blinding-light': {
     name:     'Blinding Light',
-    desc:     'A flash of searing light stuns an enemy for 2 turns. They take damage but cannot counter-attack while stunned.',
+    desc:     'A flash of searing light adds stun turns from your attack scaling (no damage). Stunned enemies cannot counter-attack.',
     icon:     '✨',
     iconSrc:  'assets/sprites/abilities/blinding-light.jpg',
     xpCost:   75,

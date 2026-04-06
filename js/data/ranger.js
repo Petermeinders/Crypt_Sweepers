@@ -70,7 +70,7 @@ export const RANGER_ABILITIES = {
 export const RANGER_UPGRADES = {
   'ricochet': {
     name:  'Ricochet',
-    desc:  'Active ability: tap up to 3 enemies in order, then tap Ricochet again to fire for 3 / 2 / 1 damage.',
+    desc:  'Active ability: tap up to 3 enemies in order — the third pick fires, or tap Ricochet again with 1–2 marked (3 / 2 / 1 damage scaling).',
     icon:  '🔁',
     iconSrc:   'assets/sprites/abilities/ricochet-badge.png',
     iconBgSrc: 'assets/sprites/abilities/ricochet-bg.png',

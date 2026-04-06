@@ -10,7 +10,7 @@ import SaveManager           from '../save/SaveManager.js'
 import UI                    from '../ui/UI.js'
 import { RANGER_BASE, RANGER_UPGRADES } from '../data/ranger.js'
 import { WARRIOR_UPGRADES }  from '../data/upgrades.js'
-import { ENEMY_SPRITES, MONSTER_ICONS_BASE } from '../data/tileIcons.js'
+import { ENEMY_SPRITES, MONSTER_ICONS_BASE, ITEM_ICONS_BASE, TILE_TYPE_ICON_FILES } from '../data/tileIcons.js'
 import { TILE_BLURBS }       from '../data/tileBlurbs.js'
 import { ITEMS }             from '../data/items.js'
 
@@ -50,6 +50,10 @@ function buildRunState() {
     undeadBonus:        false,
     beastBonus:         false,
     trapReduction:      0,
+    /** Warrior: Slam Mastery picks (integer stacks; mult = (baseTenths + stacks) / 10). */
+    slamMasteryStacks: 0,
+    /** Warrior: Blinding Light mastery — +0.1 to stun-turn mult per pick (same tenths pattern as Slam). */
+    blindingLightMasteryStacks: 0,
     retreatPercent:     CONFIG.retreat.goldKeepPercent,
     extraAbilityChoice: false,
     damageTakenMult:    1,
@@ -65,6 +69,12 @@ function buildRunState() {
     tilesRevealed:    0,
     activeCombatTile: null,
     merchantTile:     null,
+    /** Between boss and next dungeon — 3×3 sanctuary */
+    atRest:           false,
+    /** After boss dies, stairs appear; first tap goes to sanctuary */
+    bossFloorExitPending: false,
+    /** Chronological level-up picks this run: { level, abilityId, name, icon } */
+    levelUpLog:       [],
   }
 }
 
@@ -96,6 +106,7 @@ function returnToMenu(autoSave = false) {
   UI.updateMenuStats(_save.persistentGold, xp, char, _save)
   UI.setActiveDifficulty(_save.settings.difficulty)
   UI.showMainMenu()
+  UI.refreshSkipFloorButton(_save)
   EventBus.emit('audio:crossfade', { track: 'menu', duration: 1500 })
 }
 
@@ -109,12 +120,12 @@ function _startFloor() {
   UI.clearRicochetMarks()
   UI.setRicochetActive(false)
   UI.setGridRicochetMode(false)
-  TileEngine.generateGrid(run.floor)
+  TileEngine.generateGrid(run.floor, { rest: run.atRest })
   TileEngine.renderGrid(UI.getGridEl(), onTileTap, onTileHold)
   _revealStartTile()
 
   GameState.set(States.FLOOR_EXPLORE)
-  UI.updateFloor(run.floor)
+  UI.updateFloor(run.floor, { rest: run.atRest })
   UI.updateHP(run.player.hp, run.player.maxHp)
   UI.updateMana(run.player.mana, run.player.maxMana)
   UI.updateGold(run.player.gold)
@@ -145,19 +156,22 @@ function _startFloor() {
   UI.hideRunSummary()
   UI.hideMerchant()
 
-  const isBoss = CONFIG.bossFloors.includes(run.floor)
-  UI.setMessage(isBoss
-    ? `⚠️ Floor ${run.floor} — Boss floor! Tread carefully.`
-    : 'Tap a tile to reveal what lurks beneath...')
+  const isBoss = CONFIG.bossFloors.includes(run.floor) && !run.atRest
+  UI.setMessage(run.atRest
+    ? 'A quiet sanctuary. The well restores you; the rope leads out with your gold; the stairs go deeper.'
+    : isBoss
+      ? `⚠️ Floor ${run.floor} — Boss floor! Tread carefully.`
+      : 'Tap a tile to reveal what lurks beneath...')
 
   Logger.debug(`[GameController] Floor ${run.floor} started`)
+  UI.refreshSkipFloorButton(_save)
 }
 
 // ── Starting tile ────────────────────────────────────────────
 
 function _revealStartTile() {
   const grid = TileEngine.getGrid()
-  const { cols, rows } = CONFIG.gridSize(run.floor)
+  const { cols, rows } = CONFIG.gridSize(run.floor, { rest: run.atRest })
 
   // Start tile must be empty — find all empty tiles and pick one at random
   const empties = []
@@ -247,18 +261,29 @@ function onTileTap(row, col) {
     return
   }
 
-  // Ricochet: mark up to 3 enemies in tap order
+  // Ricochet: mark up to 3 enemies in tap order; 3rd pick fires immediately
   if (_ricochetSelecting) {
     if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
       const idx = _ricochetTiles.findIndex(t => t.row === tile.row && t.col === tile.col)
       if (idx >= 0) {
         _ricochetTiles.splice(idx, 1)
+        UI.refreshRicochetMarks(_ricochetTiles)
       } else if (_ricochetTiles.length < 3) {
         _ricochetTiles.push(tile)
+        UI.refreshRicochetMarks(_ricochetTiles)
+        if (_ricochetTiles.length === 3) {
+          const cost = RANGER_UPGRADES.ricochet.manaCost
+          if (run.player.mana < cost) {
+            _ricochetTiles.pop()
+            UI.refreshRicochetMarks(_ricochetTiles)
+            UI.setMessage('Not enough mana for Ricochet!', true)
+          } else {
+            _executeRicochet()
+          }
+        }
       } else {
         UI.setMessage('Ricochet — max 3 targets.', true)
       }
-      UI.refreshRicochetMarks(_ricochetTiles)
     }
     return
   }
@@ -270,6 +295,8 @@ function onTileTap(row, col) {
       _openChest(tile)
     } else if (tile.revealed && tile.type === 'exit' && !tile.exitResolved) {
       _confirmExit(tile)
+    } else if (tile.revealed && tile.type === 'rope' && !tile.ropeResolved) {
+      _confirmRope(tile)
     } else if (tile.revealed && tile.type === 'merchant' && !tile.merchantResolved) {
       openMerchant(tile)
     } else if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
@@ -302,13 +329,18 @@ function onTileHold(row, col) {
       blurb:      e.blurb ?? '',
       attributes: e.attributes ?? [],
     }
+  } else if (tile.revealed && tile.type === 'trap') {
+    UI.showTrapModal(() => {})
+    return
   } else if (tile.revealed) {
     const info = TILE_BLURBS[tile.type]
     if (!info) return
+    const iconFile = TILE_TYPE_ICON_FILES[tile.type]
+    const spriteSrc = iconFile ? ITEM_ICONS_BASE + iconFile : null
     cardData = {
       name:       info.label,
-      emoji:      info.emoji,
-      spriteSrc:  null,
+      emoji:      spriteSrc ? '' : info.emoji,
+      spriteSrc,
       blurb:      info.blurb,
       attributes: [],
     }
@@ -459,11 +491,44 @@ function _resolveEffect(tile) {
     case 'trap': {
       const rawDmg = _rand(...CONFIG.trap.damage)
       const dmg    = Math.max(1, rawDmg - (p.trapReduction ?? 0))
+      const reduced = rawDmg !== dmg ? ` (reduced from ${rawDmg})` : ''
       EventBus.emit('audio:play', { sfx: 'trap' })
       _takeDamage(dmg, tile.element)
-      const reduced = rawDmg !== dmg ? ` (reduced from ${rawDmg})` : ''
       UI.setMessage(`A trap snaps shut! You take ${dmg} damage${reduced}.`)
       if (!GameState.is(States.DEATH)) UI.showRetreat()
+      break
+    }
+
+    case 'well': {
+      p.hp   = p.maxHp
+      p.mana = p.maxMana
+      UI.updateHP(p.hp, p.maxHp)
+      UI.updateMana(p.mana, p.maxMana)
+      UI.spawnFloat(tile.element, 'Restored!', 'heal')
+      UI.setMessage('The well washes over you — health and mana restored.')
+      EventBus.emit('audio:play', { sfx: 'heal' })
+      UI.showRetreat()
+      break
+    }
+
+    case 'anvil': {
+      p.damageBonus = (p.damageBonus ?? 0) + 1
+      {
+        const [d0, d1] = _playerDamageRange(p)
+        UI.updateDamageRange(d0, d1)
+      }
+      UI.spawnFloat(tile.element, '+1 ATK', 'xp')
+      UI.setMessage('You temper your weapon on the anvil — +1 attack damage for this run.')
+      EventBus.emit('audio:play', { sfx: 'hit' })
+      UI.showRetreat()
+      break
+    }
+
+    case 'rope': {
+      tile.ropeResolved = false
+      if (tile.element) tile.element.classList.add('rope-pending')
+      UI.setMessage('A rope leads upward. Tap again to climb out with all your gold.')
+      UI.showRetreat()
       break
     }
 
@@ -696,7 +761,7 @@ function fightAction(tile) {
     setTimeout(() => {
       tile.enemyData.currentHP = 0
       UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp')
-      UI.setMessage(`You strike for ${playerDmg}${bonusSuffix}! +${result.goldDrop} gold.`)
+      UI.setMessage(`You strike for ${playerDmg}${bonusSuffix}! The enemy falls before they can strike back. +${result.goldDrop} gold.`)
       _gainGold(result.goldDrop, tile.element)
       _gainXP(result.xpDrop ?? 0, tile.element)
       _endCombatVictory(tile)
@@ -737,6 +802,7 @@ function fightAction(tile) {
         UI.spawnFloat(tile.element, `🔥 ${burnDmg}`, 'damage')
         if (tile.enemyData.currentHP <= 0) {
           UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp')
+          UI.setMessage(`You strike for ${playerDmg}${bonusSuffix}! The enemy falls to flames before they can strike back. +${result.goldDrop} gold.`)
           _gainGold(result.goldDrop, tile.element)
           _gainXP(result.xpDrop ?? 0, tile.element)
           _endCombatVictory(tile)
@@ -764,8 +830,16 @@ function fightAction(tile) {
         _setEnemySprite(tile, 'idle')
         UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp')
         EventBus.emit('combat:damage', { amount: playerDmg, target: 'enemy' })
-        const stunMsg = isStunned ? ' (stunned — no counter!)' : ''
-        UI.setMessage(`You strike for ${playerDmg}${bonusSuffix}${stunMsg}! Enemy has ${tile.enemyData.currentHP} HP left.`)
+        let tradeMsg
+        if (isStunned) {
+          tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Enemy is stunned — no counter-attack.`
+        } else if (_save.settings.cheats?.godMode) {
+          tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Enemy strikes back — you take no damage.`
+        } else {
+          const taken = _computeEffectiveDamageTaken(result.enemyDmg)
+          tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Enemy strikes back for ${taken} damage.`
+        }
+        UI.setMessage(tradeMsg)
         UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
 
         if (!isRanger) {
@@ -867,7 +941,7 @@ function ricochetAction() {
     UI.setRicochetActive(true)
     UI.setGridRicochetMode(true)
     UI.clearRicochetMarks()
-    UI.setMessage('🏹 Ricochet — tap up to 3 enemies (order matters), then tap Ricochet again to fire.')
+    UI.setMessage('🏹 Ricochet — tap up to 3 enemies (order matters). The 3rd pick fires; with 1–2 picks, tap Ricochet again.')
     return
   }
 
@@ -1010,14 +1084,29 @@ function _castBlindingLight(tile) {
     return
   }
 
+  let stun = _blindingLightStunTurns()
+  const isUndead = tile.enemyData?.type === 'undead'
+  const isBeast  = tile.enemyData?.type === 'beast'
+  if (run.player.undeadBonus && isUndead) stun = Math.round(stun * 2)
+  if (run.player.beastBonus  && isBeast)  stun = Math.round(stun * 2)
+  stun = Math.max(2, stun)
+  const bonusSuffix = (run.player.undeadBonus && isUndead) || (run.player.beastBonus && isBeast)
+    ? ' (2× stun!)' : ''
+
   run.player.mana = Math.max(0, run.player.mana - cost)
   UI.updateMana(run.player.mana, run.player.maxMana)
 
-  tile.enemyData.stunTurns = (tile.enemyData.stunTurns ?? 0) + 2
-  UI.spawnFloat(tile.element, '✨ Stunned!', 'mana')
+  UI.setPortraitAnim('attack')
+  UI.spawnFloat(tile.element, `⏱️ +${stun}`, 'mana')
   UI.flashTile(tile.element)
   EventBus.emit('audio:play', { sfx: 'spell' })
-  UI.setMessage(`✨ Blinding Light! ${tile.enemyData.label} is stunned for 2 turns.`)
+  setTimeout(() => UI.setPortraitAnim('idle'), 600)
+
+  tile.enemyData.stunTurns = (tile.enemyData.stunTurns ?? 0) + stun
+
+  UI.setMessage(
+    `✨ Blinding Light${bonusSuffix} — +${stun} stun turn${stun === 1 ? '' : 's'}! ${tile.enemyData.label} cannot counter-attack (${tile.enemyData.currentHP} HP).`,
+  )
 }
 
 function _castSpell(tile) {
@@ -1062,7 +1151,17 @@ function _castSpell(tile) {
 function _endCombatVictory(tile) {
   tile.enemyData._slain = true
   TileEngine.unlockAdjacent(tile.row, tile.col, UI.unlockTile.bind(UI))
-  UI.markTileSlain(tile.element)
+  if (tile.enemyData?.isBoss) {
+    run.bossFloorExitPending = true
+    tile.type = 'exit'
+    tile.enemyData = null
+    UI.markBossTileAsExit(tile.element)
+    tile.exitResolved = false
+    tile.element?.classList.add('exit-pending')
+    UI.setMessage('🚪 The way forward opens. Tap the stairs when you are ready.')
+  } else {
+    UI.markTileSlain(tile.element)
+  }
 
   if (run.player.onKillHeal > 0) {
     run.player.hp = Math.min(run.player.maxHp, run.player.hp + run.player.onKillHeal)
@@ -1103,6 +1202,30 @@ function doRetreat() {
 // ── Floor progression ────────────────────────────────────────
 
 function _handleExit() {
+  if (run.atRest) {
+    run.atRest = false
+    run.floor++
+    EventBus.emit('audio:play', { sfx: 'footsteps' })
+    UI.setMessage(`🚪 Descending to floor ${run.floor}...`)
+    EventBus.emit('run:floorAdvance', { newFloor: run.floor })
+    UI.runFloorTransition(3000, () => {
+      GameState.set(States.BOOT)
+      _startFloor()
+    }, run.floor)
+    return
+  }
+  if (run.bossFloorExitPending) {
+    run.bossFloorExitPending = false
+    run.atRest = true
+    EventBus.emit('audio:play', { sfx: 'footsteps' })
+    UI.setMessage('Stone gives way to still air — a sanctuary between the depths.')
+    EventBus.emit('run:floorAdvance', { newFloor: run.floor })
+    UI.runFloorTransition(3000, () => {
+      GameState.set(States.BOOT)
+      _startFloor()
+    }, null)
+    return
+  }
   if (run.floor >= CONFIG.floorNames.length) {
     const stats = _runStats()
     const { xpEarned, goldBanked } = MetaProgression.endRun(_save, stats, 'escape')
@@ -1118,22 +1241,51 @@ function _handleExit() {
   }
 }
 
+function _confirmRope(tile) {
+  if (tile.type !== 'rope' || tile.ropeResolved) return
+  UI.showRopeModal(
+    () => {
+      tile.ropeResolved = true
+      tile.element?.classList.remove('rope-pending')
+      const stats = _runStats()
+      const { xpEarned, goldBanked } = MetaProgression.endRun(_save, stats, 'escape')
+      UI.setMessage('You climb the rope and escape with all your gold!')
+      EventBus.emit('run:complete', { outcome: 'escape' })
+      EventBus.emit('audio:play', { sfx: 'retreat' })
+      UI.hideRetreat()
+      UI.hideActionPanel()
+      setTimeout(() => {
+        UI.showRunSummary('escape', { ...stats, xpEarned, goldBanked })
+        _wireRunSummaryBtn()
+      }, 600)
+    },
+    () => {
+      UI.setMessage('You leave the rope for now. Tap again when you are ready to climb out.')
+    }
+  )
+}
+
 function _nextFloor() {
   run.floor++
+  EventBus.emit('audio:play', { sfx: 'footsteps' })
   UI.setMessage(`🚪 Descending to floor ${run.floor}...`)
   EventBus.emit('run:floorAdvance', { newFloor: run.floor })
-  setTimeout(() => {
+  UI.runFloorTransition(3000, () => {
     GameState.set(States.BOOT)
     _startFloor()
-  }, 800)
+  }, run.floor)
 }
 
 // ── Player stat helpers ──────────────────────────────────────
 
+function _computeEffectiveDamageTaken(rawAmount) {
+  const scaled = Math.round(rawAmount * (run.player.damageTakenMult ?? 1))
+  return Math.max(1, scaled - (run.player.damageReduction ?? 0))
+}
+
 function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null) {
   if (_save.settings.cheats?.godMode) return
-  const scaled    = Math.round(amount * (run.player.damageTakenMult ?? 1))
-  const effective = Math.max(1, scaled - (run.player.damageReduction ?? 0))
+  const effective = _computeEffectiveDamageTaken(amount)
   run.player.hp   = Math.max(0, run.player.hp - effective)
   UI.spawnFloat(tileEl, `-${effective} HP`, 'damage')
   UI.updateHP(run.player.hp, run.player.maxHp)
@@ -1183,6 +1335,12 @@ function _triggerLevelUp() {
   if (choices.length === 0) {
     run.player.hp = Math.min(run.player.maxHp, run.player.hp + 10)
     UI.updateHP(run.player.hp, run.player.maxHp)
+    run.levelUpLog.push({
+      level:     run.player.level,
+      abilityId: null,
+      name:      '+10 HP (all choices mastered)',
+      icon:      '❤️',
+    })
     UI.setMessage(`Level ${run.player.level}! Fully mastered. (+10 HP)`)
     return
   }
@@ -1197,6 +1355,13 @@ function _triggerLevelUp() {
 
   UI.showLevelUpOverlay(choiceData, (abilityId) => {
     ProgressionSystem.applyAbility(abilityId, run.player, char)
+    const def = ProgressionSystem.getAbilityDef(abilityId, char)
+    run.levelUpLog.push({
+      level:     run.player.level,
+      abilityId,
+      name:      def?.name ?? abilityId,
+      icon:      def?.icon ?? '✨',
+    })
     UI.hideLevelUpOverlay()
     UI.updateHP(run.player.hp, run.player.maxHp)
     UI.updateMana(run.player.mana, run.player.maxMana)
@@ -1205,7 +1370,6 @@ function _triggerLevelUp() {
       const [d0, d1] = _playerDamageRange(run.player)
       UI.updateDamageRange(d0, d1)
     }
-    const def = ProgressionSystem.getAbilityDef(abilityId, char)
     UI.setMessage(`${def?.name ?? abilityId} acquired! Level ${run.player.level}.`)
     GameState.transition(States.FLOOR_EXPLORE)
   })
@@ -1231,10 +1395,49 @@ function _avgMeleeDamage() {
   return (lo + hi) / 2
 }
 
-function _slamDamagePerTarget() {
+function _slamMultFromStacks(stacks) {
+  const baseTenths = Math.round(CONFIG.ability.slamPerTargetMult * 10)
+  return (baseTenths + stacks) / 10
+}
+
+function _blindingLightMultFromStacks(stacks) {
+  const baseTenths = Math.round(CONFIG.ability.blindingLightStunMult * 10)
+  return (baseTenths + stacks) / 10
+}
+
+/** Stun turns only — same avgMelee × mult formula as old “damage”; no HP loss. Minimum 2 turns. */
+function _blindingLightStunTurns() {
   const avg = _avgMeleeDamage()
-  const m   = CONFIG.ability.slamPerTargetMult
+  const m = _blindingLightMultFromStacks(run.player.blindingLightMasteryStacks ?? 0)
+  return Math.max(2, Math.round(avg * m))
+}
+
+function _slamDamagePerTarget() {
+  const avg    = _avgMeleeDamage()
+  const stacks = run.player.slamMasteryStacks ?? 0
+  const m      = _slamMultFromStacks(stacks)
   return Math.max(1, Math.round(avg * m))
+}
+
+/** For Slam info modal — null if no active run or not warrior. */
+function getSlamDamageBreakdown() {
+  if (!run || run.player?.isRanger) return null
+  const avg = _avgMeleeDamage()
+  const baseTenths = Math.round(CONFIG.ability.slamPerTargetMult * 10)
+  const stacks = run.player.slamMasteryStacks ?? 0
+  const m = _slamMultFromStacks(stacks)
+  const final = Math.max(1, Math.round(avg * m))
+  return { avgMelee: avg, baseTenths, stacks, mult: m, final }
+}
+
+function getBlindingLightBreakdown() {
+  if (!run || run.player?.isRanger) return null
+  const avg = _avgMeleeDamage()
+  const baseTenths = Math.round(CONFIG.ability.blindingLightStunMult * 10)
+  const stacks = run.player.blindingLightMasteryStacks ?? 0
+  const m = _blindingLightMultFromStacks(stacks)
+  const stunTurns = Math.max(2, Math.round(avg * m))
+  return { avgMelee: avg, baseTenths, stacks, mult: m, stunTurns, final: stunTurns }
 }
 
 /** Returns [1st, 2nd, 3rd] shot damage for Ricochet (length matches targets). */
@@ -1371,11 +1574,57 @@ function useItem(id) {
 
 function getInventory() { return run?.player.inventory ?? [] }
 
+function getLevelUpLog() {
+  return run?.levelUpLog ? [...run.levelUpLog] : []
+}
+
+/** Remove one item from backpack (stack −1 or remove slot). Does not apply use effects. */
+function dropItem(id) {
+  if (!run) return
+  const inv = run.player.inventory
+  const entry = inv.find(e => e.id === id)
+  if (!entry) return
+  const item = ITEMS[id]
+  entry.qty--
+  if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
+  UI.setMessage(item ? `Dropped ${item.name}.` : 'Item removed.')
+  EventBus.emit('audio:play', { sfx: 'menu' })
+}
+
 // ── Cheat helpers ─────────────────────────────────────────────
+
+function cheatSkipFloor() {
+  if (!_save?.settings?.cheats?.skipFloorButton || !run) return
+  if (!GameState.is(States.FLOOR_EXPLORE)) {
+    UI.setMessage('[Cheat] Skip floor only works while exploring.', true)
+    return
+  }
+  run.bossFloorExitPending = false
+  if (run.atRest) {
+    run.atRest = false
+    run.floor++
+    EventBus.emit('audio:play', { sfx: 'footsteps' })
+    UI.setMessage(`[Cheat] Skipped sanctuary → floor ${run.floor}`)
+    EventBus.emit('run:floorAdvance', { newFloor: run.floor })
+    UI.runFloorTransition(3000, () => {
+      GameState.set(States.BOOT)
+      _startFloor()
+    }, run.floor)
+    return
+  }
+  _nextFloor()
+}
 
 function applyCheat(key, enabled) {
   if (!_save.settings.cheats) _save.settings.cheats = {}
   _save.settings.cheats[key] = enabled
+
+  if (key === 'skipFloorButton') {
+    UI.refreshSkipFloorButton(_save)
+  }
+  if (key === 'increaseStats') {
+    document.body.classList.toggle('cheat-increase-stats', enabled)
+  }
 
   if (!run) return
   if (key === 'gold999' && enabled) {
@@ -1384,13 +1633,74 @@ function applyCheat(key, enabled) {
   }
   if (key === 'xp999' && enabled) {
     run.player.xp = 999
-    UI.updateXP(run.player.xp, 1)
+    UI.updateXP(run.player.xp, _xpNeeded())
+  }
+}
+
+/**
+ * Cheat "Increase stats": tap HUD HP/mana/gold (+10 each), attack (+1 damageBonus), or XP bar (+10% to next level).
+ * Caller should ensure main menu is hidden (in a run).
+ */
+function cheatHudStatBoost(stat) {
+  if (!_save?.settings?.cheats?.increaseStats || !run) return
+  if (GameState.is(States.DEATH)) return
+  stat = String(stat ?? '').trim().toLowerCase()
+  if (stat === 'xp' && GameState.is(States.LEVEL_UP)) return
+
+  const playable =
+    GameState.is(States.FLOOR_EXPLORE) ||
+    GameState.is(States.COMBAT) ||
+    GameState.is(States.NPC_INTERACT) ||
+    GameState.is(States.LEVEL_UP) ||
+    GameState.is(States.RETREAT_CONFIRM)
+  if (!playable) return
+
+  const p = run.player
+  if (stat === 'hp') {
+    p.hp = Math.min(p.maxHp, p.hp + 10)
+    UI.updateHP(p.hp, p.maxHp)
+    return
+  }
+  if (stat === 'mana') {
+    p.mana = Math.min(p.maxMana, p.mana + 10)
+    UI.updateMana(p.mana, p.maxMana)
+    return
+  }
+  if (stat === 'gold') {
+    p.gold += 10
+    UI.updateGold(p.gold)
+    EventBus.emit('player:goldChange', { amount: 10, newTotal: p.gold })
+    return
+  }
+  if (stat === 'dmg') {
+    p.damageBonus = (p.damageBonus ?? 0) + 1
+    {
+      const [d0, d1] = _playerDamageRange(p)
+      UI.updateDamageRange(d0, d1)
+    }
+    return
+  }
+  if (stat === 'xp') {
+    const add = Math.max(1, Math.round(_xpNeeded() * 0.1))
+    p.xp += add
+    if (p.xp >= _xpNeeded()) {
+      p.xp -= _xpNeeded()
+      p.level++
+      const xpEl = document.getElementById('xp-bar-container')
+      if (xpEl) UI.spawnFloat(xpEl, `⬆️ Lv ${p.level}!`, 'xp')
+      EventBus.emit('player:levelup', { newLevel: p.level })
+      EventBus.emit('audio:play', { sfx: 'levelup' })
+      _triggerLevelUp()
+    }
+    UI.updateXP(p.xp, _xpNeeded())
   }
 }
 
 export default {
   init,
   getSave() { return _save },
+  getSlamDamageBreakdown,
+  getBlindingLightBreakdown,
   newGame,
   returnToMenu,
   onTileTap,
@@ -1402,6 +1712,10 @@ export default {
   lanternAction,
   doRetreat,
   applyCheat,
+  cheatSkipFloor,
+  cheatHudStatBoost,
   useItem,
+  dropItem,
   getInventory,
+  getLevelUpLog,
 }

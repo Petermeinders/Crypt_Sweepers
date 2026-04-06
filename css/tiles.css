@@ -22,6 +22,47 @@
   perspective: 1200px;
 }
 
+/* Floor change: block interaction while grid crossfades */
+#grid-container.floor-transition-active {
+  pointer-events: none;
+}
+
+/* Big "Floor N" splash during descent — fades out quickly after grid appears */
+.floor-banner {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: rgba(6, 4, 12, 0.62);
+  opacity: 0;
+  transition: opacity 0.32s ease;
+}
+
+.floor-banner.is-visible {
+  opacity: 1;
+}
+
+.floor-banner.hidden {
+  visibility: hidden;
+}
+
+.floor-banner-text {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-weight: 900;
+  font-size: clamp(3rem, 20vw, 5.75rem);
+  line-height: 1;
+  letter-spacing: 0.06em;
+  color: var(--torch-yellow, #f5c518);
+  text-shadow:
+    0 0 24px rgba(232, 132, 26, 0.95),
+    0 0 56px rgba(232, 132, 26, 0.45),
+    0 4px 0 #1a1208,
+    0 6px 18px rgba(0, 0, 0, 0.85);
+}
+
 #grid-container > #grid {
   transform: rotateX(4deg);
   transform-origin: center top;
@@ -237,13 +278,32 @@
   align-items: center;
 }
 
-/* Exit: built into the floor — flat, no overflow, centered low */
+/* Exit: framed stairs art — fill tile face like chest */
 .tile-type-exit .tile-icon-wrap {
-  top: auto;
-  bottom: 18px;
-  height: 50%;
-  align-items: flex-end;
-  opacity: 0.88;
+  top: 0;
+  bottom: 0;
+  height: 100%;
+  align-items: center;
+}
+
+/* Trap: cobweb emoji centered on tile face */
+.tile-type-trap .tile-icon-wrap {
+  top: 0;
+  bottom: 0;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Rest floor specials — centered icons */
+.tile-type-well .tile-icon-wrap,
+.tile-type-anvil .tile-icon-wrap,
+.tile-type-rope .tile-icon-wrap {
+  top: 0;
+  bottom: 0;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Gold coin: gentle float, no big overflow */
@@ -477,17 +537,67 @@ body.tile-colors .tile-front.type-merchant {
   border-color: #aa8800;
   box-shadow: inset 0 3px 7px rgba(0,0,0,0.5), inset 0 0 14px rgba(180,140,0,0.2);
 }
+body.tile-colors .tile-front.type-well {
+  background-image:
+    linear-gradient(145deg, rgba(0,32,48,0.78), rgba(0,56,72,0.86)),
+    var(--tile-art-revealed);
+  border-color: #2088aa;
+  box-shadow: inset 0 3px 7px rgba(0,0,0,0.5), inset 0 0 16px rgba(0,140,200,0.25);
+}
+body.tile-colors .tile-front.type-anvil {
+  background-image:
+    linear-gradient(145deg, rgba(28,28,32,0.82), rgba(48,48,56,0.88)),
+    var(--tile-art-revealed);
+  border-color: #5a5a66;
+}
+body.tile-colors .tile-front.type-rope {
+  background-image:
+    linear-gradient(145deg, rgba(40,32,20,0.78), rgba(64,52,36,0.85)),
+    var(--tile-art-revealed);
+  border-color: #8a7048;
+}
 
 /* ── Tile states ── */
 
-/* Revealed, resolved — no more interaction */
+/* Revealed, resolved — block taps on “finished” tiles (damage dealt, loot taken, etc.) */
 .tile.revealed {
   cursor: default;
   pointer-events: none;
 }
 
+/*
+ * Long-press still needs pointer events (TileEngine wires hold on the tile root).
+ * Without this, .tile.revealed’s pointer-events: none swallows all input — trap modal
+ * and info cards never open for trap / gold / empty / heart / camp / rest specials.
+ */
+.tile.revealed.tile-type-trap,
+.tile.revealed.tile-type-gold,
+.tile.revealed.tile-type-heart,
+.tile.revealed.tile-type-checkpoint,
+.tile.revealed.tile-type-well,
+.tile.revealed.tile-type-anvil {
+  pointer-events: all;
+  cursor: pointer;
+}
+
+/* Revealed empty floor — long-press for info only; no pointer cursor or hover lift */
+.tile.revealed.tile-type-empty {
+  pointer-events: all;
+  cursor: default;
+}
+
+.tile.revealed.tile-type-empty:hover {
+  z-index: 1;
+}
+
 /* Revealed exit — second tap to descend / escape */
 .tile.revealed.exit-pending {
+  cursor: pointer;
+  pointer-events: all;
+}
+
+/* Revealed rope — second tap to exit run with gold */
+.tile.revealed.rope-pending {
   cursor: pointer;
   pointer-events: all;
 }

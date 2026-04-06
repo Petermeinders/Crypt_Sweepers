@@ -25,6 +25,7 @@ const SFX_FILES = {
   slam:     'audio/sfx/slam.mp3',
   heal:     'audio/sfx/heal.ogg',
   menu:     'audio/sfx/menu.ogg',
+  footsteps:'audio/sfx/footsteps.mp3',
 }
 
 const MUSIC_FILES = {

@@ -33,12 +33,14 @@
   transform: translateY(40px);
   opacity: 0;
   transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.25s ease;
+  /* Must stay none while overlay is hidden: children can override parent pointer-events:none */
   pointer-events: none;
 }
 
 #info-card-overlay.visible #info-card {
   transform: translateY(0);
   opacity: 1;
+  pointer-events: auto;
 }
 
 /* ── Card header ── */
@@ -186,6 +188,37 @@
   text-shadow: 0 1px 3px rgba(0,0,0,0.7);
 }
 
+.card-actions {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(107, 79, 42, 0.35);
+  display: flex;
+  justify-content: center;
+}
+
+.card-btn {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 10px 22px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid rgba(160, 60, 50, 0.65);
+  color: #e8c8c0;
+  background: linear-gradient(160deg, rgba(90, 28, 24, 0.95), rgba(50, 14, 12, 0.98));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+.card-btn:active {
+  transform: scale(0.98);
+}
+
+.card-btn-drop:hover {
+  border-color: rgba(200, 100, 80, 0.85);
+  color: #fff;
+}
+
 /* ── Attributes ── */
 .card-attrs {
   display: flex;
@@ -240,7 +273,7 @@
   position: fixed;
   inset: 0;
   background-color: transparent;
-  background-image: url('../assets/DungeonBackground.png');
+  background-image: var(--floor-bg-image);
   background-size: cover;
   background-position: center top;
   background-repeat: no-repeat;
@@ -870,7 +903,7 @@
   isolation: isolate;
   display: flex;
   flex-direction: column;
-  background-image: url('../assets/DungeonBackground.png');
+  background-image: var(--floor-bg-image);
   background-size: cover;
   background-position: center top;
   background-repeat: no-repeat;
@@ -1442,13 +1475,150 @@
 }
 
 /* ── Backpack overlay ── */
+.backpack-content {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
 #backpack-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-  padding: 20px;
+  padding: 20px 20px 12px;
   width: min(300px, 88vw);
-  margin: 24px auto 0;
+  margin: 0 auto;
+  flex-shrink: 0;
+}
+
+/* Match #backpack-grid width + horizontal center (avoid align-self:stretch — it was full-bleed vs the centered grid). */
+.backpack-accordion {
+  box-sizing: border-box;
+  width: min(300px, 88vw);
+  max-width: calc(100% - 32px);
+  margin: 8px auto 16px;
+  border: 1px solid rgba(107, 79, 42, 0.45);
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.backpack-accordion-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: 12px 14px;
+  background: rgba(20, 15, 8, 0.75);
+  border: none;
+  color: #d4b878;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-align: center;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.backpack-accordion-header:active {
+  background: rgba(30, 22, 10, 0.9);
+}
+
+.backpack-accordion-header .accordion-chevron {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  font-size: 0.75rem;
+  color: rgba(212, 184, 120, 0.7);
+  transition: transform 0.2s ease;
+  transform: translateY(-50%);
+}
+
+.backpack-accordion.open .backpack-accordion-header .accordion-chevron {
+  transform: translateY(-50%) rotate(90deg);
+}
+
+.backpack-accordion-body {
+  display: none;
+  border-top: 1px solid rgba(107, 79, 42, 0.35);
+  max-height: 200px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(180, 130, 60, 0.35) transparent;
+  text-align: center;
+}
+
+.backpack-accordion.open .backpack-accordion-body {
+  display: block;
+}
+
+.backpack-levelup-list {
+  padding: 8px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.backpack-levelup-empty {
+  font-size: 0.72rem;
+  color: rgba(180, 165, 140, 0.55);
+  font-style: italic;
+  padding: 6px 4px 10px;
+  text-align: center;
+}
+
+.backpack-levelup-entry {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 6px 10px;
+  width: 100%;
+  max-width: 100%;
+  font-size: 0.72rem;
+  color: rgba(200, 185, 155, 0.88);
+  line-height: 1.45;
+  padding: 5px 8px;
+  border-bottom: 1px solid rgba(107, 79, 42, 0.12);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  text-align: center;
+}
+
+.backpack-levelup-entry:last-child {
+  border-bottom: none;
+}
+
+.backpack-levelup-idx {
+  color: rgba(140, 130, 110, 0.75);
+  font-variant-numeric: tabular-nums;
+}
+
+.backpack-levelup-lv {
+  color: #f5c518;
+  font-weight: 700;
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.backpack-levelup-icon {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.backpack-levelup-name {
+  min-width: 0;
+  max-width: 100%;
+  word-break: break-word;
+  text-align: center;
 }
 
 .backpack-slot {
@@ -1498,4 +1668,99 @@
   text-shadow: 0 1px 3px rgba(0,0,0,0.9);
   pointer-events: none;
   font-family: sans-serif;
+}
+
+/* ═══════════════════════════════════════════════════
+   TRAP TILE — reveal explanation modal
+   ═══════════════════════════════════════════════════ */
+
+.trap-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.trap-modal-overlay.hidden {
+  display: none;
+}
+
+.trap-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.78);
+}
+
+.trap-modal {
+  position: relative;
+  z-index: 1;
+  width: min(380px, 92vw);
+  background: linear-gradient(160deg, #1e1a14 0%, #12100a 55%, #1a1610 100%);
+  border: 2px solid #6b4f2a;
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 1px rgba(255, 200, 80, 0.12),
+    0 8px 32px rgba(0, 0, 0, 0.85),
+    inset 0 1px 0 rgba(255, 200, 100, 0.08);
+  padding: 20px 22px 22px;
+  text-align: center;
+}
+
+.trap-modal-emoji {
+  font-size: 3rem;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.trap-modal-title {
+  font-size: 1.2rem;
+  color: var(--torch-yellow);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin: 0 0 12px;
+  font-weight: 700;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.trap-modal-body {
+  text-align: left;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin-bottom: 18px;
+}
+
+.trap-modal-body p {
+  margin: 0 0 0.75em;
+}
+
+.trap-modal-body p:last-child {
+  margin-bottom: 0;
+}
+
+.trap-modal-sub {
+  color: var(--text-dim);
+  font-size: 0.88rem;
+}
+
+.trap-modal .menu-btn {
+  width: 100%;
+  max-width: 280px;
+}
+
+.trap-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  align-items: stretch;
+}
+
+.trap-modal-actions .menu-btn {
+  flex: 1 1 120px;
+  max-width: none;
+  min-width: 0;
 }

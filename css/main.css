@@ -9,6 +9,8 @@
 }
 
 :root {
+  /* Overridden at runtime for floor theme segments (see UI.applyFloorTheme) */
+  --floor-bg-image: url('../assets/DungeonBackground.png');
   --bg-dark:       #0f0f1a;
   --bg-panel:      #13131f;
   --stone-mid:     #3a3a4f;
@@ -31,7 +33,7 @@ html, body {
   height: 100%;
   overflow: hidden;
   background-color: var(--bg-dark);
-  background-image: url('../assets/DungeonBackground.png');
+  background-image: var(--floor-bg-image);
   background-size: cover;
   background-position: center top;
   background-repeat: no-repeat;
@@ -47,6 +49,40 @@ html, body {
   max-width: 480px;
   margin: 0 auto;
   position: relative;
+}
+
+/* Cheat: in-run skip floor (testing) */
+.skip-floor-btn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 25;
+  padding: 8px 10px;
+  font-size: 0.68rem;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #f5c518;
+  background: rgba(8, 6, 14, 0.94);
+  border: 1px solid rgba(245, 197, 24, 0.5);
+  border-radius: 8px;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.8);
+  cursor: pointer;
+  max-width: 96px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.skip-floor-btn:active {
+  opacity: 0.9;
+}
+
+/* Must be explicit: project has no global `.hidden` rule */
+.skip-floor-btn.hidden,
+#skip-floor-btn.hidden {
+  display: none !important;
 }
 
 /* ── Header ── */

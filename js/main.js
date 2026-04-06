@@ -61,6 +61,7 @@ async function boot() {
   if (save.settings.musicOn === undefined)    save.settings.musicOn    = true
   if (save.settings.sfxOn   === undefined)    save.settings.sfxOn      = true
   if (!save.settings.cheats) save.settings.cheats = {}
+  document.body.classList.toggle('cheat-increase-stats', save.settings.cheats?.increaseStats === true)
 
   // Apply saved visual/audio settings immediately
   if (save.settings.tileColors) document.body.classList.add('tile-colors')
@@ -77,17 +78,41 @@ async function boot() {
   }
 
   GameController.init(save)
+  UI.refreshSkipFloorButton(save)
 
   // ── Audio ────────────────────────────────────────────────
   AudioManager.init()
 
   // ── In-run buttons ───────────────────────────────────────
-  document.getElementById('info-card-overlay').addEventListener('pointerdown', () => UI.hideInfoCard())
+  document.getElementById('info-card-overlay').addEventListener('pointerdown', (e) => {
+    if (e.target.id === 'info-card-overlay') UI.hideInfoCard()
+  })
   document.getElementById('hud-backpack-btn').addEventListener('click', () => {
     _openBackpack()
   })
+  document.getElementById('skip-floor-btn')?.addEventListener('click', () => {
+    GameController.cheatSkipFloor()
+  })
+  document.getElementById('app').addEventListener('click', (e) => {
+    const s = GameController.getSave()
+    if (!s.settings.cheats?.increaseStats) return
+    if (!document.getElementById('main-menu').classList.contains('hidden')) return
+    const row = e.target.closest('[data-hud-cheat-target]')
+    if (!row) return
+    // dataset.* is unreliable for multi-segment names like data-hud-cheat-target in some browsers
+    const stat = row.getAttribute('data-hud-cheat-target')?.trim().toLowerCase()
+    if (!stat) return
+    GameController.cheatHudStatBoost(stat)
+  })
   document.getElementById('backpack-close').addEventListener('click', () => {
     document.getElementById('backpack-overlay').classList.add('hidden')
+  })
+  document.getElementById('backpack-levelup-toggle')?.addEventListener('click', () => {
+    const acc = document.getElementById('backpack-levelup-accordion')
+    const btn = document.getElementById('backpack-levelup-toggle')
+    if (!acc || !btn) return
+    const open = acc.classList.toggle('open')
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false')
   })
   _wireAbilityHold(
     document.getElementById('hud-btn-slot-a'),
@@ -100,23 +125,36 @@ async function boot() {
           spriteSrcBg: RANGER_UPGRADES.ricochet.iconBgSrc,
           name:   'Ricochet',
           type:   'Ranger Ability',
-          blurb:  'Mark up to three enemies in order, then tap Ricochet again. Shot damage scales with your attack (HUD) in a 3 : 2 : 1 ratio.',
+          blurb:  'Mark up to three enemies in order. The third pick fires immediately; with one or two marked, tap Ricochet again. Shot damage scales with your attack (HUD) in a 3 : 2 : 1 ratio.',
           details: [
-            { icon: '🔵', label: 'Mana Cost',  desc: `${RANGER_UPGRADES.ricochet.manaCost} mana when you confirm` },
-            { icon: '🎯', label: 'Targeting',  desc: 'Tap enemies in chain order; tap again to fire' },
+            { icon: '🔵', label: 'Mana Cost',  desc: `${RANGER_UPGRADES.ricochet.manaCost} mana when you fire` },
+            { icon: '🎯', label: 'Targeting',  desc: 'Third target auto-fires; otherwise tap Ricochet to confirm' },
             { icon: '🏹', label: 'Damage',      desc: 'Three shots at 3×, 2×, 1× a scaling unit (grows with your attack damage)' },
           ],
         })
       } else {
+        const slam = GameController.getSlamDamageBreakdown()
+        const dmgDesc = slam
+          ? (() => {
+              const { avgMelee, baseTenths, stacks, mult, final } = slam
+              const avgStr = Number.isInteger(avgMelee) ? String(avgMelee) : avgMelee.toFixed(1)
+              const multStr = mult.toFixed(1)
+              const inner = stacks > 0
+                ? `(${baseTenths}/10 + ${stacks}×0.1)`
+                : `${multStr}`
+              return `max(1, round(${avgStr} × ${inner})) = ${final}`
+            })()
+          : 'Start a run to see your Slam damage.'
         UI.showInfoCard({
           spriteSrc: WARRIOR_UPGRADES.slam.iconSrc,
           name:   'Slam',
           type:   'Warrior Ability',
-          blurb:  'Bring your weapon down with crushing force. Strikes every revealed enemy; damage per hit scales with your attack (HUD), reduced for hitting many targets.',
+          blurb:  'Bring your weapon down with crushing force. Strikes every revealed enemy; each takes the same Slam damage (scales with your HUD attack + Slam Mastery).',
           details: [
             { icon: '🔵', label: 'Mana Cost',  desc: `${WARRIOR_UPGRADES.slam.manaCost} mana per use` },
             { icon: '🌀', label: 'AOE',         desc: 'Hits all revealed enemies simultaneously' },
-            { icon: '💥', label: 'Damage',      desc: 'Each enemy takes damage based on your attack (tuned below a full melee swing)' },
+            { icon: '📐', label: 'Calculation', desc: dmgDesc },
+            { icon: '💥', label: 'Per enemy',   desc: slam ? `${slam.final} damage (integer)` : '—' },
           ],
         })
       }
@@ -125,17 +163,30 @@ async function boot() {
   _wireAbilityHold(
     document.getElementById('hud-btn-slot-b'),
     () => GameController.blindingLightAction(),
-    () => UI.showInfoCard({
-      spriteSrc: WARRIOR_UPGRADES['blinding-light'].iconSrc,
-      name:   'Blinding Light',
-      type:   'Warrior Ability',
-      blurb:  'A flash of searing light stuns an enemy for 2 turns. They take damage but cannot counter-attack while stunned.',
-      details: [
-        { icon: '🔵', label: 'Mana Cost', desc: `${WARRIOR_UPGRADES['blinding-light'].manaCost} mana per use` },
-        { icon: '🎯', label: 'Targeting', desc: 'Tap an enemy to stun it' },
-        { icon: '⏱️', label: 'Duration',  desc: '2 turns: enemy attacks are suppressed' },
-      ],
-    })
+    () => {
+      const bl = GameController.getBlindingLightBreakdown()
+      const stunDesc = bl
+        ? (() => {
+            const { avgMelee, baseTenths, stacks, mult, stunTurns } = bl
+            const avgStr = Number.isInteger(avgMelee) ? String(avgMelee) : avgMelee.toFixed(1)
+            const inner = stacks > 0
+              ? `(${baseTenths}/10 + ${stacks}×0.1)`
+              : `${mult.toFixed(1)}`
+            return `max(2, round(${avgStr} × ${inner})) = ${stunTurns} stun turn(s) — Undead/Beast Bane can double stun`
+          })()
+        : 'Start a warrior run to see stun turns (scales with HUD attack + Blinding Mastery).'
+      UI.showInfoCard({
+        spriteSrc: WARRIOR_UPGRADES['blinding-light'].iconSrc,
+        name:   'Blinding Light',
+        type:   'Warrior Ability',
+        blurb:  'A flash of searing light adds stun turns based on your attack scaling (no HP damage). Stunned enemies cannot counter-attack.',
+        details: [
+          { icon: '🔵', label: 'Mana Cost', desc: `${WARRIOR_UPGRADES['blinding-light'].manaCost} mana per use` },
+          { icon: '🎯', label: 'Targeting', desc: 'Tap an enemy to blind' },
+          { icon: '⏱️', label: 'Stun turns', desc: stunDesc },
+        ],
+      })
+    }
   )
   document.getElementById('retreat-btn').addEventListener('click', () => {
     document.getElementById('retreat-confirm').classList.remove('hidden')
@@ -148,9 +199,17 @@ async function boot() {
     document.getElementById('retreat-confirm').classList.add('hidden')
   })
 
-  // ── Menu button click sound ──────────────────────────────
-  document.getElementById('main-menu').addEventListener('click', e => {
-    if (e.target.closest('button')) EventBus.emit('audio:play', { sfx: 'menu' })
+  // ── UI button click sound (same as New Run) — panels, back, retreat, Heroes, etc. ──
+  document.body.addEventListener('click', (e) => {
+    const btn = e.target.closest('button')
+    if (!btn || btn.disabled) return
+    if (btn.closest('.hud-actions')) return
+    if (btn.classList.contains('card-btn-drop')) return
+    const id = btn.id
+    if (id === 'retreat-confirm-yes') return
+    if (id === 'merchant-roll-btn') return
+    if (id === 'rope-modal-confirm') return
+    EventBus.emit('audio:play', { sfx: 'menu' })
   })
 
   // ── Main menu buttons ────────────────────────────────────
@@ -224,6 +283,8 @@ async function boot() {
     document.getElementById('cheat-instant-kill').checked   = c.instantKill  ?? false
     document.getElementById('cheat-999-gold').checked       = c.gold999      ?? false
     document.getElementById('cheat-999-xp').checked         = c.xp999        ?? false
+    document.getElementById('cheat-skip-floor-btn').checked = c.skipFloorButton ?? false
+    document.getElementById('cheat-increase-stats').checked = c.increaseStats ?? false
     document.getElementById('settings-overlay').classList.remove('hidden')
   })
   document.getElementById('settings-back').addEventListener('click', () => {
@@ -256,6 +317,8 @@ async function boot() {
     { id: 'cheat-instant-kill', key: 'instantKill' },
     { id: 'cheat-999-gold',     key: 'gold999'     },
     { id: 'cheat-999-xp',       key: 'xp999'       },
+    { id: 'cheat-skip-floor-btn', key: 'skipFloorButton' },
+    { id: 'cheat-increase-stats', key: 'increaseStats' },
   ]
   _cheatMap.forEach(({ id, key }) => {
     document.getElementById(id).addEventListener('change', e => {
@@ -525,8 +588,22 @@ function _renderBackpack() {
         _renderBackpack()
       }
     },
-    (id) => { const item = ITEMS[id]; if (item) UI.showInfoCard({ ...item }) },
+    (id) => {
+      const item = ITEMS[id]
+      if (!item) return
+      UI.showInfoCard(
+        { ...item },
+        {
+          onDrop: () => {
+            GameController.dropItem(id)
+            UI.hideInfoCard()
+            _renderBackpack()
+          },
+        },
+      )
+    },
   )
+  UI.renderBackpackLevelUpLog(GameController.getLevelUpLog())
 }
 
 function _openBackpack() {

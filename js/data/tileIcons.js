@@ -9,12 +9,15 @@ export const TILE_TYPE_ICON_FILES = {
   empty:      null,           // nothing to show
   gold:       'coin.png',     // coins = gold
   chest:      'chest-closed.png', // static closed; swapped to chest.gif on open
-  trap:       'x.png',        // danger marker
+  trap:       null,           // cobweb emoji (tiles.js)
   heart:      'heart.png',    // heart container tile
   shrine:     null,           // removed — kept for safety
   merchant:   null,           // no matching sprite — use emoji
   checkpoint: null,           // no matching sprite — use emoji
-  exit:       null,           // no matching sprite — use emoji
+  exit:       'stairs-down.png', // stairs art (tiles.js: no door emoji)
+  well:       null,
+  anvil:      null,
+  rope:       null,
 }
 
 /** Keys must match enemy ids from enemies.js / TileEngine createEnemy()
@@ -53,3 +56,6 @@ export const ENEMY_ICON_FILES = {
 
 /** Shown when an enemy tile is defeated */
 export const TILE_SLAIN_ICON = 'assets/sprites/effects/ashes.png'
+
+/** One-shot VFX: spirit rises and fades over the tile (plays with ashes) */
+export const TILE_SPIRIT_RELEASE = 'assets/sprites/effects/dead-spirit-release.png'

@@ -13,7 +13,8 @@ export const CONFIG = {
   },
 
   // Returns grid dimensions for a given floor number
-  gridSize(floor) {
+  gridSize(floor, opts = {}) {
+    if (opts.rest) return { cols: 3, rows: 3 }
     if (floor >= 10) return { cols: 7, rows: 7 }
     if (floor >= 7)  return { cols: 6, rows: 6 }
     return { cols: 5, rows: 6 }
@@ -45,11 +46,15 @@ export const CONFIG = {
   /**
    * Slot-A actives (Slam / Ricochet): damage scales with melee potency — the average
    * of the HUD damage range (same inputs as normal attacks: base + damageBonus).
-   * Mults are < 1 so multi-hit / AOE does not outscale single-target melee.
+   * Slam: mult = (round(slamPerTargetMult×10) + slamMasteryStacks) / 10 — integer tenths, no float drift.
+   * Blinding Light: same multiplier pattern, but output is stun turns (no HP damage).
+   * Mults are < 1 baseline so multi-hit / AOE does not outscale single-target melee.
    */
   ability: {
-    slamPerTargetMult: 0.3,   // each Slam hit: max(1, round(avgMelee × this))
+    slamPerTargetMult: 0.3,   // Slam: max(1, round(avgMelee × _slamMultFromStacks(stacks)))
     ricochetUnitMult:  0.5,   // unit = max(1, round(avgMelee × this)); shots 3×, 2×, 1× unit
+    /** Blinding Light stun turns: max(2, round(avgMelee × (this + blindingLightMasteryStacks/10))) — no damage */
+    blindingLightStunMult: 0.25,
   },
 
   xp: {
@@ -83,6 +88,25 @@ export const CONFIG = {
 
   // Boss floors cadence — boss appears on these floor numbers
   bossFloors: [5, 10, 15, 20, 25],
+
+  /**
+   * Full-screen dungeon backgrounds per floor range (theme segments after each boss).
+   * First matching range wins; paths are relative to index.html.
+   */
+  floorThemeBackgrounds: [
+    { min: 6, max: 10, image: 'assets/DungeonBackgroundJungle.png' },
+  ],
+
+  /** Rest / sanctuary floors between boss segments (path relative to index.html). */
+  restSanctuaryBackground: 'assets/SanctuaryBackground.png',
+
+  /** @param {number} floor */
+  floorBackgroundFor(floor) {
+    for (const t of this.floorThemeBackgrounds) {
+      if (floor >= t.min && floor <= t.max) return t.image
+    }
+    return 'assets/DungeonBackground.png'
+  },
 
   difficulty: {
     easy:   { damageTakenMult: 0.70, xpMult: 0.80, goldMult: 0.80, label: 'Easy'   },

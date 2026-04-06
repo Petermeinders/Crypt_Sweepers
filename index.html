@@ -44,8 +44,13 @@
       </div>
     </div>
 
+    <button type="button" id="skip-floor-btn" class="skip-floor-btn hidden" aria-hidden="true" title="Cheat: advance to next floor">Skip floor</button>
+
     <div id="grid-container">
       <div id="grid"></div>
+      <div id="floor-banner" class="floor-banner hidden" aria-hidden="true">
+        <span id="floor-banner-text" class="floor-banner-text">Floor 1</span>
+      </div>
       <div id="slam-overlay" class="hidden">
         <img id="slam-gif" src="" alt="">
       </div>
@@ -61,7 +66,7 @@
       <div id="action-buttons" class="hidden"></div>
     </div>
 
-    <div id="xp-bar-container">
+    <div id="xp-bar-container" data-hud-cheat-target="xp">
       <div id="xp-bar"></div>
     </div>
 
@@ -74,25 +79,25 @@
       </div>
 
       <div id="hud-stats">
-        <div class="hud-stat-row">
+        <div class="hud-stat-row" data-hud-cheat-target="hp">
           <span class="hud-stat-ic" title="Health">❤️</span>
           <div class="stat-bar hud-micro-bar">
             <div class="stat-fill hp-fill" id="hp-bar"></div>
           </div>
           <span class="hud-stat-num" id="hp-value">100/100</span>
         </div>
-        <div class="hud-stat-row hud-stat-dmg">
+        <div class="hud-stat-row hud-stat-dmg" data-hud-cheat-target="dmg">
           <span class="hud-stat-ic" title="Attack">⚔️</span>
           <span class="hud-stat-num hud-dmg-num" id="dmg-value">10–22</span>
         </div>
-        <div class="hud-stat-row">
+        <div class="hud-stat-row" data-hud-cheat-target="mana">
           <span class="hud-stat-ic" title="Mana">🔵</span>
           <div class="stat-bar hud-micro-bar">
             <div class="stat-fill mana-fill" id="mana-bar"></div>
           </div>
           <span class="hud-stat-num" id="mana-value">60/60</span>
         </div>
-        <div class="hud-meta">
+        <div class="hud-meta" data-hud-cheat-target="gold">
           <span class="hud-gold-inline"><span class="gold-icon">🪙</span> <span id="gold-value">0</span></span>
         </div>
       </div>
@@ -121,22 +126,58 @@
       <button class="panel-back-btn" id="backpack-close">← Back</button>
       <div class="panel-title">Backpack</div>
     </div>
-    <div id="backpack-grid">
-      <div class="backpack-slot"></div>
-      <div class="backpack-slot"></div>
-      <div class="backpack-slot"></div>
-      <div class="backpack-slot"></div>
-      <div class="backpack-slot"></div>
-      <div class="backpack-slot"></div>
-      <div class="backpack-slot"></div>
-      <div class="backpack-slot"></div>
-      <div class="backpack-slot"></div>
+    <div class="backpack-content">
+      <div id="backpack-grid">
+        <div class="backpack-slot"></div>
+        <div class="backpack-slot"></div>
+        <div class="backpack-slot"></div>
+        <div class="backpack-slot"></div>
+        <div class="backpack-slot"></div>
+        <div class="backpack-slot"></div>
+        <div class="backpack-slot"></div>
+        <div class="backpack-slot"></div>
+        <div class="backpack-slot"></div>
+      </div>
+      <div id="backpack-levelup-accordion" class="backpack-accordion">
+        <button type="button" class="backpack-accordion-header" id="backpack-levelup-toggle" aria-expanded="false">
+          <span>Level-up log</span>
+          <span class="accordion-chevron">▸</span>
+        </button>
+        <div class="backpack-accordion-body" id="backpack-levelup-body">
+          <div id="backpack-levelup-list" class="backpack-levelup-list"></div>
+        </div>
+      </div>
     </div>
   </div>
 
   <!-- ── Info card overlay ── -->
   <div id="info-card-overlay">
     <div id="info-card"></div>
+  </div>
+
+  <!-- ── Trap reveal modal ── -->
+  <div id="trap-modal-overlay" class="trap-modal-overlay hidden" aria-hidden="true">
+    <div class="trap-modal-backdrop" id="trap-modal-backdrop" aria-hidden="true"></div>
+    <div class="trap-modal" role="dialog" aria-modal="true" aria-labelledby="trap-modal-title">
+      <div class="trap-modal-emoji" aria-hidden="true">🕸️</div>
+      <h2 id="trap-modal-title" class="trap-modal-title">Trap</h2>
+      <div id="trap-modal-body" class="trap-modal-body"></div>
+      <button type="button" id="trap-modal-ok" class="menu-btn primary">Continue</button>
+    </div>
+  </div>
+
+  <!-- ── Rope escape confirmation ── -->
+  <div id="rope-modal-overlay" class="trap-modal-overlay hidden" aria-hidden="true">
+    <div class="trap-modal-backdrop" id="rope-modal-backdrop" aria-hidden="true"></div>
+    <div class="trap-modal" role="dialog" aria-modal="true" aria-labelledby="rope-modal-title">
+      <div class="trap-modal-emoji" aria-hidden="true">🧵</div>
+      <h2 id="rope-modal-title" class="trap-modal-title">Escape Rope</h2>
+      <div id="rope-modal-body" class="trap-modal-body"></div>
+      <div class="trap-modal-actions">
+        <button type="button" id="rope-modal-cancel" class="menu-btn secondary">Cancel</button>
+        <button type="button" id="rope-modal-confirm" class="menu-btn primary">Climb out</button>
+      </div>
+    </div>
   </div>
 
   <!-- ── Level-up overlay ── -->
@@ -315,6 +356,26 @@
             </div>
             <label class="toggle-switch">
               <input type="checkbox" id="cheat-999-xp">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-label-title">Skip Floor Button</span>
+              <span class="settings-label-desc">Shows an in-game button to jump to the next floor (testing)</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="cheat-skip-floor-btn">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-label-title">Increase stats</span>
+              <span class="settings-label-desc">In-game: tap HP, mana, or gold for +10 each; tap attack for +1 damage; tap the XP bar for +10% progress toward the next level</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="cheat-increase-stats">
               <span class="toggle-track"><span class="toggle-thumb"></span></span>
             </label>
           </div>

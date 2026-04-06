@@ -224,8 +224,40 @@
   box-shadow: 0 0 6px rgba(100,100,255,0.45);
 }
 
+/* Cheat: Increase stats — tap targets on HUD */
+body.cheat-increase-stats [data-hud-cheat-target] {
+  cursor: pointer;
+  pointer-events: auto;
+  position: relative;
+  z-index: 1;
+}
+
+/* Disabled ability slots still capture clicks; let taps pass through to stats (mana row, etc.) */
+body.cheat-increase-stats .hud-actions .hud-action-slot:disabled {
+  pointer-events: none;
+}
+
+body.cheat-increase-stats #xp-bar-container {
+  display: flex;
+  align-items: center;
+  min-height: 16px;
+  padding: 6px 0;
+  box-sizing: border-box;
+}
+
+/* flex-grow must stay 0 or JS width % is ignored and the bar always looks full */
+body.cheat-increase-stats #xp-bar-container #xp-bar {
+  flex: 0 0 auto;
+  flex-grow: 0;
+  height: 4px;
+  min-height: 4px;
+  max-width: 100%;
+}
+
 /* ── Bottom rectangle HUD ── */
 #hud-bar {
+  position: relative;
+  z-index: 60;
   display: flex;
   flex-direction: row;
   align-items: stretch;
@@ -597,8 +629,9 @@
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
 }
 
-/* Mana num tucks into corner so it doesn’t cover the centered badge */
-.ability-btn-wrap--ricochet .ability-btn-cost {
+/* Mana cost bottom-right — Ricochet badge stays centered; Slam / Blinding use same corner layout */
+.ability-btn-wrap--ricochet .ability-btn-cost,
+.ability-btn-wrap--mana-corner .ability-btn-cost {
   top: auto;
   left: auto;
   right: 1px;

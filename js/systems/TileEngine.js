@@ -13,6 +13,8 @@ import Logger         from '../core/Logger.js'
 // ── Grid state ───────────────────────────────────────────────
 let _grid = []
 let _currentFloor = 1
+/** 'dungeon' | 'rest' — rest floors are 3×3 between boss and next dungeon */
+let _gridMode = 'dungeon'
 
 // ── Factories ────────────────────────────────────────────────
 
@@ -95,6 +97,8 @@ function _adjustedWeights(floor) {
   const defs = { ...TILE_DEFS }
   const weights = {}
   for (const [t, d] of Object.entries(defs)) {
+    // Rest-only tile types never roll on dungeon floors
+    if (t === 'well' || t === 'anvil' || t === 'rope') continue
     weights[t] = d.weight
   }
   // Boss weight is always 0 (placed explicitly)
@@ -132,8 +136,33 @@ function _pickEnemyType(floor, tileType) {
 
 // ── Grid generation ──────────────────────────────────────────
 
-function generateGrid(floor = 1) {
+function _generateRestGrid(floor) {
+  const rows = 3
+  const cols = 3
+  _grid = []
+  const layout = [
+    ['empty', 'anvil', 'empty'],
+    ['rope', 'well', 'empty'],
+    ['empty', 'exit', 'empty'],
+  ]
+  for (let r = 0; r < rows; r++) {
+    _grid[r] = []
+    for (let c = 0; c < cols; c++) {
+      const type = layout[r][c]
+      _grid[r][c] = _createTileWithEnemy(type, r, c, floor)
+    }
+  }
+  Logger.debug(`[TileEngine] Rest sanctuary grid (3×3)`)
+}
+
+function generateGrid(floor = 1, opts = {}) {
   _currentFloor = floor
+  _gridMode = opts.rest ? 'rest' : 'dungeon'
+  if (_gridMode === 'rest') {
+    _generateRestGrid(floor)
+    return
+  }
+
   const { cols, rows } = CONFIG.gridSize(floor)
   const isBossFloor = CONFIG.bossFloors.includes(floor)
 
@@ -156,12 +185,13 @@ function generateGrid(floor = 1) {
       if (isBossFloor && !bossPlaced && r === Math.floor(rows / 2) && c === Math.floor(cols / 2)) {
         type = 'boss'
         bossPlaced = true
-      } else if (i === count - 1 && !exitPlaced) {
+      } else if (i === count - 1 && !exitPlaced && !isBossFloor) {
         type = 'exit'
         exitPlaced = true
       } else {
-        // Never roll a second exit — exclude 'exit' from the pool once one exists
-        const poolTypes = exitPlaced ? types.filter(t => t !== 'exit') : types
+        // Never roll a second exit — exclude 'exit' from the pool once one exists.
+        // Boss floors: no random exits — only the stairs that replace the boss when slain.
+        const poolTypes = types.filter(t => t !== 'exit' || (!exitPlaced && !isBossFloor))
         const poolWeights = poolTypes.map(t => weights[t])
         const poolTotal = poolWeights.reduce((s, w) => s + w, 0)
         type = weightedRandom(poolTypes, poolWeights, poolTotal)
@@ -267,7 +297,7 @@ function _wireTileIconFallback(tileEl, emojiFallback) {
 // ── DOM render ───────────────────────────────────────────────
 
 function renderGrid(gridEl, onTap, onHold) {
-  const { cols, rows } = CONFIG.gridSize(_currentFloor)
+  const { cols, rows } = CONFIG.gridSize(_currentFloor, { rest: _gridMode === 'rest' })
   gridEl.innerHTML = ''
 
   // Set CSS grid columns dynamically

@@ -2,7 +2,7 @@
 // Strategy: Cache-first for assets, network-first for HTML.
 // Version bump CACHE_NAME to force cache refresh on deploy.
 
-const CACHE_NAME = 'crypt-sweepers-v21'
+const CACHE_NAME = 'crypt-sweepers-v49'
 
 const PRECACHE_ASSETS = [
   './',
@@ -45,10 +45,13 @@ const PRECACHE_ASSETS = [
   './assets/sprites/abilities/ricochet-bg.png',
   './assets/sprites/abilities/ricochet-badge.png',
   './assets/DungeonBackground.png',
+  './assets/DungeonBackgroundJungle.png',
+  './assets/SanctuaryBackground.png',
   './assets/sprites/tiles/tile-unflipped2.1.png',
   './assets/sprites/tiles/tile-unflipped3.png',
   './assets/sprites/tiles/tile-flipped2.1.png',
   './assets/sprites/effects/ashes.png',
+  './assets/sprites/effects/dead-spirit-release.png',
   './assets/sprites/effects/ranger-arrow-shot.gif',
   './assets/sprites/effects/FireSwordSlash.gif',
   './assets/sprites/effects/HammerSlam.gif',
@@ -59,6 +62,7 @@ const PRECACHE_ASSETS = [
   './assets/sprites/Items/chest-closed.png',
   './assets/sprites/Items/backpack.png',
   './assets/sprites/Items/smiths-tools.png',
+  './assets/sprites/Items/stairs-down.png',
   './assets/sprites/monsters/skeleton/skeleton-idle.gif',
   './assets/sprites/monsters/slime/slime-idle.gif',
   './assets/sprites/monsters/goblin/goblin-idle.gif',
@@ -89,6 +93,7 @@ const PRECACHE_ASSETS = [
   './audio/sfx/trap.ogg',
   './audio/sfx/heal.ogg',
   './audio/sfx/menu.ogg',
+  './audio/sfx/footsteps.mp3',
 
   // Music
   './audio/music/main-menu-theme.mp3',
