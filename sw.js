@@ -2,7 +2,7 @@
 // Strategy: Cache-first for assets, network-first for HTML.
 // Version bump CACHE_NAME to force cache refresh on deploy.
 
-const CACHE_NAME = 'crypt-sweepers-v58'
+const CACHE_NAME = 'crypt-sweepers-v59'
 
 const PRECACHE_ASSETS = [
   './',
@@ -130,24 +130,42 @@ self.addEventListener('activate', event => {
 // Network-first for HTML/JS/CSS so code changes are immediate.
 // Cache-first for images and audio (large, rarely change).
 
+/** Match cached assets even when the browser adds ?t= cache-busting (UI adds Date.now() to GIFs). */
+const CACHE_MATCH_IGNORE_SEARCH = { ignoreSearch: true }
+
 function networkFirst(request) {
   return fetch(request)
     .then(res => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const clone = res.clone()
       caches.open(CACHE_NAME).then(c => c.put(request, clone))
       return res
     })
-    .catch(() => caches.match(request))
+    .catch(() => caches.match(request, CACHE_MATCH_IGNORE_SEARCH))
+    .then(response => {
+      if (response) return response
+      const url = new URL(request.url)
+      url.search = ''
+      return fetch(url.toString())
+    })
 }
 
 function cacheFirst(request) {
-  return caches.match(request).then(cached => {
+  return caches.match(request, CACHE_MATCH_IGNORE_SEARCH).then(cached => {
     if (cached) return cached
-    return fetch(request).then(res => {
-      const clone = res.clone()
-      caches.open(CACHE_NAME).then(c => c.put(request, clone))
-      return res
-    })
+    return fetch(request)
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const clone = res.clone()
+        caches.open(CACHE_NAME).then(c => c.put(request, clone))
+        return res
+      })
+      .catch(() => caches.match(request, CACHE_MATCH_IGNORE_SEARCH))
+  }).then(response => {
+    if (response) return response
+    const url = new URL(request.url)
+    url.search = ''
+    return fetch(url.toString())
   })
 }
 

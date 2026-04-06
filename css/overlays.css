@@ -1105,6 +1105,132 @@
   color: var(--torch-yellow);
 }
 
+/* Ricochet + Mastery — one tile, two tier rows with checkbox affordance */
+.hero-upgrade-slot--ricochet-combo {
+  width: auto;
+  min-width: 72px;
+  max-width: 100px;
+  min-height: 92px;
+  height: auto;
+  padding: 6px 6px 5px;
+  cursor: default;
+}
+
+.hero-upgrade-slot--ricochet-combo:active {
+  transform: none;
+}
+
+.hero-upgrade-ricochet-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.hero-upgrade-slot--ricochet-combo .hero-upgrade-icon-stack {
+  cursor: pointer;
+}
+
+.hero-upgrade-ricochet-tiers {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+}
+
+.hero-upgrade-tier {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  margin: 0;
+  padding: 3px 4px;
+  border: none;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s, box-shadow 0.12s;
+}
+
+.hero-upgrade-tier:disabled,
+.hero-upgrade-tier.is-locked {
+  opacity: 0.42;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.hero-upgrade-tier:not(:disabled):not(.is-locked):hover {
+  background: rgba(80, 90, 140, 0.35);
+}
+
+.hero-upgrade-tier.tier-selected:not(:disabled) {
+  box-shadow: 0 0 0 1px rgba(136, 170, 255, 0.65);
+  background: rgba(60, 70, 120, 0.45);
+}
+
+.hero-upgrade-rchk {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.4);
+  position: relative;
+}
+
+.hero-upgrade-tier.owned .hero-upgrade-rchk {
+  background: var(--torch-orange);
+  border-color: #c9781a;
+}
+
+.hero-upgrade-tier.owned .hero-upgrade-rchk::after {
+  content: '✓';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -52%);
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 700;
+  color: #1a1420;
+}
+
+.hero-upgrade-tier-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  gap: 0;
+}
+
+.hero-upgrade-tier-label {
+  font-family: sans-serif;
+  font-size: 0.52rem;
+  font-weight: 600;
+  color: #c8d4ff;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hero-upgrade-tier-xp {
+  font-family: sans-serif;
+  font-size: 0.5rem;
+  color: var(--text-dim);
+  line-height: 1.1;
+}
+
+.hero-upgrade-tier.owned .hero-upgrade-tier-xp {
+  color: var(--torch-yellow);
+}
+
 /* Upgrade detail panel */
 #hero-upgrade-backdrop {
   position: absolute;

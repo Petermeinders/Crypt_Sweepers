@@ -81,7 +81,7 @@ function buildRunState() {
     slamMasteryStacks: 0,
     /** Warrior: Blinding Light mastery — +0.1 to stun-turn mult per pick (same tenths pattern as Slam). */
     blindingLightMasteryStacks: 0,
-    /** Ranger: level-up picks for Ricochet / Barrage / Poison — +10% damage per stack for that active. */
+    /** Ranger: level-up picks for Ricochet / Triple Volley / Poison — +10% damage per stack for that active. */
     rangerActiveStacks: isRanger
       ? { ricochet: 0, 'arrow-barrage': 0, 'poison-arrow-shot': 0 }
       : undefined,
@@ -152,6 +152,8 @@ function _startFloor() {
   UI.setRicochetActive(false)
   UI.setGridRicochetMode(false)
   _arrowBarrageSelecting = false
+  _tripleVolleyCenter = null
+  UI.clearTripleVolleyAoePreview()
   UI.setArrowBarrageActive(false)
   UI.setGridArrowBarrageMode(false)
   _poisonArrowShotSelecting = false
@@ -182,7 +184,7 @@ function _startFloor() {
     UI.setArrowBarrageBtn(false)
     UI.setPoisonArrowShotBtn(false)
   }
-  // Blinding Light — warrior only, slot B (ranger uses B for Arrow Barrage)
+  // Blinding Light — warrior only, slot B (ranger uses B for Poison Arrow, D for Triple Volley)
   if (_charKey() === 'warrior') {
     const blindingUnlocked = warriorUpgrades.includes('blinding-light')
     UI.setBlindingLightBtn(blindingUnlocked, WARRIOR_UPGRADES['blinding-light'].manaCost)
@@ -247,6 +249,8 @@ let _blindingLightTargeting = false
 let _ricochetSelecting = false
 let _ricochetTiles     = []
 let _arrowBarrageSelecting = false
+/** Triple Volley: { row, col } center after first tap; second tap same tile fires. */
+let _tripleVolleyCenter = null
 let _poisonArrowShotSelecting = false
 
 function _cancelRicochetMode() {
@@ -259,6 +263,8 @@ function _cancelRicochetMode() {
 
 function _cancelArrowBarrageMode() {
   _arrowBarrageSelecting = false
+  _tripleVolleyCenter = null
+  UI.clearTripleVolleyAoePreview()
   UI.setArrowBarrageActive(false)
   UI.setGridArrowBarrageMode(false)
 }
@@ -316,16 +322,32 @@ function onTileTap(row, col) {
     return
   }
 
-  // Arrow Barrage: single living enemy, then fire 3 : 2 : 1 shots
+  // Triple Volley: first tap sets 3×3 center (preview); second tap same tile confirms
   if (_arrowBarrageSelecting) {
-    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      const cost = RANGER_UPGRADES['arrow-barrage'].manaCost
-      if (run.player.mana < cost) {
-        UI.setMessage('Not enough mana for Arrow Barrage!', true)
-      } else {
-        _executeArrowBarrage(tile)
-      }
+    if (!tile.revealed) {
+      UI.setMessage('Triple Volley — tap a revealed tile to place the 3×3 area.', true)
+      return
     }
+    const cost = RANGER_UPGRADES['arrow-barrage'].manaCost
+    if (!_tripleVolleyCenter) {
+      _tripleVolleyCenter = { row: tile.row, col: tile.col }
+      UI.setTripleVolleyAoePreview(tile.row, tile.col)
+      UI.setMessage(
+        'Triple Volley — blinking tiles show the blast. Tap the same tile again to fire (or tap the ability to cancel).',
+      )
+      return
+    }
+    if (tile.row !== _tripleVolleyCenter.row || tile.col !== _tripleVolleyCenter.col) {
+      _tripleVolleyCenter = { row: tile.row, col: tile.col }
+      UI.setTripleVolleyAoePreview(tile.row, tile.col)
+      UI.setMessage('Triple Volley — area moved. Tap the center tile again to confirm.')
+      return
+    }
+    if (run.player.mana < cost) {
+      UI.setMessage('Not enough mana for Triple Volley!', true)
+      return
+    }
+    _executeTripleVolley(_tripleVolleyCenter)
     return
   }
 
@@ -1154,7 +1176,7 @@ function arrowBarrageAction() {
 
   if (!_arrowBarrageSelecting) {
     if (run.player.mana < cost) {
-      UI.setMessage('Not enough mana for Arrow Barrage!', true)
+      UI.setMessage('Not enough mana for Triple Volley!', true)
       return
     }
     _cancelSpellLanternBlindingForRicochet()
@@ -1163,36 +1185,65 @@ function arrowBarrageAction() {
     _arrowBarrageSelecting = true
     UI.setArrowBarrageActive(true)
     UI.setGridArrowBarrageMode(true)
-    UI.setMessage('🏹 Arrow Barrage — tap one enemy (3 : 2 : 1 damage). Tap the ability again to cancel.')
+    UI.setMessage(
+      '🏹 Triple Volley — tap a revealed tile to place a 3×3 blast (50% attack each enemy, min 1). Tap the same tile again to fire; tap the ability to cancel.',
+    )
     return
   }
 
   _cancelArrowBarrageMode()
-  UI.setMessage('Arrow Barrage cancelled.')
+  UI.setMessage('Triple Volley cancelled.')
 }
 
-function _executeArrowBarrage(tile) {
+function _tripleVolleyDamagePerEnemy() {
+  const avg = _avgMeleeDamage()
+  const pct = CONFIG.ability.tripleVolleyHeroDamagePct
+  const mult = _rangerActiveDamageMult('arrow-barrage')
+  return Math.max(1, Math.round(avg * pct * mult))
+}
+
+function _tilesIn3x3(centerRow, centerCol) {
+  const grid = TileEngine.getGrid()
+  if (!grid?.length) return []
+  const rows = grid.length
+  const cols = grid[0].length
+  const out = []
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      const r = centerRow + dr
+      const c = centerCol + dc
+      if (r < 0 || c < 0 || r >= rows || c >= cols) continue
+      out.push(grid[r][c])
+    }
+  }
+  return out
+}
+
+function _executeTripleVolley(center) {
   const cost = RANGER_UPGRADES['arrow-barrage'].manaCost
-  if (!tile?.enemyData || tile.enemyData._slain) {
-    _cancelArrowBarrageMode()
+  const tiles = _tilesIn3x3(center.row, center.col)
+  const targets = tiles.filter(t => t.revealed && t.enemyData && !t.enemyData._slain)
+
+  if (targets.length === 0) {
+    UI.setMessage('Triple Volley — no enemies in that 3×3 area. Pick another center.', true)
+    _tripleVolleyCenter = null
+    UI.clearTripleVolleyAoePreview()
     return
   }
 
-  const row = tile.row
-  const col = tile.col
   _cancelArrowBarrageMode()
 
   run.player.mana = Math.max(0, run.player.mana - cost)
   UI.updateMana(run.player.mana, run.player.maxMana)
 
-  const dmgSeq = _ricochetDamageSequence(3, 'arrow-barrage')
+  const dmg = _tripleVolleyDamagePerEnemy()
   _combatBusy = true
   UI.setPortraitAnim('attack')
-  UI.setMessage(`🏹 Arrow Barrage! (${dmgSeq.join(' → ')})`)
+  UI.setMessage(`🏹 Triple Volley! ${targets.length} enem${targets.length > 1 ? 'ies' : 'y'} for ${dmg} each.`)
 
-  dmgSeq.forEach((dmg, i) => {
+  targets.forEach((target, i) => {
     setTimeout(() => {
-      const t = TileEngine.getTile(row, col)
+      const t = TileEngine.getTile(target.row, target.col)
       if (!t?.enemyData || t.enemyData._slain) return
       UI.spawnArrow(t.element)
       EventBus.emit('audio:play', { sfx: 'arrowShot' })
@@ -1209,7 +1260,7 @@ function _executeArrowBarrage(tile) {
     }, i * 120)
   })
 
-  const doneMs = dmgSeq.length * 120 + 400
+  const doneMs = targets.length * 120 + 400
   setTimeout(() => {
     UI.setPortraitAnim('idle')
     _combatBusy = false
@@ -1768,9 +1819,11 @@ function _poisonArrowUnitDamage() {
 
 function getArrowBarrageBreakdown() {
   if (!run || !run.player?.isRanger) return null
-  const shots = _ricochetDamageSequence(3, 'arrow-barrage')
-  const unit = shots[0] / 3
-  return { unit, shots, total: shots[0] + shots[1] + shots[2] }
+  const avg = _avgMeleeDamage()
+  const pct = CONFIG.ability.tripleVolleyHeroDamagePct
+  const mult = _rangerActiveDamageMult('arrow-barrage')
+  const perEnemy = Math.max(1, Math.round(avg * pct * mult))
+  return { perEnemy, avgMelee: avg, heroDamagePct: pct, mult, area: '3×3' }
 }
 
 function getPoisonArrowShotBreakdown() {

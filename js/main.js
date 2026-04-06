@@ -172,27 +172,26 @@ async function boot() {
     document.getElementById('hud-btn-slot-b'),
     () => {
       const s = GameController.getSave()
-      if ((s.selectedCharacter ?? 'warrior') === 'ranger') GameController.arrowBarrageAction()
+      if ((s.selectedCharacter ?? 'warrior') === 'ranger') GameController.poisonArrowShotAction()
       else GameController.blindingLightAction()
     },
     () => {
       const s = GameController.getSave()
       if ((s.selectedCharacter ?? 'warrior') === 'ranger') {
-        if (!GameController.isRangerActiveUnlocked('arrow-barrage')) return
-        const br = GameController.getArrowBarrageBreakdown()
-        const dmgLine = br
-          ? `Three hits on one target: ${br.shots.join(' → ')} (same unit scaling as Ricochet; unit ≈ ${br.unit}).`
-          : 'Start a ranger run to see shot damage.'
+        if (!GameController.isRangerActiveUnlocked('poison-arrow-shot')) return
+        const pb = GameController.getPoisonArrowShotBreakdown()
+        const dmgLine = pb
+          ? `Initial hit and each poison tick: ${pb.perHit} (max(1, round(avgMelee × ${CONFIG.ability.ricochetUnitMult}))) — ${pb.flipTicks} ticks on your next turns (reveals or melee).`
+          : 'Start a ranger run to see damage.'
         UI.showInfoCard({
-          spriteSrc:   RANGER_UPGRADES['arrow-barrage'].iconSrc,
-          spriteSrcBg: RANGER_UPGRADES['arrow-barrage'].iconBgSrc,
-          name:   'Arrow Barrage',
+          spriteSrc:   RANGER_UPGRADES['poison-arrow-shot'].iconSrc,
+          spriteSrcBg: RANGER_UPGRADES['poison-arrow-shot'].iconBgSrc,
+          name:   RANGER_UPGRADES['poison-arrow-shot'].name,
           type:   'Ranger Ability',
-          blurb:  'Enter targeting, tap one living enemy, and fire three arrows at it in a 3 : 2 : 1 damage ratio (same scaling as Ricochet). Tap the ability again to cancel.',
+          blurb:  'Tap one enemy for immediate poison damage, then three poison ticks on global turns: each tile reveal or each time you start melee against any enemy advances poison on all poisoned foes. Tap the ability again to cancel targeting.',
           details: [
-            { icon: '🔵', label: 'Mana Cost', desc: `${RANGER_UPGRADES['arrow-barrage'].manaCost} mana when you fire` },
-            { icon: '🎯', label: 'Targeting', desc: 'Single enemy — all three hits land on that tile' },
-            { icon: '🏹', label: 'Damage',      desc: dmgLine },
+            { icon: '🔵', label: 'Mana Cost', desc: `${RANGER_UPGRADES['poison-arrow-shot'].manaCost} mana when you fire` },
+            { icon: '☠️', label: 'Poison',     desc: dmgLine },
           ],
         })
         return
@@ -223,24 +222,29 @@ async function boot() {
   )
   _wireAbilityHold(
     document.getElementById('hud-btn-slot-d'),
-    () => GameController.poisonArrowShotAction(),
+    () => {
+      const s = GameController.getSave()
+      if ((s.selectedCharacter ?? 'warrior') === 'ranger') GameController.arrowBarrageAction()
+    },
     () => {
       const s = GameController.getSave()
       if ((s.selectedCharacter ?? 'warrior') !== 'ranger') return
-      if (!GameController.isRangerActiveUnlocked('poison-arrow-shot')) return
-      const pb = GameController.getPoisonArrowShotBreakdown()
-      const dmgLine = pb
-        ? `Initial hit and each poison tick: ${pb.perHit} (max(1, round(avgMelee × ${CONFIG.ability.ricochetUnitMult}))) — ${pb.flipTicks} ticks on your next turns (reveals or melee).`
+      if (!GameController.isRangerActiveUnlocked('arrow-barrage')) return
+      const br = GameController.getArrowBarrageBreakdown()
+      const dmgLine = br
+        ? `${Math.round(br.heroDamagePct * 100)}% of avg attack (${br.perEnemy} per enemy, min 1) in a ${br.area} — level-up mastery stacks add to this.`
         : 'Start a ranger run to see damage.'
+      const vol = RANGER_UPGRADES['arrow-barrage']
       UI.showInfoCard({
-        spriteSrc:   RANGER_UPGRADES['poison-arrow-shot'].iconSrc,
-        spriteSrcBg: RANGER_UPGRADES['poison-arrow-shot'].iconBgSrc,
-        name:   'Poison Arrow',
+        spriteSrc:   vol.iconSrc,
+        spriteSrcBg: vol.iconBgSrc,
+        name:   vol.name,
         type:   'Ranger Ability',
-        blurb:  'Tap one enemy for immediate poison damage, then three poison ticks on global turns: each tile reveal or each time you start melee against any enemy advances poison on all poisoned foes. Tap the ability again to cancel targeting.',
+        blurb:  'Tap a revealed tile to center a 3×3 blast. Blinking tiles show the area; tap the same tile again to hit every revealed enemy there for 50% attack each (min 1). Tap the ability again to cancel.',
         details: [
-          { icon: '🔵', label: 'Mana Cost', desc: `${RANGER_UPGRADES['poison-arrow-shot'].manaCost} mana when you fire` },
-          { icon: '☠️', label: 'Poison',     desc: dmgLine },
+          { icon: '🔵', label: 'Mana Cost', desc: `${vol.manaCost} mana when you fire` },
+          { icon: '🎯', label: 'Area',       desc: '3×3 centered on your first tap; confirm on the same tile' },
+          { icon: '🏹', label: 'Damage',     desc: dmgLine },
         ],
       })
     }
@@ -523,11 +527,98 @@ function _renderHeroSelect() {
   }
 }
 
+function _syncHeroUpgradeDetail(char, ownedList, xp, isLocked) {
+  if (!_selectedUpgradeId) {
+    _renderUpgradeDetail(null)
+    return
+  }
+  const def = char.upgrades[_selectedUpgradeId]
+  if (!def) {
+    _selectedUpgradeId = null
+    _renderUpgradeDetail(null)
+    return
+  }
+  const isOwned = ownedList.includes(_selectedUpgradeId)
+  const prereqOk = !def.requires || ownedList.includes(def.requires)
+  const canAfford = !isOwned && xp >= def.xpCost && !isLocked && prereqOk
+  _renderUpgradeDetail(_selectedUpgradeId, def, isOwned, canAfford)
+}
+
 function _renderHeroUpgradeGrid(char, ownedList, xp, isLocked) {
   const grid = document.getElementById('hero-upgrades-grid')
   grid.innerHTML = ''
 
   for (const [id, def] of Object.entries(char.upgrades)) {
+    if (char.id === 'ranger' && id === 'ricochet-arc-mastery') continue
+
+    if (char.id === 'ranger' && id === 'ricochet') {
+      const masDef = RANGER_UPGRADES['ricochet-arc-mastery']
+      const hasBase = ownedList.includes('ricochet')
+      const hasMas = ownedList.includes('ricochet-arc-mastery')
+      const comboSelected =
+        _selectedUpgradeId === 'ricochet' || _selectedUpgradeId === 'ricochet-arc-mastery'
+
+      const slot = document.createElement('div')
+      slot.className = 'hero-upgrade-slot hero-upgrade-slot--ricochet-combo'
+        + (hasBase ? ' owned' : '')
+        + (comboSelected ? ' selected' : '')
+
+      slot.innerHTML = `
+        <div class="hero-upgrade-ricochet-inner">
+          <span class="hero-upgrade-icon-stack">
+            <img class="hero-upgrade-icon-bg" src="${def.iconBgSrc}" alt="" draggable="false"/>
+            <img class="hero-upgrade-icon-fg" src="${def.iconSrc}" alt="${def.name}" draggable="false"/>
+          </span>
+          <div class="hero-upgrade-ricochet-tiers">
+            <button type="button" class="hero-upgrade-tier${hasBase ? ' owned' : ''}${_selectedUpgradeId === 'ricochet' ? ' tier-selected' : ''}"
+              data-upgrade-id="ricochet" aria-pressed="${_selectedUpgradeId === 'ricochet' ? 'true' : 'false'}">
+              <span class="hero-upgrade-rchk" aria-hidden="true"></span>
+              <span class="hero-upgrade-tier-meta">
+                <span class="hero-upgrade-tier-label">Ricochet</span>
+                <span class="hero-upgrade-tier-xp">${hasBase ? '✓' : `${def.xpCost} XP`}</span>
+              </span>
+            </button>
+            <button type="button" class="hero-upgrade-tier${hasMas ? ' owned' : ''}${_selectedUpgradeId === 'ricochet-arc-mastery' ? ' tier-selected' : ''}${!hasBase ? ' is-locked' : ''}"
+              data-upgrade-id="ricochet-arc-mastery" ${!hasBase ? 'disabled' : ''}
+              aria-pressed="${_selectedUpgradeId === 'ricochet-arc-mastery' ? 'true' : 'false'}">
+              <span class="hero-upgrade-rchk" aria-hidden="true"></span>
+              <span class="hero-upgrade-tier-meta">
+                <span class="hero-upgrade-tier-label">Mastery</span>
+                <span class="hero-upgrade-tier-xp">${hasMas ? '✓' : `${masDef.xpCost} XP`}</span>
+              </span>
+            </button>
+          </div>
+        </div>`
+
+      const refresh = () => {
+        const s = GameController.getSave()
+        const charSave = char.id === 'ranger' ? s.ranger : s.warrior
+        const locked = char.id === 'ranger' && !s.ranger.unlocked
+        _renderHeroUpgradeGrid(char, charSave.upgrades ?? [], charSave.totalXP ?? 0, locked)
+      }
+
+      slot.querySelectorAll('.hero-upgrade-tier').forEach(tierBtn => {
+        tierBtn.addEventListener('click', e => {
+          e.stopPropagation()
+          const uid = tierBtn.dataset.upgradeId
+          if (tierBtn.disabled) return
+          const isSel = _selectedUpgradeId === uid
+          _selectedUpgradeId = isSel ? null : uid
+          refresh()
+        })
+      })
+
+      slot.querySelector('.hero-upgrade-icon-stack')?.addEventListener('click', e => {
+        e.stopPropagation()
+        const isSel = _selectedUpgradeId === 'ricochet'
+        _selectedUpgradeId = isSel ? null : 'ricochet'
+        refresh()
+      })
+
+      grid.appendChild(slot)
+      continue
+    }
+
     const isOwned    = ownedList.includes(id)
     const prereqOk   = !def.requires || ownedList.includes(def.requires)
     const canAfford  = !isOwned && xp >= def.xpCost && !isLocked && prereqOk
@@ -555,13 +646,11 @@ function _renderHeroUpgradeGrid(char, ownedList, xp, isLocked) {
       const charSave = char.id === 'ranger' ? s.ranger : s.warrior
       const locked   = char.id === 'ranger' && !s.ranger.unlocked
       _renderHeroUpgradeGrid(char, charSave.upgrades ?? [], charSave.totalXP ?? 0, locked)
-      _renderUpgradeDetail(id, def, isOwned, canAfford)
     })
     grid.appendChild(btn)
   }
 
-  // If nothing selected, hide detail panel
-  if (!_selectedUpgradeId) _renderUpgradeDetail(null)
+  _syncHeroUpgradeDetail(char, ownedList, xp, isLocked)
 }
 
 function _renderUpgradeDetail(id, def, isOwned, canAfford) {

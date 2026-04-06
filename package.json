@@ -7,6 +7,7 @@
     "doc": "docs"
   },
   "scripts": {
+    "start": "npx --yes serve@14 . -p 3456",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

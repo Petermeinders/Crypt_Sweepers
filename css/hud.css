@@ -677,7 +677,7 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
 }
 
-/* Mana cost bottom-right — Ricochet / Arrow Barrage badge stays centered; Slam / Blinding use same corner layout */
+/* Mana cost bottom-right — Ricochet / Triple Volley / Poison badge stays centered; Slam / Blinding use same corner layout */
 .ability-btn-wrap--ricochet .ability-btn-cost,
 .ability-btn-wrap--arrow-barrage .ability-btn-cost,
 .ability-btn-wrap--poison-arrow-shot .ability-btn-cost,

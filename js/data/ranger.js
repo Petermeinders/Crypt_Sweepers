@@ -33,15 +33,6 @@ export const RANGER_ABILITIES = {
     effect: { type: 'ranger-active-mastery', ability: 'ricochet' },
     repeatable: true,
   },
-  'arrow-barrage-mastery': {
-    name:  'Barrage Practice',
-    desc:  'Each pick: +10% Arrow Barrage damage (stacks). Unlocks Arrow Barrage this run if you do not own it from the XP tree.',
-    icon:  '🎯',
-    iconSrc:   'assets/sprites/abilities/arrow-barrage-badge.png',
-    iconBgSrc: 'assets/sprites/abilities/arrow-barrage-bg.png',
-    effect: { type: 'ranger-active-mastery', ability: 'arrow-barrage' },
-    repeatable: true,
-  },
   'poison-arrow-mastery': {
     name:  'Poison Arrow Practice',
     desc:  'Each pick: +10% Poison Arrow hit and poison tick damage (stacks). Unlocks Poison Arrow this run if you do not own it from the XP tree.',
@@ -49,6 +40,15 @@ export const RANGER_ABILITIES = {
     iconSrc:   'assets/sprites/abilities/poison-arrow-badge.png',
     iconBgSrc: 'assets/sprites/abilities/poison-arrow-bg.png',
     effect: { type: 'ranger-active-mastery', ability: 'poison-arrow-shot' },
+    repeatable: true,
+  },
+  'arrow-barrage-mastery': {
+    name:  'Triple Volley Practice',
+    desc:  'Each pick: +10% Triple Volley damage per enemy in the 3×3 (stacks). Unlocks Triple Volley this run if you do not own it from the XP tree.',
+    icon:  '🎯',
+    iconSrc:   'assets/sprites/abilities/arrow-barrage-badge.png',
+    iconBgSrc: 'assets/sprites/abilities/arrow-barrage-bg.png',
+    effect: { type: 'ranger-active-mastery', ability: 'arrow-barrage' },
     repeatable: true,
   },
 }
@@ -75,16 +75,6 @@ export const RANGER_UPGRADES = {
     requires:  'ricochet',
     effect:    { type: 'ricochet-arc-mastery' },
   },
-  'arrow-barrage': {
-    name:  'Arrow Barrage',
-    desc:  'Active ability: tap one enemy — three shots on that target with the same 3 : 2 : 1 damage scaling as Ricochet (based on your attack).',
-    icon:  '🎯',
-    iconSrc:   'assets/sprites/abilities/arrow-barrage-badge.png',
-    iconBgSrc: 'assets/sprites/abilities/arrow-barrage-bg.png',
-    xpCost:  65,
-    manaCost: 12,
-    effect:  { type: 'active-ability', ability: 'arrow-barrage' },
-  },
   /** Active ability (HUD) — id must differ from any future passive named `poison-arrow`. */
   'poison-arrow-shot': {
     name:  'Poison Arrow',
@@ -95,6 +85,16 @@ export const RANGER_UPGRADES = {
     xpCost:  80,
     manaCost: 12,
     effect:  { type: 'active-ability', ability: 'poison-arrow-shot' },
+  },
+  'arrow-barrage': {
+    name:  'Triple Volley',
+    desc:  'Active ability: 3×3 blast centered on your tile — 50% of your attack damage (min 1) to each revealed enemy in the area. First tap places the zone; tap the same tile again to fire.',
+    icon:  '🎯',
+    iconSrc:   'assets/sprites/abilities/arrow-barrage-badge.png',
+    iconBgSrc: 'assets/sprites/abilities/arrow-barrage-bg.png',
+    xpCost:  65,
+    manaCost: 12,
+    effect:  { type: 'active-ability', ability: 'arrow-barrage' },
   },
   'keen-senses': {
     name:  'Keen Senses',
