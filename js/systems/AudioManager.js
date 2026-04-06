@@ -47,7 +47,10 @@ let _sfxOn          = true
 
 function init() {
   // Wire EventBus listeners
-  EventBus.on('audio:play',      ({ sfx })              => playSfx(sfx))
+  EventBus.on('audio:play',      (payload) => {
+    if (payload?.layered) playSfxLayered(payload.sfx, payload.layered)
+    else playSfx(payload?.sfx)
+  })
   EventBus.on('audio:music',     ({ track })            => playMusic(track))
   EventBus.on('audio:crossfade', ({ track, duration })  => crossfadeTo(track, duration))
   EventBus.on('audio:stop',      ()                     => stopMusic())
@@ -107,6 +110,38 @@ function playSfx(key) {
     source.start()
   } catch (e) {
     Logger.error('[AudioManager] playSfx error', e)
+  }
+}
+
+/** Multiple overlapping BufferSources from the same decoded buffer (rain / volley). */
+function playSfxLayered(key, opts = {}) {
+  if (!_sfxOn || !_ready || !_ctx || !_sfxBuffers[key]) return
+  const buf = _sfxBuffers[key]
+  const count = Math.max(1, Math.min(24, opts.count ?? 8))
+  const spreadMs = opts.spreadMs ?? 0
+  const jitterMs = opts.jitterMs ?? 45
+  const spreadSec = spreadMs / 1000
+  const jitterSec = jitterMs / 1000
+  const pitchJitter = opts.pitchJitter !== false
+  const t0 = _ctx.currentTime
+  const perVoiceGain = _sfxVol / Math.sqrt(count)
+  try {
+    for (let i = 0; i < count; i++) {
+      const spread =
+        count <= 1 || spreadSec <= 0 ? 0 : (i / (count - 1)) * spreadSec
+      const jit = (Math.random() * 2 - 1) * jitterSec
+      const when = t0 + Math.max(0, spread + jit)
+      const source = _ctx.createBufferSource()
+      source.buffer = buf
+      if (pitchJitter) source.playbackRate.value = 0.93 + Math.random() * 0.14
+      const gain = _ctx.createGain()
+      gain.gain.value = perVoiceGain
+      source.connect(gain)
+      gain.connect(_ctx.destination)
+      source.start(when)
+    }
+  } catch (e) {
+    Logger.error('[AudioManager] playSfxLayered error', e)
   }
 }
 
@@ -186,4 +221,4 @@ function setVolumes({ sfx, music } = {}) {
   }
 }
 
-export default { init, playSfx, playMusic, stopMusic, crossfadeTo, setVolumes, setMusicEnabled, setSfxEnabled }
+export default { init, playSfx, playSfxLayered, playMusic, stopMusic, crossfadeTo, setVolumes, setMusicEnabled, setSfxEnabled }

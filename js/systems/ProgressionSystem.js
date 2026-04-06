@@ -7,11 +7,15 @@ const CHOICES_PER_LEVEL = 3
 // ── Choice generation ────────────────────────────────────────
 // Returns ability IDs to present to the player.
 // charKey: 'warrior' | 'ranger'
+// metaUnlockedIds: IDs from save.warrior.upgrades / save.ranger.upgrades — gates mastery / actives-tied picks.
 
-function getChoices(acquiredAbilities, charKey = 'warrior') {
+function getChoices(acquiredAbilities, charKey = 'warrior', metaUnlockedIds = []) {
   const ABILITIES = charKey === 'ranger' ? RANGER_ABILITIES : WARRIOR_ABILITIES
+  const unlocked = new Set(metaUnlockedIds)
   const pool = Object.keys(ABILITIES).filter(id => {
     const def = ABILITIES[id]
+    const req = def.requiresMetaUpgrade
+    if (req && !unlocked.has(req)) return false
     if (def.repeatable) return true
     return !acquiredAbilities.includes(id)
   })

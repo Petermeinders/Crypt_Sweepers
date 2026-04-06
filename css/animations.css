@@ -108,6 +108,18 @@
   animation: shake 0.35s ease;
 }
 
+/* ── Triple Volley rain overlay ── */
+.arrow-rain-overlay {
+  position: absolute;
+  inset: -10%;
+  width: 120%;
+  height: 120%;
+  object-fit: cover;
+  pointer-events: none;
+  z-index: 18;
+  image-rendering: pixelated;
+}
+
 /* ── Ranger arrow projectile ── */
 .arrow-projectile {
   position: absolute;

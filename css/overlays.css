@@ -974,54 +974,270 @@
   color: var(--gold);
 }
 
-/* Scrollable body */
+/* Scrollable body — horizontal snap carousel */
 #hero-select-body {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+  background: linear-gradient(
+    180deg,
+    rgb(14 10 8 / 0.88) 0%,
+    rgb(16 18 28 / 0.78) 100%
+  );
+}
+
+#hero-carousel-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+  width: 100%;
+}
+
+#hero-select-scroll {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+}
+
+.hero-select-slide {
+  flex: 0 0 100%;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
   padding: 16px 16px 8px;
-  background: rgb(18 21 39 / 72%);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
-#hero-select-namewrap {
-  text-align: center;
+/* Hide scrollbars — carousel + tall slides still scroll; snap / touch unchanged */
+#hero-select-scroll,
+.hero-select-slide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+#hero-select-scroll::-webkit-scrollbar,
+.hero-select-slide::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Hero name block — carved wood plaque (slides use classes, not IDs) */
+.hero-select-namewrap {
   width: 100%;
-  padding: 8px 12px;
-  background: rgb(18 21 39 / 60%);
-  border-radius: 8px;
+  max-width: 100%;
+  text-align: center;
+  padding: 16px 18px 14px;
+  position: relative;
+  border-radius: 3px;
+  isolation: isolate;
+  /* Plank grain + warm wood base */
+  background:
+    repeating-linear-gradient(
+      92deg,
+      transparent 0,
+      transparent 3px,
+      rgba(0, 0, 0, 0.07) 3px,
+      rgba(0, 0, 0, 0.07) 4px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.03) 0 1px,
+      transparent 1px 9px
+    ),
+    linear-gradient(
+      168deg,
+      #7a5a42 0%,
+      #5c4030 18%,
+      #453225 45%,
+      #2e2118 72%,
+      #1c1410 100%
+    );
+  border: 3px solid #0f0a06;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 220, 180, 0.11),
+    inset 0 -12px 28px rgba(0, 0, 0, 0.28),
+    0 4px 0 #0a0705,
+    0 8px 22px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(120, 85, 55, 0.35);
 }
 
-#hero-select-name {
-  font-size: 1.6rem;
-  letter-spacing: 2px;
-  color: var(--torch-yellow);
-  text-shadow: 0 0 12px rgba(232,132,26,0.5);
+/* Brass corner studs */
+.hero-select-namewrap::before,
+.hero-select-namewrap::after {
+  content: '';
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  top: 10px;
+  z-index: 1;
+  background: radial-gradient(circle at 32% 28%, #b8a078 0%, #5c4a38 55%, #1f1812 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.25),
+    0 2px 3px rgba(0, 0, 0, 0.85);
+  pointer-events: none;
 }
 
-#hero-select-tagline {
+.hero-select-namewrap::before { left: 10px; }
+.hero-select-namewrap::after { right: 10px; }
+
+/* Inner carved groove under title */
+.hero-select-namewrap .hero-select-name::after {
+  content: '';
+  display: block;
+  width: min(72%, 220px);
+  height: 2px;
+  margin: 10px auto 0;
+  border-radius: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(0, 0, 0, 0.55) 15%,
+    rgba(0, 0, 0, 0.55) 85%,
+    transparent
+  );
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.hero-select-name {
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #f2e6c4;
+  text-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.85),
+    0 0 18px rgba(232, 132, 26, 0.35);
+  margin: 0;
+  text-align: center;
+}
+
+.hero-select-tagline {
   font-size: 0.8rem;
-  color: var(--text-dim);
-  font-family: sans-serif;
-  margin-top: 4px;
+  line-height: 1.55;
+  color: #c9bda0;
+  font-family: Georgia, 'Times New Roman', serif;
+  margin-top: 12px;
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
+  max-width: 36em;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+  text-wrap: balance;
 }
 
-#hero-select-xp-row {
-  font-size: 0.78rem;
-  color: #88aaff;
-  font-family: sans-serif;
-  margin-top: 2px;
+.hero-select-xp-row {
+  margin-top: 14px;
+  padding-top: 11px;
+  border-top: 1px solid rgba(0, 0, 0, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  font-size: 0.74rem;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #b8cff7;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
 }
 
 /* Upgrade grid */
-#hero-upgrades-grid {
+.hero-upgrades-grid,
+.hero-passive-upgrades-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   justify-content: center;
   width: 100%;
+}
+
+/* Ranger — passive meta upgrades (Keen Senses, Swift Shot, etc.) */
+.hero-passive-wrap {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.hero-passive-wrap[hidden] {
+  display: none !important;
+}
+
+.hero-passive-accordion {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid rgba(107, 79, 42, 0.45);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.hero-passive-accordion-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: 10px 14px;
+  background: rgba(20, 15, 8, 0.75);
+  border: none;
+  color: #d4b878;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-align: center;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.hero-passive-accordion-toggle:active {
+  background: rgba(30, 22, 10, 0.9);
+}
+
+.hero-passive-accordion-toggle .accordion-chevron {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  font-size: 0.75rem;
+  color: rgba(212, 184, 120, 0.7);
+  transition: transform 0.2s ease;
+  transform: translateY(-50%);
+}
+
+.hero-passive-accordion.open .hero-passive-accordion-toggle .accordion-chevron {
+  transform: translateY(-50%) rotate(90deg);
+}
+
+.hero-passive-accordion-body {
+  display: none;
+  border-top: 1px solid rgba(107, 79, 42, 0.35);
+  padding: 10px 8px 12px;
+}
+
+.hero-passive-accordion.open .hero-passive-accordion-body {
+  display: block;
 }
 
 .hero-upgrade-slot {
@@ -1288,13 +1504,17 @@
   font-size: 0.9rem;
 }
 
-/* Hero display row */
-#hero-display-row {
+/* Hero display row (inside each slide — portrait only; arrows live in #hero-carousel-wrap) */
+.hero-display-row {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 12px;
   width: 100%;
+}
+
+#hero-carousel-wrap .hero-nav-btn {
+  align-self: center;
 }
 
 .hero-nav-btn {
@@ -1318,7 +1538,7 @@
 .hero-nav-btn:active { transform: scale(0.92); opacity: 0.7; }
 .hero-nav-btn.hidden { visibility: hidden; pointer-events: none; }
 
-#hero-display-wrap {
+.hero-display-wrap {
   position: relative;
   width: 220px;
   height: 320px;
@@ -1327,9 +1547,12 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-#hero-display-gif {
+.hero-display-gif {
   height: auto;
   width: auto;
   image-rendering: pixelated;
@@ -1341,13 +1564,17 @@
   cursor: pointer;
 }
 
-#hero-display-emoji {
+.hero-display-emoji {
   font-size: 4rem;
   line-height: 1;
   display: none;
 }
 
-#hero-locked-overlay {
+.hero-display-emoji.hidden {
+  display: none;
+}
+
+.hero-locked-overlay {
   position: absolute;
   inset: 0;
   background: rgba(0,0,0,0.75);
@@ -1359,7 +1586,7 @@
   gap: 6px;
 }
 
-#hero-locked-overlay.hidden { display: none; }
+.hero-locked-overlay.hidden { display: none; }
 
 .hero-lock-icon { font-size: 1.8rem; }
 .hero-lock-label { font-size: 0.75rem; color: var(--text-dim); font-family: sans-serif; }
@@ -1646,7 +1873,70 @@
   background: #ffd700;
 }
 
-/* ── Backpack overlay ── */
+/* ── Backpack drawer: slides up from HUD line, ~450px; board only (HUD z-index 60 > 55) ── */
+#backpack-overlay.backpack-drawer {
+  position: fixed;
+  left: 50%;
+  /* Clear the HUD bar + small gap so z-index 60 HUD doesn’t paint over the drawer’s bottom edge */
+  bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+  width: 100%;
+  max-width: 480px;
+  height: 450px;
+  /* Short viewports: shrink height so the panel fits; inner .backpack-content scrolls */
+  max-height: min(450px, calc(100dvh - 180px));
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: linear-gradient(180deg, #1e1a16 0%, #0c0a08 55%, #080706 100%);
+  border: 1px solid rgba(107, 79, 42, 0.55);
+  border-bottom: none;
+  border-radius: 14px 14px 0 0;
+  box-shadow:
+    0 -12px 40px rgba(0, 0, 0, 0.72),
+    inset 0 1px 0 rgba(255, 200, 120, 0.08);
+  transform: translate(-50%, calc(100% + 12px));
+  transition: transform 0.34s cubic-bezier(0.25, 0.85, 0.32, 1);
+  pointer-events: none;
+}
+
+#backpack-overlay.backpack-drawer.is-open {
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #backpack-overlay.backpack-drawer {
+    transition: none;
+  }
+}
+
+.backpack-drawer-handle {
+  flex-shrink: 0;
+  width: 40px;
+  height: 4px;
+  margin: 8px auto 0;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.backpack-drawer-header {
+  flex-shrink: 0;
+  padding: 2px 12px 8px;
+  text-align: center;
+}
+
+.backpack-drawer-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--torch-yellow);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
 .backpack-content {
   flex: 1;
   min-height: 0;
@@ -1655,14 +1945,17 @@
   flex-direction: column;
   align-items: center;
   overflow-y: auto;
-  padding-bottom: 8px;
+  overflow-x: hidden;
+  padding-bottom: 20px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(180, 130, 60, 0.35) transparent;
 }
 
 #backpack-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-  padding: 20px 20px 12px;
+  padding: 10px 16px 8px;
   width: min(300px, 88vw);
   margin: 0 auto;
   flex-shrink: 0;
@@ -1730,6 +2023,10 @@
 
 .backpack-accordion.open .backpack-accordion-body {
   display: block;
+}
+
+#backpack-overlay.backpack-drawer .backpack-accordion-body {
+  max-height: 200px;
 }
 
 .backpack-levelup-list {

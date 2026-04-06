@@ -26,32 +26,46 @@ export const RANGER_ABILITIES = {
   /** Meta XP tree also unlocks these; each level-up pick stacks +10% damage for that active (run-only). */
   'ricochet-mastery': {
     name:  'Ricochet Practice',
-    desc:  'Each pick: +10% Ricochet damage (stacks). Unlocks Ricochet this run if you do not own it from the XP tree.',
+    desc:  'Each pick: +10% Ricochet damage (stacks).',
     icon:  '🔁',
     iconSrc:   'assets/sprites/abilities/ricochet-badge.png',
     iconBgSrc: 'assets/sprites/abilities/ricochet-bg.png',
     effect: { type: 'ranger-active-mastery', ability: 'ricochet' },
     repeatable: true,
+    requiresMetaUpgrade: 'ricochet',
   },
   'poison-arrow-mastery': {
     name:  'Poison Arrow Practice',
-    desc:  'Each pick: +10% Poison Arrow hit and poison tick damage (stacks). Unlocks Poison Arrow this run if you do not own it from the XP tree.',
+    desc:  'Each pick: +10% Poison Arrow hit and poison tick damage (stacks).',
     icon:  '☠️',
     iconSrc:   'assets/sprites/abilities/poison-arrow-badge.png',
     iconBgSrc: 'assets/sprites/abilities/poison-arrow-bg.png',
     effect: { type: 'ranger-active-mastery', ability: 'poison-arrow-shot' },
     repeatable: true,
+    requiresMetaUpgrade: 'poison-arrow-shot',
   },
   'arrow-barrage-mastery': {
     name:  'Triple Volley Practice',
-    desc:  'Each pick: +10% Triple Volley damage per enemy in the 3×3 (stacks). Unlocks Triple Volley this run if you do not own it from the XP tree.',
+    desc:  'Each pick: +10% Triple Volley damage per enemy in the 3×3 (stacks).',
     icon:  '🎯',
     iconSrc:   'assets/sprites/abilities/arrow-barrage-badge.png',
     iconBgSrc: 'assets/sprites/abilities/arrow-barrage-bg.png',
     effect: { type: 'ranger-active-mastery', ability: 'arrow-barrage' },
     repeatable: true,
+    requiresMetaUpgrade: 'arrow-barrage',
   },
 }
+
+/** Meta XP passives (shown under “Passive upgrades” accordion in hero select). Actives stay on the main grid. */
+export const RANGER_PASSIVE_UPGRADE_IDS = [
+  'keen-senses',
+  'swift-shot',
+  'forest-lore',
+  'ghost-walk',
+  'bark-skin',
+  'mana-arrow',
+  'coin-pouch',
+]
 
 export const RANGER_UPGRADES = {
   'ricochet': {

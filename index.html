@@ -103,7 +103,7 @@
       </div>
 
       <div id="hud-keys" class="hud-keys" aria-label="Key items">
-        <button class="hud-key-slot hud-key-backpack" id="hud-backpack-btn" title="Backpack"><img src="assets/sprites/Items/backpack.png" alt="Backpack" style="height:28px;width:auto;image-rendering:pixelated;"></button>
+        <button type="button" class="hud-key-slot hud-key-backpack" id="hud-backpack-btn" title="Backpack" aria-label="Backpack" aria-expanded="false" aria-controls="backpack-overlay"><img src="assets/sprites/Items/backpack.png" alt="" class="hud-key-slot-img"></button>
         <div class="hud-key-slot" title="Locked"><span class="hud-key-ghost">🔑</span></div>
         <div class="hud-key-slot" title="Locked"><span class="hud-key-ghost">⛑️</span></div>
       </div>
@@ -120,11 +120,11 @@
 
   </div>
 
-  <!-- ── Backpack overlay ── -->
-  <div id="backpack-overlay" class="panel-overlay hidden">
-    <div class="panel-header">
-      <button class="panel-back-btn" id="backpack-close">← Back</button>
-      <div class="panel-title">Backpack</div>
+  <!-- ── Backpack: fixed above HUD (outside #app so nothing clips the bottom) ── -->
+  <div id="backpack-overlay" class="backpack-drawer" aria-hidden="true">
+    <div class="backpack-drawer-handle" aria-hidden="true"></div>
+    <div class="backpack-drawer-header">
+      <span class="backpack-drawer-title">Backpack</span>
     </div>
     <div class="backpack-content">
       <div id="backpack-grid">
@@ -394,27 +394,12 @@
     </div>
 
     <div id="hero-select-body">
-      <div id="hero-select-namewrap">
-        <div id="hero-select-name">Warrior</div>
-        <div id="hero-select-tagline">Battle-hardened fighter</div>
-        <div id="hero-select-xp-row">XP: <span id="hero-select-xp">0</span></div>
-      </div>
-
-      <!-- Upgrade slots grid -->
-      <div id="hero-upgrades-grid"></div>
-
-      <!-- Hero display with nav arrows -->
-      <div id="hero-display-row">
-        <button id="hero-prev" class="hero-nav-btn">&#9664;</button>
-        <div id="hero-display-wrap">
-          <img id="hero-display-gif" src="" alt="">
-          <div id="hero-display-emoji" class="hidden"></div>
-          <div id="hero-locked-overlay" class="hidden">
-            <div class="hero-lock-icon">🔒</div>
-            <div class="hero-lock-label">Locked</div>
-          </div>
+      <div id="hero-carousel-wrap">
+        <button type="button" id="hero-prev" class="hero-nav-btn" aria-label="Previous hero">&#9664;</button>
+        <div id="hero-select-scroll" role="region" aria-label="Hero carousel">
+          <!-- One .hero-select-slide per CHARACTERS entry (built in main.js) -->
         </div>
-        <button id="hero-next" class="hero-nav-btn">&#9654;</button>
+        <button type="button" id="hero-next" class="hero-nav-btn" aria-label="Next hero">&#9654;</button>
       </div>
     </div>
 

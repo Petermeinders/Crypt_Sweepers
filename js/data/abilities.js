@@ -29,6 +29,8 @@ export const WARRIOR_ABILITIES = {
     icon:  '🔨',
     effect: { type: 'slam-mult-bonus', amount: 1 },
     repeatable: true,
+    /** Meta XP tree: must have purchased Slam to see this in level-up choices. */
+    requiresMetaUpgrade: 'slam',
   },
   'blinding-mastery': {
     name:  'Blinding Mastery',
@@ -36,5 +38,6 @@ export const WARRIOR_ABILITIES = {
     icon:  '✨',
     effect: { type: 'blinding-mult-bonus', amount: 1 },
     repeatable: true,
+    requiresMetaUpgrade: 'blinding-light',
   },
 }

@@ -184,7 +184,7 @@ function _startFloor() {
     UI.setArrowBarrageBtn(false)
     UI.setPoisonArrowShotBtn(false)
   }
-  // Blinding Light — warrior only, slot B (ranger uses B for Poison Arrow, D for Triple Volley)
+  // Blinding Light — warrior only, slot B (ranger uses B for Poison Arrow, C for Triple Volley)
   if (_charKey() === 'warrior') {
     const blindingUnlocked = warriorUpgrades.includes('blinding-light')
     UI.setBlindingLightBtn(blindingUnlocked, WARRIOR_UPGRADES['blinding-light'].manaCost)
@@ -1241,12 +1241,23 @@ function _executeTripleVolley(center) {
   UI.setPortraitAnim('attack')
   UI.setMessage(`🏹 Triple Volley! ${targets.length} enem${targets.length > 1 ? 'ies' : 'y'} for ${dmg} each.`)
 
+  EventBus.emit('audio:play', {
+    sfx: 'arrowShot',
+    layered: {
+      count: Math.min(14, 6 + targets.length * 2),
+      spreadMs: 120,
+      jitterMs: 35,
+    },
+  })
+
+  // Rain of arrows overlay across all 9 tiles
+  UI.spawnArrowRain(tiles.map(t => t.element), targets.length * 120 + 600)
+
   targets.forEach((target, i) => {
     setTimeout(() => {
       const t = TileEngine.getTile(target.row, target.col)
       if (!t?.enemyData || t.enemyData._slain) return
       UI.spawnArrow(t.element)
-      EventBus.emit('audio:play', { sfx: 'arrowShot' })
       UI.shakeTile(t.element)
       t.enemyData.currentHP = Math.max(0, t.enemyData.currentHP - dmg)
       UI.spawnFloat(t.element, `🏹 ${dmg}`, 'xp')
@@ -1672,9 +1683,16 @@ function _gainXP(amount, tileEl) {
   UI.updateXP(run.player.xp, _xpNeeded())
 }
 
+function _metaUnlockedForLevelUp() {
+  const c = _charKey()
+  return c === 'ranger'
+    ? (_save.ranger?.upgrades ?? [])
+    : (_save.warrior?.upgrades ?? [])
+}
+
 function _triggerLevelUp() {
   const char    = _charKey()
-  const choices = ProgressionSystem.getChoices(run.player.abilities, char)
+  const choices = ProgressionSystem.getChoices(run.player.abilities, char, _metaUnlockedForLevelUp())
   if (choices.length === 0) {
     run.player.hp = Math.min(run.player.maxHp, run.player.hp + 10)
     UI.updateHP(run.player.hp, run.player.maxHp)

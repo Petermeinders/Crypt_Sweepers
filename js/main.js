@@ -8,7 +8,7 @@ import Logger          from './core/Logger.js'
 import { CONFIG }                           from './config.js'
 import { WARRIOR_UPGRADES, SHOP_ITEMS }     from './data/upgrades.js'
 import { ITEMS }                            from './data/items.js'
-import { RANGER_UPGRADES }                  from './data/ranger.js'
+import { RANGER_UPGRADES, RANGER_PASSIVE_UPGRADE_IDS } from './data/ranger.js'
 
 // ── Character roster ──────────────────────────────────────────
 
@@ -88,7 +88,7 @@ async function boot() {
     if (e.target.id === 'info-card-overlay') UI.hideInfoCard()
   })
   document.getElementById('hud-backpack-btn').addEventListener('click', () => {
-    _openBackpack()
+    _toggleBackpack()
   })
   document.getElementById('skip-floor-btn')?.addEventListener('click', () => {
     GameController.cheatSkipFloor()
@@ -104,15 +104,20 @@ async function boot() {
     if (!stat) return
     GameController.cheatHudStatBoost(stat)
   })
-  document.getElementById('backpack-close').addEventListener('click', () => {
-    document.getElementById('backpack-overlay').classList.add('hidden')
-  })
   document.getElementById('backpack-levelup-toggle')?.addEventListener('click', () => {
     const acc = document.getElementById('backpack-levelup-accordion')
     const btn = document.getElementById('backpack-levelup-toggle')
     if (!acc || !btn) return
     const open = acc.classList.toggle('open')
     btn.setAttribute('aria-expanded', open ? 'true' : 'false')
+  })
+  document.getElementById('hero-select-scroll')?.addEventListener('click', e => {
+    const t = e.target.closest('.hero-passive-accordion-toggle')
+    if (!t) return
+    const acc = t.closest('.hero-passive-accordion')
+    if (!acc) return
+    const open = acc.classList.toggle('open')
+    t.setAttribute('aria-expanded', open ? 'true' : 'false')
   })
   _wireAbilityHold(
     document.getElementById('hud-btn-slot-a'),
@@ -221,7 +226,7 @@ async function boot() {
     }
   )
   _wireAbilityHold(
-    document.getElementById('hud-btn-slot-d'),
+    document.getElementById('hud-btn-slot-c'),
     () => {
       const s = GameController.getSave()
       if ((s.selectedCharacter ?? 'warrior') === 'ranger') GameController.arrowBarrageAction()
@@ -282,16 +287,10 @@ async function boot() {
     document.getElementById('hero-select-overlay').classList.add('hidden')
     _updateMenuHeroPreview()
   })
-  document.getElementById('hero-prev').addEventListener('click', () => {
-    _heroIdx = Math.max(0, _heroIdx - 1)
-    _selectedUpgradeId = null
-    _renderHeroSelect()
-  })
-  document.getElementById('hero-next').addEventListener('click', () => {
-    _heroIdx = Math.min(CHARACTERS.length - 1, _heroIdx + 1)
-    _selectedUpgradeId = null
-    _renderHeroSelect()
-  })
+  document.getElementById('hero-prev').addEventListener('click', () => _navHeroSelect(-1))
+  document.getElementById('hero-next').addEventListener('click', () => _navHeroSelect(1))
+  _ensureHeroSelectSlides()
+  document.getElementById('hero-select-scroll')?.addEventListener('click', _onHeroPortraitClick)
   document.getElementById('hero-select-btn').addEventListener('click', () => {
     const s    = GameController.getSave()
     const char = CHARACTERS[_heroIdx]
@@ -315,22 +314,9 @@ async function boot() {
       const s        = GameController.getSave()
       const char     = CHARACTERS[_heroIdx]
       const charSave = char.id === 'ranger' ? s.ranger : s.warrior
-      _renderHeroUpgradeGrid(char, charSave.upgrades ?? [], charSave.totalXP ?? 0, char.id === 'ranger' && !s.ranger.unlocked)
+      const grid     = _heroSlideGrid(_heroIdx)
+      _renderHeroUpgradeGrid(grid, char, charSave.upgrades ?? [], charSave.totalXP ?? 0, char.id === 'ranger' && !s.ranger.unlocked)
     }
-  })
-
-  // Tap hero to play attack animation
-  document.getElementById('hero-display-gif').addEventListener('click', () => {
-    const char = CHARACTERS[_heroIdx]
-    if (!char.attackGif || _heroAttackTimer) return
-    const gifEl = document.getElementById('hero-display-gif')
-    gifEl.src = char.attackGif + '?t=' + Date.now()
-    _heroAttackTimer = setTimeout(() => {
-      _heroAttackTimer = null
-      if (CHARACTERS[_heroIdx] === char && char.gif) {
-        gifEl.src = char.gif + '?t=' + Date.now()
-      }
-    }, char.attackMs ?? 4000)
   })
 
 
@@ -457,64 +443,182 @@ async function boot() {
 let _heroIdx           = 0
 let _selectedUpgradeId = null
 let _heroAttackTimer   = null
+/** True while programmatic scroll runs so scroll handlers do not fight the index. */
+let _heroScrollSkip    = false
+
+function _heroSlideGrid(idx) {
+  const slide = document.querySelector(`#hero-select-scroll .hero-select-slide[data-hero-index="${idx}"]`)
+  return slide?.querySelector('.hero-upgrades-grid') ?? null
+}
+
+function _onHeroPortraitClick(e) {
+  const img = e.target.closest('.hero-display-gif')
+  if (!img) return
+  const slide = img.closest('.hero-select-slide')
+  if (!slide) return
+  const i = Number(slide.dataset.heroIndex)
+  if (i !== _heroIdx) return
+  const char = CHARACTERS[_heroIdx]
+  if (!char.attackGif || _heroAttackTimer) return
+  const gifEl = slide.querySelector('.hero-display-gif')
+  if (!gifEl) return
+  gifEl.src = char.attackGif + '?t=' + Date.now()
+  _heroAttackTimer = setTimeout(() => {
+    _heroAttackTimer = null
+    if (CHARACTERS[_heroIdx] === char && char.gif) {
+      gifEl.src = char.gif + '?t=' + Date.now()
+    }
+  }, char.attackMs ?? 4000)
+}
+
+function _ensureHeroSelectSlides() {
+  const scroll = document.getElementById('hero-select-scroll')
+  if (!scroll) return
+  const first = scroll.children[0]
+  const structureOk = first?.querySelector('.hero-passive-wrap')
+  if (scroll.children.length === CHARACTERS.length && structureOk) return
+  scroll.innerHTML = ''
+  CHARACTERS.forEach((_, i) => {
+    const slide = document.createElement('section')
+    slide.className = 'hero-select-slide'
+    slide.dataset.heroIndex = String(i)
+    slide.innerHTML = `
+      <div class="hero-select-namewrap">
+        <div class="hero-select-name"></div>
+        <div class="hero-select-tagline"></div>
+        <div class="hero-select-xp-row">XP: <span class="hero-select-xp"></span></div>
+      </div>
+      <div class="hero-upgrades-grid"></div>
+      <div class="hero-passive-wrap" hidden>
+        <div class="hero-passive-accordion">
+          <button type="button" class="hero-passive-accordion-toggle" aria-expanded="false">
+            <span>Passive Upgrades</span>
+            <span class="accordion-chevron">▸</span>
+          </button>
+          <div class="hero-passive-accordion-body">
+            <div class="hero-passive-upgrades-grid"></div>
+          </div>
+        </div>
+      </div>
+      <div class="hero-display-row">
+        <div class="hero-display-wrap">
+          <img class="hero-display-gif" src="" alt="">
+          <div class="hero-display-emoji hidden"></div>
+          <div class="hero-locked-overlay hidden">
+            <div class="hero-lock-icon">🔒</div>
+            <div class="hero-lock-label">Locked</div>
+          </div>
+        </div>
+      </div>
+    `
+    scroll.appendChild(slide)
+  })
+  _wireHeroSelectScroll()
+}
+
+function _wireHeroSelectScroll() {
+  const scroll = document.getElementById('hero-select-scroll')
+  if (!scroll || scroll.dataset.heroScrollWired === '1') return
+  scroll.dataset.heroScrollWired = '1'
+  const settle = () => {
+    if (_heroScrollSkip) return
+    _onHeroScrollSettled()
+  }
+  let debounceTimer = null
+  scroll.addEventListener('scroll', () => {
+    if (_heroScrollSkip) return
+    clearTimeout(debounceTimer)
+    debounceTimer = setTimeout(settle, 200)
+  }, { passive: true })
+}
+
+function _onHeroScrollSettled() {
+  const scroll = document.getElementById('hero-select-scroll')
+  if (!scroll) return
+  const w = scroll.clientWidth
+  if (w <= 0) return
+  const idx = Math.round(scroll.scrollLeft / w)
+  const clamped = Math.max(0, Math.min(CHARACTERS.length - 1, idx))
+  if (clamped === _heroIdx) return
+  _heroIdx = clamped
+  _selectedUpgradeId = null
+  _renderHeroSelect({ skipScrollSync: true })
+}
+
+function _navHeroSelect(delta) {
+  const next = Math.min(CHARACTERS.length - 1, Math.max(0, _heroIdx + delta))
+  if (next === _heroIdx) return
+  _heroIdx = next
+  _selectedUpgradeId = null
+  _renderHeroSelect({ scrollBehavior: 'smooth' })
+}
 
 function _openHeroSelect() {
   const s = GameController.getSave()
   _heroIdx = CHARACTERS.findIndex(c => c.id === (s.selectedCharacter ?? 'warrior'))
   if (_heroIdx < 0) _heroIdx = 0
   _selectedUpgradeId = null
-  _renderHeroSelect()
   document.getElementById('hero-select-overlay').classList.remove('hidden')
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      _ensureHeroSelectSlides()
+      _renderHeroSelect({ scrollBehavior: 'instant' })
+    })
+  })
 }
 
-function _renderHeroSelect() {
-  const s        = GameController.getSave()
-  const char     = CHARACTERS[_heroIdx]
-  const charSave = char.id === 'ranger' ? s.ranger : s.warrior
-  const isLocked = char.id === 'ranger' && !s.ranger.unlocked
-  const xp       = charSave.totalXP ?? 0
-  const owned    = charSave.upgrades ?? []
-
-  // Header gold
+function _renderHeroSelect(opts = {}) {
+  const skipScrollSync  = opts.skipScrollSync === true
+  const scrollBehavior  = opts.scrollBehavior ?? 'instant'
+  _ensureHeroSelectSlides()
+  const s = GameController.getSave()
   document.getElementById('hero-select-gold-val').textContent = s.persistentGold
 
-  // Name / tagline / XP
-  document.getElementById('hero-select-name').textContent    = char.name
-  document.getElementById('hero-select-tagline').textContent = char.tagline
-  document.getElementById('hero-select-xp').textContent      = xp
+  const scroll = document.getElementById('hero-select-scroll')
 
-  // Hero GIF or emoji — don't interrupt an in-progress attack animation
-  const gifEl   = document.getElementById('hero-display-gif')
-  const emojiEl = document.getElementById('hero-display-emoji')
-  if (char.gif) {
-    if (!_heroAttackTimer) gifEl.src = char.gif + '?t=' + Date.now()
-    gifEl.style.display   = 'block'
-    emojiEl.style.display = 'none'
-  } else {
-    gifEl.style.display   = 'none'
-    gifEl.src             = ''
-    emojiEl.textContent   = char.emoji
-    emojiEl.style.display = 'block'
-  }
+  CHARACTERS.forEach((char, i) => {
+    const slide = scroll?.children[i]
+    if (!slide) return
+    const charSave = char.id === 'ranger' ? s.ranger : s.warrior
+    const isLocked = char.id === 'ranger' && !s.ranger.unlocked
+    const xp       = charSave.totalXP ?? 0
+    const owned    = charSave.upgrades ?? []
+    const isCurrent = i === _heroIdx
 
-  // Lock overlay
-  const lockOverlay = document.getElementById('hero-locked-overlay')
-  lockOverlay.classList.toggle('hidden', !isLocked)
+    slide.querySelector('.hero-select-name').textContent    = char.name
+    slide.querySelector('.hero-select-tagline').textContent = char.tagline
+    slide.querySelector('.hero-select-xp').textContent      = String(xp)
 
-  // Nav arrows
+    const gifEl   = slide.querySelector('.hero-display-gif')
+    const emojiEl = slide.querySelector('.hero-display-emoji')
+    if (char.gif) {
+      if (isCurrent && !_heroAttackTimer) gifEl.src = char.gif + '?t=' + Date.now()
+      else if (!isCurrent) gifEl.src = char.gif + '?t=' + Date.now()
+      gifEl.style.display   = 'block'
+      emojiEl.style.display = 'none'
+    } else {
+      gifEl.style.display   = 'none'
+      gifEl.src             = ''
+      emojiEl.textContent   = char.emoji
+      emojiEl.style.display = 'block'
+    }
+
+    slide.querySelector('.hero-locked-overlay').classList.toggle('hidden', !isLocked)
+
+    const grid = slide.querySelector('.hero-upgrades-grid')
+    _renderHeroUpgradeGrid(grid, char, owned, xp, isLocked)
+  })
+
   document.getElementById('hero-prev').classList.toggle('hidden', _heroIdx === 0)
   document.getElementById('hero-next').classList.toggle('hidden', _heroIdx === CHARACTERS.length - 1)
 
-  // Upgrade grid
-  _renderHeroUpgradeGrid(char, owned, xp, isLocked)
-
-  // Base stats
+  const char = CHARACTERS[_heroIdx]
   document.getElementById('hero-stat-hp').textContent   = char.baseHP
   document.getElementById('hero-stat-mana').textContent = char.baseMana
   document.getElementById('hero-stat-dmg').textContent  = char.baseDmg
 
-  // Select / Unlock button
   const isSelected = s.selectedCharacter === char.id
+  const isLocked   = char.id === 'ranger' && !s.ranger.unlocked
   const selectBtn  = document.getElementById('hero-select-btn')
   if (isLocked) {
     selectBtn.textContent = `🔓 Unlock (${char.unlockCost}💰)`
@@ -524,6 +628,13 @@ function _renderHeroSelect() {
     selectBtn.textContent = isSelected ? '✓ Selected' : 'Select Hero'
     selectBtn.disabled    = isSelected
     selectBtn.dataset.mode = 'select'
+  }
+
+  if (!skipScrollSync && scroll && scroll.clientWidth > 0) {
+    _heroScrollSkip = true
+    scroll.scrollTo({ left: _heroIdx * scroll.clientWidth, behavior: scrollBehavior })
+    const ms = scrollBehavior === 'smooth' ? 520 : 60
+    setTimeout(() => { _heroScrollSkip = false }, ms)
   }
 }
 
@@ -544,12 +655,51 @@ function _syncHeroUpgradeDetail(char, ownedList, xp, isLocked) {
   _renderUpgradeDetail(_selectedUpgradeId, def, isOwned, canAfford)
 }
 
-function _renderHeroUpgradeGrid(char, ownedList, xp, isLocked) {
-  const grid = document.getElementById('hero-upgrades-grid')
+function _renderHeroUpgradeSimpleSlot(grid, char, id, def, ownedList, xp, isLocked) {
+  const isOwned    = ownedList.includes(id)
+  const prereqOk   = !def.requires || ownedList.includes(def.requires)
+  const isSelected = id === _selectedUpgradeId
+
+  const btn = document.createElement('button')
+  btn.className = 'hero-upgrade-slot'
+    + (isOwned    ? ' owned'    : '')
+    + (isSelected ? ' selected' : '')
+  const iconHTML = def.iconBgSrc && def.iconSrc
+    ? `<span class="hero-upgrade-icon-stack">
+         <img class="hero-upgrade-icon-bg" src="${def.iconBgSrc}" alt="" draggable="false"/>
+         <img class="hero-upgrade-icon-fg" src="${def.iconSrc}" alt="${def.name}" draggable="false"/>
+       </span>`
+    : def.iconSrc
+      ? `<img class="hero-upgrade-icon-img" src="${def.iconSrc}" alt="${def.name}" draggable="false"/>`
+      : `<span class="hero-upgrade-icon">${def.icon}</span>`
+  btn.innerHTML = `
+    ${iconHTML}
+    <span class="hero-upgrade-cost">${isOwned ? '✓' : def.xpCost + ' XP'}</span>
+  `
+  btn.addEventListener('click', () => {
+    _selectedUpgradeId = isSelected ? null : id
+    const s        = GameController.getSave()
+    const charSave = char.id === 'ranger' ? s.ranger : s.warrior
+    const locked   = char.id === 'ranger' && !s.ranger.unlocked
+    const mainGrid = grid.closest('.hero-select-slide')?.querySelector('.hero-upgrades-grid')
+    if (mainGrid) {
+      _renderHeroUpgradeGrid(mainGrid, char, charSave.upgrades ?? [], charSave.totalXP ?? 0, locked)
+    }
+  })
+  grid.appendChild(btn)
+}
+
+function _renderHeroUpgradeGrid(grid, char, ownedList, xp, isLocked) {
+  if (!grid) return
   grid.innerHTML = ''
+
+  const slide = grid.closest('.hero-select-slide')
+  const passiveWrap = slide?.querySelector('.hero-passive-wrap')
+  const passiveGrid = slide?.querySelector('.hero-passive-upgrades-grid')
 
   for (const [id, def] of Object.entries(char.upgrades)) {
     if (char.id === 'ranger' && id === 'ricochet-arc-mastery') continue
+    if (char.id === 'ranger' && RANGER_PASSIVE_UPGRADE_IDS.includes(id)) continue
 
     if (char.id === 'ranger' && id === 'ricochet') {
       const masDef = RANGER_UPGRADES['ricochet-arc-mastery']
@@ -594,7 +744,7 @@ function _renderHeroUpgradeGrid(char, ownedList, xp, isLocked) {
         const s = GameController.getSave()
         const charSave = char.id === 'ranger' ? s.ranger : s.warrior
         const locked = char.id === 'ranger' && !s.ranger.unlocked
-        _renderHeroUpgradeGrid(char, charSave.upgrades ?? [], charSave.totalXP ?? 0, locked)
+        _renderHeroUpgradeGrid(grid, char, charSave.upgrades ?? [], charSave.totalXP ?? 0, locked)
       }
 
       slot.querySelectorAll('.hero-upgrade-tier').forEach(tierBtn => {
@@ -619,38 +769,24 @@ function _renderHeroUpgradeGrid(char, ownedList, xp, isLocked) {
       continue
     }
 
-    const isOwned    = ownedList.includes(id)
-    const prereqOk   = !def.requires || ownedList.includes(def.requires)
-    const canAfford  = !isOwned && xp >= def.xpCost && !isLocked && prereqOk
-    const isSelected = id === _selectedUpgradeId
-
-    const btn = document.createElement('button')
-    btn.className = 'hero-upgrade-slot'
-      + (isOwned    ? ' owned'    : '')
-      + (isSelected ? ' selected' : '')
-    const iconHTML = def.iconBgSrc && def.iconSrc
-      ? `<span class="hero-upgrade-icon-stack">
-           <img class="hero-upgrade-icon-bg" src="${def.iconBgSrc}" alt="" draggable="false"/>
-           <img class="hero-upgrade-icon-fg" src="${def.iconSrc}" alt="${def.name}" draggable="false"/>
-         </span>`
-      : def.iconSrc
-        ? `<img class="hero-upgrade-icon-img" src="${def.iconSrc}" alt="${def.name}" draggable="false"/>`
-        : `<span class="hero-upgrade-icon">${def.icon}</span>`
-    btn.innerHTML = `
-      ${iconHTML}
-      <span class="hero-upgrade-cost">${isOwned ? '✓' : def.xpCost + ' XP'}</span>
-    `
-    btn.addEventListener('click', () => {
-      _selectedUpgradeId = isSelected ? null : id
-      const s        = GameController.getSave()
-      const charSave = char.id === 'ranger' ? s.ranger : s.warrior
-      const locked   = char.id === 'ranger' && !s.ranger.unlocked
-      _renderHeroUpgradeGrid(char, charSave.upgrades ?? [], charSave.totalXP ?? 0, locked)
-    })
-    grid.appendChild(btn)
+    _renderHeroUpgradeSimpleSlot(grid, char, id, def, ownedList, xp, isLocked)
   }
 
-  _syncHeroUpgradeDetail(char, ownedList, xp, isLocked)
+  if (char.id === 'ranger' && passiveGrid && passiveWrap) {
+    passiveWrap.hidden = false
+    passiveGrid.innerHTML = ''
+    for (const id of RANGER_PASSIVE_UPGRADE_IDS) {
+      const def = char.upgrades[id]
+      if (!def) continue
+      _renderHeroUpgradeSimpleSlot(passiveGrid, char, id, def, ownedList, xp, isLocked)
+    }
+  } else if (passiveWrap) {
+    passiveWrap.hidden = true
+  }
+
+  if (char.id === CHARACTERS[_heroIdx].id) {
+    _syncHeroUpgradeDetail(char, ownedList, xp, isLocked)
+  }
 }
 
 function _renderUpgradeDetail(id, def, isOwned, canAfford) {
@@ -750,7 +886,7 @@ function _renderBackpack() {
     (id) => {
       GameController.useItem(id)
       if (ITEMS[id]?.effect?.type === 'lantern') {
-        document.getElementById('backpack-overlay').classList.add('hidden')
+        _setBackpackOpen(false)
       } else {
         _renderBackpack()
       }
@@ -773,9 +909,24 @@ function _renderBackpack() {
   UI.renderBackpackLevelUpLog(GameController.getLevelUpLog())
 }
 
-function _openBackpack() {
-  _renderBackpack()
-  document.getElementById('backpack-overlay').classList.remove('hidden')
+function _setBackpackOpen(open) {
+  const el = document.getElementById('backpack-overlay')
+  const btn = document.getElementById('hud-backpack-btn')
+  if (!el) return
+  el.classList.toggle('is-open', open)
+  el.setAttribute('aria-hidden', open ? 'false' : 'true')
+  btn?.setAttribute('aria-expanded', open ? 'true' : 'false')
+}
+
+function _toggleBackpack() {
+  const el = document.getElementById('backpack-overlay')
+  if (!el) return
+  if (!el.classList.contains('is-open')) {
+    _renderBackpack()
+    _setBackpackOpen(true)
+  } else {
+    _setBackpackOpen(false)
+  }
 }
 
 // ── Ability button hold-to-inspect ───────────────────────────

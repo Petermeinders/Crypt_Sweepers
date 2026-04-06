@@ -200,35 +200,35 @@ const UI = {
     document.getElementById('grid-container')?.classList.toggle('ricochet-mode', active)
   },
 
-  /** Slot D — Ranger Triple Volley (slot B is Poison Arrow). Warrior uses B for Blinding Light. */
+  /** Slot C — Ranger Triple Volley (3rd slot). Slot A Ricochet, B Poison Arrow. Warrior uses B for Blinding Light. */
   setArrowBarrageBtn(visible, manaCost = 12) {
-    if (!el.hudSlotD) return
+    if (!el.hudSlotC) return
     if (visible) {
-      el.hudSlotD.innerHTML = `
+      el.hudSlotC.innerHTML = `
         <span class="ability-btn-wrap ability-btn-wrap--arrow-barrage">
           <img src="assets/sprites/abilities/arrow-barrage-bg.png" class="ability-btn-bg" alt="" draggable="false"/>
           <img src="assets/sprites/abilities/arrow-barrage-badge.png" class="ability-btn-badge" alt="Triple Volley" draggable="false"/>
           <span class="ability-btn-cost">${manaCost}</span>
         </span>`
-      el.hudSlotD.title = `Triple Volley — 3×3 blast, 50% attack per enemy (${manaCost} mana)`
-      el.hudSlotD.disabled = false
-      el.hudSlotD.classList.remove('is-placeholder')
-      el.hudSlotD.classList.add('is-arrow-barrage')
-      if (el.hudSlotC) {
-        el.hudSlotC.textContent = '···'
-        el.hudSlotC.title = 'Reserved'
-        el.hudSlotC.disabled = true
-        el.hudSlotC.classList.add('is-placeholder')
-        el.hudSlotC.classList.remove('is-arrow-barrage', 'is-arrow-barrage-active')
+      el.hudSlotC.title = `Triple Volley — 3×3 blast, 50% attack per enemy (${manaCost} mana)`
+      el.hudSlotC.disabled = false
+      el.hudSlotC.classList.remove('is-placeholder')
+      el.hudSlotC.classList.add('is-arrow-barrage')
+      if (el.hudSlotD) {
+        el.hudSlotD.textContent = '···'
+        el.hudSlotD.title = 'Reserved'
+        el.hudSlotD.disabled = true
+        el.hudSlotD.classList.add('is-placeholder')
+        el.hudSlotD.classList.remove('is-arrow-barrage', 'is-arrow-barrage-active')
       }
-    } else if (el.hudSlotD.classList.contains('is-arrow-barrage')) {
-      el.hudSlotD.textContent = '···'
-      el.hudSlotD.title = 'Reserved'
-      el.hudSlotD.disabled = true
-      el.hudSlotD.classList.add('is-placeholder')
-      el.hudSlotD.classList.remove('is-arrow-barrage', 'is-arrow-barrage-active')
+    } else if (el.hudSlotC.classList.contains('is-arrow-barrage')) {
+      el.hudSlotC.textContent = '···'
+      el.hudSlotC.title = 'Reserved'
+      el.hudSlotC.disabled = true
+      el.hudSlotC.classList.add('is-placeholder')
+      el.hudSlotC.classList.remove('is-arrow-barrage', 'is-arrow-barrage-active')
     }
-    // Legacy: Triple Volley (arrow barrage) used to live on slot B or C
+    // Legacy: Triple Volley used to live on slot B or D
     if (el.hudSlotB?.classList.contains('is-arrow-barrage')) {
       el.hudSlotB.textContent = '···'
       el.hudSlotB.title = 'Reserved'
@@ -236,17 +236,17 @@ const UI = {
       el.hudSlotB.classList.add('is-placeholder')
       el.hudSlotB.classList.remove('is-arrow-barrage', 'is-arrow-barrage-active')
     }
-    if (el.hudSlotC?.classList.contains('is-arrow-barrage')) {
-      el.hudSlotC.textContent = '···'
-      el.hudSlotC.title = 'Reserved'
-      el.hudSlotC.disabled = true
-      el.hudSlotC.classList.add('is-placeholder')
-      el.hudSlotC.classList.remove('is-arrow-barrage', 'is-arrow-barrage-active')
+    if (el.hudSlotD?.classList.contains('is-arrow-barrage')) {
+      el.hudSlotD.textContent = '···'
+      el.hudSlotD.title = 'Reserved'
+      el.hudSlotD.disabled = true
+      el.hudSlotD.classList.add('is-placeholder')
+      el.hudSlotD.classList.remove('is-arrow-barrage', 'is-arrow-barrage-active')
     }
   },
 
   setArrowBarrageActive(active) {
-    el.hudSlotD?.classList.toggle('is-arrow-barrage-active', active)
+    el.hudSlotC?.classList.toggle('is-arrow-barrage-active', active)
   },
 
   setGridArrowBarrageMode(active) {
@@ -278,7 +278,7 @@ const UI = {
     }
   },
 
-  /** Slot B — Ranger Poison Arrow (2nd unlock). Triple Volley uses slot D. */
+  /** Slot B — Ranger Poison Arrow (2nd unlock). Triple Volley uses slot C. */
   setPoisonArrowShotBtn(visible, manaCost = 12) {
     if (!el.hudSlotB) return
     el.hudSlotB.classList.remove('is-poison-arrow-shot', 'is-poison-arrow-shot-active')
@@ -355,6 +355,18 @@ const UI = {
     img.className = 'arrow-projectile'
     tileEl.appendChild(img)
     setTimeout(() => img.remove(), 700)
+  },
+
+  spawnArrowRain(tileEls, durationMs = 1200) {
+    const ts = Date.now()
+    tileEls.forEach(tileEl => {
+      if (!tileEl) return
+      const img = document.createElement('img')
+      img.src = `assets/sprites/effects/arrow-rain.gif?t=${ts}`
+      img.className = 'arrow-rain-overlay'
+      tileEl.appendChild(img)
+      setTimeout(() => img.remove(), durationMs)
+    })
   },
 
   flashTile(tileEl) {
