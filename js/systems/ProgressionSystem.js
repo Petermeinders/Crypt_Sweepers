@@ -73,12 +73,21 @@ function applyAbility(abilityId, player, charKey = 'warrior') {
     case 'trap-reduction':
       player.trapReduction = (player.trapReduction ?? 0) + effect.amount
       break
+    case 'trapfinder-stack':
+      player.trapfinderStacks = (player.trapfinderStacks ?? 0) + (effect.amount ?? 1)
+      break
     case 'slam-mult-bonus':
       player.slamMasteryStacks = (player.slamMasteryStacks ?? 0) + (effect.amount ?? 1)
       break
     case 'blinding-mult-bonus':
       player.blindingLightMasteryStacks = (player.blindingLightMasteryStacks ?? 0) + (effect.amount ?? 1)
       break
+    case 'ranger-active-mastery': {
+      const key = effect.ability
+      if (!player.rangerActiveStacks) player.rangerActiveStacks = {}
+      player.rangerActiveStacks[key] = (player.rangerActiveStacks[key] ?? 0) + 1
+      break
+    }
   }
 
   if (!player.abilities.includes(abilityId)) {

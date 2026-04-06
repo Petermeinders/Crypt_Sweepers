@@ -22,6 +22,31 @@ function _charKey() {
   return _save?.selectedCharacter ?? 'warrior'
 }
 
+/** Meta XP unlock or at least one run mastery stack — HUD + actions. */
+function _isRangerActiveUnlocked(abilityKey) {
+  if ((_save.ranger?.upgrades ?? []).includes(abilityKey)) return true
+  const stacks = run?.player?.rangerActiveStacks?.[abilityKey] ?? 0
+  return stacks > 0
+}
+
+function _rangerActiveDamageMult(abilityKey) {
+  const stacks = run?.player?.rangerActiveStacks?.[abilityKey] ?? 0
+  return 1 + 0.1 * stacks
+}
+
+function _refreshRangerActiveHud() {
+  if (_charKey() !== 'ranger') return
+  UI.setRicochetBtn(_isRangerActiveUnlocked('ricochet'), RANGER_UPGRADES.ricochet.manaCost)
+  UI.setArrowBarrageBtn(
+    _isRangerActiveUnlocked('arrow-barrage'),
+    RANGER_UPGRADES['arrow-barrage'].manaCost,
+  )
+  UI.setPoisonArrowShotBtn(
+    _isRangerActiveUnlocked('poison-arrow-shot'),
+    RANGER_UPGRADES['poison-arrow-shot'].manaCost,
+  )
+}
+
 /** Ranger __Attack.gif length — portrait stays on "attack" until this elapses. */
 const RANGER_FIGHT_ATTACK_PORTRAIT_MS = 4000
 /** Ranger passive: chance per enemy reveal to skip locking adjacent tiles. */
@@ -41,7 +66,7 @@ function buildRunState() {
     xp:      0,
     level:   1,
     safeGold: 0,
-    abilities:          [],
+    abilities:          isRanger ? ['trapfinder'] : [],
     damageBonus:        0,
     damageReduction:    0,
     spellCostReduction: 0,
@@ -50,10 +75,16 @@ function buildRunState() {
     undeadBonus:        false,
     beastBonus:         false,
     trapReduction:      0,
+    /** Ranger: starts at 1 from passive; further ranks from level-ups. */
+    trapfinderStacks:   isRanger ? 1 : 0,
     /** Warrior: Slam Mastery picks (integer stacks; mult = (baseTenths + stacks) / 10). */
     slamMasteryStacks: 0,
     /** Warrior: Blinding Light mastery — +0.1 to stun-turn mult per pick (same tenths pattern as Slam). */
     blindingLightMasteryStacks: 0,
+    /** Ranger: level-up picks for Ricochet / Barrage / Poison — +10% damage per stack for that active. */
+    rangerActiveStacks: isRanger
+      ? { ricochet: 0, 'arrow-barrage': 0, 'poison-arrow-shot': 0 }
+      : undefined,
     retreatPercent:     CONFIG.retreat.goldKeepPercent,
     extraAbilityChoice: false,
     damageTakenMult:    1,
@@ -120,6 +151,12 @@ function _startFloor() {
   UI.clearRicochetMarks()
   UI.setRicochetActive(false)
   UI.setGridRicochetMode(false)
+  _arrowBarrageSelecting = false
+  UI.setArrowBarrageActive(false)
+  UI.setGridArrowBarrageMode(false)
+  _poisonArrowShotSelecting = false
+  UI.setPoisonArrowShotActive(false)
+  UI.setGridPoisonArrowShotMode(false)
   TileEngine.generateGrid(run.floor, { rest: run.atRest })
   TileEngine.renderGrid(UI.getGridEl(), onTileTap, onTileHold)
   _revealStartTile()
@@ -137,16 +174,19 @@ function _startFloor() {
   UI.setHudCharacter(_charKey())
   // Slot A — Warrior Slam or Ranger Ricochet when unlocked in XP tree
   const warriorUpgrades = _save.warrior?.upgrades ?? []
-  const rangerUpgrades  = _save.ranger?.upgrades ?? []
   const slamUnlocked    = _charKey() === 'warrior' && warriorUpgrades.includes('slam')
   if (_charKey() === 'ranger') {
-    UI.setRicochetBtn(rangerUpgrades.includes('ricochet'), RANGER_UPGRADES.ricochet.manaCost)
+    _refreshRangerActiveHud()
   } else {
     UI.setSlamBtn(slamUnlocked, WARRIOR_UPGRADES.slam.manaCost)
+    UI.setArrowBarrageBtn(false)
+    UI.setPoisonArrowShotBtn(false)
   }
-  // Blinding Light button — warrior only, slot-b
-  const blindingUnlocked = _charKey() === 'warrior' && warriorUpgrades.includes('blinding-light')
-  UI.setBlindingLightBtn(blindingUnlocked, WARRIOR_UPGRADES['blinding-light'].manaCost)
+  // Blinding Light — warrior only, slot B (ranger uses B for Arrow Barrage)
+  if (_charKey() === 'warrior') {
+    const blindingUnlocked = warriorUpgrades.includes('blinding-light')
+    UI.setBlindingLightBtn(blindingUnlocked, WARRIOR_UPGRADES['blinding-light'].manaCost)
+  }
   // Show spell button always — player can target any enemy at any time
   const effectiveCost = Math.max(1, CONFIG.spell.manaCost - (run.player.spellCostReduction ?? 0))
   UI.showActionPanel(effectiveCost, run.player.mana >= effectiveCost)
@@ -195,6 +235,7 @@ function _revealStartTile() {
   // Mark neighbours reachable immediately so they're clickable before the flip finishes
   TileEngine.markReachable(tile.row, tile.col, UI.markTileReachable.bind(UI))
   TileEngine.flipTile(tile)
+  _tickPoisonArrowDotOnGlobalTurn()
 }
 
 // ── Tile tap router ──────────────────────────────────────────
@@ -205,6 +246,8 @@ let _lanternTargeting       = false
 let _blindingLightTargeting = false
 let _ricochetSelecting = false
 let _ricochetTiles     = []
+let _arrowBarrageSelecting = false
+let _poisonArrowShotSelecting = false
 
 function _cancelRicochetMode() {
   _ricochetSelecting = false
@@ -212,6 +255,18 @@ function _cancelRicochetMode() {
   UI.clearRicochetMarks()
   UI.setRicochetActive(false)
   UI.setGridRicochetMode(false)
+}
+
+function _cancelArrowBarrageMode() {
+  _arrowBarrageSelecting = false
+  UI.setArrowBarrageActive(false)
+  UI.setGridArrowBarrageMode(false)
+}
+
+function _cancelPoisonArrowShotMode() {
+  _poisonArrowShotSelecting = false
+  UI.setPoisonArrowShotActive(false)
+  UI.setGridPoisonArrowShotMode(false)
 }
 
 function _cancelSpellLanternBlindingForRicochet() {
@@ -257,6 +312,32 @@ function onTileTap(row, col) {
   if (_blindingLightTargeting) {
     if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
       _castBlindingLight(tile)
+    }
+    return
+  }
+
+  // Arrow Barrage: single living enemy, then fire 3 : 2 : 1 shots
+  if (_arrowBarrageSelecting) {
+    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      const cost = RANGER_UPGRADES['arrow-barrage'].manaCost
+      if (run.player.mana < cost) {
+        UI.setMessage('Not enough mana for Arrow Barrage!', true)
+      } else {
+        _executeArrowBarrage(tile)
+      }
+    }
+    return
+  }
+
+  // Poison Arrow (active): single living enemy — initial hit + 3 poison ticks (global turns)
+  if (_poisonArrowShotSelecting) {
+    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      const cost = RANGER_UPGRADES['poison-arrow-shot'].manaCost
+      if (run.player.mana < cost) {
+        UI.setMessage('Not enough mana for Poison Arrow!', true)
+      } else {
+        _executePoisonArrowShot(tile)
+      }
     }
     return
   }
@@ -360,6 +441,47 @@ function onTileHold(row, col) {
 
 // ── Reveal tile ──────────────────────────────────────────────
 
+/** Traps, dedicated fast tiles, and fast ambush on normal enemy reveals — 10% to shave trapfinderStacks HP (min 1). */
+function _applyRangerTrapfinderMitigation(preMitigationDmg, p) {
+  if (!p?.isRanger || (p.trapfinderStacks ?? 0) <= 0) {
+    return { dmg: preMitigationDmg, proc: false }
+  }
+  if (Math.random() >= CONFIG.ability.trapfinderProcChance) {
+    return { dmg: preMitigationDmg, proc: false }
+  }
+  const mitigated = Math.max(1, preMitigationDmg - p.trapfinderStacks)
+  return { dmg: mitigated, proc: true }
+}
+
+/** One global “turn” for Poison Arrow DoT: each tile flip/reveal, or starting a melee vs any enemy. */
+function _tickPoisonArrowDotOnGlobalTurn() {
+  if (!run || GameState.is(States.DEATH)) return
+  const grid = TileEngine.getGrid()
+  if (!grid) return
+  const pDmg = _poisonArrowUnitDamage()
+  for (const row of grid) {
+    for (const tile of row) {
+      if (!tile.revealed || !tile.enemyData || tile.enemyData._slain) continue
+      if ((tile.enemyData.poisonTurns ?? 0) <= 0) continue
+
+      tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - pDmg)
+      tile.enemyData.poisonTurns--
+      if (tile.element) {
+        UI.spawnFloat(tile.element, `☠️ ${pDmg}`, 'damage')
+        UI.shakeTile(tile.element)
+      }
+      if (tile.enemyData.currentHP <= 0) {
+        const gold = tile.enemyData.goldDrop ? _rand(...tile.enemyData.goldDrop) : 1
+        _gainGold(gold, tile.element)
+        _gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
+        _endCombatVictory(tile)
+      } else if (tile.element) {
+        UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
+      }
+    }
+  }
+}
+
 async function revealTile(tile) {
   tile.revealed = true
   run.tilesRevealed++
@@ -375,6 +497,7 @@ async function revealTile(tile) {
   EventBus.emit('tile:revealed', { tile })
   TileEngine.markReachable(tile.row, tile.col, UI.markTileReachable.bind(UI))
   _resolveEffect(tile)
+  _tickPoisonArrowDotOnGlobalTurn()
 }
 
 // ── Chest open ───────────────────────────────────────────────
@@ -490,11 +613,17 @@ function _resolveEffect(tile) {
 
     case 'trap': {
       const rawDmg = _rand(...CONFIG.trap.damage)
-      const dmg    = Math.max(1, rawDmg - (p.trapReduction ?? 0))
+      let dmg = Math.max(1, rawDmg - (p.trapReduction ?? 0))
       const reduced = rawDmg !== dmg ? ` (reduced from ${rawDmg})` : ''
+      let tfNote = ''
+      if (p.isRanger && (p.trapfinderStacks ?? 0) > 0) {
+        const r = _applyRangerTrapfinderMitigation(dmg, p)
+        dmg = r.dmg
+        if (r.proc) tfNote = ' Trapfinder!'
+      }
       EventBus.emit('audio:play', { sfx: 'trap' })
       _takeDamage(dmg, tile.element)
-      UI.setMessage(`A trap snaps shut! You take ${dmg} damage${reduced}.`)
+      UI.setMessage(`A trap snaps shut! You take ${dmg} damage${reduced}.${tfNote}`)
       if (!GameState.is(States.DEATH)) UI.showRetreat()
       break
     }
@@ -573,7 +702,8 @@ function _resolveEffect(tile) {
     case 'boss':
     case 'enemy_fast': {
       const { dmg } = CombatResolver.resolveFastReveal(tile.enemyData)
-      _takeDamage(dmg, tile.element)
+      const r = _applyRangerTrapfinderMitigation(dmg, p)
+      _takeDamage(r.dmg, tile.element)
       UI.shakeTile(tile.element)
       if (!GameState.is(States.DEATH)) {
         const rangerSkipLock = p.isRanger && Math.random() < RANGER_PASSIVE_SKIP_ADJ_LOCK
@@ -582,7 +712,8 @@ function _resolveEffect(tile) {
         }
         UI.markTileEnemyAlive(tile.element)
         const label = tile.enemyData?.isBoss ? `⚠️ BOSS: ${tile.enemyData.label}` : '⚡ Fast enemy'
-        UI.setMessage(`${label} strikes first! (-${dmg} HP) Tap it to fight.`, true)
+        const tf = r.proc ? ' Trapfinder!' : ''
+        UI.setMessage(`${label} strikes first! (-${r.dmg} HP)${tf} Tap it to fight.`, true)
         UI.showRetreat()
         EventBus.emit('tile:locked', {})
       }
@@ -599,8 +730,10 @@ function _resolveEffect(tile) {
       if (tile.enemyData?.attributes?.includes('fast')) {
         const d = tile.enemyData.dmg
         const ambushDmg = tile.enemyData.hitDamage ?? (Array.isArray(d) ? d[0] : d)
-        _takeDamage(ambushDmg, tile.element, false, tile.enemyData)
-        UI.setMessage(`⚡ The ${tile.enemyData.label} strikes first for ${ambushDmg}! Tap to fight back.`)
+        const r = _applyRangerTrapfinderMitigation(ambushDmg, p)
+        _takeDamage(r.dmg, tile.element, false, tile.enemyData)
+        const tf = r.proc ? ' Trapfinder!' : ''
+        UI.setMessage(`⚡ The ${tile.enemyData.label} strikes first for ${r.dmg}!${tf} Tap to fight back.`)
       } else {
         UI.setMessage(`A ${tile.enemyData?.label ?? 'enemy'} lurks. Tap it to fight.`)
       }
@@ -712,6 +845,12 @@ function _setEnemySprite(tile, state) {
 
 function fightAction(tile) {
   _combatBusy = true
+
+  _tickPoisonArrowDotOnGlobalTurn()
+  if (!tile?.enemyData || tile.enemyData._slain) {
+    _combatBusy = false
+    return
+  }
 
   const result = CombatResolver.resolveFight(run.player, tile.enemyData)
 
@@ -926,7 +1065,7 @@ function abilitySlotAAction() {
 }
 
 function ricochetAction() {
-  if (!(_save.ranger?.upgrades ?? []).includes('ricochet')) return
+  if (!_isRangerActiveUnlocked('ricochet')) return
   if (_combatBusy) return
   const cost = RANGER_UPGRADES.ricochet.manaCost
 
@@ -936,6 +1075,8 @@ function ricochetAction() {
       return
     }
     _cancelSpellLanternBlindingForRicochet()
+    _cancelArrowBarrageMode()
+    _cancelPoisonArrowShotMode()
     _ricochetSelecting = true
     _ricochetTiles     = []
     UI.setRicochetActive(true)
@@ -975,7 +1116,7 @@ function _executeRicochet() {
 
   _combatBusy = true
   UI.setPortraitAnim('attack')
-  const dmgSeq = _ricochetDamageSequence(targets.length)
+  const dmgSeq = _ricochetDamageSequence(targets.length, 'ricochet')
   UI.setMessage(`🏹 Ricochet — ${targets.length} shot${targets.length > 1 ? 's' : ''}! (${dmgSeq.join(' → ')})`)
 
   targets.forEach((target, i) => {
@@ -1006,6 +1147,151 @@ function _executeRicochet() {
   }, doneMs)
 }
 
+function arrowBarrageAction() {
+  if (!_isRangerActiveUnlocked('arrow-barrage')) return
+  if (_combatBusy) return
+  const cost = RANGER_UPGRADES['arrow-barrage'].manaCost
+
+  if (!_arrowBarrageSelecting) {
+    if (run.player.mana < cost) {
+      UI.setMessage('Not enough mana for Arrow Barrage!', true)
+      return
+    }
+    _cancelSpellLanternBlindingForRicochet()
+    _cancelRicochetMode()
+    _cancelPoisonArrowShotMode()
+    _arrowBarrageSelecting = true
+    UI.setArrowBarrageActive(true)
+    UI.setGridArrowBarrageMode(true)
+    UI.setMessage('🏹 Arrow Barrage — tap one enemy (3 : 2 : 1 damage). Tap the ability again to cancel.')
+    return
+  }
+
+  _cancelArrowBarrageMode()
+  UI.setMessage('Arrow Barrage cancelled.')
+}
+
+function _executeArrowBarrage(tile) {
+  const cost = RANGER_UPGRADES['arrow-barrage'].manaCost
+  if (!tile?.enemyData || tile.enemyData._slain) {
+    _cancelArrowBarrageMode()
+    return
+  }
+
+  const row = tile.row
+  const col = tile.col
+  _cancelArrowBarrageMode()
+
+  run.player.mana = Math.max(0, run.player.mana - cost)
+  UI.updateMana(run.player.mana, run.player.maxMana)
+
+  const dmgSeq = _ricochetDamageSequence(3, 'arrow-barrage')
+  _combatBusy = true
+  UI.setPortraitAnim('attack')
+  UI.setMessage(`🏹 Arrow Barrage! (${dmgSeq.join(' → ')})`)
+
+  dmgSeq.forEach((dmg, i) => {
+    setTimeout(() => {
+      const t = TileEngine.getTile(row, col)
+      if (!t?.enemyData || t.enemyData._slain) return
+      UI.spawnArrow(t.element)
+      EventBus.emit('audio:play', { sfx: 'arrowShot' })
+      UI.shakeTile(t.element)
+      t.enemyData.currentHP = Math.max(0, t.enemyData.currentHP - dmg)
+      UI.spawnFloat(t.element, `🏹 ${dmg}`, 'xp')
+      if (t.enemyData.currentHP <= 0) {
+        _gainGold(t.enemyData.goldDrop ? _rand(...t.enemyData.goldDrop) : 1, t.element)
+        _gainXP(t.enemyData.xpDrop ?? 0, t.element)
+        _endCombatVictory(t)
+      } else {
+        UI.updateEnemyHP(t.element, t.enemyData.currentHP)
+      }
+    }, i * 120)
+  })
+
+  const doneMs = dmgSeq.length * 120 + 400
+  setTimeout(() => {
+    UI.setPortraitAnim('idle')
+    _combatBusy = false
+  }, doneMs)
+}
+
+function poisonArrowShotAction() {
+  if (!_isRangerActiveUnlocked('poison-arrow-shot')) return
+  if (_combatBusy) return
+  const cost = RANGER_UPGRADES['poison-arrow-shot'].manaCost
+
+  if (!_poisonArrowShotSelecting) {
+    if (run.player.mana < cost) {
+      UI.setMessage('Not enough mana for Poison Arrow!', true)
+      return
+    }
+    _cancelSpellLanternBlindingForRicochet()
+    _cancelRicochetMode()
+    _cancelArrowBarrageMode()
+    _poisonArrowShotSelecting = true
+    UI.setPoisonArrowShotActive(true)
+    UI.setGridPoisonArrowShotMode(true)
+    UI.setMessage('☠️ Poison Arrow — tap one enemy. Tap again to cancel.')
+    return
+  }
+
+  _cancelPoisonArrowShotMode()
+  UI.setMessage('Poison Arrow cancelled.')
+}
+
+function _executePoisonArrowShot(tile) {
+  const cost = RANGER_UPGRADES['poison-arrow-shot'].manaCost
+  if (!tile?.enemyData || tile.enemyData._slain) {
+    _cancelPoisonArrowShotMode()
+    return
+  }
+
+  const row = tile.row
+  const col = tile.col
+  _cancelPoisonArrowShotMode()
+
+  run.player.mana = Math.max(0, run.player.mana - cost)
+  UI.updateMana(run.player.mana, run.player.maxMana)
+
+  const initial = _poisonArrowUnitDamage()
+  _combatBusy = true
+  UI.setPortraitAnim('attack')
+
+  const t0 = TileEngine.getTile(row, col)
+  if (!t0?.enemyData || t0.enemyData._slain) {
+    UI.setPortraitAnim('idle')
+    _combatBusy = false
+    return
+  }
+
+  UI.spawnArrow(t0.element)
+  EventBus.emit('audio:play', { sfx: 'arrowShot' })
+  UI.shakeTile(t0.element)
+  t0.enemyData.currentHP = Math.max(0, t0.enemyData.currentHP - initial)
+  UI.spawnFloat(t0.element, `☠️ ${initial}`, 'xp')
+
+  if (t0.enemyData.currentHP <= 0) {
+    _gainGold(t0.enemyData.goldDrop ? _rand(...t0.enemyData.goldDrop) : 1, t0.element)
+    _gainXP(t0.enemyData.xpDrop ?? 0, t0.element)
+    _endCombatVictory(t0)
+    setTimeout(() => {
+      UI.setPortraitAnim('idle')
+      _combatBusy = false
+    }, 400)
+    return
+  }
+
+  t0.enemyData.poisonTurns = 3
+  UI.updateEnemyHP(t0.element, t0.enemyData.currentHP)
+  UI.setMessage(`☠️ Poison Arrow! The foe is poisoned (${initial} + ${3} ticks on turns — flips or melee).`)
+
+  setTimeout(() => {
+    UI.setPortraitAnim('idle')
+    _combatBusy = false
+  }, 400)
+}
+
 function spellAction() {
   const effectiveCost = Math.max(1, CONFIG.spell.manaCost - (run.player.spellCostReduction ?? 0))
   if (run.player.mana < effectiveCost) {
@@ -1017,6 +1303,8 @@ function spellAction() {
   UI.setSpellTargeting(_spellTargeting, effectiveCost)
   if (_spellTargeting) {
     _cancelRicochetMode()
+    _cancelArrowBarrageMode()
+    _cancelPoisonArrowShotMode()
     UI.setMessage('✨ Choose an enemy to target.')
   } else {
     UI.setMessage('Spell cancelled.')
@@ -1033,6 +1321,8 @@ function lanternAction() {
   UI.setLanternTargeting(_lanternTargeting)
   if (_lanternTargeting) {
     _cancelRicochetMode()
+    _cancelArrowBarrageMode()
+    _cancelPoisonArrowShotMode()
     UI.setMessage('🏮 Lantern lit — tap any hidden tile to reveal it.')
   } else {
     UI.setMessage('Lantern extinguished.')
@@ -1068,6 +1358,8 @@ function blindingLightAction() {
   UI.setBlindingLightActive(_blindingLightTargeting)
   if (_blindingLightTargeting) {
     _cancelRicochetMode()
+    _cancelArrowBarrageMode()
+    _cancelPoisonArrowShotMode()
     UI.setMessage('✨ Choose an enemy to blind.')
   } else {
     UI.setMessage('Blinding Light cancelled.')
@@ -1371,6 +1663,7 @@ function _triggerLevelUp() {
       UI.updateDamageRange(d0, d1)
     }
     UI.setMessage(`${def?.name ?? abilityId} acquired! Level ${run.player.level}.`)
+    if (char === 'ranger') _refreshRangerActiveHud()
     GameState.transition(States.FLOOR_EXPLORE)
   })
 }
@@ -1440,13 +1733,50 @@ function getBlindingLightBreakdown() {
   return { avgMelee: avg, baseTenths, stacks, mult: m, stunTurns, final: stunTurns }
 }
 
-/** Returns [1st, 2nd, 3rd] shot damage for Ricochet (length matches targets). */
-function _ricochetDamageSequence(targetCount) {
+function _hasRicochetArcMasteryMeta() {
+  return (_save.ranger?.upgrades ?? []).includes('ricochet-arc-mastery')
+}
+
+/** Returns [1st, 2nd, 3rd] shot damage for Ricochet (length matches targets). Ricochet only: 4:3:2 with meta Ricochet Mastery. */
+function _ricochetDamageSequence(targetCount, abilityKey = 'ricochet') {
   const avg = _avgMeleeDamage()
   const m   = CONFIG.ability.ricochetUnitMult
-  const unit = Math.max(1, Math.round(avg * m))
-  const seq  = [3 * unit, 2 * unit, 1 * unit]
+  const mult = _rangerActiveDamageMult(abilityKey)
+  const unit = Math.max(1, Math.round(avg * m * mult))
+  const weights =
+    abilityKey === 'ricochet' && _hasRicochetArcMasteryMeta() ? [4, 3, 2] : [3, 2, 1]
+  const seq = weights.map(w => w * unit)
   return seq.slice(0, targetCount)
+}
+
+function getRicochetBreakdown() {
+  if (!run || !run.player?.isRanger) return null
+  const arc = _hasRicochetArcMasteryMeta()
+  const seq = _ricochetDamageSequence(3, 'ricochet')
+  const weights = arc ? [4, 3, 2] : [3, 2, 1]
+  const unit = seq[0] / weights[0]
+  return { shots: seq, unit, patternLabel: arc ? '4 : 3 : 2' : '3 : 2 : 1' }
+}
+
+/** Poison Arrow initial hit + each DoT tick — same unit formula as Ricochet’s 1× shot. */
+function _poisonArrowUnitDamage() {
+  const avg = _avgMeleeDamage()
+  const m   = CONFIG.ability.ricochetUnitMult
+  const mult = _rangerActiveDamageMult('poison-arrow-shot')
+  return Math.max(1, Math.round(avg * m * mult))
+}
+
+function getArrowBarrageBreakdown() {
+  if (!run || !run.player?.isRanger) return null
+  const shots = _ricochetDamageSequence(3, 'arrow-barrage')
+  const unit = shots[0] / 3
+  return { unit, shots, total: shots[0] + shots[1] + shots[2] }
+}
+
+function getPoisonArrowShotBreakdown() {
+  if (!run || !run.player?.isRanger) return null
+  const per = _poisonArrowUnitDamage()
+  return { perHit: per, initial: per, flipTicks: 3, dotTotal: per * 3 }
 }
 
 // ── Death ────────────────────────────────────────────────────
@@ -1457,6 +1787,8 @@ function _die(killerData = null) {
   _lanternTargeting       = false
   _blindingLightTargeting = false
   _cancelRicochetMode()
+  _cancelArrowBarrageMode()
+  _cancelPoisonArrowShotMode()
   UI.setPortraitAnim('death')
   GameState.transition(States.DEATH)
   UI.hideActionPanel()
@@ -1699,8 +2031,12 @@ function cheatHudStatBoost(stat) {
 export default {
   init,
   getSave() { return _save },
+  isRangerActiveUnlocked: _isRangerActiveUnlocked,
   getSlamDamageBreakdown,
   getBlindingLightBreakdown,
+  getRicochetBreakdown,
+  getArrowBarrageBreakdown,
+  getPoisonArrowShotBreakdown,
   newGame,
   returnToMenu,
   onTileTap,
@@ -1708,6 +2044,8 @@ export default {
   slamAction,
   abilitySlotAAction,
   ricochetAction,
+  arrowBarrageAction,
+  poisonArrowShotAction,
   blindingLightAction,
   lanternAction,
   doRetreat,

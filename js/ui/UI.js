@@ -78,6 +78,8 @@ const UI = {
     el.ropeModalCancel    = document.getElementById('rope-modal-cancel')
     el.hudSlotA           = document.getElementById('hud-btn-slot-a')
     el.hudSlotB           = document.getElementById('hud-btn-slot-b')
+    el.hudSlotC           = document.getElementById('hud-btn-slot-c')
+    el.hudSlotD           = document.getElementById('hud-btn-slot-d')
     el.msgLogWrap         = document.getElementById('message-log-wrap')
     el.msgLogExpanded     = document.getElementById('message-log-expanded')
     el.msgLogScroll       = document.getElementById('message-log-scroll')
@@ -197,6 +199,84 @@ const UI = {
     document.getElementById('grid-container')?.classList.toggle('ricochet-mode', active)
   },
 
+  /** Slot B — Ranger (Warrior uses B for Blinding Light). */
+  setArrowBarrageBtn(visible, manaCost = 12) {
+    if (!el.hudSlotB) return
+    if (visible) {
+      el.hudSlotB.innerHTML = `
+        <span class="ability-btn-wrap ability-btn-wrap--arrow-barrage">
+          <img src="assets/sprites/abilities/arrow-barrage-bg.png" class="ability-btn-bg" alt="" draggable="false"/>
+          <img src="assets/sprites/abilities/arrow-barrage-badge.png" class="ability-btn-badge" alt="Arrow Barrage" draggable="false"/>
+          <span class="ability-btn-cost">${manaCost}</span>
+        </span>`
+      el.hudSlotB.title = `Arrow Barrage — tap one enemy for three shots 3 : 2 : 1 (${manaCost} mana)`
+      el.hudSlotB.disabled = false
+      el.hudSlotB.classList.remove('is-placeholder')
+      el.hudSlotB.classList.add('is-arrow-barrage')
+      if (el.hudSlotC) {
+        el.hudSlotC.textContent = '···'
+        el.hudSlotC.title = 'Reserved'
+        el.hudSlotC.disabled = true
+        el.hudSlotC.classList.add('is-placeholder')
+        el.hudSlotC.classList.remove('is-arrow-barrage', 'is-arrow-barrage-active')
+      }
+    } else if (el.hudSlotB.classList.contains('is-arrow-barrage')) {
+      el.hudSlotB.textContent = '···'
+      el.hudSlotB.title = 'Reserved'
+      el.hudSlotB.disabled = true
+      el.hudSlotB.classList.add('is-placeholder')
+      el.hudSlotB.classList.remove('is-arrow-barrage', 'is-arrow-barrage-active')
+    }
+    // Legacy: Arrow Barrage used to live on slot C
+    if (el.hudSlotC?.classList.contains('is-arrow-barrage')) {
+      el.hudSlotC.textContent = '···'
+      el.hudSlotC.title = 'Reserved'
+      el.hudSlotC.disabled = true
+      el.hudSlotC.classList.add('is-placeholder')
+      el.hudSlotC.classList.remove('is-arrow-barrage', 'is-arrow-barrage-active')
+    }
+  },
+
+  setArrowBarrageActive(active) {
+    el.hudSlotB?.classList.toggle('is-arrow-barrage-active', active)
+  },
+
+  setGridArrowBarrageMode(active) {
+    document.getElementById('grid-container')?.classList.toggle('arrow-barrage-mode', active)
+  },
+
+  setPoisonArrowShotBtn(visible, manaCost = 12) {
+    if (!el.hudSlotD) return
+    el.hudSlotD.classList.remove('is-poison-arrow-shot', 'is-poison-arrow-shot-active')
+    if (visible) {
+      el.hudSlotD.innerHTML = `
+        <span class="ability-btn-wrap ability-btn-wrap--poison-arrow-shot">
+          <img src="assets/sprites/abilities/poison-arrow-bg.png" class="ability-btn-bg" alt="" draggable="false"/>
+          <img src="assets/sprites/abilities/poison-arrow-badge.png" class="ability-btn-badge" alt="Poison Arrow" draggable="false"/>
+          <span class="ability-btn-cost">${manaCost}</span>
+        </span>`
+      el.hudSlotD.title = `Poison Arrow — tap one enemy; poison ticks each reveal or melee (${manaCost} mana)`
+      el.hudSlotD.disabled = false
+      el.hudSlotD.classList.remove('is-placeholder')
+      el.hudSlotD.classList.add('is-poison-arrow-shot')
+    } else {
+      el.hudSlotD.textContent = '···'
+      el.hudSlotD.title = 'Reserved'
+      el.hudSlotD.disabled = true
+      el.hudSlotD.classList.add('is-placeholder')
+      el.hudSlotD.classList.remove('is-poison-arrow-shot', 'is-poison-arrow-shot-active')
+    }
+  },
+
+  setPoisonArrowShotActive(active) {
+    el.hudSlotD?.classList.toggle('is-poison-arrow-shot-active', active)
+  },
+
+  setGridPoisonArrowShotMode(active) {
+    document.getElementById('grid-container')?.classList.toggle('poison-arrow-shot-mode', active)
+  },
+
+  /** Slot B — Warrior (Ranger uses B for Arrow Barrage). */
   setBlindingLightBtn(visible, manaCost = 10) {
     if (!el.hudSlotB) return
     if (visible) {
@@ -209,7 +289,7 @@ const UI = {
       el.hudSlotB.disabled    = false
       el.hudSlotB.classList.remove('is-placeholder')
       el.hudSlotB.classList.add('is-blinding-light')
-    } else {
+    } else if (el.hudSlotB.classList.contains('is-blinding-light')) {
       el.hudSlotB.textContent = '···'
       el.hudSlotB.title       = 'Reserved'
       el.hudSlotB.disabled    = true
@@ -824,15 +904,23 @@ const UI = {
 
   // ── Level-up overlay ─────────────────────────
 
-  // choices: array of { id, name, desc, icon }
+  // choices: array of { id, name, desc, icon?, iconSrc?, iconBgSrc? }
   // onPick: callback(abilityId)
   showLevelUpOverlay(choices, onPick) {
     el.abilityChoices.innerHTML = ''
     for (const choice of choices) {
       const card = document.createElement('div')
       card.className = 'ability-card'
+      const hasSprite = choice.iconSrc && choice.iconBgSrc
+      const iconHtml = hasSprite
+        ? `<div class="levelup-ability-icon-wrap">
+             <img class="levelup-ability-bg" src="${choice.iconBgSrc}" alt="" draggable="false" />
+             <img class="levelup-ability-badge" src="${choice.iconSrc}" alt="" draggable="false" />
+           </div>`
+        : (choice.icon ?? '')
+      const iconClass = `ability-icon${hasSprite ? ' ability-icon--sprite' : ''}`
       card.innerHTML = `
-        <div class="ability-icon">${choice.icon}</div>
+        <div class="${iconClass}">${iconHtml}</div>
         <div class="ability-info">
           <div class="ability-name">${choice.name}</div>
           <div class="ability-desc">${choice.desc}</div>

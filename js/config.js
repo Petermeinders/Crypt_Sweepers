@@ -55,6 +55,8 @@ export const CONFIG = {
     ricochetUnitMult:  0.5,   // unit = max(1, round(avgMelee × this)); shots 3×, 2×, 1× unit
     /** Blinding Light stun turns: max(2, round(avgMelee × (this + blindingLightMasteryStacks/10))) — no damage */
     blindingLightStunMult: 0.25,
+    /** Ranger Trapfinder: chance per qualifying hit (trap, fast reveal, ambush) to reduce damage by trapfinderStacks */
+    trapfinderProcChance: 0.10,
   },
 
   xp: {

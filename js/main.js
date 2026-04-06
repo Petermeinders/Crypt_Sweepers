@@ -30,7 +30,7 @@ const CHARACTERS = [
   {
     id:         'ranger',
     name:       'Ranger',
-    tagline:    "Swift and elusive. Enemy reveals don't lock adjacent tiles 10% of the time.",
+    tagline:    "Swift and elusive — enemy reveals skip locking adjacent tiles 10% of the time. Begins with Trapfinder rank 1 (10% chance on trap damage, fast-tile strikes, or fast ambush on reveal to reduce that hit by your stack count).",
     gif:        'assets/sprites/Heroes/Ranger/__Idle.gif',
     attackGif:  'assets/sprites/Heroes/Ranger/__Attack.gif',
     attackMs:   4000,
@@ -120,16 +120,24 @@ async function boot() {
     () => {
       const s = GameController.getSave()
       if ((s.selectedCharacter ?? 'warrior') === 'ranger') {
+        const arc = (s.ranger?.upgrades ?? []).includes('ricochet-arc-mastery')
+        const rr  = GameController.getRicochetBreakdown()
+        const pattern = arc ? '4 : 3 : 2' : '3 : 2 : 1'
+        const dmgDesc = rr
+          ? `Three shots: ${rr.shots.join(' → ')} (${pattern} × unit; unit ≈ ${rr.unit}).`
+          : `Three shots at ${pattern} × unit — start a run for exact damage.`
         UI.showInfoCard({
           spriteSrc:   RANGER_UPGRADES.ricochet.iconSrc,
           spriteSrcBg: RANGER_UPGRADES.ricochet.iconBgSrc,
           name:   'Ricochet',
           type:   'Ranger Ability',
-          blurb:  'Mark up to three enemies in order. The third pick fires immediately; with one or two marked, tap Ricochet again. Shot damage scales with your attack (HUD) in a 3 : 2 : 1 ratio.',
+          blurb:  arc
+            ? 'Mark up to three enemies in order. The third pick fires immediately; with one or two marked, tap Ricochet again. Shot damage scales with your attack (HUD) in a 4 : 3 : 2 ratio (Ricochet Mastery).'
+            : 'Mark up to three enemies in order. The third pick fires immediately; with one or two marked, tap Ricochet again. Shot damage scales with your attack (HUD) in a 3 : 2 : 1 ratio.',
           details: [
             { icon: '🔵', label: 'Mana Cost',  desc: `${RANGER_UPGRADES.ricochet.manaCost} mana when you fire` },
             { icon: '🎯', label: 'Targeting',  desc: 'Third target auto-fires; otherwise tap Ricochet to confirm' },
-            { icon: '🏹', label: 'Damage',      desc: 'Three shots at 3×, 2×, 1× a scaling unit (grows with your attack damage)' },
+            { icon: '🏹', label: 'Damage',      desc: dmgDesc },
           ],
         })
       } else {
@@ -162,8 +170,33 @@ async function boot() {
   )
   _wireAbilityHold(
     document.getElementById('hud-btn-slot-b'),
-    () => GameController.blindingLightAction(),
     () => {
+      const s = GameController.getSave()
+      if ((s.selectedCharacter ?? 'warrior') === 'ranger') GameController.arrowBarrageAction()
+      else GameController.blindingLightAction()
+    },
+    () => {
+      const s = GameController.getSave()
+      if ((s.selectedCharacter ?? 'warrior') === 'ranger') {
+        if (!GameController.isRangerActiveUnlocked('arrow-barrage')) return
+        const br = GameController.getArrowBarrageBreakdown()
+        const dmgLine = br
+          ? `Three hits on one target: ${br.shots.join(' → ')} (same unit scaling as Ricochet; unit ≈ ${br.unit}).`
+          : 'Start a ranger run to see shot damage.'
+        UI.showInfoCard({
+          spriteSrc:   RANGER_UPGRADES['arrow-barrage'].iconSrc,
+          spriteSrcBg: RANGER_UPGRADES['arrow-barrage'].iconBgSrc,
+          name:   'Arrow Barrage',
+          type:   'Ranger Ability',
+          blurb:  'Enter targeting, tap one living enemy, and fire three arrows at it in a 3 : 2 : 1 damage ratio (same scaling as Ricochet). Tap the ability again to cancel.',
+          details: [
+            { icon: '🔵', label: 'Mana Cost', desc: `${RANGER_UPGRADES['arrow-barrage'].manaCost} mana when you fire` },
+            { icon: '🎯', label: 'Targeting', desc: 'Single enemy — all three hits land on that tile' },
+            { icon: '🏹', label: 'Damage',      desc: dmgLine },
+          ],
+        })
+        return
+      }
       const bl = GameController.getBlindingLightBreakdown()
       const stunDesc = bl
         ? (() => {
@@ -184,6 +217,30 @@ async function boot() {
           { icon: '🔵', label: 'Mana Cost', desc: `${WARRIOR_UPGRADES['blinding-light'].manaCost} mana per use` },
           { icon: '🎯', label: 'Targeting', desc: 'Tap an enemy to blind' },
           { icon: '⏱️', label: 'Stun turns', desc: stunDesc },
+        ],
+      })
+    }
+  )
+  _wireAbilityHold(
+    document.getElementById('hud-btn-slot-d'),
+    () => GameController.poisonArrowShotAction(),
+    () => {
+      const s = GameController.getSave()
+      if ((s.selectedCharacter ?? 'warrior') !== 'ranger') return
+      if (!GameController.isRangerActiveUnlocked('poison-arrow-shot')) return
+      const pb = GameController.getPoisonArrowShotBreakdown()
+      const dmgLine = pb
+        ? `Initial hit and each poison tick: ${pb.perHit} (max(1, round(avgMelee × ${CONFIG.ability.ricochetUnitMult}))) — ${pb.flipTicks} ticks on your next turns (reveals or melee).`
+        : 'Start a ranger run to see damage.'
+      UI.showInfoCard({
+        spriteSrc:   RANGER_UPGRADES['poison-arrow-shot'].iconSrc,
+        spriteSrcBg: RANGER_UPGRADES['poison-arrow-shot'].iconBgSrc,
+        name:   'Poison Arrow',
+        type:   'Ranger Ability',
+        blurb:  'Tap one enemy for immediate poison damage, then three poison ticks on global turns: each tile reveal or each time you start melee against any enemy advances poison on all poisoned foes. Tap the ability again to cancel targeting.',
+        details: [
+          { icon: '🔵', label: 'Mana Cost', desc: `${RANGER_UPGRADES['poison-arrow-shot'].manaCost} mana when you fire` },
+          { icon: '☠️', label: 'Poison',     desc: dmgLine },
         ],
       })
     }
@@ -472,7 +529,8 @@ function _renderHeroUpgradeGrid(char, ownedList, xp, isLocked) {
 
   for (const [id, def] of Object.entries(char.upgrades)) {
     const isOwned    = ownedList.includes(id)
-    const canAfford  = !isOwned && xp >= def.xpCost && !isLocked
+    const prereqOk   = !def.requires || ownedList.includes(def.requires)
+    const canAfford  = !isOwned && xp >= def.xpCost && !isLocked && prereqOk
     const isSelected = id === _selectedUpgradeId
 
     const btn = document.createElement('button')
@@ -508,10 +566,30 @@ function _renderHeroUpgradeGrid(char, ownedList, xp, isLocked) {
 
 function _renderUpgradeDetail(id, def, isOwned, canAfford) {
   const backdrop = document.getElementById('hero-upgrade-backdrop')
-  if (!id || !def) { backdrop.classList.add('hidden'); return }
+  const hintEl   = document.getElementById('hero-upgrade-detail-hint')
+  if (!id || !def) {
+    backdrop.classList.add('hidden')
+    hintEl?.classList.add('hidden')
+    return
+  }
   backdrop.classList.remove('hidden')
   document.getElementById('hero-upgrade-detail-name').textContent = def.name
   document.getElementById('hero-upgrade-detail-desc').textContent = def.desc
+
+  const char     = CHARACTERS[_heroIdx]
+  const s        = GameController.getSave()
+  const charSave = char.id === 'ranger' ? s.ranger : s.warrior
+  const owned    = charSave.upgrades ?? []
+  const map      = char.id === 'ranger' ? RANGER_UPGRADES : WARRIOR_UPGRADES
+  const missingPrereq = def.requires && !owned.includes(def.requires)
+  if (hintEl) {
+    if (missingPrereq && !isOwned) {
+      hintEl.textContent = `Requires ${map[def.requires]?.name ?? def.requires} (purchase first).`
+      hintEl.classList.remove('hidden')
+    } else {
+      hintEl.classList.add('hidden')
+    }
+  }
 
   const buyBtn = document.getElementById('hero-upgrade-buy-btn')
   if (isOwned) {

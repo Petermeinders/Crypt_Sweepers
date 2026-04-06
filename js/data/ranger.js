@@ -1,5 +1,8 @@
 // Ranger character definition and ability tree.
-// Ranger passive: each enemy reveal has a 10% chance to skip locking adjacent tiles.
+// Passives: (1) each enemy reveal has a 10% chance to skip locking adjacent tiles.
+// (2) starts every run with Trapfinder at rank 1 — see buildRunState trapfinderStacks + abilities.
+
+import { WARRIOR_ABILITIES } from './abilities.js'
 
 export const RANGER_BASE = {
   hp:      40,
@@ -8,62 +11,45 @@ export const RANGER_BASE = {
   gold:    0,
 }
 
+/** Level-up pool — same Vitality / Arcane Reserve / Scavenger as Warrior; Trapfinder is Ranger-only. */
 export const RANGER_ABILITIES = {
-  'hunters-eye': {
-    name:  "Hunter's Eye",
-    desc:  'Fight damage +7',
-    icon:  '🏹',
-    effect: { type: 'buff-damage', amount: 7 },
-    repeatable: true,
-  },
-  'shadow-step': {
-    name:  'Shadow Step',
-    desc:  'Flee costs at most 1 HP',
-    icon:  '🌑',
-    effect: { type: 'reduce-flee-cost', max: 1 },
-    repeatable: false,
-  },
-  'trapfinder': {
+  vitality: WARRIOR_ABILITIES.vitality,
+  'arcane-reserve': WARRIOR_ABILITIES['arcane-reserve'],
+  scavenger: WARRIOR_ABILITIES.scavenger,
+  trapfinder: {
     name:  'Trapfinder',
-    desc:  'Take 3 less damage from traps',
+    desc:  '10% chance on trap damage, fast-tile reveal hits, or fast ambush on reveal: reduce that hit by 1 per stack (pick again to stack).',
     icon:  '🔍',
-    effect: { type: 'trap-reduction', amount: 3 },
-    repeatable: false,
-  },
-  'survival-instinct': {
-    name:  'Survival Instinct',
-    desc:  '+15 max HP, restore 10 HP now',
-    icon:  '🛡️',
-    effect: { type: 'buff-hp', maxHp: 15, healNow: 10 },
+    effect: { type: 'trapfinder-stack', amount: 1 },
     repeatable: true,
   },
-  'arcane-quiver': {
-    name:  'Arcane Quiver',
-    desc:  '+15 max mana, restore 10 mana now',
-    icon:  '🔮',
-    effect: { type: 'buff-mana', maxMana: 15, restoreNow: 10 },
+  /** Meta XP tree also unlocks these; each level-up pick stacks +10% damage for that active (run-only). */
+  'ricochet-mastery': {
+    name:  'Ricochet Practice',
+    desc:  'Each pick: +10% Ricochet damage (stacks). Unlocks Ricochet this run if you do not own it from the XP tree.',
+    icon:  '🔁',
+    iconSrc:   'assets/sprites/abilities/ricochet-badge.png',
+    iconBgSrc: 'assets/sprites/abilities/ricochet-bg.png',
+    effect: { type: 'ranger-active-mastery', ability: 'ricochet' },
     repeatable: true,
   },
-  'beast-slayer': {
-    name:  'Beast Slayer',
-    desc:  '2× damage vs beast enemies',
-    icon:  '🐾',
-    effect: { type: 'beast-bonus', multiplier: 2 },
-    repeatable: false,
+  'arrow-barrage-mastery': {
+    name:  'Barrage Practice',
+    desc:  'Each pick: +10% Arrow Barrage damage (stacks). Unlocks Arrow Barrage this run if you do not own it from the XP tree.',
+    icon:  '🎯',
+    iconSrc:   'assets/sprites/abilities/arrow-barrage-badge.png',
+    iconBgSrc: 'assets/sprites/abilities/arrow-barrage-bg.png',
+    effect: { type: 'ranger-active-mastery', ability: 'arrow-barrage' },
+    repeatable: true,
   },
-  'poison-arrow': {
-    name:  'Poison Arrow',
-    desc:  'Spell costs 2 less mana',
-    icon:  '🗡️',
-    effect: { type: 'reduce-spell-cost', amount: 2 },
-    repeatable: false,
-  },
-  'resourceful': {
-    name:  'Resourceful',
-    desc:  'Restore 4 HP on each enemy kill',
-    icon:  '🌿',
-    effect: { type: 'on-kill-heal', amount: 4 },
-    repeatable: false,
+  'poison-arrow-mastery': {
+    name:  'Poison Arrow Practice',
+    desc:  'Each pick: +10% Poison Arrow hit and poison tick damage (stacks). Unlocks Poison Arrow this run if you do not own it from the XP tree.',
+    icon:  '☠️',
+    iconSrc:   'assets/sprites/abilities/poison-arrow-badge.png',
+    iconBgSrc: 'assets/sprites/abilities/poison-arrow-bg.png',
+    effect: { type: 'ranger-active-mastery', ability: 'poison-arrow-shot' },
+    repeatable: true,
   },
 }
 
@@ -77,6 +63,38 @@ export const RANGER_UPGRADES = {
     xpCost:  50,
     manaCost: 10,
     effect:  { type: 'active-ability', ability: 'ricochet' },
+  },
+  /** Second-tier Ricochet upgrade — requires base Ricochet. Combat checks save.ranger.upgrades. */
+  'ricochet-arc-mastery': {
+    name:  'Ricochet Mastery',
+    desc:  'Ricochet shots use 4 : 3 : 2 scaling per unit instead of 3 : 2 : 1. Requires the Ricochet upgrade.',
+    icon:  '🔁',
+    iconSrc:   'assets/sprites/abilities/ricochet-badge.png',
+    iconBgSrc: 'assets/sprites/abilities/ricochet-bg.png',
+    xpCost:    180,
+    requires:  'ricochet',
+    effect:    { type: 'ricochet-arc-mastery' },
+  },
+  'arrow-barrage': {
+    name:  'Arrow Barrage',
+    desc:  'Active ability: tap one enemy — three shots on that target with the same 3 : 2 : 1 damage scaling as Ricochet (based on your attack).',
+    icon:  '🎯',
+    iconSrc:   'assets/sprites/abilities/arrow-barrage-badge.png',
+    iconBgSrc: 'assets/sprites/abilities/arrow-barrage-bg.png',
+    xpCost:  65,
+    manaCost: 12,
+    effect:  { type: 'active-ability', ability: 'arrow-barrage' },
+  },
+  /** Active ability (HUD) — id must differ from any future passive named `poison-arrow`. */
+  'poison-arrow-shot': {
+    name:  'Poison Arrow',
+    desc:  'Active ability: tap an enemy for an immediate hit plus poison — each tick deals damage on the next 3 turns (any tile flip or starting melee vs an enemy; min. 1 per tick; scales like Ricochet).',
+    icon:  '☠️',
+    iconSrc:   'assets/sprites/abilities/poison-arrow-badge.png',
+    iconBgSrc: 'assets/sprites/abilities/poison-arrow-bg.png',
+    xpCost:  80,
+    manaCost: 12,
+    effect:  { type: 'active-ability', ability: 'poison-arrow-shot' },
   },
   'keen-senses': {
     name:  'Keen Senses',

@@ -165,6 +165,7 @@ function canBuyRangerUpgrade(save, id) {
   const def = RANGER_UPGRADES[id]
   if (!def) return false
   if (save.ranger.upgrades.includes(id)) return false
+  if (def.requires && !save.ranger.upgrades.includes(def.requires)) return false
   return save.ranger.totalXP >= def.xpCost
 }
 
