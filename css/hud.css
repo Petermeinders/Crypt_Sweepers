@@ -282,6 +282,11 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
 }
 
 /* Teary Eyes debuff badge — sits top-right of the portrait */
+/* No global `.hidden` in this project — must be explicit (see main.css comment). */
+#hud-teary-eyes.hidden {
+  display: none !important;
+}
+
 .hud-debuff-btn {
   position: absolute;
   top: -6px;
@@ -448,6 +453,45 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
 
 .hud-gold-inline .gold-icon {
   font-size: 0.75rem;
+}
+
+/* Golden keys — middle HUD slot when count > 0 */
+.hud-key-golden-slot {
+  position: relative;
+}
+
+#hud-key-slot-placeholder.hidden {
+  display: none !important;
+}
+
+.hud-key-display.hud-key-display--slot {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  margin: 0;
+  padding: 2px;
+  font-size: 0.58rem;
+  font-weight: 800;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  color: #ffe066;
+  text-shadow:
+    0 0 10px rgba(255, 200, 60, 0.85),
+    0 1px 2px rgba(0, 0, 0, 0.9);
+  line-height: 1.05;
+}
+
+.hud-key-display.hud-key-display--slot .key-icon {
+  font-size: clamp(0.95rem, 2.8vw, 1.15rem);
+  line-height: 1;
+  filter: drop-shadow(0 0 4px rgba(255, 210, 80, 0.75));
+}
+
+.hud-key-display.hidden {
+  display: none !important;
 }
 
 /* Stat bars (shared with legacy class names) */

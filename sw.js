@@ -2,7 +2,7 @@
 // Strategy: Cache-first for assets, network-first for HTML.
 // Version bump CACHE_NAME to force cache refresh on deploy.
 
-const CACHE_NAME = 'crypt-sweepers-v73'
+const CACHE_NAME = 'crypt-sweepers-v89'
 
 const PRECACHE_ASSETS = [
   './',
@@ -35,6 +35,7 @@ const PRECACHE_ASSETS = [
   './js/systems/AudioManager.js',
   './js/systems/CombatResolver.js',
   './js/systems/MetaProgression.js',
+  './js/systems/Bestiary.js',
   './js/systems/ProgressionSystem.js',
   './js/systems/TileEngine.js',
   './js/ui/UI.js',
@@ -52,6 +53,7 @@ const PRECACHE_ASSETS = [
   './assets/DungeonBackground.png',
   './assets/DungeonBackgroundJungle.png',
   './assets/SanctuaryBackground.png',
+  './assets/ui/bestiary-scroll-bg.png',
   './assets/sprites/tiles/tile-unflipped2.1.png',
   './assets/sprites/tiles/tile-unflipped3.png',
   './assets/sprites/tiles/tile-flipped2.1.png',
@@ -66,9 +68,12 @@ const PRECACHE_ASSETS = [
   './assets/sprites/Items/heart.png',
   './assets/sprites/Items/chest.gif',
   './assets/sprites/Items/chest-closed.png',
+  './assets/sprites/Items/magic-chest-closed.png',
+  './assets/sprites/Items/magic-chest-open.gif',
   './assets/sprites/Items/backpack.png',
   './assets/sprites/Items/smiths-tools.png',
   './assets/sprites/Items/stairs-down.png',
+  './assets/sprites/monsters/toad_beast/toad-beast-idle.gif',
   './assets/sprites/monsters/onion/onion-idle.gif',
   './assets/sprites/monsters/gnome/gnome-idle.gif',
   './assets/sprites/monsters/skeleton/skeleton-idle.gif',

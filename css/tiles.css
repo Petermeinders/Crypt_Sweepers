@@ -121,6 +121,19 @@
 /* Reachable tiles sit above revealed neighbors so the drop shadow is visible */
 .tile.reachable:not(.revealed) { z-index: 2; }
 
+/* Echo Charm — hint glyph on adjacent hidden tiles */
+.tile.echo-hint:not(.revealed)::after {
+  content: attr(data-echo-hint);
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  z-index: 6;
+  font-size: 0.85rem;
+  line-height: 1;
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.9));
+  pointer-events: none;
+}
+
 
 .tile-inner {
   width: 100%;
@@ -272,6 +285,14 @@
 
 /* Chest: centered in the tile */
 .tile-type-chest .tile-icon-wrap {
+  top: 0;
+  bottom: 0;
+  height: 100%;
+  align-items: center;
+}
+
+/* Magic chest: same icon sizing as regular chest (class is tile-type-magic_chest from type magic_chest) */
+.tile-type-magic_chest .tile-icon-wrap {
   top: 0;
   bottom: 0;
   height: 100%;
@@ -606,6 +627,37 @@ body.tile-colors .tile-front.type-rope {
 .tile.revealed.chest-ready {
   cursor: pointer;
   pointer-events: all;
+}
+
+@keyframes magic-chest-pulse {
+  0%, 100% { box-shadow: 0 0 8px 2px rgba(255,210,0,0.5), inset 0 0 6px rgba(255,210,0,0.15); }
+  50%       { box-shadow: 0 0 18px 6px rgba(255,210,0,0.85), inset 0 0 12px rgba(255,210,0,0.3); }
+}
+
+.tile-type-magic_chest.revealed.chest-ready.magic-chest-has-keys .tile-front {
+  animation: magic-chest-pulse 1.6s ease-in-out infinite;
+}
+
+.tile-front.type-magic-chest .tile-label {
+  text-transform: none;
+  font-size: 0.4rem;
+  letter-spacing: 0.25px;
+  white-space: nowrap;
+}
+
+/* Magic chest: JS adds .magic-chest-opening while chest.gif plays */
+@keyframes magic-chest-open-burst {
+  0% { filter: brightness(1); }
+  30% { filter: brightness(1.28) saturate(1.1); }
+  100% { filter: brightness(1); }
+}
+
+.tile.magic-chest-opening .tile-front.type-magic-chest {
+  animation: magic-chest-open-burst 1s ease-out;
+}
+
+.tile.tile-type-magic_chest.revealed.chest-ready.magic-chest-animating {
+  pointer-events: none;
 }
 
 /* Revealed merchant — tap to open trade (not auto) */

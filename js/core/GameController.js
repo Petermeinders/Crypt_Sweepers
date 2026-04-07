@@ -10,9 +10,229 @@ import SaveManager           from '../save/SaveManager.js'
 import UI                    from '../ui/UI.js'
 import { RANGER_BASE, RANGER_UPGRADES } from '../data/ranger.js'
 import { WARRIOR_UPGRADES }  from '../data/upgrades.js'
-import { ENEMY_SPRITES, MONSTER_ICONS_BASE, ITEM_ICONS_BASE, TILE_TYPE_ICON_FILES } from '../data/tileIcons.js'
+import { ENEMY_SPRITES, MONSTER_ICONS_BASE, ITEM_ICONS_BASE, TILE_TYPE_ICON_FILES, MAGIC_CHEST_OPEN_GIF, MAGIC_CHEST_GIF_DURATION_MS } from '../data/tileIcons.js'
 import { TILE_BLURBS }       from '../data/tileBlurbs.js'
 import { ITEMS }             from '../data/items.js'
+import Bestiary              from '../systems/Bestiary.js'
+
+/** Chest trinkets at 2% each (order = roll order). Legendary hourglass is rolled first at 1%. */
+const CHEST_RARE_TRINKET_IDS = [
+  'spyglass', 'echo-charm', 'vampire-fang', 'glass-cannon-shard', 'duelists-glove',
+  'surge-pearl', 'still-water-amulet', 'greed-tooth', 'lucky-rabbit-foot', 'cursed-lockpick',
+  'fire-ring', 'mana-ring',
+]
+
+function _rollChestLoot() {
+  const hasLockpick = run?.player?.inventory?.some(e => e.id === 'cursed-lockpick')
+  let r = Math.random()
+  if (hasLockpick && r < 0.12) {
+    r = Math.random() * 0.28
+  }
+  let acc = 0
+  if (r < (acc += 0.01)) return { type: 'hourglass-sand' }
+  for (const id of CHEST_RARE_TRINKET_IDS) {
+    if (r < (acc += 0.02)) return { type: id }
+  }
+  if (r < (acc += 0.10)) return { type: 'lantern' }
+  if (r < (acc += 0.28)) return { type: 'potion-red' }
+  if (r < (acc += 0.23)) return { type: 'potion-blue' }
+  if (r < (acc += 0.05)) return { type: 'smiths-tools' }
+  const loot = { type: 'gold', amount: _rand(...CONFIG.chest.goldDrop) }
+  if (hasLockpick && Math.random() < 0.10) {
+    const pool = ['hourglass-sand', ...CHEST_RARE_TRINKET_IDS]
+    return { type: pool[Math.floor(Math.random() * pool.length)] }
+  }
+  return loot
+}
+
+const BACKPACK_MAX_SLOTS = 9
+
+const MAGIC_CHEST_TRINKET_IDS = [
+  'spyglass', 'echo-charm', 'vampire-fang', 'glass-cannon-shard', 'duelists-glove',
+  'surge-pearl', 'still-water-amulet', 'greed-tooth', 'lucky-rabbit-foot', 'cursed-lockpick',
+  'fire-ring', 'mana-ring',
+]
+
+function _rollMagicChestLoot() {
+  let r = Math.random()
+  let acc = 0
+  if (r < (acc += 0.05)) return { type: 'hourglass-sand' }
+  for (const id of MAGIC_CHEST_TRINKET_IDS) {
+    if (r < (acc += 0.05)) return { type: id }
+  }
+  if (r < (acc += 0.05)) return { type: 'smiths-tools' }
+  if (r < (acc += 0.15)) return { type: 'potion-red' }
+  return { type: 'potion-blue' }
+}
+
+function _playerOutgoingDamageMult() {
+  if (!run?.player?.inventory?.some(e => e.id === 'glass-cannon-shard')) return 1
+  const p = run.player
+  const ratio = p.maxHp > 0 ? p.hp / p.maxHp : 0
+  return ratio > 0.5 ? 1.5 : 0.5
+}
+
+function _scaleOutgoingDamageToEnemy(dmg) {
+  return Math.max(1, Math.round(dmg * _playerOutgoingDamageMult()))
+}
+
+/** Still Water Amulet: after 10 turns without spending mana on spells/abilities, next mana cost is 35% less. */
+function _stillWaterManaCost(baseCost) {
+  const p = run?.player
+  if (!p?.inventory?.some(e => e.id === 'still-water-amulet')) return baseCost
+  if ((p.turnsWithoutSpell ?? 0) < 10) return baseCost
+  return Math.max(1, Math.round(baseCost * 0.65))
+}
+
+function _markStillWaterAbilityUsed() {
+  if (run?.player) run.player.turnsWithoutSpell = 0
+}
+
+function _previewSpellManaCostForUi() {
+  if (!run?.player) return Math.max(1, CONFIG.spell.manaCost)
+  return _stillWaterManaCost(
+    Math.max(1, CONFIG.spell.manaCost - (run.player.spellCostReduction ?? 0)) + _tearyExtraCost(),
+  )
+}
+
+function _serializeHourglassSnapshot() {
+  const grid = TileEngine.getGrid()
+  const tiles = grid.map(row =>
+    row.map(t => ({
+      type: t.type,
+      revealed: t.revealed,
+      locked: t.locked,
+      reachable: t.reachable,
+      enemyData: t.enemyData ? JSON.parse(JSON.stringify(t.enemyData)) : null,
+      itemData: t.itemData ? JSON.parse(JSON.stringify(t.itemData)) : null,
+      chestLoot: t.chestLoot ? JSON.parse(JSON.stringify(t.chestLoot)) : null,
+      chestReady: t.chestReady,
+      chestLooted: t.chestLooted,
+      magicChestReady: t.magicChestReady,
+      pendingLoot: t.pendingLoot ? JSON.parse(JSON.stringify(t.pendingLoot)) : null,
+      exitResolved: t.exitResolved,
+      merchantResolved: t.merchantResolved,
+      ropeResolved: t.ropeResolved,
+      echoHintCategory: t.echoHintCategory ?? null,
+    })),
+  )
+  return {
+    tilesRevealed: run.tilesRevealed,
+    player: JSON.parse(JSON.stringify(run.player)),
+    merchantTile: run.merchantTile ? { row: run.merchantTile.row, col: run.merchantTile.col } : null,
+    bossFloorExitPending: run.bossFloorExitPending,
+    tiles,
+  }
+}
+
+function _restoreHourglassSnapshot(snap) {
+  if (!snap) return
+  const grid = TileEngine.getGrid()
+  run.player = JSON.parse(JSON.stringify(snap.player))
+  run.tilesRevealed = snap.tilesRevealed
+  run.bossFloorExitPending = snap.bossFloorExitPending
+  run.merchantTile = snap.merchantTile
+    ? TileEngine.getTile(snap.merchantTile.row, snap.merchantTile.col)
+    : null
+
+  for (let r = 0; r < grid.length; r++) {
+    for (let c = 0; c < grid[r].length; c++) {
+      const t = grid[r][c]
+      const st = snap.tiles[r][c]
+      const el = t.element
+      t.type = st.type
+      t.revealed = st.revealed
+      t.locked = st.locked
+      t.reachable = st.reachable
+      t.enemyData = st.enemyData ? JSON.parse(JSON.stringify(st.enemyData)) : null
+      t.itemData = st.itemData ? JSON.parse(JSON.stringify(st.itemData)) : null
+      t.chestLoot = st.chestLoot ? JSON.parse(JSON.stringify(st.chestLoot)) : null
+      t.chestReady = st.chestReady
+      t.chestLooted = st.chestLooted
+      t.magicChestReady = st.magicChestReady
+      t.pendingLoot = st.pendingLoot ? JSON.parse(JSON.stringify(st.pendingLoot)) : null
+      t.exitResolved = st.exitResolved
+      t.merchantResolved = st.merchantResolved
+      t.ropeResolved = st.ropeResolved
+      t.echoHintCategory = st.echoHintCategory ?? null
+      t.element = el
+      if (el) {
+        el.classList.toggle('revealed', !!t.revealed)
+        el.classList.toggle('reachable', !!t.reachable && !t.revealed)
+        el.classList.toggle('locked', !!t.locked)
+        el.classList.toggle('echo-hint', !!t.echoHintCategory)
+        if (t.echoHintCategory) el.dataset.echoHint = t.echoHintCategory
+        else delete el.dataset.echoHint
+      }
+    }
+  }
+
+  TileEngine.recomputeReachabilityFromRevealed(UI.markTileReachable.bind(UI))
+  for (const row of grid) {
+    for (const t of row) {
+      if (!t.element) continue
+      if (t.type === 'merchant') {
+        t.element.classList.toggle('merchant-pending', !t.merchantResolved)
+      }
+      if (t.type === 'chest') {
+        t.element.classList.toggle('chest-ready', !!(t.chestReady && !t.chestLooted))
+      }
+      if (t.type === 'magic_chest') {
+        t.element.classList.toggle('chest-ready', !!t.magicChestReady)
+      }
+      if (t.type === 'exit') {
+        t.element.classList.toggle('exit-pending', !t.exitResolved)
+      }
+      if (t.type === 'rope') {
+        t.element.classList.toggle('rope-pending', !t.ropeResolved)
+      }
+    }
+  }
+  UI.updateHP(run.player.hp, run.player.maxHp)
+  UI.updateMana(run.player.mana, run.player.maxMana)
+  UI.updateGold(run.player.gold)
+  UI.updateGoldenKeys(run.player.goldenKeys ?? 0)
+  _syncMagicChestKeyGlow()
+  UI.updateXP(run.player.xp, _xpNeeded())
+  {
+    const [d0, d1] = _playerDamageRange(run.player)
+    UI.updateDamageRange(d0, d1)
+  }
+}
+
+function _echoCharmCategoryForTileType(type) {
+  if (type === 'enemy' || type === 'enemy_fast' || type === 'boss') return '⚔️'
+  if (type === 'trap') return '🕸️'
+  if (type === 'gold' || type === 'chest' || type === 'heart') return '🪙'
+  if (type === 'merchant' || type === 'checkpoint') return '✨'
+  if (type === 'exit') return '🚪'
+  if (type === 'empty') return '·'
+  return '❓'
+}
+
+function _spyglassHintLabel(type) {
+  if (type === 'enemy' || type === 'enemy_fast' || type === 'boss') return '⚔️ Foe'
+  if (type === 'trap') return '🕸️ Snare'
+  if (type === 'gold' || type === 'chest' || type === 'heart') return '🪙 Loot'
+  if (type === 'merchant' || type === 'checkpoint') return '✨ Special'
+  if (type === 'exit') return '🚪 Way'
+  if (type === 'empty') return '· Quiet'
+  if (type === 'well' || type === 'anvil' || type === 'rope') return '🏕️ Rest'
+  return '❓ Unknown'
+}
+
+/** Golden perimeter pulse on magic chest only while the player has at least one 🗝️. */
+function _syncMagicChestKeyGlow() {
+  if (!run) return
+  const hasKeys = (run.player.goldenKeys ?? 0) > 0
+  const grid = TileEngine.getGrid()
+  for (const row of grid) {
+    for (const t of row) {
+      if (t.type !== 'magic_chest' || !t.element) continue
+      t.element.classList.toggle('magic-chest-has-keys', hasKeys && !!t.magicChestReady)
+    }
+  }
+}
 
 // ── Persistent save + run state ──────────────────────────────
 let _save = null
@@ -92,6 +312,7 @@ function buildRunState() {
     damageTakenMult:    1,
     isRanger,
     inventory:          [],   // [{ id, qty }]
+    goldenKeys:         0,
   }
 
   MetaProgression.applyToPlayer(p, _save)
@@ -108,6 +329,7 @@ function buildRunState() {
     bossFloorExitPending: false,
     /** Chronological level-up picks this run: { level, abilityId, name, icon } */
     levelUpLog:       [],
+    floorKeyAwarded:  false,
   }
 }
 
@@ -130,9 +352,56 @@ function newGame() {
   _startFloor()
 }
 
+// ── Run persistence ──────────────────────────────────────────
+
+function _saveActiveRun() {
+  if (!run || !_save) return
+  _save.activeRun = {
+    player:          JSON.parse(JSON.stringify(run.player)),
+    floor:           run.floor,
+    atRest:          run.atRest,
+    levelUpLog:      run.levelUpLog.slice(),
+    floorKeyAwarded: !!run.floorKeyAwarded,
+  }
+  SaveManager.save(_save).catch(() => {})
+}
+
+function _clearActiveRun() {
+  if (!_save?.activeRun) return
+  delete _save.activeRun
+  SaveManager.save(_save).catch(() => {})
+}
+
+function resumeRun() {
+  const saved = _save?.activeRun
+  if (!saved) return
+  run = {
+    player:               saved.player,
+    floor:                saved.floor,
+    atRest:               saved.atRest ?? false,
+    levelUpLog:           saved.levelUpLog ?? [],
+    floorKeyAwarded:      saved.floorKeyAwarded ?? false,
+    tilesRevealed:        0,
+    activeCombatTile:     null,
+    merchantTile:         null,
+    bossFloorExitPending: false,
+  }
+  UI.hideMainMenu()
+  const track = CONFIG.bossFloors.includes(run.floor) ? 'boss' : 'dungeon'
+  EventBus.emit('audio:crossfade', { track, duration: 1500 })
+  _startFloor()
+}
+
+function abandonRun() {
+  run = null
+  _clearActiveRun()
+  returnToMenu()
+}
+
 // ── Return to menu ───────────────────────────────────────────
 
 function returnToMenu(autoSave = false) {
+  _clearActiveRun()
   if (autoSave) SaveManager.save(_save)
   const char = _charKey()
   const xp   = char === 'ranger' ? _save.ranger.totalXP : _save.warrior.totalXP
@@ -147,6 +416,7 @@ function _startFloor() {
   _spellTargeting         = false
   _combatBusy             = false
   _lanternTargeting       = false
+  _spyglassTargeting      = false
   _blindingLightTargeting = false
   _divineLightSelecting   = false
   UI.setDivineLightActive(false)
@@ -164,6 +434,8 @@ function _startFloor() {
   UI.setPoisonArrowShotActive(false)
   UI.setGridPoisonArrowShotMode(false)
   if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0) }
+  if (run) { run._hourglassSnapshot = null }
+  _saveActiveRun()
   TileEngine.generateGrid(run.floor, { rest: run.atRest })
   TileEngine.renderGrid(UI.getGridEl(), onTileTap, onTileHold)
   _revealStartTile()
@@ -173,6 +445,8 @@ function _startFloor() {
   UI.updateHP(run.player.hp, run.player.maxHp)
   UI.updateMana(run.player.mana, run.player.maxMana)
   UI.updateGold(run.player.gold)
+  UI.updateGoldenKeys(run.player.goldenKeys ?? 0)
+  _syncMagicChestKeyGlow()
   UI.updateXP(run.player.xp, _xpNeeded())
   {
     const [d0, d1] = _playerDamageRange(run.player)
@@ -197,7 +471,7 @@ function _startFloor() {
     UI.setBlindingLightBtn(blindingUnlocked, WARRIOR_UPGRADES['blinding-light'].manaCost)
   }
   // Show spell button always — player can target any enemy at any time
-  const effectiveCost = Math.max(1, CONFIG.spell.manaCost - (run.player.spellCostReduction ?? 0))
+  const effectiveCost = _previewSpellManaCostForUi()
   UI.showActionPanel(effectiveCost, run.player.mana >= effectiveCost)
   // Start tile is already revealed — player can flee; only close dialog if it was open.
   document.getElementById('retreat-confirm')?.classList.add('hidden')
@@ -252,6 +526,7 @@ function _revealStartTile() {
 let _spellTargeting         = false
 let _combatBusy             = false
 let _lanternTargeting       = false
+let _spyglassTargeting      = false
 let _blindingLightTargeting = false
 let _divineLightSelecting   = false
 let _ricochetSelecting = false
@@ -331,11 +606,15 @@ function _cancelPoisonArrowShotMode() {
 function _cancelSpellLanternBlindingForRicochet() {
   if (_spellTargeting) {
     _spellTargeting = false
-    const effectiveCost = Math.max(1, CONFIG.spell.manaCost - (run.player.spellCostReduction ?? 0))
+    const effectiveCost = _previewSpellManaCostForUi()
     UI.setSpellTargeting(false, effectiveCost)
   }
   if (_lanternTargeting) {
     _lanternTargeting = false
+    UI.setLanternTargeting(false)
+  }
+  if (_spyglassTargeting) {
+    _spyglassTargeting = false
     UI.setLanternTargeting(false)
   }
   if (_blindingLightTargeting) {
@@ -371,6 +650,13 @@ function onTileTap(row, col) {
     return
   }
 
+  if (_spyglassTargeting) {
+    if (!tile.revealed) {
+      _useSpyglassOn(tile)
+    }
+    return
+  }
+
   // Blinding Light targeting: revealed living enemy
   if (_blindingLightTargeting) {
     if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
@@ -393,7 +679,7 @@ function onTileTap(row, col) {
       UI.setMessage('Triple Volley — tap a revealed tile to place the 3×3 area.', true)
       return
     }
-    const cost = RANGER_UPGRADES['arrow-barrage'].manaCost
+    const cost = _stillWaterManaCost(RANGER_UPGRADES['arrow-barrage'].manaCost + _tearyExtraCost())
     if (!_tripleVolleyCenter) {
       _tripleVolleyCenter = { row: tile.row, col: tile.col }
       UI.setTripleVolleyAoePreview(tile.row, tile.col)
@@ -419,7 +705,7 @@ function onTileTap(row, col) {
   // Poison Arrow (active): single living enemy — initial hit + 3 poison ticks (global turns)
   if (_poisonArrowShotSelecting) {
     if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      const cost = RANGER_UPGRADES['poison-arrow-shot'].manaCost
+      const cost = _stillWaterManaCost(RANGER_UPGRADES['poison-arrow-shot'].manaCost + _tearyExtraCost())
       if (run.player.mana < cost) {
         UI.setMessage('Not enough mana for Poison Arrow!', true)
       } else {
@@ -440,7 +726,7 @@ function onTileTap(row, col) {
         _ricochetTiles.push(tile)
         UI.refreshRicochetMarks(_ricochetTiles)
         if (_ricochetTiles.length === 3) {
-          const cost = RANGER_UPGRADES.ricochet.manaCost
+          const cost = _stillWaterManaCost(RANGER_UPGRADES.ricochet.manaCost + _tearyExtraCost())
           if (run.player.mana < cost) {
             _ricochetTiles.pop()
             UI.refreshRicochetMarks(_ricochetTiles)
@@ -461,6 +747,8 @@ function onTileTap(row, col) {
       revealTile(tile)
     } else if (tile.revealed && tile.type === 'chest' && tile.chestReady && !tile.chestLooted) {
       _openChest(tile)
+    } else if (tile.revealed && tile.type === 'magic_chest' && tile.magicChestReady) {
+      _openMagicChest(tile)
     } else if (tile.revealed && tile.type === 'exit' && !tile.exitResolved) {
       _confirmExit(tile)
     } else if (tile.revealed && tile.type === 'rope' && !tile.ropeResolved) {
@@ -550,7 +838,7 @@ function _tickPoisonArrowDotOnGlobalTurn() {
   }
   const grid = TileEngine.getGrid()
   if (!grid) return
-  const pDmg = _poisonArrowUnitDamage()
+  const pDmg = _scaleOutgoingDamageToEnemy(_poisonArrowUnitDamage())
   for (const row of grid) {
     for (const tile of row) {
       if (!tile.revealed || !tile.enemyData || tile.enemyData._slain) continue
@@ -572,9 +860,21 @@ function _tickPoisonArrowDotOnGlobalTurn() {
       }
     }
   }
+  if (run.player.inventory?.some(e => e.id === 'still-water-amulet')) {
+    run.player.turnsWithoutSpell = (run.player.turnsWithoutSpell ?? 0) + 1
+  }
 }
 
 async function revealTile(tile) {
+  if (run.player.inventory.some(e => e.id === 'hourglass-sand')) {
+    run._hourglassSnapshot = _serializeHourglassSnapshot()
+  }
+  if (tile.element) {
+    tile.element.classList.remove('echo-hint')
+    delete tile.element.dataset.echoHint
+  }
+  delete tile.echoHintCategory
+
   tile.revealed = true
   run.tilesRevealed++
   UI.setPortraitAnim('run')
@@ -588,11 +888,35 @@ async function revealTile(tile) {
   _gainXP(CONFIG.xp.perTileReveal, tile.element)
   EventBus.emit('tile:revealed', { tile })
   TileEngine.markReachable(tile.row, tile.col, UI.markTileReachable.bind(UI))
+  await _maybeBestiaryDiscovery(tile)
   _resolveEffect(tile)
   _tickPoisonArrowDotOnGlobalTurn()
 }
 
+async function _maybeBestiaryDiscovery(tile) {
+  const id = tile.enemyData?.enemyId
+  if (!id) return
+  try {
+    if (!Bestiary.registerIfNew(_save, id)) return
+    await SaveManager.save(_save).catch(() => {})
+    await UI.showBestiaryDiscovery(id)
+  } catch (e) {
+    Logger.debug('[GameController] bestiary discovery', e)
+  }
+}
+
 // ── Chest open ───────────────────────────────────────────────
+
+/** Swap PNG→GIF reliably (restart animation from frame 0) across browsers. */
+function _forcePlayChestGif(img, gifSrc) {
+  if (!img || img.tagName !== 'IMG') return
+  img.removeAttribute('src')
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      img.src = gifSrc
+    })
+  })
+}
 
 function _openChest(tile) {
   tile.chestReady = false
@@ -600,27 +924,7 @@ function _openChest(tile) {
   const loot = tile.chestLoot
 
   EventBus.emit('audio:play', { sfx: 'chest' })
-  if (loot.type === 'potion-red') {
-    _addToBackpack('potion-red')
-    UI.spawnFloat(tile.element, '🧪 Red Potion', 'heal')
-    UI.setMessage('You pry it open — a Red Potion inside!')
-  } else if (loot.type === 'potion-blue') {
-    _addToBackpack('potion-blue')
-    UI.spawnFloat(tile.element, '🔵 Mana Potion', 'mana')
-    UI.setMessage('You pry it open — a Mana Potion inside!')
-  } else if (loot.type === 'fire-ring') {
-    _addToBackpack('fire-ring')
-    UI.spawnFloat(tile.element, '🔥 Fire Ring', 'xp')
-    UI.setMessage('You pry it open — a Fire Ring! Passive: 10% chance to ignite on hit.')
-  } else if (loot.type === 'lantern') {
-    _addToBackpack('lantern')
-    UI.spawnFloat(tile.element, '🏮 Lantern', 'xp')
-    UI.setMessage('You pry it open — a Lantern! Use it to reveal any hidden tile.')
-  } else if (loot.type === 'mana-ring') {
-    _addToBackpack('mana-ring')
-    UI.spawnFloat(tile.element, '💍 Mana Ring', 'mana')
-    UI.setMessage('You pry it open — a Mana Ring! Passive: 10% chance for double mana on tile flips.')
-  } else if (loot.type === 'smiths-tools') {
+  if (loot.type === 'smiths-tools') {
     const def = ITEMS['smiths-tools']
     const amt = def?.effect?.amount ?? 1
     run.player.damageBonus = (run.player.damageBonus ?? 0) + amt
@@ -630,9 +934,20 @@ function _openChest(tile) {
     }
     UI.spawnFloat(tile.element, `🔧 ${def.name}`, 'xp')
     UI.setMessage(`You pry it open — ${def.name}! +${amt} attack damage for this run.`)
-  } else {
+  } else if (loot.type === 'gold') {
     _gainGold(loot.amount, tile.element)
     UI.setMessage(`You pry it open — +${loot.amount} gold!`)
+  } else {
+    const def = ITEMS[loot.type]
+    if (def) {
+      _addToBackpack(loot.type)
+      const tag = def.effect?.type?.startsWith('passive') ? 'Passive' : 'Item'
+      UI.spawnFloat(tile.element, `${def.icon} ${def.name}`, 'xp')
+      UI.setMessage(`You pry it open — ${def.name}! (${tag})`)
+    } else {
+      _gainGold(loot.amount ?? 1, tile.element)
+      UI.setMessage('You pry it open — something glitters inside.')
+    }
   }
 
   // Swap static chest image to animated gif, wait for it to finish, then collect
@@ -640,7 +955,7 @@ function _openChest(tile) {
   const iconWrap = tile.element?.querySelector('.tile-icon-wrap')
   const GIF_DURATION = 750 // ms — one play-through of chest.gif
 
-  if (chestImg) chestImg.src = 'assets/sprites/Items/chest.gif?t=' + Date.now()
+  if (chestImg) _forcePlayChestGif(chestImg, ITEM_ICONS_BASE + 'chest.gif?t=' + Date.now())
 
   setTimeout(() => {
     // Remove the img so no broken-image box shows during collect animation
@@ -681,21 +996,7 @@ function _resolveEffect(tile) {
     }
 
     case 'chest': {
-      // Pre-roll the loot so it's fixed when the player taps to open
-      const roll = Math.random()
-      tile.chestLoot = roll < 0.02
-        ? { type: 'fire-ring' }
-        : roll < 0.04
-          ? { type: 'mana-ring' }
-          : roll < 0.14
-            ? { type: 'lantern' }
-            : roll < 0.42
-              ? { type: 'potion-red' }
-              : roll < 0.65
-                ? { type: 'potion-blue' }
-                : roll < 0.70
-                  ? { type: 'smiths-tools' }
-                  : { type: 'gold', amount: _rand(...CONFIG.chest.goldDrop) }
+      tile.chestLoot = _rollChestLoot()
       tile.chestReady = true
       if (tile.element) tile.element.classList.add('chest-ready')
       UI.setMessage('A locked chest — tap again to pry it open.')
@@ -712,6 +1013,7 @@ function _resolveEffect(tile) {
       }
       const rawDmg = _rand(...CONFIG.trap.damage)
       let dmg = Math.max(1, rawDmg - (p.trapReduction ?? 0))
+      if (p.inventory?.some(e => e.id === 'greed-tooth')) dmg += 1
       const reduced = rawDmg !== dmg ? ` (reduced from ${rawDmg})` : ''
       let tfNote = ''
       if (p.isRanger && (p.trapfinderStacks ?? 0) > 0) {
@@ -747,6 +1049,16 @@ function _resolveEffect(tile) {
       UI.spawnFloat(tile.element, '+1 ATK', 'xp')
       UI.setMessage('You temper your weapon on the anvil — +1 attack damage for this run.')
       EventBus.emit('audio:play', { sfx: 'hit' })
+      UI.showRetreat()
+      break
+    }
+
+    case 'magic_chest': {
+      tile.magicChestReady = true
+      if (tile.element) tile.element.classList.add('chest-ready')
+      _syncMagicChestKeyGlow()
+      const keys = run.player.goldenKeys ?? 0
+      UI.setMessage(`✨ A Magic Chest! Spend a 🗝️ Golden Key to open it. You have ${keys} key${keys === 1 ? '' : 's'}.`)
       UI.showRetreat()
       break
     }
@@ -828,6 +1140,22 @@ function _resolveEffect(tile) {
         TileEngine.lockAdjacent(tile.row, tile.col, UI.lockTile.bind(UI))
       }
       UI.markTileEnemyAlive(tile.element)
+
+      // Tongue Snatch: Toad Beast steals 1–5 gold on reveal
+      if (tile.enemyData?.tongueSnatch) {
+        const snatch = Math.min(p.gold, _rand(1, 5))
+        if (snatch > 0) {
+          p.gold -= snatch
+          tile.enemyData.snatched = snatch
+          UI.updateGold(p.gold)
+          UI.spawnFloat(tile.element, `👅 −${snatch}💰`, 'damage')
+          UI.setMessage(`👅 The Toad Beast's tongue snaps out and snatches ${snatch} gold! Kill it to get it back.`, true)
+          EventBus.emit('audio:play', { sfx: 'gold' })
+          UI.showRetreat()
+          break
+        }
+      }
+
       // Fast enemies get a free strike the moment they're revealed
       if (tile.enemyData?.attributes?.includes('fast')) {
         const d = tile.enemyData.dmg
@@ -968,6 +1296,12 @@ function fightAction(tile) {
   if (run.player.undeadBonus && isUndead) playerDmg = Math.round(playerDmg * 2)
   if (run.player.beastBonus  && isBeast)  playerDmg = Math.round(playerDmg * 2)
 
+  if (run.player.inventory.some(e => e.id === 'duelists-glove') && !tile.enemyData._duelistFirstMeleeDone) {
+    playerDmg += 1
+    tile.enemyData._duelistFirstMeleeDone = true
+  }
+  playerDmg = _scaleOutgoingDamageToEnemy(playerDmg)
+
   const bonusSuffix = (run.player.undeadBonus && isUndead) || (run.player.beastBonus && isBeast) ? ' (2×!)' : ''
   const newEnemyHP = _save.settings.cheats?.instantKill ? 0 : Math.max(0, tile.enemyData.currentHP - playerDmg)
   const killsEnemy = newEnemyHP <= 0
@@ -1104,7 +1438,7 @@ function fightAction(tile) {
 function slamAction() {
   if (!(_save.warrior?.upgrades ?? []).includes('slam')) return
   if (_combatBusy) return
-  const cost = WARRIOR_UPGRADES.slam.manaCost
+  const cost = _stillWaterManaCost(WARRIOR_UPGRADES.slam.manaCost)
   if (run.player.mana < cost) {
     UI.setMessage('Not enough mana for Slam!', true)
     return
@@ -1131,11 +1465,12 @@ function slamAction() {
 
   // Spend mana
   run.player.mana = Math.max(0, run.player.mana - cost)
+  _markStillWaterAbilityUsed()
   UI.updateMana(run.player.mana, run.player.maxMana)
 
   _combatBusy = true
   UI.setPortraitAnim('attack')
-  const slamDmg = _slamDamagePerTarget()
+  const slamDmg = _scaleOutgoingDamageToEnemy(_slamDamagePerTarget())
   UI.setMessage(`💥 Slam! ${targets.length} enem${targets.length > 1 ? 'ies' : 'y'} struck for ${slamDmg} each!`)
 
   // Stagger slash effects across targets
@@ -1169,7 +1504,7 @@ function abilitySlotAAction() {
 function ricochetAction() {
   if (!_isRangerActiveUnlocked('ricochet')) return
   if (_combatBusy) return
-  const cost = RANGER_UPGRADES.ricochet.manaCost + _tearyExtraCost()
+  const cost = _stillWaterManaCost(RANGER_UPGRADES.ricochet.manaCost + _tearyExtraCost())
 
   if (!_ricochetSelecting) {
     if (run.player.mana < cost) {
@@ -1203,7 +1538,7 @@ function ricochetAction() {
 }
 
 function _executeRicochet() {
-  const cost    = RANGER_UPGRADES.ricochet.manaCost
+  const cost    = _stillWaterManaCost(RANGER_UPGRADES.ricochet.manaCost + _tearyExtraCost())
   const ordered = _ricochetTiles.slice()
   _cancelRicochetMode()
 
@@ -1215,6 +1550,7 @@ function _executeRicochet() {
   }
 
   run.player.mana = Math.max(0, run.player.mana - cost)
+  _markStillWaterAbilityUsed()
   UI.updateMana(run.player.mana, run.player.maxMana)
 
   _combatBusy = true
@@ -1223,7 +1559,7 @@ function _executeRicochet() {
   UI.setMessage(`🏹 Ricochet — ${targets.length} shot${targets.length > 1 ? 's' : ''}! (${dmgSeq.join(' → ')})`)
 
   targets.forEach((target, i) => {
-    const dmg = dmgSeq[i]
+    const dmg = _scaleOutgoingDamageToEnemy(dmgSeq[i])
     setTimeout(() => {
       if (!target.enemyData || target.enemyData._slain) return
       UI.spawnArrow(target.element)
@@ -1254,7 +1590,7 @@ function _executeRicochet() {
 function arrowBarrageAction() {
   if (!_isRangerActiveUnlocked('arrow-barrage')) return
   if (_combatBusy) return
-  const cost = RANGER_UPGRADES['arrow-barrage'].manaCost + _tearyExtraCost()
+  const cost = _stillWaterManaCost(RANGER_UPGRADES['arrow-barrage'].manaCost + _tearyExtraCost())
 
   if (!_arrowBarrageSelecting) {
     if (run.player.mana < cost) {
@@ -1302,7 +1638,7 @@ function _tilesIn3x3(centerRow, centerCol) {
 }
 
 function _executeTripleVolley(center) {
-  const cost = RANGER_UPGRADES['arrow-barrage'].manaCost
+  const cost = _stillWaterManaCost(RANGER_UPGRADES['arrow-barrage'].manaCost + _tearyExtraCost())
   const tiles = _tilesIn3x3(center.row, center.col)
   const targets = tiles.filter(t => t.revealed && t.enemyData && !t.enemyData._slain && !t.enemyData.spellImmune)
 
@@ -1316,9 +1652,10 @@ function _executeTripleVolley(center) {
   _cancelArrowBarrageMode()
 
   run.player.mana = Math.max(0, run.player.mana - cost)
+  _markStillWaterAbilityUsed()
   UI.updateMana(run.player.mana, run.player.maxMana)
 
-  const dmg = _tripleVolleyDamagePerEnemy()
+  const dmg = _scaleOutgoingDamageToEnemy(_tripleVolleyDamagePerEnemy())
   _combatBusy = true
   UI.setPortraitAnim('attack')
   UI.setMessage(`🏹 Triple Volley! ${targets.length} enem${targets.length > 1 ? 'ies' : 'y'} for ${dmg} each.`)
@@ -1364,7 +1701,7 @@ function _executeTripleVolley(center) {
 function poisonArrowShotAction() {
   if (!_isRangerActiveUnlocked('poison-arrow-shot')) return
   if (_combatBusy) return
-  const cost = RANGER_UPGRADES['poison-arrow-shot'].manaCost + _tearyExtraCost()
+  const cost = _stillWaterManaCost(RANGER_UPGRADES['poison-arrow-shot'].manaCost + _tearyExtraCost())
 
   if (!_poisonArrowShotSelecting) {
     if (run.player.mana < cost) {
@@ -1386,7 +1723,7 @@ function poisonArrowShotAction() {
 }
 
 function _executePoisonArrowShot(tile) {
-  const cost = RANGER_UPGRADES['poison-arrow-shot'].manaCost
+  const cost = _stillWaterManaCost(RANGER_UPGRADES['poison-arrow-shot'].manaCost + _tearyExtraCost())
   if (!tile?.enemyData || tile.enemyData._slain) {
     _cancelPoisonArrowShotMode()
     return
@@ -1403,9 +1740,10 @@ function _executePoisonArrowShot(tile) {
   _cancelPoisonArrowShotMode()
 
   run.player.mana = Math.max(0, run.player.mana - cost)
+  _markStillWaterAbilityUsed()
   UI.updateMana(run.player.mana, run.player.maxMana)
 
-  const initial = _poisonArrowUnitDamage()
+  const initial = _scaleOutgoingDamageToEnemy(_poisonArrowUnitDamage())
   _combatBusy = true
   UI.setPortraitAnim('attack')
 
@@ -1444,7 +1782,7 @@ function _executePoisonArrowShot(tile) {
 }
 
 function spellAction() {
-  const effectiveCost = Math.max(1, CONFIG.spell.manaCost - (run.player.spellCostReduction ?? 0)) + _tearyExtraCost()
+  const effectiveCost = _previewSpellManaCostForUi()
   if (run.player.mana < effectiveCost) {
     UI.setMessage('Not enough mana!', true)
     return
@@ -1456,6 +1794,9 @@ function spellAction() {
     _cancelRicochetMode()
     _cancelArrowBarrageMode()
     _cancelPoisonArrowShotMode()
+    _spyglassTargeting = false
+    _lanternTargeting = false
+    UI.setLanternTargeting(false)
     UI.setMessage('✨ Choose an enemy to target.')
   } else {
     UI.setMessage('Spell cancelled.')
@@ -1468,6 +1809,7 @@ function lanternAction() {
   if (!entry) return
   if (_combatBusy) return
 
+  _spyglassTargeting = false
   _lanternTargeting = !_lanternTargeting
   UI.setLanternTargeting(_lanternTargeting)
   if (_lanternTargeting) {
@@ -1480,8 +1822,81 @@ function lanternAction() {
   }
 }
 
+function spyglassAction() {
+  const inv = run.player.inventory
+  const entry = inv.find(e => e.id === 'spyglass')
+  if (!entry) return
+  if (_combatBusy) return
+
+  if (_spellTargeting) {
+    _spellTargeting = false
+    const effectiveCost = _previewSpellManaCostForUi()
+    UI.setSpellTargeting(false, effectiveCost)
+  }
+  if (_lanternTargeting) {
+    _lanternTargeting = false
+    UI.setLanternTargeting(false)
+  }
+  _cancelRicochetMode()
+  _cancelArrowBarrageMode()
+  _cancelPoisonArrowShotMode()
+  if (_blindingLightTargeting) {
+    _blindingLightTargeting = false
+    UI.setBlindingLightActive(false)
+  }
+  if (_divineLightSelecting) {
+    _divineLightSelecting = false
+    UI.setDivineLightActive(false)
+  }
+
+  _spyglassTargeting = !_spyglassTargeting
+  UI.setLanternTargeting(_spyglassTargeting)
+  if (_spyglassTargeting) {
+    UI.setMessage('🔭 Spyglass raised — tap a hidden tile to glimpse it.')
+  } else {
+    UI.setMessage('Spyglass lowered.')
+  }
+}
+
+function hourglassAction() {
+  if (!run._hourglassSnapshot) {
+    UI.setMessage('Nothing to rewind yet.', true)
+    return
+  }
+  if (_combatBusy) {
+    UI.setMessage('Not while combat is resolving.', true)
+    return
+  }
+  if (GameState.is(States.LEVEL_UP)) {
+    UI.setMessage('Cannot rewind during level-up.', true)
+    return
+  }
+  const p = run.player
+  if (p.gold < 1) {
+    UI.setMessage('You need 1 gold to use Hourglass Sand.', true)
+    return
+  }
+  _restoreHourglassSnapshot(run._hourglassSnapshot)
+  _spyglassTargeting = false
+  _lanternTargeting = false
+  UI.setLanternTargeting(false)
+  p.mana = 0
+  p.hp -= 1
+  p.gold -= 1
+  UI.updateMana(p.mana, p.maxMana)
+  UI.updateHP(p.hp, p.maxHp)
+  UI.updateGold(p.gold)
+  if (p.hp <= 0) {
+    _die()
+    return
+  }
+  UI.setMessage('⏳ The sands reverse — your last step is undone, at a grim price.')
+  EventBus.emit('audio:play', { sfx: 'spell' })
+}
+
 function _useLanternOn(tile) {
   _lanternTargeting = false
+  _spyglassTargeting = false
   UI.setLanternTargeting(false)
 
   const inv   = run.player.inventory
@@ -1496,10 +1911,28 @@ function _useLanternOn(tile) {
   UI.setMessage('🏮 The lantern burns bright — a tile revealed!')
 }
 
+function _useSpyglassOn(tile) {
+  _spyglassTargeting = false
+  _lanternTargeting = false
+  UI.setLanternTargeting(false)
+
+  const inv   = run.player.inventory
+  const entry = inv.find(e => e.id === 'spyglass')
+  if (!entry) return
+
+  entry.qty--
+  if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
+
+  const label = _spyglassHintLabel(tile.type)
+  UI.spawnFloat(tile.element, label, 'mana')
+  UI.setMessage(`🔭 You glimpse: ${label}`)
+  EventBus.emit('audio:play', { sfx: 'menu' })
+}
+
 function blindingLightAction() {
   if (!(_save.warrior?.upgrades ?? []).includes('blinding-light')) return
   if (_combatBusy) return
-  const cost = WARRIOR_UPGRADES['blinding-light'].manaCost + _tearyExtraCost()
+  const cost = _stillWaterManaCost(WARRIOR_UPGRADES['blinding-light'].manaCost + _tearyExtraCost())
   if (run.player.mana < cost) {
     UI.setMessage('Not enough mana for Blinding Light!', true)
     return
@@ -1508,6 +1941,9 @@ function blindingLightAction() {
   _blindingLightTargeting = !_blindingLightTargeting
   UI.setBlindingLightActive(_blindingLightTargeting)
   if (_blindingLightTargeting) {
+    _spyglassTargeting = false
+    _lanternTargeting = false
+    UI.setLanternTargeting(false)
     _cancelRicochetMode()
     _cancelArrowBarrageMode()
     _cancelPoisonArrowShotMode()
@@ -1521,7 +1957,7 @@ function _castBlindingLight(tile) {
   _blindingLightTargeting = false
   UI.setBlindingLightActive(false)
 
-  const cost = WARRIOR_UPGRADES['blinding-light'].manaCost
+  const cost = _stillWaterManaCost(WARRIOR_UPGRADES['blinding-light'].manaCost + _tearyExtraCost())
   if (run.player.mana < cost) {
     UI.setMessage('Not enough mana!', true)
     return
@@ -1542,6 +1978,7 @@ function _castBlindingLight(tile) {
     ? ' (2× stun!)' : ''
 
   run.player.mana = Math.max(0, run.player.mana - cost)
+  _markStillWaterAbilityUsed()
   UI.updateMana(run.player.mana, run.player.maxMana)
 
   UI.setPortraitAnim('attack')
@@ -1565,7 +2002,7 @@ function divineLightAction() {
   if (!warriorUpgrades.includes('divine-light')) return
   if (_combatBusy) return
 
-  const cost = WARRIOR_UPGRADES['divine-light'].manaCost + _tearyExtraCost()
+  const cost = _stillWaterManaCost(WARRIOR_UPGRADES['divine-light'].manaCost + _tearyExtraCost())
   if (!_divineLightSelecting) {
     if (run.player.mana < cost) {
       UI.setMessage('Not enough mana for Divine Light!', true)
@@ -1575,6 +2012,9 @@ function divineLightAction() {
     _cancelRicochetMode()
     _cancelArrowBarrageMode()
     _cancelPoisonArrowShotMode()
+    _spyglassTargeting = false
+    _lanternTargeting = false
+    UI.setLanternTargeting(false)
     _divineLightSelecting = true
     UI.setDivineLightActive(true)
     UI.setMessage('🌟 Divine Light — tap an enemy to smite it, or tap your portrait to heal 10% HP.')
@@ -1587,7 +2027,7 @@ function divineLightAction() {
 
 function divineLightHealAction() {
   if (!_divineLightSelecting) return
-  const cost = WARRIOR_UPGRADES['divine-light'].manaCost
+  const cost = _stillWaterManaCost(WARRIOR_UPGRADES['divine-light'].manaCost + _tearyExtraCost())
   if (run.player.mana < cost) {
     UI.setMessage('Not enough mana!', true)
     return
@@ -1595,6 +2035,7 @@ function divineLightHealAction() {
   _divineLightSelecting = false
   UI.setDivineLightActive(false)
   run.player.mana = Math.max(0, run.player.mana - cost)
+  _markStillWaterAbilityUsed()
   UI.updateMana(run.player.mana, run.player.maxMana)
 
   const heal = Math.max(1, Math.floor(run.player.maxHp * 0.10))
@@ -1610,7 +2051,7 @@ function _castDivineLightSmite(tile) {
   _divineLightSelecting = false
   UI.setDivineLightActive(false)
 
-  const cost = WARRIOR_UPGRADES['divine-light'].manaCost
+  const cost = _stillWaterManaCost(WARRIOR_UPGRADES['divine-light'].manaCost + _tearyExtraCost())
   if (run.player.mana < cost) {
     UI.setMessage('Not enough mana!', true)
     return
@@ -1621,8 +2062,9 @@ function _castDivineLightSmite(tile) {
     return
   }
 
-  const dmg = Math.max(1, Math.round(_avgMeleeDamage()))
+  const dmg = _scaleOutgoingDamageToEnemy(Math.max(1, Math.round(_avgMeleeDamage())))
   run.player.mana = Math.max(0, run.player.mana - cost)
+  _markStillWaterAbilityUsed()
   UI.updateMana(run.player.mana, run.player.maxMana)
 
   tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - dmg)
@@ -1645,7 +2087,9 @@ function _castDivineLightSmite(tile) {
 
 function _castSpell(tile) {
   _spellTargeting = false
-  const effectiveCost = Math.max(1, CONFIG.spell.manaCost - (run.player.spellCostReduction ?? 0)) + _tearyExtraCost()
+  const effectiveCost = _stillWaterManaCost(
+    Math.max(1, CONFIG.spell.manaCost - (run.player.spellCostReduction ?? 0)) + _tearyExtraCost(),
+  )
   UI.setSpellTargeting(false, effectiveCost)
 
   if (run.player.mana < effectiveCost) {
@@ -1665,9 +2109,18 @@ function _castSpell(tile) {
   const isBeast  = tile.enemyData?.type === 'beast'
   if (run.player.undeadBonus && isUndead) spellDmg = Math.round(spellDmg * 2)
   if (run.player.beastBonus  && isBeast)  spellDmg = Math.round(spellDmg * 2)
+  spellDmg = _scaleOutgoingDamageToEnemy(spellDmg)
 
   UI.setPortraitAnim('attack')
   run.player.mana -= effectiveCost
+  _markStillWaterAbilityUsed()
+  if (run.player.inventory.some(e => e.id === 'surge-pearl') && Math.random() < 0.20) {
+    const refund = Math.floor(effectiveCost / 2)
+    if (refund > 0) {
+      run.player.mana = Math.min(run.player.maxMana, run.player.mana + refund)
+      UI.spawnFloat(document.getElementById('hud-portrait'), `+${refund} MP`, 'mana')
+    }
+  }
   UI.updateMana(run.player.mana, run.player.maxMana)
   UI.spawnFloat(tile.element, `✨ ${spellDmg}`, 'mana')
   const bonusSuffix = (run.player.undeadBonus && isUndead) || (run.player.beastBonus && isBeast)
@@ -1703,14 +2156,40 @@ function _endCombatVictory(tile) {
     UI.markTileSlain(tile.element)
   }
 
+  // Tongue Snatch: return stolen gold on kill
+  if ((tile.enemyData?.snatched ?? 0) > 0) {
+    _gainGold(tile.enemyData.snatched, tile.element)
+    UI.spawnFloat(tile.element, `👅 +${tile.enemyData.snatched}💰 returned!`, 'heal')
+  }
+
   if (run.player.onKillHeal > 0) {
     run.player.hp = Math.min(run.player.maxHp, run.player.hp + run.player.onKillHeal)
     UI.spawnFloat(tile.element, `+${run.player.onKillHeal} HP`, 'heal')
     UI.updateHP(run.player.hp, run.player.maxHp)
   }
 
+  if (run.player.inventory.some(e => e.id === 'vampire-fang')) {
+    run.player.hp = Math.min(run.player.maxHp, run.player.hp + 1)
+    UI.spawnFloat(tile.element, '+1 HP', 'heal')
+    UI.updateHP(run.player.hp, run.player.maxHp)
+  }
+  if (run.player.inventory.some(e => e.id === 'greed-tooth')) {
+    _gainGold(1, tile.element)
+  }
+  if (run.player.inventory.some(e => e.id === 'echo-charm')) {
+    for (const adj of TileEngine.getOrthogonalTiles(tile.row, tile.col)) {
+      if (!adj.revealed && adj.element) {
+        const cat = _echoCharmCategoryForTileType(adj.type)
+        adj.echoHintCategory = cat
+        adj.element.classList.add('echo-hint')
+        adj.element.dataset.echoHint = cat
+      }
+    }
+  }
+
   EventBus.emit('audio:play', { sfx: 'gold' })
   EventBus.emit('combat:end', { outcome: 'victory' })
+  _checkFloorCleared()
 }
 
 // ── Hasty Retreat ────────────────────────────────────────────
@@ -1744,6 +2223,7 @@ function doRetreat() {
 function _handleExit() {
   if (run.atRest) {
     run.atRest = false
+    run.floorKeyAwarded = false
     run.floor++
     EventBus.emit('audio:play', { sfx: 'footsteps' })
     UI.setMessage(`🚪 Descending to floor ${run.floor}...`)
@@ -1806,6 +2286,7 @@ function _confirmRope(tile) {
 }
 
 function _nextFloor() {
+  run.floorKeyAwarded = false
   run.floor++
   EventBus.emit('audio:play', { sfx: 'footsteps' })
   UI.setMessage(`🚪 Descending to floor ${run.floor}...`)
@@ -1825,6 +2306,10 @@ function _computeEffectiveDamageTaken(rawAmount) {
 
 function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null) {
   if (_save.settings.cheats?.godMode) return
+  if (run?.player?.inventory?.some(e => e.id === 'lucky-rabbit-foot') && Math.random() < 0.02) {
+    UI.spawnFloat(tileEl, '🐰 Lucky!', 'heal')
+    return
+  }
   const effective = _computeEffectiveDamageTaken(amount)
   run.player.hp   = Math.max(0, run.player.hp - effective)
   UI.spawnFloat(tileEl, `-${effective} HP`, 'damage')
@@ -2050,6 +2535,7 @@ function _die(killerData = null) {
   _spellTargeting         = false
   _combatBusy             = false
   _lanternTargeting       = false
+  _spyglassTargeting      = false
   _blindingLightTargeting = false
   _divineLightSelecting   = false
   UI.setDivineLightActive(false)
@@ -2057,6 +2543,7 @@ function _die(killerData = null) {
   _cancelArrowBarrageMode()
   _cancelPoisonArrowShotMode()
   if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0) }
+  _clearActiveRun()
   UI.setPortraitAnim('death')
   GameState.transition(States.DEATH)
   UI.hideActionPanel()
@@ -2128,6 +2615,123 @@ function _addToBackpack(id) {
   inv.push({ id, qty: 1 })
 }
 
+function _canAddToBackpack(id) {
+  const inv  = run.player.inventory
+  const item = ITEMS[id]
+  if (!item) return false
+  if (item.stackable && inv.some(e => e.id === id)) return true
+  return inv.length < BACKPACK_MAX_SLOTS
+}
+
+function _checkFloorCleared() {
+  if (run.atRest) return
+  if (CONFIG.bossFloors.includes(run.floor)) return
+  if (run.floorKeyAwarded) return
+  const grid = TileEngine.getGrid()
+  for (const row of grid) {
+    for (const tile of row) {
+      if (tile.type === 'enemy' || tile.type === 'enemy_fast') {
+        if (!tile.revealed || !tile.enemyData?._slain) return
+      }
+    }
+  }
+  run.floorKeyAwarded = true
+  run.player.goldenKeys = (run.player.goldenKeys ?? 0) + 1
+  UI.updateGoldenKeys(run.player.goldenKeys)
+  _syncMagicChestKeyGlow()
+  UI.spawnFloat(document.getElementById('hud-portrait'), '🗝️ Golden Key!', 'xp')
+  UI.setMessage(`Floor cleared! You find a 🗝️ Golden Key. (${run.player.goldenKeys} total) Spend it at the Magic Chest in the sanctuary.`)
+  EventBus.emit('audio:play', { sfx: 'gold' })
+}
+
+function _openMagicChest(tile) {
+  const keys = run.player.goldenKeys ?? 0
+  if (keys <= 0) {
+    UI.setMessage('The Magic Chest glimmers… but you have no 🗝️ Golden Keys. Clear a floor without fleeing to earn one.')
+    return
+  }
+  const loot = tile.pendingLoot ?? _rollMagicChestLoot()
+  const item = ITEMS[loot.type]
+  // Smiths-tools: always apply instantly, no slot needed
+  if (loot.type === 'smiths-tools') {
+    run.player.goldenKeys--
+    UI.updateGoldenKeys(run.player.goldenKeys)
+    _syncMagicChestKeyGlow()
+    tile.pendingLoot = null
+    const def = ITEMS['smiths-tools']
+    const amt = def?.effect?.amount ?? 1
+    run.player.damageBonus = (run.player.damageBonus ?? 0) + amt
+    {
+      const [d0, d1] = _playerDamageRange(run.player)
+      UI.updateDamageRange(d0, d1)
+    }
+    const floatLabel = `🔧 ${def.name}`
+    EventBus.emit('audio:play', { sfx: 'chest' })
+    _animateMagicChestOpenClose(tile, floatLabel)
+    UI.setMessage(`The Magic Chest grants ${def.name}! +${amt} attack damage. (${run.player.goldenKeys} keys left)`)
+    return
+  }
+  if (!_canAddToBackpack(loot.type)) {
+    tile.pendingLoot = loot
+    UI.setMessage(`Your backpack is full! Drop an item, then tap the Magic Chest again to claim your ${item?.name ?? loot.type}.`)
+    return
+  }
+  run.player.goldenKeys--
+  UI.updateGoldenKeys(run.player.goldenKeys)
+  _syncMagicChestKeyGlow()
+  tile.pendingLoot = null
+  _addToBackpack(loot.type)
+  EventBus.emit('inventory:changed')
+  const floatLabel = item ? `${item.icon} ${item.name}` : `✨ ${loot.type}`
+  EventBus.emit('audio:play', { sfx: 'chest' })
+  _animateMagicChestOpenClose(tile, floatLabel)
+  UI.setMessage(`✨ The Magic Chest bestows: ${item?.name ?? loot.type}! (${run.player.goldenKeys} keys left)`)
+}
+
+function _animateMagicChestOpenClose(tile, floatText) {
+  const el = tile.element
+  if (!el) return
+  const closedSrc = ITEM_ICONS_BASE + (TILE_TYPE_ICON_FILES.magic_chest || 'magic-chest-closed.png')
+  const gifSrc = ITEM_ICONS_BASE + MAGIC_CHEST_OPEN_GIF + '?t=' + Date.now()
+  const wrap = el.querySelector('.tile-icon-wrap')
+  const baseImg = el.querySelector('.tile-icon-img')
+
+  const finish = () => {
+    el.classList.remove('magic-chest-opening')
+    el.classList.remove('magic-chest-animating')
+    const imgNow = el.querySelector('.tile-icon-img')
+    if (imgNow && imgNow.tagName === 'IMG') imgNow.src = closedSrc
+    if (floatText) UI.spawnFloat(el, floatText, 'xp')
+  }
+
+  el.classList.add('magic-chest-opening')
+  el.classList.add('magic-chest-animating')
+
+  if (baseImg && baseImg.tagName === 'IMG') {
+    _forcePlayChestGif(baseImg, gifSrc)
+    setTimeout(finish, MAGIC_CHEST_GIF_DURATION_MS)
+    return
+  }
+
+  if (wrap) {
+    const ov = document.createElement('img')
+    ov.className = 'tile-icon-img'
+    ov.alt = ''
+    ov.draggable = false
+    ov.style.cssText =
+      'position:absolute;inset:0;margin:auto;width:88%;max-width:90px;height:auto;object-fit:contain;pointer-events:none;z-index:4;'
+    wrap.appendChild(ov)
+    _forcePlayChestGif(ov, gifSrc)
+    setTimeout(() => {
+      ov.remove()
+      finish()
+    }, MAGIC_CHEST_GIF_DURATION_MS)
+    return
+  }
+
+  requestAnimationFrame(finish)
+}
+
 function useItem(id) {
   const inv   = run.player.inventory
   const entry = inv.find(e => e.id === id)
@@ -2137,15 +2741,21 @@ function useItem(id) {
 
   const { effect } = item
 
-  // Passive items: just show a message explaining they're always active
-  if (effect.type === 'passive-fire-ring' || effect.type === 'passive-mana-ring') {
+  if (effect.type.startsWith('passive-')) {
     UI.setMessage(`${item.name} is a passive item — it's always active in your bag.`, true)
     return
   }
 
-  // Lantern: delegate to dedicated action
   if (effect.type === 'lantern') {
     lanternAction()
+    return
+  }
+  if (effect.type === 'spyglass') {
+    spyglassAction()
+    return
+  }
+  if (effect.type === 'hourglass-sand') {
+    hourglassAction()
     return
   }
 
@@ -2202,6 +2812,7 @@ function cheatSkipFloor() {
   run.bossFloorExitPending = false
   if (run.atRest) {
     run.atRest = false
+    run.floorKeyAwarded = false
     run.floor++
     EventBus.emit('audio:play', { sfx: 'footsteps' })
     UI.setMessage(`[Cheat] Skipped sanctuary → floor ${run.floor}`)
@@ -2238,7 +2849,7 @@ function applyCheat(key, enabled) {
 }
 
 /**
- * Cheat "Increase stats": tap HUD HP/mana/gold (+10 each), attack (+1 damageBonus), or XP bar (+10% to next level).
+ * Cheat "Increase stats": tap HUD HP/mana/gold (+10 each), attack (+1 damageBonus), XP bar (+10% to next level), or golden key slot (+1 key).
  * Caller should ensure main menu is hidden (in a run).
  */
 function cheatHudStatBoost(stat) {
@@ -2270,6 +2881,12 @@ function cheatHudStatBoost(stat) {
     p.gold += 10
     UI.updateGold(p.gold)
     EventBus.emit('player:goldChange', { amount: 10, newTotal: p.gold })
+    return
+  }
+  if (stat === 'goldenkey') {
+    p.goldenKeys = (p.goldenKeys ?? 0) + 1
+    UI.updateGoldenKeys(p.goldenKeys)
+    _syncMagicChestKeyGlow()
     return
   }
   if (stat === 'dmg') {
@@ -2319,6 +2936,8 @@ export default {
   divineLightAction,
   divineLightHealAction,
   lanternAction,
+  spyglassAction,
+  hourglassAction,
   doRetreat,
   applyCheat,
   cheatSkipFloor,
@@ -2328,4 +2947,8 @@ export default {
   getInventory,
   getLevelUpLog,
   getTearyEyesTurns() { return run?.player?.tearyEyesTurns ?? 0 },
+  hasActiveRun()      { return !!_save?.activeRun },
+  getActiveRunInfo()  { return _save?.activeRun ?? null },
+  resumeRun,
+  abandonRun,
 }

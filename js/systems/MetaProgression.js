@@ -11,6 +11,8 @@ export function defaultSave() {
     version:       '1.2',
     lastSaved:     0,
     persistentGold: 0,
+    /** @type {string[]} enemyId keys from ENEMY_DEFS */
+    bestiarySeen:  [],
     globalPassives: [],
     warrior: {
       totalXP:   0,

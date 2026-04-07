@@ -93,6 +93,7 @@ async function boot() {
   if (save.settings.sfxOn   === undefined)    save.settings.sfxOn      = true
   if (!save.settings.cheats) save.settings.cheats = {}
   if (!save.globalPassives) save.globalPassives = []
+  if (!Array.isArray(save.bestiarySeen)) save.bestiarySeen = []
   document.body.classList.toggle('cheat-increase-stats', save.settings.cheats?.increaseStats === true)
 
   // Apply saved visual/audio settings immediately
@@ -112,10 +113,25 @@ async function boot() {
   GameController.init(save)
   UI.refreshSkipFloorButton(save)
 
+  EventBus.on('inventory:changed', () => {
+    const ov = document.getElementById('backpack-overlay')
+    if (ov?.classList.contains('is-open')) _renderBackpack()
+  })
+
   // ── Audio ────────────────────────────────────────────────
   AudioManager.init()
 
   // ── In-run buttons ───────────────────────────────────────
+  // ── Resume run prompt ────────────────────────────────────
+  document.getElementById('resume-yes-btn').addEventListener('click', () => {
+    document.getElementById('resume-overlay').classList.add('hidden')
+    GameController.resumeRun()
+  })
+  document.getElementById('resume-no-btn').addEventListener('click', () => {
+    document.getElementById('resume-overlay').classList.add('hidden')
+    GameController.abandonRun()
+  })
+
   document.getElementById('hud-teary-eyes')?.addEventListener('click', () => {
     const turns = GameController.getTearyEyesTurns()
     UI.setMessage(`💧 Teary Eyes (${turns} turn${turns === 1 ? '' : 's'}) — Onion stench! All spell & ability mana costs are +1 until it clears.`)
@@ -460,6 +476,10 @@ async function boot() {
     document.getElementById('passive-upgrades-overlay').classList.add('hidden')
   })
   document.getElementById('gold-shop-back').addEventListener('click', () => UI.hideGoldShop())
+  document.getElementById('bestiary-btn')?.addEventListener('click', () => {
+    UI.showBestiaryPanel(GameController.getSave())
+  })
+  document.getElementById('bestiary-back')?.addEventListener('click', () => UI.hideBestiaryPanel())
 
   // Difficulty
   document.querySelectorAll('.diff-btn').forEach(btn => {
@@ -494,11 +514,15 @@ async function boot() {
   // PWA install nudge
   _wireInstallNudge()
 
-  // ── Show main menu ───────────────────────────────────────
+  // ── Resume prompt or main menu ───────────────────────────
   _updateMenuHeroPreview()
   UI.setActiveDifficulty(save.settings.difficulty)
-  UI.showMainMenu()
   EventBus.emit('audio:music', { track: 'menu' })
+  if (GameController.hasActiveRun()) {
+    _showResumePrompt()
+  } else {
+    UI.showMainMenu()
+  }
 
   Logger.debug('[main] boot complete')
 }
@@ -938,6 +962,18 @@ function _renderUpgradeDetail(id, def, isOwned, canAfford) {
   }
 }
 
+function _showResumePrompt() {
+  const info = GameController.getActiveRunInfo()
+  if (!info) return
+  const heroName = info.player.isRanger ? 'Ranger' : 'Warrior'
+  const floorLabel = info.atRest ? `Floor ${info.floor} — Sanctuary` : `Floor ${info.floor}`
+  document.getElementById('resume-hero-name').textContent = heroName
+  document.getElementById('resume-floor').textContent    = `🗺 ${floorLabel}`
+  document.getElementById('resume-hp').textContent       = `❤️ ${info.player.hp} / ${info.player.maxHp}`
+  document.getElementById('resume-gold').textContent     = `🪙 ${info.player.gold}`
+  document.getElementById('resume-overlay').classList.remove('hidden')
+}
+
 function _updateMenuHeroPreview() {
   const s    = GameController.getSave()
   const char = CHARACTERS.find(c => c.id === (s.selectedCharacter ?? 'warrior')) ?? CHARACTERS[0]
@@ -1027,7 +1063,8 @@ function _renderBackpack() {
     ITEMS,
     (id) => {
       GameController.useItem(id)
-      if (ITEMS[id]?.effect?.type === 'lantern') {
+      const et = ITEMS[id]?.effect?.type
+      if (et === 'lantern' || et === 'spyglass' || et === 'hourglass-sand') {
         _setBackpackOpen(false)
       } else {
         _renderBackpack()

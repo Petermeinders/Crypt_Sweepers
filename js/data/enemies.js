@@ -60,7 +60,7 @@ export const ENEMY_DEFS = {
     type:       'humanoid',
     behaviour:  'fast',
     emoji:      '⚡👺',
-    label:      'Goblin',
+    label:      'Swift Goblin',
     goldDrop:   [1, 2],
     xpDrop:     3,
     blurb:      'A wiry little menace armed with stolen blades. Quick to flee, quicker to stab you in the back.',
@@ -106,6 +106,20 @@ export const ENEMY_DEFS = {
   },
 
   // ── Beast ────────────────────────────────────────────────────
+  toad_beast: {
+    hp:         5,
+    dmg:        [2, 3],
+    type:       'beast',
+    behaviour:  'standard',
+    emoji:      '🐸',
+    label:      'Toad Beast',
+    goldDrop:   [1, 2],
+    xpDrop:     5,
+    blurb:      'A bloated, mushroom-capped horror lurking in the jungle depths. Before you can raise your weapon, its tongue has already relieved you of your coin.',
+    attributes: ['tongue-snatch'],
+    tongueSnatch: true,
+  },
+
   spider: {
     hp:         1,
     dmg:        [1, 2],

@@ -105,7 +105,10 @@
 
       <div id="hud-keys" class="hud-keys" aria-label="Key items">
         <button type="button" class="hud-key-slot hud-key-backpack" id="hud-backpack-btn" title="Backpack" aria-label="Backpack" aria-expanded="false" aria-controls="backpack-overlay"><img src="assets/sprites/Items/backpack.png" alt="" class="hud-key-slot-img"></button>
-        <div class="hud-key-slot" title="Locked"><span class="hud-key-ghost">🔑</span></div>
+        <div class="hud-key-slot hud-key-golden-slot" id="hud-golden-key-slot" data-hud-cheat-target="goldenkey" title="Golden Keys — spend at the Magic Chest in sanctuary">
+          <span class="hud-key-ghost" id="hud-key-slot-placeholder">🔑</span>
+          <span class="hud-key-display hud-key-display--slot hidden" id="hud-key-display"><span class="key-icon">🗝️</span><span id="key-value">0</span></span>
+        </div>
         <div class="hud-key-slot" title="Locked"><span class="hud-key-ghost">⛑️</span></div>
       </div>
 
@@ -204,6 +207,24 @@
   <!-- ── Run summary overlay ── -->
   <div id="run-summary"></div>
 
+  <!-- ── Resume run prompt ── -->
+  <div id="resume-overlay" class="hidden">
+    <div id="resume-card">
+      <div id="resume-title">Run in Progress</div>
+      <div id="resume-hero-name"></div>
+      <div id="resume-details">
+        <span id="resume-floor"></span>
+        <span id="resume-hp"></span>
+        <span id="resume-gold"></span>
+      </div>
+      <p id="resume-hint">Your last run was saved at the start of this floor. Ready to continue?</p>
+      <div id="resume-btns">
+        <button id="resume-yes-btn">▶ Resume Run</button>
+        <button id="resume-no-btn">✕ Abandon Run</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Main menu ── -->
   <div id="main-menu">
     <div id="menu-title">CRYPT SWEEPERS</div>
@@ -230,6 +251,7 @@
     <div id="menu-secondary">
       <button id="gold-shop-btn" class="menu-btn secondary">🛒 Gold Shop</button>
       <button id="passive-upgrades-btn" class="menu-btn secondary">📜 Passive Upgrades</button>
+      <button id="bestiary-btn" class="menu-btn secondary">📖 Bestiary</button>
     </div>
     <div id="difficulty-row">
       <span class="diff-label">Difficulty</span>
@@ -255,10 +277,11 @@
     <input type="file" id="import-file-input" accept=".json" style="display:none">
 
     <!-- PWA install nudge (shown by JS when available) -->
-    <div id="install-nudge" class="hidden">
-      <button id="install-btn" class="save-link">📲 Add to Home Screen</button>
+    <div id="install-nudge" class="install-prompt hidden">
+      <div class="install-prompt-label">Install the app</div>
+      <button type="button" id="install-btn" class="install-prompt-btn">📲 Add to Home Screen</button>
       <div id="ios-install-tip" class="hidden">
-        Tap <strong>Share</strong> ( <span style="font-size:1.1em">⎋</span> ) then <strong>"Add to Home Screen"</strong>
+        Tap <strong>Share</strong> ( <span style="font-size:1.1em">⎋</span> ) then <strong>Add to Home Screen</strong>
       </div>
     </div>
   </div>
@@ -447,6 +470,49 @@
     <div id="shop-desc">These items are one-time consumables — they apply only to your next run and are lost whether you win or die.</div>
     <div id="shop-cart-info" class="hidden">Items in cart are applied to your next run.</div>
     <div id="shop-list" class="panel-list"></div>
+  </div>
+
+  <div id="bestiary-overlay" class="panel-overlay hidden">
+    <div class="panel-header">
+      <button class="panel-back-btn" id="bestiary-back">← Back</button>
+      <div class="panel-title">📖 Bestiary</div>
+    </div>
+    <p class="bestiary-panel-desc">Creatures you have encountered in the dungeon. Tap an entry for details.</p>
+    <div id="bestiary-list" class="bestiary-list panel-list"></div>
+  </div>
+
+  <!-- First-time creature discovery (in-run) -->
+  <div id="bestiary-discovery-overlay" class="bestiary-discovery-overlay hidden" aria-hidden="true">
+    <div id="bestiary-discovery-backdrop" class="bestiary-discovery-backdrop"></div>
+    <div class="bestiary-discovery-modal" role="dialog" aria-modal="true" aria-labelledby="bestiary-discovery-name">
+      <div class="bestiary-discovery-art-wrap">
+        <img id="bestiary-discovery-gif" class="bestiary-discovery-gif" src="" alt="">
+        <div id="bestiary-discovery-emoji" class="bestiary-discovery-emoji-fallback hidden" aria-hidden="true"></div>
+      </div>
+      <div class="bestiary-discovery-header">
+        <h2 id="bestiary-discovery-name" class="bestiary-discovery-name"></h2>
+        <div id="bestiary-discovery-type" class="bestiary-discovery-type"></div>
+      </div>
+      <p id="bestiary-discovery-blurb" class="bestiary-discovery-blurb"></p>
+      <button type="button" id="bestiary-discovery-ok" class="menu-btn primary">Continue</button>
+    </div>
+  </div>
+
+  <!-- Bestiary menu: full-size creature card -->
+  <div id="bestiary-detail-overlay" class="bestiary-detail-overlay hidden" aria-hidden="true">
+    <div id="bestiary-detail-backdrop" class="bestiary-discovery-backdrop"></div>
+    <div class="bestiary-discovery-modal bestiary-detail-modal" role="dialog" aria-modal="true" aria-labelledby="bestiary-detail-name">
+      <div class="bestiary-discovery-art-wrap">
+        <img id="bestiary-detail-gif" class="bestiary-discovery-gif" src="" alt="">
+        <div id="bestiary-detail-emoji" class="bestiary-discovery-emoji-fallback hidden" aria-hidden="true"></div>
+      </div>
+      <div class="bestiary-discovery-header">
+        <h2 id="bestiary-detail-name" class="bestiary-discovery-name"></h2>
+        <div id="bestiary-detail-type" class="bestiary-discovery-type"></div>
+      </div>
+      <p id="bestiary-detail-blurb" class="bestiary-discovery-blurb"></p>
+      <button type="button" id="bestiary-detail-back" class="menu-btn secondary">Back</button>
+    </div>
   </div>
 
   <script type="module" src="js/main.js"></script>

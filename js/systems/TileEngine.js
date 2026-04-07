@@ -123,7 +123,7 @@ function _pickEnemyType(floor, tileType) {
   if (floor >= 2) pool.push('zombie', 'goblin_fast', 'slime')
   if (floor >= 3) pool.push('spider')
   if (floor >= 4) pool.push('wraith')
-  if (floor >= 6)  pool.push('troll', 'onion')
+  if (floor >= 6)  pool.push('troll', 'onion', 'toad_beast')
   if (floor >= 11) pool.push('gnome')
 
   if (tileType === 'enemy_fast') {
@@ -142,9 +142,9 @@ function _generateRestGrid(floor) {
   const cols = 3
   _grid = []
   const layout = [
-    ['empty', 'anvil', 'empty'],
-    ['rope', 'well', 'empty'],
-    ['empty', 'exit', 'empty'],
+    ['empty', 'anvil', 'magic_chest'],
+    ['rope',  'well',  'empty'],
+    ['empty', 'exit',  'empty'],
   ]
   for (let r = 0; r < rows; r++) {
     _grid[r] = []
@@ -445,6 +445,23 @@ function markReachable(row, col, uiMark) {
   }
 }
 
+/** After restoring grid state (e.g. Hourglass), rebuild reachable flags and HUD classes. */
+function recomputeReachabilityFromRevealed(uiMark) {
+  for (const row of _grid) {
+    for (const t of row) {
+      if (!t.revealed) {
+        t.reachable = false
+        if (t.element) t.element.classList.remove('reachable')
+      }
+    }
+  }
+  for (const row of _grid) {
+    for (const t of row) {
+      if (t.revealed) markReachable(t.row, t.col, uiMark)
+    }
+  }
+}
+
 function lockAdjacent(row, col, uiLock) {
   for (const adj of getAdjacentTiles(row, col)) {
     if (!adj.revealed) {
@@ -476,6 +493,7 @@ export default {
   lockAdjacent,
   unlockAdjacent,
   markReachable,
+  recomputeReachabilityFromRevealed,
   getGrid,
   getTile,
   getCurrentFloor,

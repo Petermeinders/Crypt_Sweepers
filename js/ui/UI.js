@@ -1,12 +1,47 @@
 import { CONFIG }           from '../config.js'
 import TileEngine             from '../systems/TileEngine.js'
 import { TILE_BLURBS } from '../data/tileBlurbs.js'
-import { ITEM_ICONS_BASE, TILE_SLAIN_ICON, TILE_SPIRIT_RELEASE, TILE_TYPE_ICON_FILES } from '../data/tileIcons.js'
+import { ENEMY_DEFS } from '../data/enemies.js'
+import Bestiary from '../systems/Bestiary.js'
+import EventBus from '../core/EventBus.js'
+import {
+  ITEM_ICONS_BASE,
+  TILE_SLAIN_ICON,
+  TILE_SPIRIT_RELEASE,
+  TILE_TYPE_ICON_FILES,
+  ENEMY_SPRITES,
+  MONSTER_ICONS_BASE,
+} from '../data/tileIcons.js'
 
 // UI module — ALL DOM updates happen here. Zero game logic.
 // Cache element references once at init(), expose named update functions.
 
 const el = {}  // element cache
+
+function _fillBestiaryCreatureParts(parts, def, enemyId) {
+  const sprites = ENEMY_SPRITES[enemyId]
+  const gifSrc = sprites?.idle ? `${MONSTER_ICONS_BASE}${sprites.idle}` : null
+  if (parts.gif) {
+    if (gifSrc) {
+      parts.gif.src = `${gifSrc}?t=${Date.now()}`
+      parts.gif.classList.remove('hidden')
+      parts.gif.alt = def.label
+    } else {
+      parts.gif.removeAttribute('src')
+      parts.gif.classList.add('hidden')
+    }
+  }
+  if (parts.emoji) {
+    parts.emoji.textContent = def.emoji ?? ''
+    parts.emoji.classList.toggle('hidden', !!gifSrc)
+  }
+  if (parts.name) parts.name.textContent = def.label
+  if (parts.type) {
+    const ty = def.type ?? 'unknown'
+    parts.type.textContent = ty.charAt(0).toUpperCase() + ty.slice(1)
+  }
+  if (parts.blurb) parts.blurb.textContent = def.blurb ?? ''
+}
 const _logHistory = []
 
 /** HUD portrait gifs per animation state (hero-specific). */
@@ -36,6 +71,9 @@ const UI = {
     el.manaValue   = document.getElementById('mana-value')
     el.dmgValue    = document.getElementById('dmg-value')
     el.goldValue   = document.getElementById('gold-value')
+    el.keyDisplay        = document.getElementById('hud-key-display')
+    el.keyValue          = document.getElementById('key-value')
+    el.keySlotPlaceholder = document.getElementById('hud-key-slot-placeholder')
     el.hudPortraitWrap = document.getElementById('hud-portrait-wrap')
     el.hudPortrait = document.getElementById('hud-portrait')
     el.hudPortraitImg = document.getElementById('hud-portrait-img')
@@ -66,6 +104,24 @@ const UI = {
     el.merchantOverlay    = document.getElementById('merchant-overlay')
     el.infoCardOverlay    = document.getElementById('info-card-overlay')
     el.infoCard           = document.getElementById('info-card')
+    el.bestiaryOverlay         = document.getElementById('bestiary-overlay')
+    el.bestiaryList            = document.getElementById('bestiary-list')
+    el.bestiaryDiscoveryOverlay = document.getElementById('bestiary-discovery-overlay')
+    el.bestiaryDiscoveryBackdrop = document.getElementById('bestiary-discovery-backdrop')
+    el.bestiaryDiscoveryGif    = document.getElementById('bestiary-discovery-gif')
+    el.bestiaryDiscoveryEmoji  = document.getElementById('bestiary-discovery-emoji')
+    el.bestiaryDiscoveryName   = document.getElementById('bestiary-discovery-name')
+    el.bestiaryDiscoveryType   = document.getElementById('bestiary-discovery-type')
+    el.bestiaryDiscoveryBlurb   = document.getElementById('bestiary-discovery-blurb')
+    el.bestiaryDiscoveryOk      = document.getElementById('bestiary-discovery-ok')
+    el.bestiaryDetailOverlay    = document.getElementById('bestiary-detail-overlay')
+    el.bestiaryDetailBackdrop   = document.getElementById('bestiary-detail-backdrop')
+    el.bestiaryDetailGif        = document.getElementById('bestiary-detail-gif')
+    el.bestiaryDetailEmoji      = document.getElementById('bestiary-detail-emoji')
+    el.bestiaryDetailName       = document.getElementById('bestiary-detail-name')
+    el.bestiaryDetailType       = document.getElementById('bestiary-detail-type')
+    el.bestiaryDetailBlurb      = document.getElementById('bestiary-detail-blurb')
+    el.bestiaryDetailBack       = document.getElementById('bestiary-detail-back')
     el.trapModalOverlay   = document.getElementById('trap-modal-overlay')
     el.trapModalBackdrop  = document.getElementById('trap-modal-backdrop')
     el.trapModalBody      = document.getElementById('trap-modal-body')
@@ -106,6 +162,14 @@ const UI = {
         el.msgLogExpanded.classList.add('hidden')
       }
     })
+
+    const closeBestiaryDetail = () => {
+      el.bestiaryDetailOverlay?.classList.add('hidden')
+      el.bestiaryDetailOverlay?.setAttribute('aria-hidden', 'true')
+      document.body.classList.remove('bestiary-detail-open')
+    }
+    el.bestiaryDetailBack?.addEventListener('click', closeBestiaryDetail)
+    el.bestiaryDetailBackdrop?.addEventListener('click', closeBestiaryDetail)
   },
 
   // ── HUD ──────────────────────────────────────
@@ -374,9 +438,15 @@ const UI = {
   setTearyEyes(turns) {
     const btn = document.getElementById('hud-teary-eyes')
     if (!btn) return
-    const active = turns > 0
-    btn.classList.toggle('hidden', !active)
-    btn.textContent = `💧${turns}`
+    const n = Number(turns)
+    const v = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0
+    if (v < 1) {
+      btn.classList.add('hidden')
+      btn.textContent = '💧'
+      return
+    }
+    btn.classList.remove('hidden')
+    btn.textContent = `💧${v}`
   },
 
   setLanternTargeting(active) {
@@ -446,6 +516,14 @@ const UI = {
 
   updateGold(amount) {
     el.goldValue.textContent = amount
+  },
+
+  updateGoldenKeys(count) {
+    const n = Number(count) || 0
+    if (el.keyValue) el.keyValue.textContent = n
+    const show = n > 0
+    if (el.keyDisplay) el.keyDisplay.classList.toggle('hidden', !show)
+    if (el.keySlotPlaceholder) el.keySlotPlaceholder.classList.toggle('hidden', show)
   },
 
   updateXP(current, needed) {
@@ -1158,6 +1236,99 @@ const UI = {
 
   hideGoldShop() {
     el.goldShopOverlay.classList.add('hidden')
+  },
+
+  /** First-time enemy discovery — Pokémon-style card; resolves when dismissed. */
+  showBestiaryDiscovery(enemyId) {
+    return new Promise((resolve) => {
+      const def = ENEMY_DEFS[enemyId]
+      if (!def || !el.bestiaryDiscoveryOverlay) {
+        resolve()
+        return
+      }
+      _fillBestiaryCreatureParts({
+        gif: el.bestiaryDiscoveryGif,
+        emoji: el.bestiaryDiscoveryEmoji,
+        name: el.bestiaryDiscoveryName,
+        type: el.bestiaryDiscoveryType,
+        blurb: el.bestiaryDiscoveryBlurb,
+      }, def, enemyId)
+
+      const close = () => {
+        el.bestiaryDiscoveryOverlay.classList.add('hidden')
+        el.bestiaryDiscoveryOverlay.setAttribute('aria-hidden', 'true')
+        document.body.classList.remove('bestiary-discovery-open')
+        el.bestiaryDiscoveryOk?.removeEventListener('click', close)
+        el.bestiaryDiscoveryBackdrop?.removeEventListener('click', close)
+        resolve()
+      }
+
+      el.bestiaryDiscoveryOverlay.classList.remove('hidden')
+      el.bestiaryDiscoveryOverlay.setAttribute('aria-hidden', 'false')
+      document.body.classList.add('bestiary-discovery-open')
+      el.bestiaryDiscoveryOk?.addEventListener('click', close)
+      el.bestiaryDiscoveryBackdrop?.addEventListener('click', close)
+      EventBus.emit('audio:play', { sfx: 'levelup' })
+    })
+  },
+
+  /** Full-size creature card from Bestiary menu (above list). */
+  showBestiaryDetail(enemyId) {
+    const def = ENEMY_DEFS[enemyId]
+    if (!def || !el.bestiaryDetailOverlay) return
+    _fillBestiaryCreatureParts({
+      gif: el.bestiaryDetailGif,
+      emoji: el.bestiaryDetailEmoji,
+      name: el.bestiaryDetailName,
+      type: el.bestiaryDetailType,
+      blurb: el.bestiaryDetailBlurb,
+    }, def, enemyId)
+    el.bestiaryDetailOverlay.classList.remove('hidden')
+    el.bestiaryDetailOverlay.setAttribute('aria-hidden', 'false')
+    document.body.classList.add('bestiary-detail-open')
+  },
+
+  showBestiaryPanel(save) {
+    if (!el.bestiaryOverlay || !el.bestiaryList) return
+    const ids = Bestiary.sortedSeenIds(save)
+    el.bestiaryList.innerHTML = ''
+    if (ids.length === 0) {
+      const p = document.createElement('p')
+      p.className = 'bestiary-empty'
+      p.textContent = 'No creatures catalogued yet. Reveal enemies in the dungeon to add them here.'
+      el.bestiaryList.appendChild(p)
+    } else {
+      for (const id of ids) {
+        const def = ENEMY_DEFS[id]
+        if (!def) continue
+        const sprites = ENEMY_SPRITES[id]
+        const thumb = sprites?.idle ? `${MONSTER_ICONS_BASE}${sprites.idle}` : null
+        const ty = def.type ?? 'unknown'
+        const typeLabel = ty.charAt(0).toUpperCase() + ty.slice(1)
+        const artHtml = thumb
+          ? `<img src="${thumb}?t=${Date.now()}" alt="" loading="lazy">`
+          : `<span class="bestiary-grid-card-emoji">${def.emoji ?? '?'}</span>`
+        const card = document.createElement('button')
+        card.type = 'button'
+        card.className = 'bestiary-grid-card'
+        card.innerHTML = `
+          <div class="bestiary-grid-card-art">${artHtml}</div>
+          <div class="bestiary-grid-card-head">
+            <h3 class="bestiary-grid-card-name">${def.label}</h3>
+            <div class="bestiary-grid-card-type">${typeLabel}</div>
+          </div>`
+        card.addEventListener('click', () => UI.showBestiaryDetail(id))
+        el.bestiaryList.appendChild(card)
+      }
+    }
+    el.bestiaryOverlay.classList.remove('hidden')
+  },
+
+  hideBestiaryPanel() {
+    el.bestiaryOverlay?.classList.add('hidden')
+    el.bestiaryDetailOverlay?.classList.add('hidden')
+    el.bestiaryDetailOverlay?.setAttribute('aria-hidden', 'true')
+    document.body.classList.remove('bestiary-detail-open')
   },
 
   // ── Merchant overlay ──────────────────────────

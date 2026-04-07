@@ -16,6 +16,11 @@ export const TILE_BLURBS = {
   empty:      { label: 'Stone Floor',     emoji: '·',  blurb: 'Worn flagstone, cold and silent.' },
   well:       { label: 'Healing Well',      emoji: '⛲', blurb: 'Clear water that restores body and spirit.' },
   anvil:      { label: 'Anvil',             emoji: '⚒️', blurb: 'Temper your weapon — +1 attack damage for this run when you reveal this tile.' },
+  magic_chest: {
+    label: 'Magic Chest',
+    emoji: '✨',
+    blurb: 'A golden chest that opens with a Golden Key. Earn keys by clearing every enemy on a dungeon floor — spend them here for rare loot.',
+  },
   rope:       {
     label: 'Escape Rope',
     emoji: '🧵',

@@ -4,6 +4,9 @@
 export const ITEM_ICONS_BASE = 'assets/sprites/Items/'
 export const MONSTER_ICONS_BASE = 'assets/sprites/monsters/'
 
+export const MAGIC_CHEST_OPEN_GIF = 'magic-chest-open.gif'
+export const MAGIC_CHEST_GIF_DURATION_MS = 4000
+
 /** Non-enemy tile types */
 export const TILE_TYPE_ICON_FILES = {
   empty:      null,           // nothing to show
@@ -18,6 +21,7 @@ export const TILE_TYPE_ICON_FILES = {
   well:       null,
   anvil:      null,
   rope:       null,
+  magic_chest: 'magic-chest-closed.png',
 }
 
 /** Keys must match enemy ids from enemies.js / TileEngine createEnemy()
@@ -33,6 +37,7 @@ export const ENEMY_SPRITES = {
   troll:         { idle: 'ogre/ogre-idle.gif', attack: 'ogre/ogre-idle.gif' },
   vine_witch:    { idle: 'vine_witch/vine-witch-idle.gif', attack: 'vine_witch/vine-witch-idle.gif' },
   slime:         { idle: 'slime/slime-idle.gif', attack: 'slime/slime-idle.gif' },
+  toad_beast:    { idle: 'toad_beast/toad-beast-idle.gif', attack: 'toad_beast/toad-beast-idle.gif' },
   onion:         { idle: 'onion/onion-idle.gif', attack: 'onion/onion-idle.gif' },
   gnome:         { idle: 'gnome/gnome-idle.gif', attack: 'gnome/gnome-idle.gif' },
   spider:        null,
@@ -50,6 +55,7 @@ export const ENEMY_ICON_FILES = {
   goblin_fast:   null,
   troll:         null,
   vine_witch:    null,
+  toad_beast:    null,
   onion:         null,
   gnome:         null,
   spider:        null,
