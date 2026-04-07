@@ -1,8 +1,5 @@
 // Warrior XP tree definitions and Gold Shop item definitions.
 // Plain data only — no functions. Apply logic lives in MetaProgression.js.
-//
-// XP tree: permanent unlocks purchased with warrior XP between runs.
-// Gold shop: per-run boosts purchased with banked gold before each run.
 
 export const WARRIOR_UPGRADES = {
   'slam': {
@@ -22,6 +19,16 @@ export const WARRIOR_UPGRADES = {
     xpCost:   75,
     manaCost: 10,
     effect:   { type: 'active-ability', ability: 'blinding-light' },
+  },
+  'divine-light': {
+    name:     'Divine Light',
+    desc:     'Two uses: tap an enemy to smite it for damage, or tap your hero portrait to restore 10% of your max HP.',
+    icon:     '🌟',
+    iconSrc:  'assets/sprites/abilities/divine-light-badge.jpg',
+    iconBgSrc:'assets/sprites/abilities/ricochet-bg.png',
+    xpCost:   90,
+    manaCost: 10,
+    effect:   { type: 'active-ability', ability: 'divine-light' },
   },
 }
 

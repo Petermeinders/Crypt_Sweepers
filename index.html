@@ -76,6 +76,7 @@
         <div id="hud-portrait" class="hud-portrait" aria-hidden="true">
           <img id="hud-portrait-img" src="assets/sprites/Heroes/Warrior/__Idle.gif" alt="Warrior">
         </div>
+        <button id="hud-teary-eyes" class="hud-debuff-btn hidden" title="Teary Eyes debuff">💧</button>
       </div>
 
       <div id="hud-stats">
@@ -228,6 +229,7 @@
     <button id="settings-btn" class="menu-btn secondary">⚙️ Settings</button>
     <div id="menu-secondary">
       <button id="gold-shop-btn" class="menu-btn secondary">🛒 Gold Shop</button>
+      <button id="passive-upgrades-btn" class="menu-btn secondary">📜 Passive Upgrades</button>
     </div>
     <div id="difficulty-row">
       <span class="diff-label">Difficulty</span>
@@ -425,6 +427,17 @@
   </div>
 
   <!-- ── Gold Shop overlay ── -->
+  <!-- ── Passive Upgrades overlay ── -->
+  <div id="passive-upgrades-overlay" class="panel-overlay hidden">
+    <div class="panel-header">
+      <button class="panel-back-btn" id="passive-upgrades-back">← Back</button>
+      <div class="panel-title">Passive Upgrades</div>
+      <div class="panel-resource">💰 <span id="passive-upgrades-gold-val">0</span></div>
+    </div>
+    <div id="passive-upgrades-desc">Permanent upgrades that apply to every hero on every run.</div>
+    <div id="passive-upgrades-list" class="panel-list"></div>
+  </div>
+
   <div id="gold-shop-overlay" class="panel-overlay hidden">
     <div class="panel-header">
       <button class="panel-back-btn" id="gold-shop-back">← Back</button>

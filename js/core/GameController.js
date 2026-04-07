@@ -49,6 +49,8 @@ function _refreshRangerActiveHud() {
 
 /** Ranger __Attack.gif length — portrait stays on "attack" until this elapses. */
 const RANGER_FIGHT_ATTACK_PORTRAIT_MS = 4000
+/** Warrior strike gif length — portrait stays on "attack" until this elapses. */
+const WARRIOR_FIGHT_ATTACK_PORTRAIT_MS = 2000
 /** Ranger passive: chance per enemy reveal to skip locking adjacent tiles. */
 const RANGER_PASSIVE_SKIP_ADJ_LOCK = 0.1
 
@@ -146,6 +148,8 @@ function _startFloor() {
   _combatBusy             = false
   _lanternTargeting       = false
   _blindingLightTargeting = false
+  _divineLightSelecting   = false
+  UI.setDivineLightActive(false)
   _ricochetSelecting = false
   _ricochetTiles     = []
   UI.clearRicochetMarks()
@@ -159,6 +163,7 @@ function _startFloor() {
   _poisonArrowShotSelecting = false
   UI.setPoisonArrowShotActive(false)
   UI.setGridPoisonArrowShotMode(false)
+  if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0) }
   TileEngine.generateGrid(run.floor, { rest: run.atRest })
   TileEngine.renderGrid(UI.getGridEl(), onTileTap, onTileHold)
   _revealStartTile()
@@ -183,6 +188,8 @@ function _startFloor() {
     UI.setSlamBtn(slamUnlocked, WARRIOR_UPGRADES.slam.manaCost)
     UI.setArrowBarrageBtn(false)
     UI.setPoisonArrowShotBtn(false)
+    const divineLightUnlocked = warriorUpgrades.includes('divine-light')
+    UI.setDivineLightBtn(divineLightUnlocked, WARRIOR_UPGRADES['divine-light'].manaCost)
   }
   // Blinding Light — warrior only, slot B (ranger uses B for Poison Arrow, C for Triple Volley)
   if (_charKey() === 'warrior') {
@@ -246,12 +253,58 @@ let _spellTargeting         = false
 let _combatBusy             = false
 let _lanternTargeting       = false
 let _blindingLightTargeting = false
+let _divineLightSelecting   = false
 let _ricochetSelecting = false
 let _ricochetTiles     = []
 let _arrowBarrageSelecting = false
 /** Triple Volley: { row, col } center after first tap; second tap same tile fires. */
 let _tripleVolleyCenter = null
 let _poisonArrowShotSelecting = false
+
+// ── Angry Onion helpers ───────────────────────────────────────
+
+/** Extra mana cost while Teary Eyes debuff is active. */
+function _tearyExtraCost() {
+  return (run?.player?.tearyEyesTurns ?? 0) > 0 ? 1 : 0
+}
+
+/** Apply / refresh Teary Eyes debuff on the player (2 turns). */
+function _applyTearyEyes() {
+  if (!run) return
+  run.player.tearyEyesTurns = 2
+  UI.setTearyEyes(2)
+  UI.spawnFloat(document.getElementById('hud-portrait'), '💧 Teary Eyes!', 'damage')
+}
+
+/**
+ * Called after any HP reduction on the Angry Onion.
+ * Strips a layer when HP crosses the 2/3 or 1/3 max-HP threshold,
+ * increasing damage each time.
+ */
+function _checkOnionLayer(tile) {
+  const e = tile?.enemyData
+  if (!e || e._slain || e.enemyId !== 'onion') return
+  const maxHp = e.hp
+  const currentLayer = e.onionLayer ?? 3
+  const layer2Threshold = Math.ceil(maxHp * 2 / 3)
+  const layer1Threshold = Math.ceil(maxHp * 1 / 3)
+
+  let newLayer = currentLayer
+  if (currentLayer >= 3 && e.currentHP < layer2Threshold) newLayer = 2
+  if (currentLayer >= 2 && e.currentHP < layer1Threshold) newLayer = 1
+  if (newLayer === currentLayer) return
+
+  e.onionLayer = newLayer
+  e.dmg        = newLayer === 1 ? [2, 2] : [1, 2]
+  e.hitDamage  = null
+  TileEngine.rollEnemyHitDamage(e)
+  TileEngine.refreshEnemyDamageOnTile(tile)
+
+  const emoji = newLayer === 1 ? '😡' : '😤'
+  UI.spawnFloat(tile.element, `${emoji} Angrier!`, 'damage')
+  UI.shakeTile(tile.element)
+  EventBus.emit('audio:play', { sfx: 'hit2' })
+}
 
 function _cancelRicochetMode() {
   _ricochetSelecting = false
@@ -289,6 +342,10 @@ function _cancelSpellLanternBlindingForRicochet() {
     _blindingLightTargeting = false
     UI.setBlindingLightActive(false)
   }
+  if (_divineLightSelecting) {
+    _divineLightSelecting = false
+    UI.setDivineLightActive(false)
+  }
 }
 
 function onTileTap(row, col) {
@@ -318,6 +375,14 @@ function onTileTap(row, col) {
   if (_blindingLightTargeting) {
     if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
       _castBlindingLight(tile)
+    }
+    return
+  }
+
+  // Divine Light targeting: revealed living enemy → smite
+  if (_divineLightSelecting) {
+    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      _castDivineLightSmite(tile)
     }
     return
   }
@@ -475,9 +540,14 @@ function _applyRangerTrapfinderMitigation(preMitigationDmg, p) {
   return { dmg: mitigated, proc: true }
 }
 
-/** One global “turn” for Poison Arrow DoT: each tile flip/reveal, or starting a melee vs any enemy. */
+/** One global “turn” for DoT / debuff effects: each tile flip/reveal, or starting a melee vs any enemy. */
 function _tickPoisonArrowDotOnGlobalTurn() {
   if (!run || GameState.is(States.DEATH)) return
+  // Teary Eyes debuff tick
+  if ((run.player.tearyEyesTurns ?? 0) > 0) {
+    run.player.tearyEyesTurns--
+    UI.setTearyEyes(run.player.tearyEyesTurns)
+  }
   const grid = TileEngine.getGrid()
   if (!grid) return
   const pDmg = _poisonArrowUnitDamage()
@@ -634,6 +704,12 @@ function _resolveEffect(tile) {
     }
 
     case 'trap': {
+      if ((p.trapDodgeChance ?? 0) > 0 && Math.random() < p.trapDodgeChance) {
+        EventBus.emit('audio:play', { sfx: 'trap' })
+        UI.setMessage('A trap snaps shut — your training pays off! You dodge it.')
+        UI.spawnFloat(tile.element, '🪤 Dodged!', 'heal')
+        break
+      }
       const rawDmg = _rand(...CONFIG.trap.damage)
       let dmg = Math.max(1, rawDmg - (p.trapReduction ?? 0))
       const reduced = rawDmg !== dmg ? ` (reduced from ${rawDmg})` : ''
@@ -724,20 +800,24 @@ function _resolveEffect(tile) {
     case 'boss':
     case 'enemy_fast': {
       const { dmg } = CombatResolver.resolveFastReveal(tile.enemyData)
-      const r = _applyRangerTrapfinderMitigation(dmg, p)
-      _takeDamage(r.dmg, tile.element)
+      const reflexDodge = !tile.enemyData?.isBoss && (p.reflexDodgeChance ?? 0) > 0 && Math.random() < p.reflexDodgeChance
+      if (!reflexDodge) {
+        const r = _applyRangerTrapfinderMitigation(dmg, p)
+        _takeDamage(r.dmg, tile.element)
+      }
       UI.shakeTile(tile.element)
+      const rangerSkipLock = p.isRanger && Math.random() < RANGER_PASSIVE_SKIP_ADJ_LOCK
+      if (!rangerSkipLock) {
+        TileEngine.lockAdjacent(tile.row, tile.col, UI.lockTile.bind(UI))
+      }
+      UI.markTileEnemyAlive(tile.element)
       if (!GameState.is(States.DEATH)) {
-        const rangerSkipLock = p.isRanger && Math.random() < RANGER_PASSIVE_SKIP_ADJ_LOCK
-        if (!rangerSkipLock) {
-          TileEngine.lockAdjacent(tile.row, tile.col, UI.lockTile.bind(UI))
-        }
-        UI.markTileEnemyAlive(tile.element)
         const label = tile.enemyData?.isBoss ? `⚠️ BOSS: ${tile.enemyData.label}` : '⚡ Fast enemy'
-        const tf = r.proc ? ' Trapfinder!' : ''
-        UI.setMessage(`${label} strikes first! (-${r.dmg} HP)${tf} Tap it to fight.`, true)
+        const dodgeNote = reflexDodge ? ' Your reflexes kick in — ambush dodged!' : ''
+        UI.setMessage(`${label} strikes first!${dodgeNote} Tap it to fight.`, true)
         UI.showRetreat()
         EventBus.emit('tile:locked', {})
+        if (reflexDodge) UI.spawnFloat(tile.element, '⚡ Dodged!', 'heal')
       }
       break
     }
@@ -752,10 +832,16 @@ function _resolveEffect(tile) {
       if (tile.enemyData?.attributes?.includes('fast')) {
         const d = tile.enemyData.dmg
         const ambushDmg = tile.enemyData.hitDamage ?? (Array.isArray(d) ? d[0] : d)
-        const r = _applyRangerTrapfinderMitigation(ambushDmg, p)
-        _takeDamage(r.dmg, tile.element, false, tile.enemyData)
-        const tf = r.proc ? ' Trapfinder!' : ''
-        UI.setMessage(`⚡ The ${tile.enemyData.label} strikes first for ${r.dmg}!${tf} Tap to fight back.`)
+        const reflexDodge = (p.reflexDodgeChance ?? 0) > 0 && Math.random() < p.reflexDodgeChance
+        if (reflexDodge) {
+          UI.spawnFloat(tile.element, '⚡ Dodged!', 'heal')
+          UI.setMessage(`⚡ The ${tile.enemyData.label} lunges — your reflexes save you! Tap to fight.`)
+        } else {
+          const r = _applyRangerTrapfinderMitigation(ambushDmg, p)
+          _takeDamage(r.dmg, tile.element, false, tile.enemyData)
+          const tf = r.proc ? ' Trapfinder!' : ''
+          UI.setMessage(`⚡ The ${tile.enemyData.label} strikes first for ${r.dmg}!${tf} Tap to fight back.`)
+        }
       } else {
         UI.setMessage(`A ${tile.enemyData?.label ?? 'enemy'} lurks. Tap it to fight.`)
       }
@@ -903,13 +989,10 @@ function fightAction(tile) {
 
   const attackPortraitT0 = performance.now()
   const isRanger = _charKey() === 'ranger'
-  const afterRangerAttackPortrait = (fn) => {
-    if (!isRanger) {
-      fn()
-      return
-    }
+  const afterAttackPortrait = (fn) => {
+    const holdMs = isRanger ? RANGER_FIGHT_ATTACK_PORTRAIT_MS : WARRIOR_FIGHT_ATTACK_PORTRAIT_MS
     const elapsed = performance.now() - attackPortraitT0
-    setTimeout(fn, Math.max(0, RANGER_FIGHT_ATTACK_PORTRAIT_MS - elapsed))
+    setTimeout(fn, Math.max(0, holdMs - elapsed))
   }
 
   // Slime split: first kill restores half HP and splits visually
@@ -921,12 +1004,13 @@ function fightAction(tile) {
     // Fatal blow — enemy never gets to counter
     setTimeout(() => {
       tile.enemyData.currentHP = 0
+      if (tile.enemyData?.enemyId === 'onion') _applyTearyEyes()
       UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp')
       UI.setMessage(`You strike for ${playerDmg}${bonusSuffix}! The enemy falls before they can strike back. +${result.goldDrop} gold.`)
       _gainGold(result.goldDrop, tile.element)
       _gainXP(result.xpDrop ?? 0, tile.element)
       _endCombatVictory(tile)
-      afterRangerAttackPortrait(() => {
+      afterAttackPortrait(() => {
         UI.setPortraitAnim('idle')
       })
       _combatBusy = false
@@ -941,7 +1025,7 @@ function fightAction(tile) {
       UI.splitSlime(tile.element)
       UI.updateEnemyHP(tile.element, splitHP)
       UI.setMessage(`The slime splits in two! Each half still fights. (${splitHP} HP remaining)`)
-      afterRangerAttackPortrait(() => {
+      afterAttackPortrait(() => {
         UI.setPortraitAnim('idle')
       })
       _combatBusy = false
@@ -949,6 +1033,7 @@ function fightAction(tile) {
   } else {
     setTimeout(() => {
       tile.enemyData.currentHP = newEnemyHP
+      if (tile.enemyData?.enemyId === 'onion') { _applyTearyEyes(); _checkOnionLayer(tile) }
 
       if (ignite) {
         tile.enemyData.burnTurns = 3
@@ -967,7 +1052,7 @@ function fightAction(tile) {
           _gainGold(result.goldDrop, tile.element)
           _gainXP(result.xpDrop ?? 0, tile.element)
           _endCombatVictory(tile)
-          afterRangerAttackPortrait(() => {
+          afterAttackPortrait(() => {
             UI.setPortraitAnim('idle')
           })
           _combatBusy = false
@@ -984,7 +1069,6 @@ function fightAction(tile) {
         _takeDamage(result.enemyDmg, tile.element, true, tile.enemyData)
         UI.shakeTile(tile.element)
         if (GameState.is(States.DEATH)) { _combatBusy = false; return }
-        if (!isRanger) UI.setPortraitAnim('hit')
       }
 
       setTimeout(() => {
@@ -1003,16 +1087,12 @@ function fightAction(tile) {
         UI.setMessage(tradeMsg)
         UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
 
-        if (!isRanger) {
-          UI.setPortraitAnim('idle')
-        } else {
-          afterRangerAttackPortrait(() => {
-            if (!isStunned) UI.setPortraitAnim('hit')
-            setTimeout(() => {
-              UI.setPortraitAnim('idle')
-            }, isStunned ? 0 : 500)
-          })
-        }
+        afterAttackPortrait(() => {
+          if (!isStunned) UI.setPortraitAnim('hit')
+          setTimeout(() => {
+            UI.setPortraitAnim('idle')
+          }, isStunned ? 0 : 500)
+        })
         _combatBusy = false
       }, isStunned ? 200 : 500)
     }, 400)
@@ -1089,7 +1169,7 @@ function abilitySlotAAction() {
 function ricochetAction() {
   if (!_isRangerActiveUnlocked('ricochet')) return
   if (_combatBusy) return
-  const cost = RANGER_UPGRADES.ricochet.manaCost
+  const cost = RANGER_UPGRADES.ricochet.manaCost + _tearyExtraCost()
 
   if (!_ricochetSelecting) {
     if (run.player.mana < cost) {
@@ -1127,9 +1207,10 @@ function _executeRicochet() {
   const ordered = _ricochetTiles.slice()
   _cancelRicochetMode()
 
-  const targets = ordered.filter(t => t.enemyData && !t.enemyData._slain)
+  const targets = ordered.filter(t => t.enemyData && !t.enemyData._slain && !t.enemyData.spellImmune)
+  const immuneCount = ordered.filter(t => t.enemyData && !t.enemyData._slain && t.enemyData.spellImmune).length
   if (targets.length === 0) {
-    UI.setMessage('Ricochet — no valid targets left.', true)
+    UI.setMessage(immuneCount > 0 ? '🛡️ All selected enemies are immune to Ricochet!' : 'Ricochet — no valid targets left.', true)
     return
   }
 
@@ -1149,6 +1230,7 @@ function _executeRicochet() {
       EventBus.emit('audio:play', { sfx: 'arrowShot' })
       UI.shakeTile(target.element)
       target.enemyData.currentHP = Math.max(0, target.enemyData.currentHP - dmg)
+      _checkOnionLayer(target)
       UI.spawnFloat(target.element, `🏹 ${dmg}`, 'xp')
       if (target.enemyData.currentHP <= 0) {
         _gainGold(target.enemyData.goldDrop ? _rand(...target.enemyData.goldDrop) : 1, target.element)
@@ -1172,7 +1254,7 @@ function _executeRicochet() {
 function arrowBarrageAction() {
   if (!_isRangerActiveUnlocked('arrow-barrage')) return
   if (_combatBusy) return
-  const cost = RANGER_UPGRADES['arrow-barrage'].manaCost
+  const cost = RANGER_UPGRADES['arrow-barrage'].manaCost + _tearyExtraCost()
 
   if (!_arrowBarrageSelecting) {
     if (run.player.mana < cost) {
@@ -1222,7 +1304,7 @@ function _tilesIn3x3(centerRow, centerCol) {
 function _executeTripleVolley(center) {
   const cost = RANGER_UPGRADES['arrow-barrage'].manaCost
   const tiles = _tilesIn3x3(center.row, center.col)
-  const targets = tiles.filter(t => t.revealed && t.enemyData && !t.enemyData._slain)
+  const targets = tiles.filter(t => t.revealed && t.enemyData && !t.enemyData._slain && !t.enemyData.spellImmune)
 
   if (targets.length === 0) {
     UI.setMessage('Triple Volley — no enemies in that 3×3 area. Pick another center.', true)
@@ -1260,6 +1342,7 @@ function _executeTripleVolley(center) {
       UI.spawnArrow(t.element)
       UI.shakeTile(t.element)
       t.enemyData.currentHP = Math.max(0, t.enemyData.currentHP - dmg)
+      _checkOnionLayer(t)
       UI.spawnFloat(t.element, `🏹 ${dmg}`, 'xp')
       if (t.enemyData.currentHP <= 0) {
         _gainGold(t.enemyData.goldDrop ? _rand(...t.enemyData.goldDrop) : 1, t.element)
@@ -1281,7 +1364,7 @@ function _executeTripleVolley(center) {
 function poisonArrowShotAction() {
   if (!_isRangerActiveUnlocked('poison-arrow-shot')) return
   if (_combatBusy) return
-  const cost = RANGER_UPGRADES['poison-arrow-shot'].manaCost
+  const cost = RANGER_UPGRADES['poison-arrow-shot'].manaCost + _tearyExtraCost()
 
   if (!_poisonArrowShotSelecting) {
     if (run.player.mana < cost) {
@@ -1306,6 +1389,12 @@ function _executePoisonArrowShot(tile) {
   const cost = RANGER_UPGRADES['poison-arrow-shot'].manaCost
   if (!tile?.enemyData || tile.enemyData._slain) {
     _cancelPoisonArrowShotMode()
+    return
+  }
+
+  if (tile.enemyData?.spellImmune) {
+    _cancelPoisonArrowShotMode()
+    UI.setMessage(`🛡️ ${tile.enemyData.label} is immune to Poison Arrow!`, true)
     return
   }
 
@@ -1355,7 +1444,7 @@ function _executePoisonArrowShot(tile) {
 }
 
 function spellAction() {
-  const effectiveCost = Math.max(1, CONFIG.spell.manaCost - (run.player.spellCostReduction ?? 0))
+  const effectiveCost = Math.max(1, CONFIG.spell.manaCost - (run.player.spellCostReduction ?? 0)) + _tearyExtraCost()
   if (run.player.mana < effectiveCost) {
     UI.setMessage('Not enough mana!', true)
     return
@@ -1410,7 +1499,7 @@ function _useLanternOn(tile) {
 function blindingLightAction() {
   if (!(_save.warrior?.upgrades ?? []).includes('blinding-light')) return
   if (_combatBusy) return
-  const cost = WARRIOR_UPGRADES['blinding-light'].manaCost
+  const cost = WARRIOR_UPGRADES['blinding-light'].manaCost + _tearyExtraCost()
   if (run.player.mana < cost) {
     UI.setMessage('Not enough mana for Blinding Light!', true)
     return
@@ -1435,6 +1524,11 @@ function _castBlindingLight(tile) {
   const cost = WARRIOR_UPGRADES['blinding-light'].manaCost
   if (run.player.mana < cost) {
     UI.setMessage('Not enough mana!', true)
+    return
+  }
+
+  if (tile.enemyData?.spellImmune) {
+    UI.setMessage(`🛡️ ${tile.enemyData.label} is immune to spells!`, true)
     return
   }
 
@@ -1463,13 +1557,104 @@ function _castBlindingLight(tile) {
   )
 }
 
+// ── Divine Light ──────────────────────────────────────────────
+
+function divineLightAction() {
+  if (_charKey() !== 'warrior') return
+  const warriorUpgrades = _save.warrior?.upgrades ?? []
+  if (!warriorUpgrades.includes('divine-light')) return
+  if (_combatBusy) return
+
+  const cost = WARRIOR_UPGRADES['divine-light'].manaCost + _tearyExtraCost()
+  if (!_divineLightSelecting) {
+    if (run.player.mana < cost) {
+      UI.setMessage('Not enough mana for Divine Light!', true)
+      return
+    }
+    _cancelSpellLanternBlindingForRicochet()
+    _cancelRicochetMode()
+    _cancelArrowBarrageMode()
+    _cancelPoisonArrowShotMode()
+    _divineLightSelecting = true
+    UI.setDivineLightActive(true)
+    UI.setMessage('🌟 Divine Light — tap an enemy to smite it, or tap your portrait to heal 10% HP.')
+  } else {
+    _divineLightSelecting = false
+    UI.setDivineLightActive(false)
+    UI.setMessage('Divine Light cancelled.')
+  }
+}
+
+function divineLightHealAction() {
+  if (!_divineLightSelecting) return
+  const cost = WARRIOR_UPGRADES['divine-light'].manaCost
+  if (run.player.mana < cost) {
+    UI.setMessage('Not enough mana!', true)
+    return
+  }
+  _divineLightSelecting = false
+  UI.setDivineLightActive(false)
+  run.player.mana = Math.max(0, run.player.mana - cost)
+  UI.updateMana(run.player.mana, run.player.maxMana)
+
+  const heal = Math.max(1, Math.floor(run.player.maxHp * 0.10))
+  run.player.hp = Math.min(run.player.maxHp, run.player.hp + heal)
+  UI.updateHP(run.player.hp, run.player.maxHp)
+  UI.setPortraitAnim('attack')
+  EventBus.emit('audio:play', { sfx: 'divineLight' })
+  setTimeout(() => UI.setPortraitAnim('idle'), 600)
+  UI.setMessage(`🌟 Divine Light — restored ${heal} HP! (${run.player.hp}/${run.player.maxHp})`)
+}
+
+function _castDivineLightSmite(tile) {
+  _divineLightSelecting = false
+  UI.setDivineLightActive(false)
+
+  const cost = WARRIOR_UPGRADES['divine-light'].manaCost
+  if (run.player.mana < cost) {
+    UI.setMessage('Not enough mana!', true)
+    return
+  }
+
+  if (tile.enemyData?.spellImmune) {
+    UI.setMessage(`🛡️ ${tile.enemyData.label} is immune to spells!`, true)
+    return
+  }
+
+  const dmg = Math.max(1, Math.round(_avgMeleeDamage()))
+  run.player.mana = Math.max(0, run.player.mana - cost)
+  UI.updateMana(run.player.mana, run.player.maxMana)
+
+  tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - dmg)
+  UI.setPortraitAnim('attack')
+  UI.spawnFloat(tile.element, `🌟 ${dmg}`, 'mana')
+  UI.flashTile(tile.element)
+  EventBus.emit('audio:play', { sfx: 'divineLight' })
+  setTimeout(() => UI.setPortraitAnim('idle'), 600)
+
+  if (tile.enemyData.currentHP <= 0) {
+    UI.setMessage(`🌟 Divine Light smites for ${dmg}! The enemy is destroyed. +${tile.enemyData.goldDrop ? 1 : 0} gold.`)
+    _gainGold(1, tile.element)
+    _gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
+    _endCombatVictory(tile)
+  } else {
+    UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
+    UI.setMessage(`🌟 Divine Light smites for ${dmg}! ${tile.enemyData.label} has ${tile.enemyData.currentHP} HP left.`)
+  }
+}
+
 function _castSpell(tile) {
   _spellTargeting = false
-  const effectiveCost = Math.max(1, CONFIG.spell.manaCost - (run.player.spellCostReduction ?? 0))
+  const effectiveCost = Math.max(1, CONFIG.spell.manaCost - (run.player.spellCostReduction ?? 0)) + _tearyExtraCost()
   UI.setSpellTargeting(false, effectiveCost)
 
   if (run.player.mana < effectiveCost) {
     UI.setMessage('Not enough mana!', true)
+    return
+  }
+
+  if (tile.enemyData?.spellImmune) {
+    UI.setMessage(`🛡️ ${tile.enemyData.label} is immune to spells!`, true)
     return
   }
 
@@ -1488,6 +1673,7 @@ function _castSpell(tile) {
   const bonusSuffix = (run.player.undeadBonus && isUndead) || (run.player.beastBonus && isBeast)
     ? ' (2×!)' : ''
   tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - spellDmg)
+  _checkOnionLayer(tile)
   EventBus.emit('audio:play', { sfx: 'spell' })
   EventBus.emit('combat:spell', { manaCost: effectiveCost })
   setTimeout(() => UI.setPortraitAnim('idle'), 600)
@@ -1792,6 +1978,14 @@ function getSlamDamageBreakdown() {
   return { avgMelee: avg, baseTenths, stacks, mult: m, final }
 }
 
+function getDivineLightBreakdown() {
+  if (!run || run.player?.isRanger) return null
+  const avg  = _avgMeleeDamage()
+  const smite = Math.max(1, Math.round(avg))
+  const heal  = Math.max(1, Math.floor(run.player.maxHp * 0.10))
+  return { avgMelee: avg, smite, heal, maxHp: run.player.maxHp }
+}
+
 function getBlindingLightBreakdown() {
   if (!run || run.player?.isRanger) return null
   const avg = _avgMeleeDamage()
@@ -1857,9 +2051,12 @@ function _die(killerData = null) {
   _combatBusy             = false
   _lanternTargeting       = false
   _blindingLightTargeting = false
+  _divineLightSelecting   = false
+  UI.setDivineLightActive(false)
   _cancelRicochetMode()
   _cancelArrowBarrageMode()
   _cancelPoisonArrowShotMode()
+  if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0) }
   UI.setPortraitAnim('death')
   GameState.transition(States.DEATH)
   UI.hideActionPanel()
@@ -2105,6 +2302,7 @@ export default {
   isRangerActiveUnlocked: _isRangerActiveUnlocked,
   getSlamDamageBreakdown,
   getBlindingLightBreakdown,
+  getDivineLightBreakdown,
   getRicochetBreakdown,
   getArrowBarrageBreakdown,
   getPoisonArrowShotBreakdown,
@@ -2118,6 +2316,8 @@ export default {
   arrowBarrageAction,
   poisonArrowShotAction,
   blindingLightAction,
+  divineLightAction,
+  divineLightHealAction,
   lanternAction,
   doRetreat,
   applyCheat,
@@ -2127,4 +2327,5 @@ export default {
   dropItem,
   getInventory,
   getLevelUpLog,
+  getTearyEyesTurns() { return run?.player?.tearyEyesTurns ?? 0 },
 }

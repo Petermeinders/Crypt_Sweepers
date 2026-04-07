@@ -24,6 +24,7 @@ const SFX_FILES = {
   trap:     'audio/sfx/trap.ogg',
   slam:     'audio/sfx/slam.mp3',
   heal:     'audio/sfx/heal.ogg',
+  divineLight: 'assets/audio/divine-light.mp3',
   menu:     'audio/sfx/menu.ogg',
   footsteps:'audio/sfx/footsteps.mp3',
 }

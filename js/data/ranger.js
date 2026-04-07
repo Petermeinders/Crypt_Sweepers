@@ -56,16 +56,6 @@ export const RANGER_ABILITIES = {
   },
 }
 
-/** Meta XP passives (shown under “Passive upgrades” accordion in hero select). Actives stay on the main grid. */
-export const RANGER_PASSIVE_UPGRADE_IDS = [
-  'keen-senses',
-  'swift-shot',
-  'forest-lore',
-  'ghost-walk',
-  'bark-skin',
-  'mana-arrow',
-  'coin-pouch',
-]
 
 export const RANGER_UPGRADES = {
   'ricochet': {
@@ -109,54 +99,5 @@ export const RANGER_UPGRADES = {
     xpCost:  65,
     manaCost: 12,
     effect:  { type: 'active-ability', ability: 'arrow-barrage' },
-  },
-  'keen-senses': {
-    name:  'Keen Senses',
-    desc:  'Start each run with +8 max HP',
-    icon:  '👁️',
-    xpCost: 45,
-    effect: { type: 'bonus-max-hp', amount: 8 },
-  },
-  'swift-shot': {
-    name:  'Swift Shot',
-    desc:  'Start each run with +5 fight damage',
-    icon:  '🏹',
-    xpCost: 70,
-    effect: { type: 'bonus-damage', amount: 5 },
-  },
-  'forest-lore': {
-    name:  'Forest Lore',
-    desc:  'Start each run with +12 max mana',
-    icon:  '🌿',
-    xpCost: 55,
-    effect: { type: 'bonus-max-mana', amount: 12 },
-  },
-  'ghost-walk': {
-    name:  'Ghost Walk',
-    desc:  'Hasty Retreat keeps 30% gold instead of 20%',
-    icon:  '👣',
-    xpCost: 80,
-    effect: { type: 'better-retreat', percent: 0.30 },
-  },
-  'bark-skin': {
-    name:  'Bark Skin',
-    desc:  'Start each run with 1 permanent damage reduction',
-    icon:  '🌳',
-    xpCost: 95,
-    effect: { type: 'bonus-damage-reduction', amount: 1 },
-  },
-  'mana-arrow': {
-    name:  'Mana Arrow',
-    desc:  'Spells cost 1 less mana each run',
-    icon:  '💫',
-    xpCost: 85,
-    effect: { type: 'bonus-spell-reduction', amount: 1 },
-  },
-  'coin-pouch': {
-    name:  'Coin Pouch',
-    desc:  'Start each run with 20 extra gold',
-    icon:  '🪙',
-    xpCost: 110,
-    effect: { type: 'bonus-starting-gold', amount: 20 },
   },
 }

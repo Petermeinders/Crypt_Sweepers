@@ -1,5 +1,6 @@
 import { WARRIOR_UPGRADES, SHOP_ITEMS } from '../data/upgrades.js'
 import { RANGER_UPGRADES }             from '../data/ranger.js'
+import { GLOBAL_PASSIVE_UPGRADES }     from '../data/passives.js'
 import { CONFIG }                       from '../config.js'
 import Logger                           from '../core/Logger.js'
 
@@ -7,9 +8,10 @@ import Logger                           from '../core/Logger.js'
 
 export function defaultSave() {
   return {
-    version:       '1.1',
+    version:       '1.2',
     lastSaved:     0,
     persistentGold: 0,
+    globalPassives: [],
     warrior: {
       totalXP:   0,
       upgrades:  [],
@@ -42,6 +44,24 @@ function buyUpgrade(save, upgradeId) {
   save.warrior.totalXP -= WARRIOR_UPGRADES[upgradeId].xpCost
   save.warrior.upgrades.push(upgradeId)
   Logger.debug(`[MetaProgression] Upgrade purchased: ${upgradeId}`)
+  return true
+}
+
+// ── Global passives ──────────────────────────────────────────
+
+function canBuyGlobalPassive(save, id) {
+  const def = GLOBAL_PASSIVE_UPGRADES[id]
+  if (!def) return false
+  if ((save.globalPassives ?? []).includes(id)) return false
+  return save.persistentGold >= def.goldCost
+}
+
+function buyGlobalPassive(save, id) {
+  if (!canBuyGlobalPassive(save, id)) return false
+  if (!save.globalPassives) save.globalPassives = []
+  save.persistentGold -= GLOBAL_PASSIVE_UPGRADES[id].goldCost
+  save.globalPassives.push(id)
+  Logger.debug(`[MetaProgression] Global passive bought: ${id}`)
   return true
 }
 
@@ -88,6 +108,13 @@ function applyToPlayer(player, save) {
 
   for (const id of upgradeIds) {
     const def = upgradeMap[id]
+    if (!def) continue
+    _applyUpgradeEffect(player, def.effect)
+  }
+
+  // Global passives (apply to all heroes)
+  for (const id of (save.globalPassives ?? [])) {
+    const def = GLOBAL_PASSIVE_UPGRADES[id]
     if (!def) continue
     _applyUpgradeEffect(player, def.effect)
   }
@@ -141,6 +168,12 @@ function _applyUpgradeEffect(player, effect) {
       break
     case 'bonus-starting-gold':
       player.gold += effect.amount
+      break
+    case 'trap-dodge':
+      player.trapDodgeChance = (player.trapDodgeChance ?? 0) + effect.chance
+      break
+    case 'reflex-dodge':
+      player.reflexDodgeChance = (player.reflexDodgeChance ?? 0) + effect.chance
       break
   }
 }
@@ -222,6 +255,8 @@ export default {
   defaultSave,
   canBuyUpgrade,
   buyUpgrade,
+  canBuyGlobalPassive,
+  buyGlobalPassive,
   canBuyShopItem,
   buyShopItem,
   removeShopItem,

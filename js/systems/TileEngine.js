@@ -123,7 +123,8 @@ function _pickEnemyType(floor, tileType) {
   if (floor >= 2) pool.push('zombie', 'goblin_fast', 'slime')
   if (floor >= 3) pool.push('spider')
   if (floor >= 4) pool.push('wraith')
-  if (floor >= 6) pool.push('troll')
+  if (floor >= 6)  pool.push('troll', 'onion')
+  if (floor >= 11) pool.push('gnome')
 
   if (tileType === 'enemy_fast') {
     const fastPool = pool.filter(e => ENEMY_DEFS[e]?.behaviour === 'fast')

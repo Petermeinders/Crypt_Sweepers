@@ -649,7 +649,8 @@
   cursor: default;
 }
 
-#shop-desc {
+#shop-desc,
+#passive-upgrades-desc {
   text-align: center;
   font-size: 0.75rem;
   font-family: sans-serif;
@@ -658,6 +659,57 @@
   padding: 8px 16px;
   border-bottom: 1px solid rgba(255,255,255,0.06);
   flex-shrink: 0;
+}
+
+.passive-coming-soon {
+  text-align: center;
+  font-size: 0.75rem;
+  font-family: sans-serif;
+  color: var(--text-dim);
+  font-style: italic;
+  padding: 10px 0;
+}
+
+/* Built-in (class-specific) passive shown in hero accordion */
+.hero-passive-builtin {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(80, 160, 80, 0.08);
+  border: 1px solid rgba(80, 160, 80, 0.25);
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+
+.hero-passive-builtin-icon { font-size: 1.4rem; flex-shrink: 0; }
+
+.hero-passive-builtin-info { flex: 1; min-width: 0; }
+
+.hero-passive-builtin-name {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hero-passive-builtin-badge {
+  font-size: 0.65rem;
+  background: rgba(60, 180, 60, 0.25);
+  border: 1px solid rgba(60, 180, 60, 0.45);
+  color: #88dd88;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: sans-serif;
+}
+
+.hero-passive-builtin-desc {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  font-family: sans-serif;
+  line-height: 1.4;
 }
 
 #shop-cart-info {
@@ -1540,8 +1592,8 @@
 
 .hero-display-wrap {
   position: relative;
-  width: 220px;
-  height: 320px;
+  width: 110px;
+  height: 160px;
   overflow: visible;
   display: flex;
   align-items: center;
@@ -1555,10 +1607,10 @@
 .hero-display-gif {
   height: auto;
   width: auto;
+  max-height: 160px;
   image-rendering: pixelated;
-  filter: drop-shadow(0 6px 16px rgba(0,0,0,0.8));
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.8));
   display: block;
-  margin-left: 30px;
   z-index: 1;
   position: relative;
   cursor: pointer;
@@ -1577,13 +1629,14 @@
 .hero-locked-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0,0,0,0.75);
+  background: transparent;
   border-radius: 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 6px;
+  z-index: 2;
 }
 
 .hero-locked-overlay.hidden { display: none; }

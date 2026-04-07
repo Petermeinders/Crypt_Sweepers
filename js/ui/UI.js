@@ -12,11 +12,11 @@ const _logHistory = []
 /** HUD portrait gifs per animation state (hero-specific). */
 const PORTRAIT_ANIM = {
   warrior: {
-    idle:   'assets/sprites/Heroes/Warrior/__Idle.gif',
-    attack: 'assets/sprites/Heroes/Warrior/__AttackCombo2hit.gif',
-    hit:    'assets/sprites/Heroes/Warrior/__Hit.gif',
-    run:    'assets/sprites/Heroes/Warrior/__Run.gif',
-    death:  'assets/sprites/Heroes/Warrior/__DeathNoMovement.gif',
+    idle:   'assets/sprites/Heroes/Warrior/warrior-idle.gif',
+    attack: 'assets/sprites/Heroes/Warrior/warrior-strike.gif',
+    hit:    'assets/sprites/Heroes/Warrior/warrior-idle.gif',
+    run:    'assets/sprites/Heroes/Warrior/warrior-idle.gif',
+    death:  'assets/sprites/Heroes/Warrior/warrior-idle.gif',
   },
   // Ranger folder currently has only Idle + Attack; reuse idle for other states.
   ranger: {
@@ -342,6 +342,41 @@ const UI = {
 
   setBlindingLightActive(active) {
     el.hudSlotB?.classList.toggle('is-blinding-light-active', active)
+  },
+
+  setDivineLightBtn(visible, manaCost = 10) {
+    if (!el.hudSlotC) return
+    el.hudSlotC.classList.remove('is-divine-light', 'is-divine-light-active')
+    if (visible) {
+      el.hudSlotC.innerHTML = `
+        <span class="ability-btn-wrap ability-btn-wrap--divine-light">
+          <img src="assets/sprites/abilities/ricochet-bg.png" class="ability-btn-bg" alt="" draggable="false"/>
+          <img src="assets/sprites/abilities/divine-light-badge.jpg" class="ability-btn-badge" alt="Divine Light" draggable="false"/>
+          <span class="ability-btn-cost">${manaCost}</span>
+        </span>`
+      el.hudSlotC.title    = `Divine Light — smite an enemy or heal 10% HP (${manaCost} mana)`
+      el.hudSlotC.disabled = false
+      el.hudSlotC.classList.remove('is-placeholder')
+      el.hudSlotC.classList.add('is-divine-light')
+    } else if (el.hudSlotC.classList.contains('is-divine-light')) {
+      el.hudSlotC.textContent = '···'
+      el.hudSlotC.title       = 'Reserved'
+      el.hudSlotC.disabled    = true
+      el.hudSlotC.classList.add('is-placeholder')
+    }
+  },
+
+  setDivineLightActive(active) {
+    el.hudSlotC?.classList.toggle('is-divine-light-active', active)
+    document.getElementById('hud-portrait-wrap')?.classList.toggle('divine-light-target', active)
+  },
+
+  setTearyEyes(turns) {
+    const btn = document.getElementById('hud-teary-eyes')
+    if (!btn) return
+    const active = turns > 0
+    btn.classList.toggle('hidden', !active)
+    btn.textContent = `💧${turns}`
   },
 
   setLanternTargeting(active) {

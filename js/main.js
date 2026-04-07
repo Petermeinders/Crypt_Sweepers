@@ -8,7 +8,8 @@ import Logger          from './core/Logger.js'
 import { CONFIG }                           from './config.js'
 import { WARRIOR_UPGRADES, SHOP_ITEMS }     from './data/upgrades.js'
 import { ITEMS }                            from './data/items.js'
-import { RANGER_UPGRADES, RANGER_PASSIVE_UPGRADE_IDS } from './data/ranger.js'
+import { RANGER_UPGRADES }                  from './data/ranger.js'
+import { GLOBAL_PASSIVE_UPGRADES, GLOBAL_PASSIVE_IDS } from './data/passives.js'
 
 // ── Character roster ──────────────────────────────────────────
 
@@ -17,9 +18,9 @@ const CHARACTERS = [
     id:         'warrior',
     name:       'Warrior',
     tagline:    'Battle-hardened fighter. Slow but hits hard.',
-    gif:        'assets/sprites/Heroes/Warrior/__Idle.gif',
-    attackGif:  'assets/sprites/Heroes/Warrior/__AttackCombo2hit.gif',
-    attackMs:   1100,
+    gif:        'assets/sprites/Heroes/Warrior/warrior-idle.gif',
+    attackGif:  'assets/sprites/Heroes/Warrior/warrior-strike.gif',
+    attackMs:   2000,
     emoji:      null,
     upgrades:   WARRIOR_UPGRADES,
     unlockCost: null,
@@ -30,7 +31,7 @@ const CHARACTERS = [
   {
     id:         'ranger',
     name:       'Ranger',
-    tagline:    "Swift and elusive — enemy reveals skip locking adjacent tiles 10% of the time. Begins with Trapfinder rank 1 (10% chance on trap damage, fast-tile strikes, or fast ambush on reveal to reduce that hit by your stack count).",
+    tagline:    "Swift and elusive, the Ranger uses his agility to strike quick with his bow while avoiding dangers and traps.",
     gif:        'assets/sprites/Heroes/Ranger/__Idle.gif',
     attackGif:  'assets/sprites/Heroes/Ranger/__Attack.gif',
     attackMs:   4000,
@@ -40,6 +41,36 @@ const CHARACTERS = [
     baseHP:     40,
     baseMana:   35,
     baseDmg:    '1',
+  },
+  {
+    id:          'mage',
+    name:        'Mage',
+    tagline:     'A master of the arcane arts who turns the dungeon into a laboratory. Devastating spell power — but dangerously fragile up close.',
+    gif:         null,
+    attackGif:   null,
+    attackMs:    0,
+    emoji:       '🧙‍♂️',
+    upgrades:    {},
+    unlockCost:  null,
+    baseHP:      30,
+    baseMana:    60,
+    baseDmg:     '1',
+    comingSoon:  true,
+  },
+  {
+    id:          'vampire',
+    name:        'Vampire',
+    tagline:     'A creature of the night who feeds on fallen foes to grow stronger. The deeper the crypt, the more dangerous she becomes.',
+    gif:         null,
+    attackGif:   null,
+    attackMs:    0,
+    emoji:       '🧛',
+    upgrades:    {},
+    unlockCost:  null,
+    baseHP:      45,
+    baseMana:    25,
+    baseDmg:     '2',
+    comingSoon:  true,
   },
 ]
 
@@ -61,6 +92,7 @@ async function boot() {
   if (save.settings.musicOn === undefined)    save.settings.musicOn    = true
   if (save.settings.sfxOn   === undefined)    save.settings.sfxOn      = true
   if (!save.settings.cheats) save.settings.cheats = {}
+  if (!save.globalPassives) save.globalPassives = []
   document.body.classList.toggle('cheat-increase-stats', save.settings.cheats?.increaseStats === true)
 
   // Apply saved visual/audio settings immediately
@@ -84,6 +116,11 @@ async function boot() {
   AudioManager.init()
 
   // ── In-run buttons ───────────────────────────────────────
+  document.getElementById('hud-teary-eyes')?.addEventListener('click', () => {
+    const turns = GameController.getTearyEyesTurns()
+    UI.setMessage(`💧 Teary Eyes (${turns} turn${turns === 1 ? '' : 's'}) — Onion stench! All spell & ability mana costs are +1 until it clears.`)
+  })
+
   document.getElementById('info-card-overlay').addEventListener('pointerdown', (e) => {
     if (e.target.id === 'info-card-overlay') UI.hideInfoCard()
   })
@@ -225,15 +262,38 @@ async function boot() {
       })
     }
   )
+  document.getElementById('hud-portrait-wrap').addEventListener('click', () => {
+    GameController.divineLightHealAction()
+  })
+
   _wireAbilityHold(
     document.getElementById('hud-btn-slot-c'),
     () => {
       const s = GameController.getSave()
       if ((s.selectedCharacter ?? 'warrior') === 'ranger') GameController.arrowBarrageAction()
+      else GameController.divineLightAction()
     },
     () => {
       const s = GameController.getSave()
-      if ((s.selectedCharacter ?? 'warrior') !== 'ranger') return
+      if ((s.selectedCharacter ?? 'warrior') !== 'ranger') {
+        // Warrior: Divine Light info card
+        if (!(s.warrior?.upgrades ?? []).includes('divine-light')) return
+        const dl = GameController.getDivineLightBreakdown()
+        UI.showInfoCard({
+          spriteSrc:   WARRIOR_UPGRADES['divine-light'].iconSrc,
+          spriteSrcBg: WARRIOR_UPGRADES['divine-light'].iconBgSrc,
+          name:   'Divine Light',
+          type:   'Warrior Ability',
+          blurb:  'Channel sacred energy in two ways: smite a revealed enemy with divine force, or touch your portrait to bathe yourself in healing light.',
+          details: [
+            { icon: '🔵', label: 'Mana Cost',  desc: `${WARRIOR_UPGRADES['divine-light'].manaCost} mana per use` },
+            { icon: '⚔️', label: 'Smite',       desc: dl ? `${dl.smite} damage (avg melee ${Number.isInteger(dl.avgMelee) ? dl.avgMelee : dl.avgMelee.toFixed(1)})` : 'Start a run to see damage.' },
+            { icon: '❤️', label: 'Heal',         desc: dl ? `Restores ${dl.heal} HP (10% of ${dl.maxHp} max HP)` : 'Start a run to see heal amount.' },
+            { icon: '🎯', label: 'Targeting',   desc: 'Tap an enemy tile to smite, or tap your hero portrait to heal' },
+          ],
+        })
+        return
+      }
       if (!GameController.isRangerActiveUnlocked('arrow-barrage')) return
       const br = GameController.getArrowBarrageBreakdown()
       const dmgLine = br
@@ -313,9 +373,10 @@ async function boot() {
       document.getElementById('hero-upgrade-backdrop').classList.add('hidden')
       const s        = GameController.getSave()
       const char     = CHARACTERS[_heroIdx]
-      const charSave = char.id === 'ranger' ? s.ranger : s.warrior
+      const charSave = char.comingSoon ? { totalXP: 0, upgrades: [] }
+        : char.id === 'ranger' ? s.ranger : s.warrior
       const grid     = _heroSlideGrid(_heroIdx)
-      _renderHeroUpgradeGrid(grid, char, charSave.upgrades ?? [], charSave.totalXP ?? 0, char.id === 'ranger' && !s.ranger.unlocked)
+      _renderHeroUpgradeGrid(grid, char, charSave.upgrades ?? [], charSave.totalXP ?? 0, !char.comingSoon && char.id === 'ranger' && !s.ranger.unlocked)
     }
   })
 
@@ -394,6 +455,10 @@ async function boot() {
   })
 
   document.getElementById('gold-shop-btn').addEventListener('click', _openShop)
+  document.getElementById('passive-upgrades-btn').addEventListener('click', _openPassiveUpgrades)
+  document.getElementById('passive-upgrades-back').addEventListener('click', () => {
+    document.getElementById('passive-upgrades-overlay').classList.add('hidden')
+  })
   document.getElementById('gold-shop-back').addEventListener('click', () => UI.hideGoldShop())
 
   // Difficulty
@@ -489,6 +554,16 @@ function _ensureHeroSelectSlides() {
         <div class="hero-select-xp-row">XP: <span class="hero-select-xp"></span></div>
       </div>
       <div class="hero-upgrades-grid"></div>
+      <div class="hero-display-row">
+        <div class="hero-display-wrap">
+          <img class="hero-display-gif" src="" alt="">
+          <div class="hero-display-emoji hidden"></div>
+          <div class="hero-locked-overlay hidden">
+            <div class="hero-lock-icon">🔒</div>
+            <div class="hero-lock-label">Locked</div>
+          </div>
+        </div>
+      </div>
       <div class="hero-passive-wrap" hidden>
         <div class="hero-passive-accordion">
           <button type="button" class="hero-passive-accordion-toggle" aria-expanded="false">
@@ -497,16 +572,6 @@ function _ensureHeroSelectSlides() {
           </button>
           <div class="hero-passive-accordion-body">
             <div class="hero-passive-upgrades-grid"></div>
-          </div>
-        </div>
-      </div>
-      <div class="hero-display-row">
-        <div class="hero-display-wrap">
-          <img class="hero-display-gif" src="" alt="">
-          <div class="hero-display-emoji hidden"></div>
-          <div class="hero-locked-overlay hidden">
-            <div class="hero-lock-icon">🔒</div>
-            <div class="hero-lock-label">Locked</div>
           </div>
         </div>
       </div>
@@ -579,15 +644,18 @@ function _renderHeroSelect(opts = {}) {
   CHARACTERS.forEach((char, i) => {
     const slide = scroll?.children[i]
     if (!slide) return
-    const charSave = char.id === 'ranger' ? s.ranger : s.warrior
-    const isLocked = char.id === 'ranger' && !s.ranger.unlocked
-    const xp       = charSave.totalXP ?? 0
-    const owned    = charSave.upgrades ?? []
+    const charSave  = char.comingSoon ? { totalXP: 0, upgrades: [] }
+      : char.id === 'ranger' ? s.ranger : s.warrior
+    const isLocked  = !char.comingSoon && char.id === 'ranger' && !s.ranger.unlocked
+    const xp        = charSave.totalXP ?? 0
+    const owned     = charSave.upgrades ?? []
     const isCurrent = i === _heroIdx
 
     slide.querySelector('.hero-select-name').textContent    = char.name
     slide.querySelector('.hero-select-tagline').textContent = char.tagline
     slide.querySelector('.hero-select-xp').textContent      = String(xp)
+    const xpRow = slide.querySelector('.hero-select-xp-row')
+    if (xpRow) xpRow.style.display = char.comingSoon ? 'none' : ''
 
     const gifEl   = slide.querySelector('.hero-display-gif')
     const emojiEl = slide.querySelector('.hero-display-emoji')
@@ -617,10 +685,14 @@ function _renderHeroSelect(opts = {}) {
   document.getElementById('hero-stat-mana').textContent = char.baseMana
   document.getElementById('hero-stat-dmg').textContent  = char.baseDmg
 
-  const isSelected = s.selectedCharacter === char.id
-  const isLocked   = char.id === 'ranger' && !s.ranger.unlocked
-  const selectBtn  = document.getElementById('hero-select-btn')
-  if (isLocked) {
+  const isSelected    = s.selectedCharacter === char.id
+  const isLocked      = !char.comingSoon && char.id === 'ranger' && !s.ranger.unlocked
+  const selectBtn     = document.getElementById('hero-select-btn')
+  if (char.comingSoon) {
+    selectBtn.textContent  = '🚧 Coming Soon'
+    selectBtn.disabled     = true
+    selectBtn.dataset.mode = 'coming-soon'
+  } else if (isLocked) {
     selectBtn.textContent = `🔓 Unlock (${char.unlockCost}💰)`
     selectBtn.disabled    = s.persistentGold < char.unlockCost
     selectBtn.dataset.mode = 'unlock'
@@ -697,9 +769,26 @@ function _renderHeroUpgradeGrid(grid, char, ownedList, xp, isLocked) {
   const passiveWrap = slide?.querySelector('.hero-passive-wrap')
   const passiveGrid = slide?.querySelector('.hero-passive-upgrades-grid')
 
+  if (char.comingSoon) {
+    const msg = document.createElement('p')
+    msg.className   = 'passive-coming-soon'
+    msg.textContent = 'Abilities & upgrades coming soon…'
+    grid.appendChild(msg)
+    if (passiveWrap) {
+      passiveWrap.hidden = false
+      if (passiveGrid) {
+        passiveGrid.innerHTML = ''
+        const cs = document.createElement('p')
+        cs.className   = 'passive-coming-soon'
+        cs.textContent = 'Coming Soon…'
+        passiveGrid.appendChild(cs)
+      }
+    }
+    return
+  }
+
   for (const [id, def] of Object.entries(char.upgrades)) {
     if (char.id === 'ranger' && id === 'ricochet-arc-mastery') continue
-    if (char.id === 'ranger' && RANGER_PASSIVE_UPGRADE_IDS.includes(id)) continue
 
     if (char.id === 'ranger' && id === 'ricochet') {
       const masDef = RANGER_UPGRADES['ricochet-arc-mastery']
@@ -772,16 +861,26 @@ function _renderHeroUpgradeGrid(grid, char, ownedList, xp, isLocked) {
     _renderHeroUpgradeSimpleSlot(grid, char, id, def, ownedList, xp, isLocked)
   }
 
-  if (char.id === 'ranger' && passiveGrid && passiveWrap) {
+  if (passiveWrap) {
     passiveWrap.hidden = false
-    passiveGrid.innerHTML = ''
-    for (const id of RANGER_PASSIVE_UPGRADE_IDS) {
-      const def = char.upgrades[id]
-      if (!def) continue
-      _renderHeroUpgradeSimpleSlot(passiveGrid, char, id, def, ownedList, xp, isLocked)
+    if (passiveGrid) {
+      passiveGrid.innerHTML = ''
+      if (char.id === 'ranger') {
+        const trapfinderSlot = document.createElement('div')
+        trapfinderSlot.className = 'hero-passive-builtin'
+        trapfinderSlot.innerHTML = `
+          <span class="hero-passive-builtin-icon">🔍</span>
+          <div class="hero-passive-builtin-info">
+            <div class="hero-passive-builtin-name">Trapfinder <span class="hero-passive-builtin-badge">✓ Applied</span></div>
+            <div class="hero-passive-builtin-desc">10% chance on trap damage, fast-tile reveal hits, or fast enemy ambush to reduce that hit by your Trapfinder stack count (starts at rank 1).</div>
+          </div>`
+        passiveGrid.appendChild(trapfinderSlot)
+      }
+      const comingSoon = document.createElement('p')
+      comingSoon.className = 'passive-coming-soon'
+      comingSoon.textContent = 'Coming Soon…'
+      passiveGrid.appendChild(comingSoon)
     }
-  } else if (passiveWrap) {
-    passiveWrap.hidden = true
   }
 
   if (char.id === CHARACTERS[_heroIdx].id) {
@@ -866,6 +965,49 @@ function _updateMenuHeroPreview() {
 }
 
 // ── Gold shop panel ───────────────────────────────────────────
+
+function _openPassiveUpgrades() {
+  const s = GameController.getSave()
+  const overlay = document.getElementById('passive-upgrades-overlay')
+  const goldEl  = document.getElementById('passive-upgrades-gold-val')
+  const list    = document.getElementById('passive-upgrades-list')
+  if (!overlay || !list) return
+
+  goldEl.textContent = s.persistentGold
+  list.innerHTML = ''
+
+  for (const id of GLOBAL_PASSIVE_IDS) {
+    const def = GLOBAL_PASSIVE_UPGRADES[id]
+    if (!def) continue
+    const owned   = (s.globalPassives ?? []).includes(id)
+    const canAfford = !owned && s.persistentGold >= def.goldCost
+
+    const item = document.createElement('div')
+    item.className = `panel-card${owned ? ' owned' : ''}`
+    item.innerHTML = `
+      <span class="panel-card-icon">${def.icon}</span>
+      <div class="panel-card-info">
+        <div class="panel-card-name">${def.name}</div>
+        <div class="panel-card-desc">${def.desc}</div>
+      </div>
+      <div class="panel-card-action">
+        <button class="panel-btn buy gold" ${owned || !canAfford ? 'disabled' : ''}>
+          ${owned ? '✓ Owned' : `💰 ${def.goldCost}`}
+        </button>
+      </div>`
+
+    if (!owned && canAfford) {
+      item.querySelector('.panel-btn').addEventListener('click', () => {
+        MetaProgression.buyGlobalPassive(s, id)
+        SaveManager.save(s)
+        _openPassiveUpgrades()
+      })
+    }
+    list.appendChild(item)
+  }
+
+  overlay.classList.remove('hidden')
+}
 
 function _openShop() {
   const s = GameController.getSave()

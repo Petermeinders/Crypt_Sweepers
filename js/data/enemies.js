@@ -119,6 +119,34 @@ export const ENEMY_DEFS = {
     attributes: ['fast'],
   },
 
+  onion: {
+    hp:         9,
+    dmg:        [1, 1],
+    type:       'plant',
+    behaviour:  'standard',
+    emoji:      '🧅',
+    label:      'Angry Onion',
+    goldDrop:   [2, 3],
+    xpDrop:     5,
+    blurb:      'This furious plant gets meaner as you peel it back. The stench alone brings tears to your eyes — and costs extra mana.',
+    attributes: ['layered', 'teary'],
+    onionLayer: 3,
+  },
+
+  gnome: {
+    hp:         3,
+    dmg:        [1, 1],
+    type:       'humanoid',
+    behaviour:  'standard',
+    emoji:      '🧙',
+    label:      'Gnome',
+    goldDrop:   [2, 3],
+    xpDrop:     4,
+    blurb:      'A stout and stubborn rune-carver. Magic slides right off his enchanted hide — you\'ll have to get your hands dirty.',
+    attributes: ['spell-immune'],
+    spellImmune: true,
+  },
+
   // ── Boss variants (one per boss floor) ────────────────────────
   skeleton_lord: {
     hp:         12,
