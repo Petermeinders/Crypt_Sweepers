@@ -47,21 +47,32 @@ function _rollChestLoot() {
 
 const BACKPACK_MAX_SLOTS = 9
 
-const MAGIC_CHEST_TRINKET_IDS = [
-  'spyglass', 'echo-charm', 'vampire-fang', 'glass-cannon-shard', 'duelists-glove',
-  'surge-pearl', 'still-water-amulet', 'greed-tooth', 'lucky-rabbit-foot', 'cursed-lockpick',
-  'fire-ring', 'mana-ring',
-]
+/** Max gold from a magic-chest gold hit: current dungeon floor, or last cleared floor while in sanctuary (run.floor is not advanced until stairs). */
+function _magicChestGoldFloorCap() {
+  if (!run) return 1
+  return Math.max(1, run.floor)
+}
+
+function _rollMagicChestGoldAmount() {
+  const cap = _magicChestGoldFloorCap()
+  const [gMin, gMax] = CONFIG.chest.goldDrop
+  const upper = Math.min(gMax, cap)
+  const lower = Math.min(gMin, upper)
+  return _rand(lower, upper)
+}
 
 function _rollMagicChestLoot() {
   let r = Math.random()
   let acc = 0
-  if (r < (acc += 0.05)) return { type: 'hourglass-sand' }
-  for (const id of MAGIC_CHEST_TRINKET_IDS) {
-    if (r < (acc += 0.05)) return { type: id }
+  if (r < (acc += 0.01)) return { type: 'hourglass-sand' }
+  if (r < (acc += 0.02)) {
+    const pool = CHEST_RARE_TRINKET_IDS
+    return { type: pool[Math.floor(Math.random() * pool.length)] }
   }
+  if (r < (acc += 0.10)) return { type: 'lantern' }
   if (r < (acc += 0.05)) return { type: 'smiths-tools' }
-  if (r < (acc += 0.15)) return { type: 'potion-red' }
+  if (r < (acc += 0.18)) return { type: 'gold' }
+  if (r < (acc += 0.32)) return { type: 'potion-red' }
   return { type: 'potion-blue' }
 }
 
@@ -2652,6 +2663,20 @@ function _openMagicChest(tile) {
   }
   const loot = tile.pendingLoot ?? _rollMagicChestLoot()
   const item = ITEMS[loot.type]
+  if (loot.type === 'gold') {
+    const amt = loot.amount ?? _rollMagicChestGoldAmount()
+    run.player.goldenKeys--
+    UI.updateGoldenKeys(run.player.goldenKeys)
+    _syncMagicChestKeyGlow()
+    tile.pendingLoot = null
+    run.player.gold += amt
+    UI.updateGold(run.player.gold)
+    EventBus.emit('player:goldChange', { amount: amt, newTotal: run.player.gold })
+    EventBus.emit('audio:play', { sfx: 'chest' })
+    _animateMagicChestOpenClose(tile, `+${amt}🪙`)
+    UI.setMessage(`The Magic Chest spills ${amt} gold! (${run.player.goldenKeys} keys left)`)
+    return
+  }
   // Smiths-tools: always apply instantly, no slot needed
   if (loot.type === 'smiths-tools') {
     run.player.goldenKeys--
