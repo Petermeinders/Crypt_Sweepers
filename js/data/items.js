@@ -8,6 +8,7 @@ export const ITEMS = {
     spriteSrc: 'assets/sprites/Items/potionBlue.png',
     rarity:    'common',
     stackable: true,
+    maxStack:  5,
     blurb:     'A vial of concentrated arcane essence. The liquid hums faintly against your fingers. Restores focus and magical reserves.',
     details: [
       { icon: '🔵', label: 'Restore',   desc: 'Restores 20 mana when used'      },
@@ -22,6 +23,7 @@ export const ITEMS = {
     spriteSrc: 'assets/sprites/Items/potionRed.png',
     rarity:    'common',
     stackable: true,
+    maxStack:  5,
     blurb:     'A small vial of crimson restorative. Smells of iron and elderberries. Drink it when the shadows close in.',
     details: [
       { icon: '❤️', label: 'Restore',  desc: 'Heals 5 HP when used'         },
@@ -64,7 +66,8 @@ export const ITEMS = {
     icon:      '🏮',
     spriteSrc: 'assets/sprites/Items/lantern.png',
     rarity:    'common',
-    stackable: false,
+    stackable: true,
+    maxStack:  3,
     blurb:     'A dim glow that cuts through dungeon dark. Once lit, you can see what hides behind any single tile — but it only burns once.',
     details: [
       { icon: '🏮', label: 'Use',     desc: 'Activate, then tap any unrevealed tile to reveal it for free' },
@@ -633,5 +636,183 @@ export const ITEMS = {
       { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
     ],
     effect: { type: 'passive-philosophers-coin' },
+  },
+
+  // ── New common ───────────────────────────────────────────────
+
+  "scavengers-bag": {
+    name:      "Scavenger's Bag",
+    rarity:    'common',
+    icon:      '🎒',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'A well-worn satchel with many pockets. The dungeon gives up more than it seems.',
+    details: [
+      { icon: '🪙', label: 'Passive', desc: '5% chance each empty tile reveals 1 bonus gold' },
+      { icon: '🎲', label: 'Common',  desc: 'Can appear in chests' },
+    ],
+    effect: { type: 'passive-scavengers-bag' },
+  },
+
+  // ── New rare ─────────────────────────────────────────────────
+
+  'spiked-collar': {
+    name:      'Spiked Collar',
+    rarity:    'rare',
+    icon:      '⛓️',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'Forged for something bigger than you. It bites back — but so do you.',
+    details: [
+      { icon: '⚔️', label: 'Passive', desc: '+3 melee damage' },
+      { icon: '💔', label: 'Cost',    desc: 'Deal 1 damage to yourself on every melee attack' },
+      { icon: '🎲', label: 'Rare',    desc: '2% chance from chests' },
+    ],
+    effect: { type: 'passive-spiked-collar' },
+  },
+
+  'eagle-eye': {
+    name:      'Eagle Eye',
+    rarity:    'rare',
+    icon:      '🦅',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'After a kill, you spot a gap in the dungeon\'s pattern. One free move, anywhere.',
+    details: [
+      { icon: '🦅', label: 'Passive', desc: 'After killing an enemy, your next tile flip ignores adjacency — reach anywhere on the grid' },
+      { icon: '🎲', label: 'Rare',    desc: '2% chance from chests' },
+    ],
+    effect: { type: 'passive-eagle-eye' },
+  },
+
+  'mending-moss': {
+    name:      'Mending Moss',
+    rarity:    'rare',
+    icon:      '🌿',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'Damp and faintly warm. Press it to a wound between floors and let nature work.',
+    details: [
+      { icon: '❤️', label: 'Passive', desc: 'Restore 3 HP at the start of each new floor' },
+      { icon: '🎲', label: 'Rare',    desc: '2% chance from chests' },
+    ],
+    effect: { type: 'passive-mending-moss' },
+  },
+
+  'hollowed-acorn': {
+    name:      'Hollowed Acorn',
+    rarity:    'rare',
+    icon:      '🌰',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'Carved into a vessel for arcane energy. Holds more — but the flow is sluggish.',
+    details: [
+      { icon: '🔵', label: 'Passive', desc: '+10 max mana' },
+      { icon: '💔', label: 'Cost',    desc: 'Mana potions restore half their usual amount' },
+      { icon: '🎲', label: 'Rare',    desc: '2% chance from chests' },
+    ],
+    effect: { type: 'passive-hollowed-acorn' },
+  },
+
+  'plague-rat-skull': {
+    name:      'Plague Rat Skull',
+    rarity:    'rare',
+    icon:      '🐀',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'Still festers with something ancient. Your afflictions spread faster and bite harder.',
+    details: [
+      { icon: '☠️', label: 'Passive', desc: 'All damage-over-time effects (poison, burn) deal +1 damage per tick' },
+      { icon: '🎲', label: 'Rare',    desc: 'Magic chest only' },
+    ],
+    effect: { type: 'passive-plague-rat-skull' },
+  },
+
+  // ── New legendary ─────────────────────────────────────────────
+
+  'paupers-crown': {
+    name:      "Pauper's Crown",
+    rarity:    'legendary',
+    icon:      '👑',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'A crown of thorns and tin. Your gold is your life — literally.',
+    details: [
+      { icon: '🪙', label: 'Passive',   desc: 'All damage you take drains gold first instead of HP' },
+      { icon: '💔', label: 'Cost',      desc: 'When gold runs out, damage hits HP as normal' },
+      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+    ],
+    effect: { type: 'passive-paupers-crown' },
+  },
+
+  'soulbound-blade': {
+    name:      'Soulbound Blade',
+    rarity:    'legendary',
+    icon:      '⚔️',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'It grows with each life it takes. The dungeon is its whetstone.',
+    details: [
+      { icon: '⚔️', label: 'Passive',   desc: 'Each enemy killed permanently adds +0.1 to your base damage this run' },
+      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+    ],
+    effect: { type: 'passive-soulbound-blade' },
+  },
+
+  'twin-fates': {
+    name:      'Twin Fates',
+    rarity:    'legendary',
+    icon:      '🎴',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'Fortune and ruin walk side by side. Each floor is a coin flip.',
+    details: [
+      { icon: '🎴', label: 'Passive',   desc: 'At the start of each floor: 50% chance +4 max HP, 50% chance −2 max HP. Compounding.' },
+      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+    ],
+    effect: { type: 'passive-twin-fates' },
+  },
+
+  'abyssal-lens': {
+    name:      'Abyssal Lens',
+    rarity:    'legendary',
+    icon:      '🔍',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'It sees everything. The dungeon notices.',
+    details: [
+      { icon: '🔍', label: 'Passive',   desc: 'All tile types are visible before you reveal them' },
+      { icon: '⚡', label: 'Cost',      desc: 'Every tile reveal also randomly reveals one other tile. Revealed enemies deal 1 ambush damage; fast enemies deal +1 more' },
+      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+    ],
+    effect: { type: 'passive-abyssal-lens' },
+  },
+
+  'resurrection-stone': {
+    name:      'Resurrection Stone',
+    rarity:    'legendary',
+    icon:      '💎',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'It pulses faintly in your palm. Once. Then never again.',
+    details: [
+      { icon: '💎', label: 'Passive',   desc: 'When you would die, survive with half your max HP restored. One time only — the stone then crumbles.' },
+      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+    ],
+    effect: { type: 'passive-resurrection-stone' },
+  },
+
+  'wardens-brand': {
+    name:      "Warden's Brand",
+    rarity:    'legendary',
+    icon:      '🛡️',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'Burned into the skin of dungeon wardens. Nothing catches you off guard.',
+    details: [
+      { icon: '🛡️', label: 'Passive',   desc: 'You are never ambushed — enemies deal no damage when first revealed, regardless of type' },
+      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+    ],
+    effect: { type: 'passive-wardens-brand' },
   },
 }

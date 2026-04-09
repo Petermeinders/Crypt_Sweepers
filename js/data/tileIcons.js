@@ -15,7 +15,8 @@ export const TILE_TYPE_ICON_FILES = {
   trap:       null,           // cobweb emoji (tiles.js)
   heart:      'heart.png',    // heart container tile
   shrine:     null,           // removed — kept for safety
-  merchant:   null,           // no matching sprite — use emoji
+  event:      null,           // question mark emoji
+  blockage:   '../tiles/rubble.png',
   checkpoint: null,           // no matching sprite — use emoji
   exit:       'stairs-down.png', // stairs art (tiles.js: no door emoji)
   well:       null,

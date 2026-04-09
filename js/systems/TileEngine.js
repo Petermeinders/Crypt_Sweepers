@@ -500,4 +500,5 @@ export default {
   formatEnemyDamageDisplay,
   rollEnemyHitDamage,
   refreshEnemyDamageOnTile,
+  getOrthogonalTiles,
 }

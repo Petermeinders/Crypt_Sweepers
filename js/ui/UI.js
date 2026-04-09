@@ -101,7 +101,10 @@ const UI = {
     el.shopGoldVal        = document.getElementById('shop-gold-val')
     el.shopCartInfo       = document.getElementById('shop-cart-info')
     el.shopList           = document.getElementById('shop-list')
-    el.merchantOverlay    = document.getElementById('merchant-overlay')
+    el.merchantShopOverlay  = document.getElementById('merchant-shop-overlay')
+    el.gamblerOverlay       = document.getElementById('gambler-overlay')
+    el.tripleChestOverlay   = document.getElementById('triple-chest-overlay')
+    el.storyEventOverlay    = document.getElementById('story-event-overlay')
     el.infoCardOverlay    = document.getElementById('info-card-overlay')
     el.infoCard           = document.getElementById('info-card')
     el.bestiaryOverlay         = document.getElementById('bestiary-overlay')
@@ -635,11 +638,15 @@ const UI = {
    * Fade the tile grid out, run `mid` (rebuild floor), fade in. Total time = totalMs (half out / half in).
    * If `floorNumber` is set, show a large "Floor N" banner over the grid during fade-in, then fade it out quickly.
    */
-  runFloorTransition(totalMs, mid, floorNumber) {
+  runFloorTransition(_totalMs, mid, floorNumber) {
     const grid = el.grid
     const wrap = document.getElementById('grid-container')
     const banner = el.floorBanner
     const bannerText = el.floorBannerText
+
+    const SLIDE_OUT_MS = 380
+    const PAUSE_MS     = 160
+    const SLIDE_IN_MS  = 420
     const BANNER_OUT_MS = 340
 
     const hideFloorBanner = () => new Promise(rBanner => {
@@ -667,42 +674,50 @@ const UI = {
       mid()
       return Promise.resolve()
     }
-    const half = Math.max(0, totalMs / 2)
+
     wrap?.classList.add('floor-transition-active')
+    wrap?.classList.add('floor-transition-clipped')
     grid.style.pointerEvents = 'none'
-    grid.style.transition = `opacity ${half}ms ease`
-    requestAnimationFrame(() => {
-      grid.style.opacity = '0'
-    })
+
+    // Slide current grid upward and out
+    grid.style.transition = `transform ${SLIDE_OUT_MS}ms cubic-bezier(0.4, 0, 1, 1)`
+    grid.style.transform   = 'rotateX(4deg) translateY(-115%)'
+
     return new Promise(resolve => {
       setTimeout(() => {
+        // Show floor banner
+        if (floorNumber != null && banner && bannerText) {
+          bannerText.textContent = `Floor ${floorNumber}`
+          banner.classList.remove('hidden')
+          banner.setAttribute('aria-hidden', 'false')
+          requestAnimationFrame(() => banner.classList.add('is-visible'))
+        }
+
+        // Build new floor while grid is offscreen
         mid()
+
+        // Snap new grid to below the viewport
         grid.style.transition = 'none'
-        grid.style.opacity = '0'
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            if (floorNumber != null && banner && bannerText) {
-              bannerText.textContent = `Floor ${floorNumber}`
-              banner.classList.remove('hidden')
-              banner.setAttribute('aria-hidden', 'false')
-              requestAnimationFrame(() => {
-                banner.classList.add('is-visible')
-              })
-            }
-            grid.style.transition = `opacity ${half}ms ease`
-            grid.style.opacity = '1'
-            setTimeout(() => {
-              grid.style.transition = ''
-              grid.style.opacity = ''
-              grid.style.pointerEvents = ''
-              hideFloorBanner().then(() => {
-                wrap?.classList.remove('floor-transition-active')
-                resolve()
-              })
-            }, half)
-          })
-        })
-      }, half)
+        grid.style.transform  = 'rotateX(4deg) translateY(115%)'
+
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          // Slide new grid up into place
+          grid.style.transition = `transform ${SLIDE_IN_MS}ms cubic-bezier(0, 0, 0.3, 1)`
+          grid.style.transform  = 'rotateX(4deg) translateY(0)'
+
+          setTimeout(() => {
+            // Restore defaults — CSS rule takes over rotateX again
+            grid.style.transition   = ''
+            grid.style.transform    = ''
+            grid.style.pointerEvents = ''
+            wrap?.classList.remove('floor-transition-clipped')
+            hideFloorBanner().then(() => {
+              wrap?.classList.remove('floor-transition-active')
+              resolve()
+            })
+          }, SLIDE_IN_MS)
+        }))
+      }, SLIDE_OUT_MS + PAUSE_MS)
     })
   },
 
@@ -1332,66 +1347,123 @@ const UI = {
     document.body.classList.remove('bestiary-detail-open')
   },
 
-  // ── Merchant overlay ──────────────────────────
+  // ── Event overlays ────────────────────────────
 
-  showMerchant(playerGold, cost, onRoll, onDismiss) {
-    if (!el.merchantOverlay) return
-    const canAfford = playerGold >= cost
-    const resEl = el.merchantOverlay.querySelector('#merchant-result')
-    if (resEl) {
-      resEl.innerHTML = ''
-      resEl.classList.add('hidden')
-    }
-    el.merchantOverlay.classList.remove('hidden')
-    const rollBtn = el.merchantOverlay.querySelector('#merchant-roll-btn')
-    rollBtn.disabled = !canAfford
-    rollBtn.onclick = onRoll
-    rollBtn.classList.remove('hidden')
-    el.merchantOverlay.querySelector('#merchant-cost').textContent = cost
-    const closeBtn = el.merchantOverlay.querySelector('#merchant-close-btn')
-    if (closeBtn) {
-      closeBtn.classList.remove('hidden')
-      closeBtn.onclick = onDismiss
-    }
+  hideEventOverlays() {
+    ;[el.merchantShopOverlay, el.gamblerOverlay, el.tripleChestOverlay, el.storyEventOverlay]
+      .forEach(o => o?.classList.add('hidden'))
   },
 
-  showMerchantResult(result, onClose) {
-    if (!el.merchantOverlay) return
-    const resEl = el.merchantOverlay.querySelector('#merchant-result')
-    if (resEl) {
-      resEl.innerHTML = `
-        <div class="merchant-roll-num">🎲 ${result.roll}</div>
-        <div class="merchant-outcome-icon">${result.icon}</div>
-        <div class="merchant-outcome-label">${result.label}</div>
-      `
-      resEl.classList.remove('hidden')
+  // Merchant shop
+  showMerchantShop(playerGold, items, onBuy, onLeave) {
+    const ov = el.merchantShopOverlay
+    if (!ov) return
+    const goldEl = ov.querySelector('#merchant-shop-gold')
+    if (goldEl) goldEl.textContent = playerGold
+    const list = ov.querySelector('#merchant-shop-list')
+    if (list) {
+      list.innerHTML = items.map(item => `
+        <div class="merchant-shop-item" data-id="${item.id}">
+          <div class="merchant-shop-item-name">${item.label}</div>
+          <button class="menu-btn secondary merchant-buy-btn" data-id="${item.id}" ${playerGold < item.price ? 'disabled' : ''}>
+            Buy — ${item.price}🪙
+          </button>
+        </div>
+      `).join('')
+      list.querySelectorAll('.merchant-buy-btn').forEach(btn => {
+        btn.onclick = () => onBuy(btn.dataset.id)
+      })
     }
-    const closeBtn = el.merchantOverlay.querySelector('#merchant-close-btn')
-    if (closeBtn) {
-      closeBtn.classList.remove('hidden')
-      closeBtn.onclick = onClose
-    }
-    const rollBtn = el.merchantOverlay.querySelector('#merchant-roll-btn')
-    if (rollBtn) rollBtn.classList.add('hidden')
+    ov.querySelector('#merchant-shop-leave')?.addEventListener('click', onLeave, { once: true })
+    ov.classList.remove('hidden')
   },
 
-  hideMerchant() {
-    if (!el.merchantOverlay) return
-    el.merchantOverlay.classList.add('hidden')
-    const resEl = el.merchantOverlay.querySelector('#merchant-result')
-    if (resEl) {
-      resEl.classList.add('hidden')
-      resEl.innerHTML = ''
+  refreshMerchantShopGold(gold) {
+    const ov = el.merchantShopOverlay
+    if (!ov) return
+    const goldEl = ov.querySelector('#merchant-shop-gold')
+    if (goldEl) goldEl.textContent = gold
+    ov.querySelectorAll('.merchant-buy-btn').forEach(btn => {
+      const price = parseInt(btn.textContent.match(/\d+/)?.[0] ?? '0')
+      btn.disabled = gold < price
+    })
+  },
+
+  // Gambler (stub)
+  showGamblerEvent(onClose) {
+    const ov = el.gamblerOverlay
+    if (!ov) return
+    ov.querySelector('#gambler-close')?.addEventListener('click', onClose, { once: true })
+    ov.classList.remove('hidden')
+  },
+
+  // Triple chest
+  showTripleChestEvent(chests, onPick, onLeave) {
+    const ov = el.tripleChestOverlay
+    if (!ov) return
+    const list = ov.querySelector('#triple-chest-list')
+    if (list) {
+      list.innerHTML = chests.map((_, i) => `
+        <button class="triple-chest-btn menu-btn primary" data-idx="${i}">
+          <img src="assets/sprites/Items/chest-closed.png" class="triple-chest-img" alt="Chest">
+        </button>
+      `).join('')
+      list.querySelectorAll('.triple-chest-btn').forEach(btn => {
+        btn.onclick = () => {
+          ov.classList.add('hidden')
+          onPick(parseInt(btn.dataset.idx))
+        }
+      })
     }
-    const closeBtn = el.merchantOverlay.querySelector('#merchant-close-btn')
-    if (closeBtn) {
-      closeBtn.classList.add('hidden')
-      closeBtn.onclick = null
+    ov.querySelector('#triple-chest-leave')?.addEventListener('click', onLeave, { once: true })
+    ov.classList.remove('hidden')
+  },
+
+  // Story event
+  showStoryEvent(scenario, onChoice) {
+    const ov = el.storyEventOverlay
+    if (!ov) return
+    const titleEl = ov.querySelector('#story-event-title')
+    const textEl  = ov.querySelector('#story-event-text')
+    const choicesEl = ov.querySelector('#story-event-choices')
+    if (titleEl)   titleEl.textContent   = scenario.title
+    if (textEl)    textEl.textContent    = scenario.text
+    if (choicesEl) {
+      choicesEl.innerHTML = scenario.choices.map((c, i) => `
+        <button class="menu-btn secondary story-choice-btn" data-idx="${i}">${c.label}</button>
+      `).join('')
+      choicesEl.querySelectorAll('.story-choice-btn').forEach(btn => {
+        btn.onclick = () => {
+          const choiceIdx = parseInt(btn.dataset.idx)
+          const outcomes  = scenario.choices[choiceIdx].outcomes
+          const roll      = Math.random() * 100
+          let cumulative  = 0
+          let outcomeIdx  = outcomes.length - 1
+          for (let i = 0; i < outcomes.length; i++) {
+            cumulative += outcomes[i].weight
+            if (roll < cumulative) { outcomeIdx = i; break }
+          }
+          choicesEl.innerHTML = ''
+          onChoice(choiceIdx, outcomeIdx)
+        }
+      })
     }
-    const rollBtn = el.merchantOverlay.querySelector('#merchant-roll-btn')
-    if (rollBtn) {
-      rollBtn.classList.remove('hidden')
-      rollBtn.onclick = null
+    ov.classList.remove('hidden')
+  },
+
+  showStoryOutcome(text, onContinue) {
+    const ov = el.storyEventOverlay
+    if (!ov) return
+    const textEl    = ov.querySelector('#story-event-text')
+    const continueEl = ov.querySelector('#story-event-continue')
+    if (textEl)    textEl.textContent = text
+    if (continueEl) {
+      continueEl.classList.remove('hidden')
+      continueEl.onclick = () => {
+        continueEl.classList.add('hidden')
+        ov.classList.add('hidden')
+        onContinue()
+      }
     }
   },
 }

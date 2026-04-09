@@ -13,29 +13,34 @@ import { WARRIOR_UPGRADES }  from '../data/upgrades.js'
 import { ENEMY_SPRITES, MONSTER_ICONS_BASE, ITEM_ICONS_BASE, TILE_TYPE_ICON_FILES, MAGIC_CHEST_OPEN_GIF, MAGIC_CHEST_GIF_DURATION_MS } from '../data/tileIcons.js'
 import { TILE_BLURBS }       from '../data/tileBlurbs.js'
 import { ITEMS }             from '../data/items.js'
+import { STORY_EVENTS, MERCHANT_ITEMS, rollEventType } from '../data/events.js'
 import Bestiary              from '../systems/Bestiary.js'
 
 // ── Loot pools by rarity ─────────────────────────────────────
 
 const COMMON_LOOT_IDS = [
-  'potion-red', 'potion-blue', 'lantern', 'smiths-tools', 'spyglass',
+  'potion-red', 'potion-blue', 'lantern', 'smiths-tools', 'spyglass', 'scavengers-bag',
 ]
 
 const RARE_TRINKET_IDS = [
   'fire-ring', 'mana-ring', 'echo-charm', 'vampire-fang', 'glass-cannon-shard',
   'duelists-glove', 'surge-pearl', 'still-water-amulet', 'greed-tooth',
   'lucky-rabbit-foot', 'cursed-lockpick',
+  'spiked-collar', 'eagle-eye', 'mending-moss', 'hollowed-acorn',
 ]
 
 // Rare trinkets available only from the magic chest
 const MAGIC_CHEST_EXCLUSIVE_IDS = [
   'thorn-wrap', 'misers-pouch', 'cracked-compass', 'plague-mask', 'soul-candle',
   'blood-pact', 'bone-dice', 'hunger-stone', 'gamblers-mark', 'witching-stone',
+  'plague-rat-skull',
 ]
 
 const LEGENDARY_TRINKET_IDS = [
   'hourglass-sand', 'forsaken-idol', 'stormcallers-fist', 'mirror-of-vanity',
   'deathmask', 'traded-codex', 'philosophers-coin',
+  'paupers-crown', 'soulbound-blade', 'twin-fates', 'abyssal-lens',
+  'resurrection-stone', 'wardens-brand',
 ]
 
 function _pickRandom(pool) { return pool[Math.floor(Math.random() * pool.length)] }
@@ -125,7 +130,7 @@ function _serializeHourglassSnapshot() {
       magicChestReady: t.magicChestReady,
       pendingLoot: t.pendingLoot ? JSON.parse(JSON.stringify(t.pendingLoot)) : null,
       exitResolved: t.exitResolved,
-      merchantResolved: t.merchantResolved,
+      eventResolved: t.eventResolved,
       ropeResolved: t.ropeResolved,
       echoHintCategory: t.echoHintCategory ?? null,
     })),
@@ -133,7 +138,7 @@ function _serializeHourglassSnapshot() {
   return {
     tilesRevealed: run.tilesRevealed,
     player: JSON.parse(JSON.stringify(run.player)),
-    merchantTile: run.merchantTile ? { row: run.merchantTile.row, col: run.merchantTile.col } : null,
+    eventTile: run.eventTile ? { row: run.eventTile.row, col: run.eventTile.col } : null,
     bossFloorExitPending: run.bossFloorExitPending,
     tiles,
   }
@@ -145,8 +150,8 @@ function _restoreHourglassSnapshot(snap) {
   run.player = JSON.parse(JSON.stringify(snap.player))
   run.tilesRevealed = snap.tilesRevealed
   run.bossFloorExitPending = snap.bossFloorExitPending
-  run.merchantTile = snap.merchantTile
-    ? TileEngine.getTile(snap.merchantTile.row, snap.merchantTile.col)
+  run.eventTile = snap.eventTile
+    ? TileEngine.getTile(snap.eventTile.row, snap.eventTile.col)
     : null
 
   for (let r = 0; r < grid.length; r++) {
@@ -166,7 +171,7 @@ function _restoreHourglassSnapshot(snap) {
       t.magicChestReady = st.magicChestReady
       t.pendingLoot = st.pendingLoot ? JSON.parse(JSON.stringify(st.pendingLoot)) : null
       t.exitResolved = st.exitResolved
-      t.merchantResolved = st.merchantResolved
+      t.eventResolved = st.eventResolved
       t.ropeResolved = st.ropeResolved
       t.echoHintCategory = st.echoHintCategory ?? null
       t.element = el
@@ -185,8 +190,8 @@ function _restoreHourglassSnapshot(snap) {
   for (const row of grid) {
     for (const t of row) {
       if (!t.element) continue
-      if (t.type === 'merchant') {
-        t.element.classList.toggle('merchant-pending', !t.merchantResolved)
+      if (t.type === 'event') {
+        t.element.classList.toggle('event-pending', !t.eventResolved)
       }
       if (t.type === 'chest') {
         t.element.classList.toggle('chest-ready', !!(t.chestReady && !t.chestLooted))
@@ -218,7 +223,7 @@ function _echoCharmCategoryForTileType(type) {
   if (type === 'enemy' || type === 'enemy_fast' || type === 'boss') return '⚔️'
   if (type === 'trap') return '🕸️'
   if (type === 'gold' || type === 'chest' || type === 'heart') return '🪙'
-  if (type === 'merchant' || type === 'checkpoint') return '✨'
+  if (type === 'event' || type === 'checkpoint') return '✨'
   if (type === 'exit') return '🚪'
   if (type === 'empty') return '·'
   return '❓'
@@ -228,7 +233,7 @@ function _spyglassHintLabel(type) {
   if (type === 'enemy' || type === 'enemy_fast' || type === 'boss') return '⚔️ Foe'
   if (type === 'trap') return '🕸️ Snare'
   if (type === 'gold' || type === 'chest' || type === 'heart') return '🪙 Loot'
-  if (type === 'merchant' || type === 'checkpoint') return '✨ Special'
+  if (type === 'event' || type === 'checkpoint') return '✨ Special'
   if (type === 'exit') return '🚪 Way'
   if (type === 'empty') return '· Quiet'
   if (type === 'well' || type === 'anvil' || type === 'rope') return '🏕️ Rest'
@@ -334,6 +339,9 @@ function buildRunState() {
     regenPerTurn:       0,    // Bandage Roll HOT amount per turn
     shieldShard:        false, // Shield Shard: absorb next hit
     whettsoneHits:      0,    // Whetstone: bonus hits remaining
+    eagleEyeFreeFlip:   false, // Eagle Eye: next flip ignores adjacency
+    soulboundBonus:     0,    // Soulbound Blade: accumulated kill bonus (float)
+    resurrectionUsed:   false, // Resurrection Stone: one-time death prevention
   }
 
   MetaProgression.applyToPlayer(p, _save)
@@ -343,7 +351,7 @@ function buildRunState() {
     floor:            1,
     tilesRevealed:    0,
     activeCombatTile: null,
-    merchantTile:     null,
+    eventTile:        null,
     /** Between boss and next dungeon — 3×3 sanctuary */
     atRest:           false,
     /** After boss dies, stairs appear; first tap goes to sanctuary */
@@ -404,7 +412,7 @@ function resumeRun() {
     floorKeyAwarded:      saved.floorKeyAwarded ?? false,
     tilesRevealed:        0,
     activeCombatTile:     null,
-    merchantTile:         null,
+    eventTile:            null,
     bossFloorExitPending: false,
   }
   UI.hideMainMenu()
@@ -499,6 +507,34 @@ function _startFloor() {
       }
     }
   }
+  // Mending Moss: restore 3 HP at start of each new floor (skip floor 1 and sanctuary)
+  if (!run.atRest && run.floor > 1 && run.player.inventory.some(e => e.id === 'mending-moss')) {
+    run.player.hp = Math.min(run.player.maxHp, run.player.hp + 3)
+  }
+  // Twin Fates: coin flip each floor (skip floor 1 and sanctuary)
+  if (!run.atRest && run.floor > 1 && run.player.inventory.some(e => e.id === 'twin-fates')) {
+    if (Math.random() < 0.5) {
+      run.player.maxHp += 4
+      run.player.hp    += 4
+    } else {
+      run.player.maxHp = Math.max(1, run.player.maxHp - 2)
+      run.player.hp    = Math.min(run.player.hp, run.player.maxHp)
+    }
+  }
+  // Abyssal Lens: hint all tile categories on the back of unrevealed tiles
+  if (!run.atRest && run.player.inventory.some(e => e.id === 'abyssal-lens')) {
+    const grid = TileEngine.getGrid()
+    for (const row of grid) {
+      for (const t of row) {
+        if (!t.revealed && t.element) {
+          const cat = _echoCharmCategoryForTileType(t.type)
+          t.echoHintCategory = cat
+          t.element.classList.add('echo-hint')
+          t.element.dataset.echoHint = cat
+        }
+      }
+    }
+  }
 
   GameState.set(States.FLOOR_EXPLORE)
   UI.updateFloor(run.floor, { rest: run.atRest })
@@ -537,7 +573,7 @@ function _startFloor() {
   document.getElementById('retreat-confirm')?.classList.add('hidden')
   UI.showRetreat()
   UI.hideRunSummary()
-  UI.hideMerchant()
+  UI.hideEventOverlays()
 
   const isBoss = CONFIG.bossFloors.includes(run.floor) && !run.atRest
   UI.setMessage(run.atRest
@@ -841,6 +877,12 @@ function onTileTap(row, col) {
   }
 
   if (state === States.FLOOR_EXPLORE) {
+    // Eagle Eye: one free flip to any unrevealed unlocked tile after a kill
+    if (!tile.revealed && !tile.locked && run.player.eagleEyeFreeFlip) {
+      run.player.eagleEyeFreeFlip = false
+      revealTile(tile)
+      return
+    }
     if (!tile.revealed && !tile.locked && tile.reachable) {
       revealTile(tile)
     } else if (tile.revealed && tile.type === 'chest' && tile.chestReady && !tile.chestLooted) {
@@ -851,8 +893,8 @@ function onTileTap(row, col) {
       _confirmExit(tile)
     } else if (tile.revealed && tile.type === 'rope' && !tile.ropeResolved) {
       _confirmRope(tile)
-    } else if (tile.revealed && tile.type === 'merchant' && !tile.merchantResolved) {
-      openMerchant(tile)
+    } else if (tile.revealed && tile.type === 'event' && !tile.eventResolved) {
+      _openEvent(tile)
     } else if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
       if (!_combatBusy) fightAction(tile)
     }
@@ -936,7 +978,8 @@ function _tickPoisonArrowDotOnGlobalTurn() {
   }
   const grid = TileEngine.getGrid()
   if (!grid) return
-  const pDmg = _scaleOutgoingDamageToEnemy(_poisonArrowUnitDamage())
+  const plagueBonus = run.player.inventory?.some(e => e.id === 'plague-rat-skull') ? 1 : 0
+  const pDmg = _scaleOutgoingDamageToEnemy(_poisonArrowUnitDamage()) + plagueBonus
   for (const row of grid) {
     for (const tile of row) {
       if (!tile.revealed || !tile.enemyData || tile.enemyData._slain) continue
@@ -993,7 +1036,6 @@ async function revealTile(tile) {
   UI.setPortraitAnim('idle')
   _gainXP(CONFIG.xp.perTileReveal, tile.element)
   EventBus.emit('tile:revealed', { tile })
-  TileEngine.markReachable(tile.row, tile.col, UI.markTileReachable.bind(UI))
   // Deathmask: instant kill on first enemy reveal after a proc
   if (tile.enemyData && !tile.enemyData._slain && run.player.deathmaskPending) {
     run.player.deathmaskPending = false
@@ -1006,6 +1048,26 @@ async function revealTile(tile) {
   }
   await _maybeBestiaryDiscovery(tile)
   _resolveEffect(tile)
+  // Blockage tiles do not extend reachability — player must path around them
+  if (tile.type !== 'blockage') {
+    TileEngine.markReachable(tile.row, tile.col, UI.markTileReachable.bind(UI))
+  }
+  // Abyssal Lens: randomly reveal one additional tile per flip (non-recursive)
+  if (!tile._lensReveal && run.player.inventory.some(e => e.id === 'abyssal-lens')) {
+    const grid = TileEngine.getGrid()
+    const candidates = []
+    for (const row of grid) {
+      for (const t of row) {
+        if (!t.revealed && !t.locked && t !== tile) candidates.push(t)
+      }
+    }
+    if (candidates.length > 0) {
+      const extra = candidates[Math.floor(Math.random() * candidates.length)]
+      extra._lensReveal = true
+      await revealTile(extra)
+      delete extra._lensReveal
+    }
+  }
   _tickPoisonArrowDotOnGlobalTurn()
 }
 
@@ -1096,7 +1158,12 @@ function _resolveEffect(tile) {
   switch (tile.type) {
 
     case 'empty':
-      UI.setMessage('Dust, silence, and the distant drip of water.')
+      if (run.player.inventory.some(e => e.id === 'scavengers-bag') && Math.random() < 0.05) {
+        _gainGold(1, tile.element)
+        UI.setMessage("Your scavenger's bag catches a glint — +1 gold!")
+      } else {
+        UI.setMessage('Dust, silence, and the distant drip of water.')
+      }
       UI.showRetreat()
       break
 
@@ -1225,20 +1292,26 @@ function _resolveEffect(tile) {
       break
     }
 
-    case 'merchant':
-      tile.merchantResolved = false
-      run.merchantTile = tile
-      if (tile.element) tile.element.classList.add('merchant-pending')
-      UI.setMessage('A goblin merchant haggles in the shadows. Tap the tile to trade — or walk on by.')
+    case 'blockage':
+      UI.setMessage('A pile of rubble blocks the way. Find another path.')
+      break
+
+    case 'event':
+      tile.eventResolved = false
+      run.eventTile = tile
+      if (tile.element) tile.element.classList.add('event-pending')
+      UI.setMessage('Something stirs in the shadows. Tap to investigate.')
       UI.showRetreat()
       break
 
     case 'boss':
     case 'enemy_fast': {
       const { dmg } = CombatResolver.resolveFastReveal(tile.enemyData)
-      const reflexDodge = !tile.enemyData?.isBoss && (p.reflexDodgeChance ?? 0) > 0 && Math.random() < p.reflexDodgeChance
-      if (!reflexDodge) {
-        const r = _applyRangerTrapfinderMitigation(dmg, p)
+      const wardensBlock  = p.inventory.some(e => e.id === 'wardens-brand')
+      const reflexDodge   = !wardensBlock && !tile.enemyData?.isBoss && (p.reflexDodgeChance ?? 0) > 0 && Math.random() < p.reflexDodgeChance
+      if (!wardensBlock && !reflexDodge) {
+        const baseDmg = dmg + (p.inventory.some(e => e.id === 'abyssal-lens') ? 1 : 0)
+        const r = _applyRangerTrapfinderMitigation(baseDmg, p)
         _takeDamage(r.dmg, tile.element)
       }
       UI.shakeTile(tile.element)
@@ -1281,19 +1354,28 @@ function _resolveEffect(tile) {
       }
 
       // Fast enemies get a free strike the moment they're revealed
+      const hasWarden = p.inventory.some(e => e.id === 'wardens-brand')
+      const hasLens   = p.inventory.some(e => e.id === 'abyssal-lens')
       if (tile.enemyData?.attributes?.includes('fast')) {
         const d = tile.enemyData.dmg
-        const ambushDmg = tile.enemyData.hitDamage ?? (Array.isArray(d) ? d[0] : d)
-        const reflexDodge = (p.reflexDodgeChance ?? 0) > 0 && Math.random() < p.reflexDodgeChance
-        if (reflexDodge) {
+        const ambushDmg  = tile.enemyData.hitDamage ?? (Array.isArray(d) ? d[0] : d)
+        const reflexDodge = !hasWarden && (p.reflexDodgeChance ?? 0) > 0 && Math.random() < p.reflexDodgeChance
+        if (hasWarden) {
+          UI.setMessage(`The ${tile.enemyData.label} lunges — but your brand holds. Tap to fight.`)
+        } else if (reflexDodge) {
           UI.spawnFloat(tile.element, '⚡ Dodged!', 'heal')
           UI.setMessage(`⚡ The ${tile.enemyData.label} lunges — your reflexes save you! Tap to fight.`)
         } else {
-          const r = _applyRangerTrapfinderMitigation(ambushDmg, p)
+          const finalDmg = ambushDmg + (hasLens ? 1 : 0)
+          const r = _applyRangerTrapfinderMitigation(finalDmg, p)
           _takeDamage(r.dmg, tile.element, false, tile.enemyData)
           const tf = r.proc ? ' Trapfinder!' : ''
           UI.setMessage(`⚡ The ${tile.enemyData.label} strikes first for ${r.dmg}!${tf} Tap to fight back.`)
         }
+      } else if (hasLens) {
+        // Abyssal Lens: normal enemies also deal 1 ambush damage
+        _takeDamage(1, tile.element, false, tile.enemyData)
+        if (!GameState.is(States.DEATH)) UI.setMessage(`👁️ The ${tile.enemyData?.label ?? 'enemy'} senses your sight and strikes! Tap to fight.`)
       } else {
         UI.setMessage(`A ${tile.enemyData?.label ?? 'enemy'} lurks. Tap it to fight.`)
       }
@@ -1322,72 +1404,144 @@ function _confirmExit(tile) {
   _handleExit()
 }
 
-// ── Merchant ─────────────────────────────────────────────────
+// ── Event tile ───────────────────────────────────────────────
 
-function openMerchant(tile) {
-  if (tile.merchantResolved) return
+function _openEvent(tile) {
+  if (tile.eventResolved) return
   if (!GameState.transition(States.NPC_INTERACT)) return
-
-  const p = run.player
-  UI.showMerchant(
-    p.gold,
-    CONFIG.merchant.cost,
-    () => _doMerchantRoll(tile),
-    () => _closeMerchantSession(tile, false),
-  )
-}
-
-/** After roll or walking away — @param rolled whether the dice were rolled */
-function _closeMerchantSession(tile, rolled) {
-  if (tile) {
-    tile.merchantResolved = true
-    tile.element?.classList.remove('merchant-pending')
-  }
-  run.merchantTile = null
-  UI.hideMerchant()
-  if (GameState.is(States.NPC_INTERACT)) {
-    GameState.transition(States.FLOOR_EXPLORE)
-  }
-  if (!rolled && tile && !GameState.is(States.DEATH)) {
-    UI.setMessage('You leave the merchant to his dice.')
-  }
-}
-
-function _doMerchantRoll(tile) {
-  const p = run.player
-  if (p.gold < CONFIG.merchant.cost) {
-    UI.setMessage('Not enough gold to trade!', true)
-    return
-  }
-  p.gold -= CONFIG.merchant.cost
-  UI.updateGold(p.gold)
-
-  const result = CombatResolver.rollMerchant()
-  UI.showMerchantResult(result, () => {
-    switch (result.effect) {
-      case 'damage':
-        _takeDamage(result.value, tile.element)
-        break
-      case 'gold':
-        _gainGold(result.value, tile.element)
-        break
-      case 'heal':
-        p.hp = Math.min(p.maxHp, p.hp + result.value)
-        UI.spawnFloat(tile.element, `+${result.value} HP`, 'heal')
-        UI.updateHP(p.hp, p.maxHp)
-        break
-      case 'mana':
-        p.mana = Math.min(p.maxMana, p.mana + result.value)
-        UI.spawnFloat(tile.element, `+${result.value}🔵`, 'mana')
-        UI.updateMana(p.mana, p.maxMana)
-        break
-    }
-    _closeMerchantSession(tile, true)
-    if (!GameState.is(States.DEATH)) {
-      UI.setMessage(`The goblin cackles. Roll: ${result.roll} — ${result.label}!`)
-    }
-  })
   EventBus.emit('audio:play', { sfx: 'merchant' })
+
+  // Roll event type once and cache on tile so resume works
+  if (!tile.eventType) tile.eventType = rollEventType()
+
+  switch (tile.eventType) {
+    case 'merchant':    _openMerchantShop(tile);  break
+    case 'gambler':     _openGamblerEvent(tile);   break
+    case 'triple-chest': _openTripleChestEvent(tile); break
+    default:            _openStoryEvent(tile);     break
+  }
+}
+
+function _closeEventSession(tile) {
+  if (tile) {
+    tile.eventResolved = true
+    tile.element?.classList.remove('event-pending')
+  }
+  run.eventTile = null
+  UI.hideEventOverlays()
+  if (GameState.is(States.NPC_INTERACT)) GameState.transition(States.FLOOR_EXPLORE)
+}
+
+// ── Merchant shop ─────────────────────────────────────────────
+
+function _rollMerchantTrinket() {
+  const pool = [...RARE_TRINKET_IDS, ...LEGENDARY_TRINKET_IDS]
+  return _pickRandom(pool)
+}
+
+function _openMerchantShop(tile) {
+  const trinketId = _rollMerchantTrinket()
+  const items = MERCHANT_ITEMS.map(def => ({
+    ...def,
+    id: def.id === '__trinket__' ? trinketId : def.id,
+    label: def.id === '__trinket__' ? (ITEMS[trinketId]?.name ?? 'Mystery Relic') : def.label,
+  }))
+  UI.showMerchantShop(run.player.gold, items, (itemId) => _doMerchantBuy(tile, itemId, items), () => {
+    if (!GameState.is(States.DEATH)) UI.setMessage('The merchant watches you leave.')
+    _closeEventSession(tile)
+  })
+}
+
+function _doMerchantBuy(tile, itemId, items) {
+  const p = run.player
+  const def = items.find(i => i.id === itemId)
+  if (!def) return
+  if (p.gold < def.price) { UI.setMessage('Not enough gold!', true); return }
+  if (!_canAddToBackpack(itemId)) { UI.setMessage('Your backpack is full!', true); return }
+  p.gold -= def.price
+  UI.updateGold(p.gold)
+  _addToBackpack(itemId)
+  UI.renderBackpack(p.inventory)
+  EventBus.emit('audio:play', { sfx: 'chest' })
+  UI.setMessage(`You purchase the ${def.label}.`)
+  // Refresh shop display with updated gold
+  UI.refreshMerchantShopGold(p.gold)
+}
+
+// ── Gambler event (stub — rework TBD) ─────────────────────────
+
+function _openGamblerEvent(tile) {
+  UI.showGamblerEvent(() => _closeEventSession(tile))
+}
+
+// ── Triple chest event ────────────────────────────────────────
+
+function _openTripleChestEvent(tile) {
+  const chests = [
+    { rarity: 'common',    loot: _rollCommonLoot() },
+    { rarity: 'rare',      loot: { type: _pickRandom(RARE_TRINKET_IDS) } },
+    { rarity: 'legendary', loot: { type: _pickRandom(LEGENDARY_TRINKET_IDS) } },
+  ]
+  // Shuffle so player can't always pick right
+  chests.sort(() => Math.random() - 0.5)
+
+  UI.showTripleChestEvent(chests, (idx) => {
+    const chosen = chests[idx]
+    const loot = chosen.loot
+    if (loot.type === 'gold') {
+      _gainGold(loot.amount ?? 5, tile.element)
+      UI.setMessage(`You open the chest — ${loot.amount ?? 5} gold spills out!`)
+    } else if (_canAddToBackpack(loot.type)) {
+      _addToBackpack(loot.type)
+      UI.renderBackpack(run.player.inventory)
+      UI.setMessage(`You open the chest and find: ${ITEMS[loot.type]?.name ?? loot.type}!`)
+    } else {
+      UI.setMessage('Your backpack is full — the loot is left behind.')
+    }
+    EventBus.emit('audio:play', { sfx: 'chest' })
+    _closeEventSession(tile)
+  }, () => _closeEventSession(tile))
+}
+
+// ── Story event ───────────────────────────────────────────────
+
+function _openStoryEvent(tile) {
+  const scenario = STORY_EVENTS[Math.floor(Math.random() * STORY_EVENTS.length)]
+  UI.showStoryEvent(scenario, (choiceIdx, outcomeIdx) => {
+    const outcome = scenario.choices[choiceIdx].outcomes[outcomeIdx]
+    _applyStoryOutcome(outcome, tile)
+    UI.showStoryOutcome(outcome.text, () => _closeEventSession(tile))
+  })
+}
+
+function _applyStoryOutcome(outcome, tile) {
+  const p = run.player
+  switch (outcome.effect) {
+    case 'damage':
+      _takeDamage(outcome.effectValue, tile.element)
+      break
+    case 'heal':
+      p.hp = Math.min(p.maxHp, p.hp + outcome.effectValue)
+      UI.spawnFloat(tile.element, `+${outcome.effectValue} HP`, 'heal')
+      UI.updateHP(p.hp, p.maxHp)
+      break
+    case 'gold':
+      _gainGold(outcome.effectValue, tile.element)
+      break
+    case 'mana':
+      p.mana = Math.min(p.maxMana, p.mana + outcome.effectValue)
+      UI.spawnFloat(tile.element, `+${outcome.effectValue}🔵`, 'mana')
+      UI.updateMana(p.mana, p.maxMana)
+      break
+    case 'golden-key':
+      p.goldenKeys = (p.goldenKeys ?? 0) + outcome.effectValue
+      UI.updateGoldenKeys(p.goldenKeys)
+      UI.spawnFloat(tile.element, `🗝️ +${outcome.effectValue}`, 'xp')
+      break
+    case 'nothing':
+    default:
+      break
+  }
 }
 
 // ── Enemy sprite swap ────────────────────────────────────────
@@ -1513,7 +1667,8 @@ function fightAction(tile) {
 
       // Tick burn damage if active
       if ((tile.enemyData.burnTurns ?? 0) > 0) {
-        const burnDmg = Math.max(1, Math.floor(tile.enemyData.currentHP * 0.2))
+        const burnPlagueBonus = run.player.inventory.some(e => e.id === 'plague-rat-skull') ? 1 : 0
+        const burnDmg = Math.max(1, Math.floor(tile.enemyData.currentHP * 0.2)) + burnPlagueBonus
         tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - burnDmg)
         tile.enemyData.burnTurns--
         UI.spawnFloat(tile.element, `🔥 ${burnDmg}`, 'damage')
@@ -1529,6 +1684,12 @@ function fightAction(tile) {
           _combatBusy = false
           return
         }
+      }
+
+      // Spiked Collar: deal 1 self-damage on every melee hit
+      if (run.player.inventory.some(e => e.id === 'spiked-collar')) {
+        _takeDamage(1, tile.element, true)
+        if (GameState.is(States.DEATH)) { _combatBusy = false; return }
       }
 
       // Decrement stun
@@ -1585,19 +1746,21 @@ function slamAction() {
   UI.playSlam()
   EventBus.emit('audio:play', { sfx: 'slam' })
 
-  // Collect all revealed living enemies
+  // Collect all revealed living enemies — skip ability-immune (e.g. Gnome)
   const grid = TileEngine.getGrid()
   const targets = []
+  let immuneSkipped = 0
   for (const row of grid) {
     for (const tile of row) {
       if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+        if (tile.enemyData.spellImmune) { immuneSkipped++; continue }
         targets.push(tile)
       }
     }
   }
 
   if (targets.length === 0) {
-    UI.setMessage('No enemies to Slam!', true)
+    UI.setMessage(immuneSkipped ? 'No valid targets — Gnomes are immune to abilities!' : 'No enemies to Slam!', true)
     return
   }
 
@@ -1609,7 +1772,8 @@ function slamAction() {
   _combatBusy = true
   UI.setPortraitAnim('attack')
   const slamDmg = _scaleOutgoingDamageToEnemy(_slamDamagePerTarget())
-  UI.setMessage(`💥 Slam! ${targets.length} enem${targets.length > 1 ? 'ies' : 'y'} struck for ${slamDmg} each!`)
+  const immuneNote = immuneSkipped ? ` (${immuneSkipped} immune)` : ''
+  UI.setMessage(`💥 Slam! ${targets.length} enem${targets.length > 1 ? 'ies' : 'y'} struck for ${slamDmg} each!${immuneNote}`)
 
   // Stagger slash effects across targets
   targets.forEach((target, i) => {
@@ -2352,6 +2516,21 @@ function _endCombatVictory(tile) {
     }
   }
 
+  // Eagle Eye: grant free flip (any tile, ignores adjacency)
+  if (run.player.inventory.some(e => e.id === 'eagle-eye')) {
+    run.player.eagleEyeFreeFlip = true
+    UI.spawnFloat(tile.element, '🦅 Free flip!', 'xp')
+  }
+  // Soulbound Blade: +0.1 permanent damage per kill
+  if (run.player.inventory.some(e => e.id === 'soulbound-blade')) {
+    run.player.soulboundBonus = (run.player.soulboundBonus ?? 0) + 0.1
+    if (Math.floor(run.player.soulboundBonus) > Math.floor(run.player.soulboundBonus - 0.1)) {
+      const [d0, d1] = _playerDamageRange(run.player)
+      UI.updateDamageRange(d0, d1)
+      UI.spawnFloat(tile.element, '⚔️ +1 dmg!', 'xp')
+    }
+  }
+
   EventBus.emit('audio:play', { sfx: 'gold' })
   EventBus.emit('combat:end', { outcome: 'victory' })
   _checkFloorCleared()
@@ -2360,8 +2539,8 @@ function _endCombatVictory(tile) {
 // ── Hasty Retreat ────────────────────────────────────────────
 
 function doRetreat() {
-  if (GameState.is(States.NPC_INTERACT) && run.merchantTile) {
-    _closeMerchantSession(run.merchantTile, false)
+  if (GameState.is(States.NPC_INTERACT) && run.eventTile) {
+    _closeEventSession(run.eventTile)
   }
 
   const pct      = run.player.retreatPercent ?? CONFIG.retreat.goldKeepPercent
@@ -2370,7 +2549,7 @@ function doRetreat() {
   UI.updateGold(keptGold)
   UI.hideRetreat()
   UI.hideActionPanel()
-  UI.hideMerchant()
+  UI.hideEventOverlays()
   UI.setMessage(`You flee the dungeon, clutching ${keptGold} gold.`)
   EventBus.emit('run:retreat', { goldBanked: keptGold })
 
@@ -2411,19 +2590,7 @@ function _handleExit() {
     }, null)
     return
   }
-  if (run.floor >= CONFIG.floorNames.length) {
-    const stats = _runStats()
-    const { xpEarned, goldBanked } = MetaProgression.endRun(_save, stats, 'escape')
-    UI.setMessage('🚪 You escaped the dungeon alive!')
-    EventBus.emit('run:complete', { outcome: 'escape' })
-    EventBus.emit('audio:play', { sfx: 'levelup' })
-    setTimeout(() => {
-      UI.showRunSummary('escape', { ...stats, xpEarned, goldBanked })
-      _wireRunSummaryBtn()
-    }, 800)
-  } else {
-    _nextFloor()
-  }
+  _nextFloor()
 }
 
 function _confirmRope(tile) {
@@ -2483,10 +2650,37 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
     return
   }
   const effective = _computeEffectiveDamageTaken(amount)
-  run.player.hp   = Math.max(0, run.player.hp - effective)
-  UI.spawnFloat(tileEl, `-${effective} HP`, 'damage')
+  // Pauper's Crown: drain gold before HP
+  if (run.player.inventory?.some(e => e.id === 'paupers-crown')) {
+    const goldDrained = Math.min(run.player.gold, effective)
+    run.player.gold  -= goldDrained
+    UI.updateGold(run.player.gold)
+    if (goldDrained > 0) UI.spawnFloat(tileEl, `-${goldDrained}🪙`, 'damage')
+    const hpDmg = effective - goldDrained
+    if (hpDmg <= 0) return
+    run.player.hp = Math.max(0, run.player.hp - hpDmg)
+    UI.spawnFloat(tileEl, `-${hpDmg} HP`, 'damage')
+  } else {
+    run.player.hp = Math.max(0, run.player.hp - effective)
+    UI.spawnFloat(tileEl, `-${effective} HP`, 'damage')
+  }
   UI.updateHP(run.player.hp, run.player.maxHp)
   EventBus.emit('player:hpChange', { amount: -effective, newHP: run.player.hp })
+  // Resurrection Stone: prevent death once, restore half max HP
+  if (run.player.hp <= 0 && !run.player.resurrectionUsed &&
+      run.player.inventory?.some(e => e.id === 'resurrection-stone')) {
+    run.player.resurrectionUsed = true
+    run.player.hp = Math.max(1, Math.floor(run.player.maxHp / 2))
+    UI.updateHP(run.player.hp, run.player.maxHp)
+    UI.spawnFloat(tileEl, '💎 Resurrected!', 'heal')
+    UI.setMessage('💎 The Resurrection Stone shatters — you cling to life!')
+    // Remove the stone from inventory
+    const inv = run.player.inventory
+    const idx = inv.findIndex(e => e.id === 'resurrection-stone')
+    if (idx !== -1) inv.splice(idx, 1)
+    UI.renderBackpack(inv)
+    return
+  }
   if (run.player.hp <= 0) { _die(killerData); return }
   // Thorn Wrap: reflect 1 damage to attacker
   if (killerData && !killerData._slain && run.player.inventory.some(e => e.id === 'thorn-wrap')) {
@@ -2613,14 +2807,22 @@ function _xpNeeded() {
 
 function _playerDamageRange(player) {
   const bonus = player.damageBonus ?? 0
-  const maskPenalty = player.inventory?.some(e => e.id === 'plague-mask') ? 1 : 0
+  const maskPenalty  = player.inventory?.some(e => e.id === 'plague-mask')    ? 1 : 0
+  const collarBonus  = player.inventory?.some(e => e.id === 'spiked-collar')  ? 3 : 0
+  const soulBonus    = Math.floor(player.soulboundBonus ?? 0)
   if (player.isRanger) {
     const [lo, hi] = RANGER_BASE.damage
-    return [Math.max(1, lo + bonus - maskPenalty), Math.max(1, hi + bonus - maskPenalty)]
+    return [
+      Math.max(1, lo + bonus + collarBonus + soulBonus - maskPenalty),
+      Math.max(1, hi + bonus + collarBonus + soulBonus - maskPenalty),
+    ]
   }
   const base = CONFIG.player.baseDamage
   const b = Array.isArray(base) ? base[0] : base
-  return [Math.max(1, b + bonus - maskPenalty), Math.max(1, b + bonus - maskPenalty)]
+  return [
+    Math.max(1, b + bonus + collarBonus + soulBonus - maskPenalty),
+    Math.max(1, b + bonus + collarBonus + soulBonus - maskPenalty),
+  ]
 }
 
 function _avgMeleeDamage() {
@@ -2748,7 +2950,7 @@ function _die(killerData = null) {
   GameState.transition(States.DEATH)
   UI.hideActionPanel()
   UI.hideRetreat()
-  UI.hideMerchant()
+  UI.hideEventOverlays()
   UI.setMessage('💀 You have perished in the depths...', true)
   EventBus.emit('audio:play', { sfx: 'death' })
 
@@ -2818,7 +3020,10 @@ function _addToBackpack(id) {
   }
   if (item.stackable) {
     const existing = inv.find(e => e.id === id)
-    if (existing) { existing.qty++; return }
+    if (existing && (!item.maxStack || existing.qty < item.maxStack)) {
+      existing.qty++
+      return
+    }
   }
   inv.push({ id, qty: 1 })
   // Blood Pact: apply on equip
@@ -2839,13 +3044,22 @@ function _addToBackpack(id) {
     UI.updateHP(run.player.hp, run.player.maxHp)
     UI.spawnFloat(document.getElementById('hud-portrait'), '🗿 Max HP halved!', 'damage')
   }
+  // Hollowed Acorn: +10 max mana on equip
+  if (id === 'hollowed-acorn') {
+    run.player.maxMana = (run.player.maxMana ?? CONFIG.player.maxMana) + 10
+    UI.updateMana(run.player.mana, run.player.maxMana)
+    UI.spawnFloat(document.getElementById('hud-portrait'), '🌰 +10 Mana!', 'mana')
+  }
 }
 
 function _canAddToBackpack(id) {
   const inv  = run.player.inventory
   const item = ITEMS[id]
   if (!item) return false
-  if (item.stackable && inv.some(e => e.id === id)) return true
+  if (item.stackable) {
+    const existing = inv.find(e => e.id === id)
+    if (existing && (!item.maxStack || existing.qty < item.maxStack)) return true
+  }
   return inv.length < BACKPACK_MAX_SLOTS
 }
 
@@ -3172,11 +3386,13 @@ function useItem(id) {
   } else if (effect.type === 'mana') {
     const missing = run.player.maxMana - run.player.mana
     if (missing <= 0) { UI.setMessage('Already at full mana!', true); return }
-    const restored = Math.min(effect.amount, missing)
+    const hasAcorn  = run.player.inventory.some(e => e.id === 'hollowed-acorn')
+    const baseAmt   = hasAcorn ? Math.max(1, Math.floor(effect.amount / 2)) : effect.amount
+    const restored  = Math.min(baseAmt, missing)
     run.player.mana += restored
     UI.updateMana(run.player.mana, run.player.maxMana)
     UI.spawnFloat(document.getElementById('hud-portrait'), `+${restored} MP`, 'mana')
-    UI.setMessage(`🔵 You drink a ${item.name} and restore ${restored} mana.`)
+    UI.setMessage(`🔵 You drink a ${item.name} and restore ${restored} mana.${hasAcorn ? ' (Hollowed Acorn halved)' : ''}`)
   }
 
   entry.qty--
@@ -3212,6 +3428,13 @@ function dropItem(id) {
     run.player.maxHp = Math.max(1, run.player.maxHp * 2)
     UI.updateHP(run.player.hp, run.player.maxHp)
     UI.spawnFloat(document.getElementById('hud-portrait'), '🗿 Max HP restored', 'heal')
+  }
+  // Hollowed Acorn: revert max mana on drop
+  if (id === 'hollowed-acorn') {
+    run.player.maxMana = Math.max(1, (run.player.maxMana ?? CONFIG.player.maxMana) - 10)
+    run.player.mana = Math.min(run.player.mana, run.player.maxMana)
+    UI.updateMana(run.player.mana, run.player.maxMana)
+    UI.spawnFloat(document.getElementById('hud-portrait'), '🌰 −10 Mana', 'damage')
   }
   UI.setMessage(item ? `Dropped ${item.name}.` : 'Item removed.')
   EventBus.emit('audio:play', { sfx: 'menu' })

@@ -191,16 +191,51 @@
     <div id="ability-choices"></div>
   </div>
 
-  <!-- ── Merchant overlay ── -->
-  <div id="merchant-overlay" class="panel-overlay hidden">
+  <!-- ── Merchant shop overlay ── -->
+  <div id="merchant-shop-overlay" class="panel-overlay hidden">
     <div class="panel-header">
-      <div class="panel-title">🎲 Goblin Merchant</div>
+      <div class="panel-title">🛒 Travelling Merchant</div>
     </div>
-    <div class="merchant-body">
-      <p class="merchant-blurb">"Roll the bones, adventurer! Only <span id="merchant-cost">10</span> 💰."</p>
-      <div id="merchant-result" class="hidden"></div>
-      <button id="merchant-roll-btn" class="menu-btn primary">🎲 Roll the Dice</button>
-      <button id="merchant-close-btn" class="menu-btn secondary hidden">Continue</button>
+    <div class="event-body">
+      <p class="event-blurb">"Fine wares for a fine adventurer. You have <span id="merchant-shop-gold">0</span> 🪙."</p>
+      <div id="merchant-shop-list" class="merchant-shop-list"></div>
+      <button id="merchant-shop-leave" class="menu-btn secondary">Leave</button>
+    </div>
+  </div>
+
+  <!-- ── Gambler overlay (stub) ── -->
+  <div id="gambler-overlay" class="panel-overlay hidden">
+    <div class="panel-header">
+      <div class="panel-title">🎲 The Gambler</div>
+    </div>
+    <div class="event-body">
+      <p class="event-blurb">"Step right up... the dice don't lie. Usually."</p>
+      <p class="event-blurb" style="margin-top:8px;color:var(--torch-yellow)">🚧 Rework coming soon.</p>
+      <button id="gambler-close" class="menu-btn secondary">Walk Away</button>
+    </div>
+  </div>
+
+  <!-- ── Triple chest overlay ── -->
+  <div id="triple-chest-overlay" class="panel-overlay hidden">
+    <div class="panel-header">
+      <div class="panel-title">📦 Three Chests</div>
+    </div>
+    <div class="event-body">
+      <p class="event-blurb">Three chests sit before you. Only one holds something worthwhile — choose wisely.</p>
+      <div id="triple-chest-list" class="triple-chest-list"></div>
+      <button id="triple-chest-leave" class="menu-btn secondary">Leave them all</button>
+    </div>
+  </div>
+
+  <!-- ── Story event overlay ── -->
+  <div id="story-event-overlay" class="panel-overlay hidden">
+    <div class="panel-header">
+      <div class="panel-title" id="story-event-title">An Encounter</div>
+    </div>
+    <div class="event-body">
+      <p class="event-blurb" id="story-event-text"></p>
+      <div id="story-event-choices" class="story-event-choices"></div>
+      <button id="story-event-continue" class="menu-btn primary hidden">Continue</button>
     </div>
   </div>
 
