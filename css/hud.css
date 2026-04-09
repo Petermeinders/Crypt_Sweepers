@@ -860,50 +860,106 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
 .action-btn {
   flex: 1;
   padding: 9px 6px;
-  border: none;
-  border-radius: 8px;
+  border-radius: 0.5em;
   font-size: 0.75rem;
   font-family: Georgia, serif;
+  font-weight: 700;
   cursor: pointer;
-  transition: transform 0.1s ease, opacity 0.1s ease;
+  outline: none;
+  user-select: none;
   letter-spacing: 0.3px;
   line-height: 1.2;
+  background: var(--color-back);
+  border: solid 2px #030f14;
+  color: var(--btn-text);
+  box-shadow:
+    inset 0px -6px 18px -6px rgba(3, 15, 20, 0),
+    inset rgba(54, 69, 75, 1) -1px -1px 6px 0px,
+    inset 12px 0px 12px -6px rgba(3, 15, 20, 0),
+    inset -12px 0px 12px -6px rgba(3, 15, 20, 0),
+    rgba(54, 69, 75, 1) -1px -1px 6px 0px;
+  transition: all 0.3s;
 }
-
-.action-btn:active  { transform: scale(0.95); opacity: 0.85; }
+.action-btn:hover {
+  box-shadow:
+    inset 0px -6px 18px -6px rgba(3, 15, 20, 1),
+    inset 0px 6px 18px -6px rgba(3, 15, 20, 1),
+    inset 12px 0px 12px -6px rgba(3, 15, 20, 0),
+    inset -12px 0px 12px -6px rgba(3, 15, 20, 0),
+    -1px -1px 6px 0px rgba(54, 69, 75, 1);
+}
+.action-btn:active {
+  box-shadow:
+    inset 0px -12px 12px -6px rgba(3, 15, 20, 1),
+    inset 0px 12px 12px -6px rgba(3, 15, 20, 1),
+    inset 12px 0px 12px -6px rgba(3, 15, 20, 1),
+    inset -12px 0px 12px -6px rgba(3, 15, 20, 1),
+    -1px -1px 6px 0px rgba(54, 69, 75, 1);
+  transform: scale(0.95);
+}
 .action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.spell-btn {
-  background: linear-gradient(135deg, #101040, #182878);
-  color: #c0d0ff;
-  border: 1px solid #2040a0;
-}
-
+.spell-btn { color: #8ab4ff; }
 .spell-btn.targeting {
-  background: linear-gradient(135deg, #182060, #2040a0);
-  border-color: #6080ff;
-  color: #e8f0ff;
-  box-shadow: 0 0 10px rgba(80,120,255,0.5);
+  color: #c0d8ff;
   animation: pulse-spell 1s ease-in-out infinite;
 }
 
 @keyframes pulse-spell {
-  0%, 100% { box-shadow: 0 0 8px rgba(80,120,255,0.4); }
-  50%       { box-shadow: 0 0 18px rgba(100,150,255,0.7); }
+  0%, 100% { box-shadow:
+    inset 0px -6px 18px -6px rgba(3, 15, 20, 0),
+    inset rgba(54, 69, 75, 1) -1px -1px 6px 0px,
+    inset 12px 0px 12px -6px rgba(3, 15, 20, 0),
+    inset -12px 0px 12px -6px rgba(3, 15, 20, 0),
+    rgba(54, 69, 75, 1) -1px -1px 6px 0px,
+    0 0 8px rgba(80,120,255,0.4); }
+  50%       { box-shadow:
+    inset 0px -6px 18px -6px rgba(3, 15, 20, 0),
+    inset rgba(54, 69, 75, 1) -1px -1px 6px 0px,
+    inset 12px 0px 12px -6px rgba(3, 15, 20, 0),
+    inset -12px 0px 12px -6px rgba(3, 15, 20, 0),
+    rgba(54, 69, 75, 1) -1px -1px 6px 0px,
+    0 0 18px rgba(100,150,255,0.75); }
 }
 
-.flee-btn {
-  background: linear-gradient(135deg, #101a10, #1a3020);
-  color: #b0d8b0;
-  border: 1px solid #2a5030;
-}
+.flee-btn { color: #90d890; }
 
 .retreat-btn {
   width: 100%;
-  background: linear-gradient(135deg, #1a1010, #2d1818);
-  color: #c8a888;
-  border: 1px solid #5a3a20;
+  background: var(--color-back);
+  border: solid 2px #030f14;
+  color: var(--btn-text);
   font-size: 0.72rem;
+  font-weight: 700;
+  font-family: Georgia, serif;
   padding: 8px;
+  border-radius: 0.5em;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  box-shadow:
+    inset 0px -6px 18px -6px rgba(3, 15, 20, 0),
+    inset rgba(54, 69, 75, 1) -1px -1px 6px 0px,
+    inset 12px 0px 12px -6px rgba(3, 15, 20, 0),
+    inset -12px 0px 12px -6px rgba(3, 15, 20, 0),
+    rgba(54, 69, 75, 1) -1px -1px 6px 0px;
+  transition: all 0.3s;
+}
+.retreat-btn:hover {
+  box-shadow:
+    inset 0px -6px 18px -6px rgba(3, 15, 20, 1),
+    inset 0px 6px 18px -6px rgba(3, 15, 20, 1),
+    inset 12px 0px 12px -6px rgba(3, 15, 20, 0),
+    inset -12px 0px 12px -6px rgba(3, 15, 20, 0),
+    -1px -1px 6px 0px rgba(54, 69, 75, 1);
+}
+.retreat-btn:active {
+  box-shadow:
+    inset 0px -12px 12px -6px rgba(3, 15, 20, 1),
+    inset 0px 12px 12px -6px rgba(3, 15, 20, 1),
+    inset 12px 0px 12px -6px rgba(3, 15, 20, 1),
+    inset -12px 0px 12px -6px rgba(3, 15, 20, 1),
+    -1px -1px 6px 0px rgba(54, 69, 75, 1);
+  transform: scale(0.97);
 }
 

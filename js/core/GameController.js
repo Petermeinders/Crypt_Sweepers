@@ -15,65 +15,68 @@ import { TILE_BLURBS }       from '../data/tileBlurbs.js'
 import { ITEMS }             from '../data/items.js'
 import Bestiary              from '../systems/Bestiary.js'
 
-/** Chest trinkets at 2% each (order = roll order). Legendary hourglass is rolled first at 1%. */
-const CHEST_RARE_TRINKET_IDS = [
-  'spyglass', 'echo-charm', 'vampire-fang', 'glass-cannon-shard', 'duelists-glove',
-  'surge-pearl', 'still-water-amulet', 'greed-tooth', 'lucky-rabbit-foot', 'cursed-lockpick',
-  'fire-ring', 'mana-ring',
+// ── Loot pools by rarity ─────────────────────────────────────
+
+const COMMON_LOOT_IDS = [
+  'potion-red', 'potion-blue', 'lantern', 'smiths-tools', 'spyglass',
 ]
 
+const RARE_TRINKET_IDS = [
+  'fire-ring', 'mana-ring', 'echo-charm', 'vampire-fang', 'glass-cannon-shard',
+  'duelists-glove', 'surge-pearl', 'still-water-amulet', 'greed-tooth',
+  'lucky-rabbit-foot', 'cursed-lockpick',
+]
+
+// Rare trinkets available only from the magic chest
+const MAGIC_CHEST_EXCLUSIVE_IDS = [
+  'thorn-wrap', 'misers-pouch', 'cracked-compass', 'plague-mask', 'soul-candle',
+  'blood-pact', 'bone-dice', 'hunger-stone', 'gamblers-mark', 'witching-stone',
+]
+
+const LEGENDARY_TRINKET_IDS = [
+  'hourglass-sand', 'forsaken-idol', 'stormcallers-fist', 'mirror-of-vanity',
+  'deathmask', 'traded-codex', 'philosophers-coin',
+]
+
+function _pickRandom(pool) { return pool[Math.floor(Math.random() * pool.length)] }
+
+function _rollCommonLoot() {
+  // Weighted: potions more likely than lantern/tools/spyglass
+  const r = Math.random()
+  if (r < 0.32) return { type: 'potion-red' }
+  if (r < 0.58) return { type: 'potion-blue' }
+  if (r < 0.74) return { type: 'lantern' }
+  if (r < 0.87) return { type: 'smiths-tools' }
+  if (r < 0.95) return { type: 'spyglass' }
+  return { type: 'gold', amount: _rand(...CONFIG.chest.goldDrop) }
+}
+
+/** Normal chest: 97% common, 2% rare, 1% legendary */
 function _rollChestLoot() {
-  const hasLockpick = run?.player?.inventory?.some(e => e.id === 'cursed-lockpick')
+  if (run?.player?.inventory?.some(e => e.id === 'misers-pouch')) {
+    return { type: 'gold', amount: _rand(...CONFIG.chest.goldDrop) }
+  }
   let r = Math.random()
-  if (hasLockpick && r < 0.12) {
-    r = Math.random() * 0.28
+  // Cursed lockpick: bias toward rare/legendary
+  if (run?.player?.inventory?.some(e => e.id === 'cursed-lockpick') && r < 0.15) {
+    r = Math.random() * 0.06  // forces into rare or legendary band
   }
-  let acc = 0
-  if (r < (acc += 0.01)) return { type: 'hourglass-sand' }
-  for (const id of CHEST_RARE_TRINKET_IDS) {
-    if (r < (acc += 0.02)) return { type: id }
-  }
-  if (r < (acc += 0.10)) return { type: 'lantern' }
-  if (r < (acc += 0.28)) return { type: 'potion-red' }
-  if (r < (acc += 0.23)) return { type: 'potion-blue' }
-  if (r < (acc += 0.05)) return { type: 'smiths-tools' }
-  const loot = { type: 'gold', amount: _rand(...CONFIG.chest.goldDrop) }
-  if (hasLockpick && Math.random() < 0.10) {
-    const pool = ['hourglass-sand', ...CHEST_RARE_TRINKET_IDS]
-    return { type: pool[Math.floor(Math.random() * pool.length)] }
-  }
-  return loot
+  if (r < 0.01) return { type: _pickRandom(LEGENDARY_TRINKET_IDS) }
+  if (r < 0.03) return { type: _pickRandom(RARE_TRINKET_IDS) }
+  return _rollCommonLoot()
 }
 
 const BACKPACK_MAX_SLOTS = 9
 
-/** Max gold from a magic-chest gold hit: current dungeon floor, or last cleared floor while in sanctuary (run.floor is not advanced until stairs). */
-function _magicChestGoldFloorCap() {
-  if (!run) return 1
-  return Math.max(1, run.floor)
-}
-
-function _rollMagicChestGoldAmount() {
-  const cap = _magicChestGoldFloorCap()
-  const [gMin, gMax] = CONFIG.chest.goldDrop
-  const upper = Math.min(gMax, cap)
-  const lower = Math.min(gMin, upper)
-  return _rand(lower, upper)
-}
-
+/** Magic chest: 93% common, 5% rare (all rares + exclusives), 2% legendary */
 function _rollMagicChestLoot() {
-  let r = Math.random()
-  let acc = 0
-  if (r < (acc += 0.01)) return { type: 'hourglass-sand' }
-  if (r < (acc += 0.02)) {
-    const pool = CHEST_RARE_TRINKET_IDS
-    return { type: pool[Math.floor(Math.random() * pool.length)] }
+  const r = Math.random()
+  if (r < 0.02) return { type: _pickRandom(LEGENDARY_TRINKET_IDS) }
+  if (r < 0.07) {
+    const pool = [...RARE_TRINKET_IDS, ...MAGIC_CHEST_EXCLUSIVE_IDS]
+    return { type: _pickRandom(pool) }
   }
-  if (r < (acc += 0.10)) return { type: 'lantern' }
-  if (r < (acc += 0.05)) return { type: 'smiths-tools' }
-  if (r < (acc += 0.18)) return { type: 'gold' }
-  if (r < (acc += 0.32)) return { type: 'potion-red' }
-  return { type: 'potion-blue' }
+  return _rollCommonLoot()
 }
 
 function _playerOutgoingDamageMult() {
@@ -324,6 +327,13 @@ function buildRunState() {
     isRanger,
     inventory:          [],   // [{ id, qty }]
     goldenKeys:         0,
+    meleeHitCount:      0,    // Stormcaller's Fist tracker
+    deathmaskPending:   false, // Deathmask of the Fallen: next reveal = instant kill
+    trapImmune:         false, // Rope Coil: skip next trap
+    regenTurns:         0,    // Bandage Roll HOT turns remaining
+    regenPerTurn:       0,    // Bandage Roll HOT amount per turn
+    shieldShard:        false, // Shield Shard: absorb next hit
+    whettsoneHits:      0,    // Whetstone: bonus hits remaining
   }
 
   MetaProgression.applyToPlayer(p, _save)
@@ -446,10 +456,49 @@ function _startFloor() {
   UI.setGridPoisonArrowShotMode(false)
   if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0) }
   if (run) { run._hourglassSnapshot = null }
+  _throwingKnifeTargeting = false
+  _rustyNailTargeting     = false
+  // Hunger Stone: costs 2 HP and grants +1 max damage each floor (skip sanctuary)
+  if (!run.atRest && run.floor > 1 && run.player.inventory.some(e => e.id === 'hunger-stone')) {
+    run.player.damageBonus = (run.player.damageBonus ?? 0) + 1
+    run.player.hp = Math.max(1, run.player.hp - 2)
+  }
   _saveActiveRun()
   TileEngine.generateGrid(run.floor, { rest: run.atRest })
   TileEngine.renderGrid(UI.getGridEl(), onTileTap, onTileHold)
   _revealStartTile()
+  // Cracked Compass: reveal exit tile from the start (skip rest floors)
+  if (!run.atRest && run.player.inventory.some(e => e.id === 'cracked-compass')) {
+    const grid = TileEngine.getGrid()
+    for (const row of grid) {
+      for (const t of row) {
+        if (t.type === 'exit' && !t.revealed) {
+          t.revealed = true
+          run.tilesRevealed++
+          TileEngine.markReachable(t.row, t.col, UI.markTileReachable.bind(UI))
+          if (t.element) {
+            TileEngine.flipTile(t, UI)
+            t.element.classList.add('compass-revealed')
+          }
+          break
+        }
+      }
+    }
+  }
+  // Forsaken Idol: reveal all unrevealed enemy tiles from floor start
+  if (!run.atRest && run.player.inventory.some(e => e.id === 'forsaken-idol')) {
+    const grid = TileEngine.getGrid()
+    for (const row of grid) {
+      for (const t of row) {
+        if (!t.revealed && (t.type === 'enemy' || t.type === 'enemy_fast' || t.type === 'boss')) {
+          t.revealed = true
+          run.tilesRevealed++
+          TileEngine.markReachable(t.row, t.col, UI.markTileReachable.bind(UI))
+          if (t.element) TileEngine.flipTile(t, UI)
+        }
+      }
+    }
+  }
 
   GameState.set(States.FLOOR_EXPLORE)
   UI.updateFloor(run.floor, { rest: run.atRest })
@@ -546,6 +595,8 @@ let _arrowBarrageSelecting = false
 /** Triple Volley: { row, col } center after first tap; second tap same tile fires. */
 let _tripleVolleyCenter = null
 let _poisonArrowShotSelecting = false
+let _throwingKnifeTargeting  = false
+let _rustyNailTargeting      = false
 
 // ── Angry Onion helpers ───────────────────────────────────────
 
@@ -649,6 +700,42 @@ function onTileTap(row, col) {
   if (_spellTargeting) {
     if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
       _castSpell(tile)
+    }
+    return
+  }
+
+  // Throwing Knife targeting
+  if (_throwingKnifeTargeting) {
+    _throwingKnifeTargeting = false
+    UI.setMessage('')
+    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      const dmg = 3
+      tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - dmg)
+      UI.spawnFloat(tile.element, `🗡️ ${dmg}`, 'damage')
+      EventBus.emit('audio:play', { sfx: 'hit' })
+      if (tile.enemyData.currentHP <= 0) {
+        _gainGold(tile.enemyData.goldDrop ? _rand(...tile.enemyData.goldDrop) : 1, tile.element, true)
+        _gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
+        _endCombatVictory(tile)
+        UI.setMessage(`🗡️ Knife flies true — enemy slain! No counter-attack.`)
+      } else {
+        UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
+        UI.setMessage(`🗡️ Knife deals ${dmg} damage. Enemy has ${tile.enemyData.currentHP} HP left.`)
+      }
+    }
+    return
+  }
+
+  // Rusty Nail targeting
+  if (_rustyNailTargeting) {
+    _rustyNailTargeting = false
+    UI.setMessage('')
+    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      tile.enemyData.poisonTurns = (tile.enemyData.poisonTurns ?? 0) + 5
+      tile.enemyData.nailPoison  = true
+      UI.spawnFloat(tile.element, '📌 Poisoned!', 'damage')
+      UI.setMessage(`📌 Rusty nail lodges deep — ${tile.enemyData.label} will take 1 damage per turn for 5 turns.`)
+      EventBus.emit('audio:play', { sfx: 'hit' })
     }
     return
   }
@@ -874,6 +961,14 @@ function _tickPoisonArrowDotOnGlobalTurn() {
   if (run.player.inventory?.some(e => e.id === 'still-water-amulet')) {
     run.player.turnsWithoutSpell = (run.player.turnsWithoutSpell ?? 0) + 1
   }
+  // Bandage Roll HOT
+  if ((run.player.regenTurns ?? 0) > 0) {
+    const amt = run.player.regenPerTurn ?? 1
+    run.player.hp = Math.min(run.player.maxHp, run.player.hp + amt)
+    run.player.regenTurns--
+    UI.spawnFloat(document.getElementById('hud-portrait'), `🩹 +${amt} HP`, 'heal')
+    UI.updateHP(run.player.hp, run.player.maxHp)
+  }
 }
 
 async function revealTile(tile) {
@@ -899,6 +994,16 @@ async function revealTile(tile) {
   _gainXP(CONFIG.xp.perTileReveal, tile.element)
   EventBus.emit('tile:revealed', { tile })
   TileEngine.markReachable(tile.row, tile.col, UI.markTileReachable.bind(UI))
+  // Deathmask: instant kill on first enemy reveal after a proc
+  if (tile.enemyData && !tile.enemyData._slain && run.player.deathmaskPending) {
+    run.player.deathmaskPending = false
+    UI.spawnFloat(tile.element, '💀 Instant Kill!', 'xp')
+    _gainGold(tile.enemyData.goldDrop ? _rand(...tile.enemyData.goldDrop) : 1, tile.element, true)
+    _gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
+    _endCombatVictory(tile)
+    TileEngine.markReachable(tile.row, tile.col, UI.markTileReachable.bind(UI))
+    return
+  }
   await _maybeBestiaryDiscovery(tile)
   _resolveEffect(tile)
   _tickPoisonArrowDotOnGlobalTurn()
@@ -1016,6 +1121,14 @@ function _resolveEffect(tile) {
     }
 
     case 'trap': {
+      if (p.trapImmune) {
+        p.trapImmune = false
+        EventBus.emit('audio:play', { sfx: 'trap' })
+        UI.setMessage('🪢 The rope coil trips the snare harmlessly — you walk right through.')
+        UI.spawnFloat(tile.element, '🪢 Blocked!', 'heal')
+        UI.showRetreat()
+        break
+      }
       if ((p.trapDodgeChance ?? 0) > 0 && Math.random() < p.trapDodgeChance) {
         EventBus.emit('audio:play', { sfx: 'trap' })
         UI.setMessage('A trap snaps shut — your training pays off! You dodge it.')
@@ -1311,7 +1424,19 @@ function fightAction(tile) {
     playerDmg += 1
     tile.enemyData._duelistFirstMeleeDone = true
   }
+  // Whetstone: +1 damage for next N hits
+  if ((run.player.whettsoneHits ?? 0) > 0) {
+    playerDmg += 1
+    run.player.whettsoneHits--
+  }
+  // Mirror of Vanity: +20% of current HP as flat damage bonus
+  if (run.player.inventory.some(e => e.id === 'mirror-of-vanity')) {
+    playerDmg += Math.max(1, Math.floor(run.player.hp * 0.2))
+  }
   playerDmg = _scaleOutgoingDamageToEnemy(playerDmg)
+
+  run.player.meleeHitCount = (run.player.meleeHitCount ?? 0) + 1
+  const _stormProc = run.player.inventory.some(e => e.id === 'stormcallers-fist') && run.player.meleeHitCount % 5 === 0
 
   const bonusSuffix = (run.player.undeadBonus && isUndead) || (run.player.beastBonus && isBeast) ? ' (2×!)' : ''
   const newEnemyHP = _save.settings.cheats?.instantKill ? 0 : Math.max(0, tile.enemyData.currentHP - playerDmg)
@@ -1352,9 +1477,10 @@ function fightAction(tile) {
       if (tile.enemyData?.enemyId === 'onion') _applyTearyEyes()
       UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp')
       UI.setMessage(`You strike for ${playerDmg}${bonusSuffix}! The enemy falls before they can strike back. +${result.goldDrop} gold.`)
-      _gainGold(result.goldDrop, tile.element)
+      _gainGold(result.goldDrop, tile.element, true)
       _gainXP(result.xpDrop ?? 0, tile.element)
       _endCombatVictory(tile)
+      if (_stormProc) _triggerStormcallerLightning(tile, playerDmg)
       afterAttackPortrait(() => {
         UI.setPortraitAnim('idle')
       })
@@ -1394,7 +1520,7 @@ function fightAction(tile) {
         if (tile.enemyData.currentHP <= 0) {
           UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp')
           UI.setMessage(`You strike for ${playerDmg}${bonusSuffix}! The enemy falls to flames before they can strike back. +${result.goldDrop} gold.`)
-          _gainGold(result.goldDrop, tile.element)
+          _gainGold(result.goldDrop, tile.element, true)
           _gainXP(result.xpDrop ?? 0, tile.element)
           _endCombatVictory(tile)
           afterAttackPortrait(() => {
@@ -1431,6 +1557,7 @@ function fightAction(tile) {
         }
         UI.setMessage(tradeMsg)
         UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
+        if (_stormProc) _triggerStormcallerLightning(tile, playerDmg)
 
         afterAttackPortrait(() => {
           if (!isStunned) UI.setPortraitAnim('hit')
@@ -1492,7 +1619,7 @@ function slamAction() {
       target.enemyData.currentHP = Math.max(0, target.enemyData.currentHP - slamDmg)
       UI.spawnFloat(target.element, `💥 ${slamDmg}`, 'xp')
       if (target.enemyData.currentHP <= 0) {
-        _gainGold(target.enemyData.goldDrop ? _rand(...target.enemyData.goldDrop) : 1, target.element)
+        _gainGold(target.enemyData.goldDrop ? _rand(...target.enemyData.goldDrop) : 1, target.element, true)
         _gainXP(target.enemyData.xpDrop ?? 0, target.element)
         _endCombatVictory(target)
       } else {
@@ -1580,7 +1707,7 @@ function _executeRicochet() {
       _checkOnionLayer(target)
       UI.spawnFloat(target.element, `🏹 ${dmg}`, 'xp')
       if (target.enemyData.currentHP <= 0) {
-        _gainGold(target.enemyData.goldDrop ? _rand(...target.enemyData.goldDrop) : 1, target.element)
+        _gainGold(target.enemyData.goldDrop ? _rand(...target.enemyData.goldDrop) : 1, target.element, true)
         _gainXP(target.enemyData.xpDrop ?? 0, target.element)
         _endCombatVictory(target)
       } else {
@@ -1693,7 +1820,7 @@ function _executeTripleVolley(center) {
       _checkOnionLayer(t)
       UI.spawnFloat(t.element, `🏹 ${dmg}`, 'xp')
       if (t.enemyData.currentHP <= 0) {
-        _gainGold(t.enemyData.goldDrop ? _rand(...t.enemyData.goldDrop) : 1, t.element)
+        _gainGold(t.enemyData.goldDrop ? _rand(...t.enemyData.goldDrop) : 1, t.element, true)
         _gainXP(t.enemyData.xpDrop ?? 0, t.element)
         _endCombatVictory(t)
       } else {
@@ -1772,7 +1899,7 @@ function _executePoisonArrowShot(tile) {
   UI.spawnFloat(t0.element, `☠️ ${initial}`, 'xp')
 
   if (t0.enemyData.currentHP <= 0) {
-    _gainGold(t0.enemyData.goldDrop ? _rand(...t0.enemyData.goldDrop) : 1, t0.element)
+    _gainGold(t0.enemyData.goldDrop ? _rand(...t0.enemyData.goldDrop) : 1, t0.element, true)
     _gainXP(t0.enemyData.xpDrop ?? 0, t0.element)
     _endCombatVictory(t0)
     setTimeout(() => {
@@ -2120,10 +2247,27 @@ function _castSpell(tile) {
   const isBeast  = tile.enemyData?.type === 'beast'
   if (run.player.undeadBonus && isUndead) spellDmg = Math.round(spellDmg * 2)
   if (run.player.beastBonus  && isBeast)  spellDmg = Math.round(spellDmg * 2)
+  // Mirror of Vanity: +20% current HP as flat bonus
+  if (run.player.inventory.some(e => e.id === 'mirror-of-vanity')) {
+    spellDmg += Math.max(1, Math.floor(run.player.hp * 0.2))
+  }
+  // The Traded Codex: spell scales with missing HP (1× full, ~3× near death)
+  if (run.player.inventory.some(e => e.id === 'traded-codex') && run.player.maxHp > 0) {
+    const missingRatio = 1 - (run.player.hp / run.player.maxHp)
+    const codexMult = 1 + 2 * missingRatio
+    spellDmg = Math.round(spellDmg * codexMult)
+  }
   spellDmg = _scaleOutgoingDamageToEnemy(spellDmg)
 
   UI.setPortraitAnim('attack')
   run.player.mana -= effectiveCost
+  // Witching Stone: each spell costs 1 additional HP
+  if (run.player.inventory.some(e => e.id === 'witching-stone')) {
+    run.player.hp = Math.max(0, run.player.hp - 1)
+    UI.updateHP(run.player.hp, run.player.maxHp)
+    UI.spawnFloat(document.getElementById('hud-portrait'), '🔮 -1 HP', 'damage')
+    if (run.player.hp <= 0) { _die(null); return }
+  }
   _markStillWaterAbilityUsed()
   if (run.player.inventory.some(e => e.id === 'surge-pearl') && Math.random() < 0.20) {
     const refund = Math.floor(effectiveCost / 2)
@@ -2143,7 +2287,7 @@ function _castSpell(tile) {
   setTimeout(() => UI.setPortraitAnim('idle'), 600)
   if (tile.enemyData.currentHP <= 0) {
     UI.setMessage(`Spell blasts for ${spellDmg}${bonusSuffix}! +${result.goldDrop} gold.`)
-    _gainGold(result.goldDrop, tile.element)
+    _gainGold(result.goldDrop, tile.element, true)
     _gainXP(result.xpDrop ?? 0, tile.element)
     _endCombatVictory(tile)
   } else {
@@ -2184,8 +2328,18 @@ function _endCombatVictory(tile) {
     UI.spawnFloat(tile.element, '+1 HP', 'heal')
     UI.updateHP(run.player.hp, run.player.maxHp)
   }
+  if (run.player.inventory.some(e => e.id === 'soul-candle') && Math.random() < 0.20) {
+    run.player.mana = Math.min(run.player.maxMana, run.player.mana + 1)
+    UI.spawnFloat(tile.element, '🕯️ +1 MP', 'mana')
+    UI.updateMana(run.player.mana, run.player.maxMana)
+  }
+  // Deathmask: 25% chance next reveal is an instant kill
+  if (!run.player.deathmaskPending && run.player.inventory.some(e => e.id === 'deathmask') && Math.random() < 0.25) {
+    run.player.deathmaskPending = true
+    UI.spawnFloat(tile.element, '💀 Marked!', 'xp')
+  }
   if (run.player.inventory.some(e => e.id === 'greed-tooth')) {
-    _gainGold(1, tile.element)
+    _gainGold(1, tile.element, true)
   }
   if (run.player.inventory.some(e => e.id === 'echo-charm')) {
     for (const adj of TileEngine.getOrthogonalTiles(tile.row, tile.col)) {
@@ -2312,11 +2466,18 @@ function _nextFloor() {
 
 function _computeEffectiveDamageTaken(rawAmount) {
   const scaled = Math.round(rawAmount * (run.player.damageTakenMult ?? 1))
-  return Math.max(1, scaled - (run.player.damageReduction ?? 0))
+  const maskReduction = run.player.inventory.some(e => e.id === 'plague-mask') ? 1 : 0
+  return Math.max(1, scaled - (run.player.damageReduction ?? 0) - maskReduction)
 }
 
 function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null) {
   if (_save.settings.cheats?.godMode) return
+  // Shield Shard: absorb next hit entirely
+  if (run?.player?.shieldShard) {
+    run.player.shieldShard = false
+    UI.spawnFloat(tileEl, '🛡️ Blocked!', 'heal')
+    return
+  }
   if (run?.player?.inventory?.some(e => e.id === 'lucky-rabbit-foot') && Math.random() < 0.02) {
     UI.spawnFloat(tileEl, '🐰 Lucky!', 'heal')
     return
@@ -2327,17 +2488,44 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
   UI.updateHP(run.player.hp, run.player.maxHp)
   EventBus.emit('player:hpChange', { amount: -effective, newHP: run.player.hp })
   if (run.player.hp <= 0) { _die(killerData); return }
+  // Thorn Wrap: reflect 1 damage to attacker
+  if (killerData && !killerData._slain && run.player.inventory.some(e => e.id === 'thorn-wrap')) {
+    killerData.currentHP = Math.max(0, killerData.currentHP - 1)
+    UI.spawnFloat(tileEl, '🌿 Thorn!', 'heal')
+    if (killerData.currentHP <= 0) {
+      const combatTile = run.activeCombatTile
+      if (combatTile) {
+        _gainGold(combatTile.enemyData?.goldDrop ? _rand(...combatTile.enemyData.goldDrop) : 1, combatTile.element, true)
+        _gainXP(combatTile.enemyData?.xpDrop ?? 0, combatTile.element)
+        _endCombatVictory(combatTile)
+      }
+    } else if (run.activeCombatTile) {
+      UI.updateEnemyHP(run.activeCombatTile.element, killerData.currentHP)
+    }
+  }
   if (!skipPortraitAnim) {
     UI.setPortraitAnim('hit')
     setTimeout(() => UI.setPortraitAnim('idle'), 800)
   }
 }
 
-function _gainGold(amount, tileEl) {
-  run.player.gold += amount
-  UI.spawnFloat(tileEl, `+${amount}🪙`, 'gold')
+function _gainGold(amount, tileEl, fromEnemy = false) {
+  let actual = amount
+  if (fromEnemy) {
+    if (run.player.inventory.some(e => e.id === 'misers-pouch')) actual += 1
+    if (run.player.inventory.some(e => e.id === 'gamblers-mark')) actual = Math.random() < 0.5 ? 0 : actual * 2
+    actual = Math.round(actual)
+  }
+  // Philosopher's Coin: all gold × 5
+  if (run.player.inventory.some(e => e.id === 'philosophers-coin')) actual *= 5
+  if (actual <= 0) {
+    UI.spawnFloat(tileEl, '♠️ No gold!', 'damage')
+    return
+  }
+  run.player.gold += actual
+  UI.spawnFloat(tileEl, `+${actual}🪙`, 'gold')
   UI.updateGold(run.player.gold)
-  EventBus.emit('player:goldChange', { amount, newTotal: run.player.gold })
+  EventBus.emit('player:goldChange', { amount: actual, newTotal: run.player.gold })
 }
 
 function _gainXP(amount, tileEl) {
@@ -2425,13 +2613,14 @@ function _xpNeeded() {
 
 function _playerDamageRange(player) {
   const bonus = player.damageBonus ?? 0
+  const maskPenalty = player.inventory?.some(e => e.id === 'plague-mask') ? 1 : 0
   if (player.isRanger) {
     const [lo, hi] = RANGER_BASE.damage
-    return [lo + bonus, hi + bonus]
+    return [Math.max(1, lo + bonus - maskPenalty), Math.max(1, hi + bonus - maskPenalty)]
   }
   const base = CONFIG.player.baseDamage
   const b = Array.isArray(base) ? base[0] : base
-  return [b + bonus, b + bonus]
+  return [Math.max(1, b + bonus - maskPenalty), Math.max(1, b + bonus - maskPenalty)]
 }
 
 function _avgMeleeDamage() {
@@ -2619,11 +2808,37 @@ function _addToBackpack(id) {
   const inv   = run.player.inventory
   const item  = ITEMS[id]
   if (!item) return
+  // Philosopher's Coin: potions become gold instead
+  if ((id === 'potion-red' || id === 'potion-blue') && inv.some(e => e.id === 'philosophers-coin')) {
+    const goldAmt = id === 'potion-red' ? 3 : 5
+    run.player.gold += goldAmt
+    UI.updateGold(run.player.gold)
+    UI.spawnFloat(document.getElementById('hud-portrait'), `🥇 +${goldAmt}🪙`, 'gold')
+    return
+  }
   if (item.stackable) {
     const existing = inv.find(e => e.id === id)
     if (existing) { existing.qty++; return }
   }
   inv.push({ id, qty: 1 })
+  // Blood Pact: apply on equip
+  if (id === 'blood-pact') {
+    run.player.damageBonus = (run.player.damageBonus ?? 0) + 2
+    run.player.maxHp = Math.max(1, run.player.maxHp - 3)
+    run.player.hp = Math.min(run.player.hp, run.player.maxHp)
+    UI.updateHP(run.player.hp, run.player.maxHp)
+    const [d0, d1] = _playerDamageRange(run.player)
+    UI.updateDamageRange(d0, d1)
+    UI.spawnFloat(document.getElementById('hud-portrait'), '🩸 Pact!', 'damage')
+  }
+  // Forsaken Idol: halve max HP on equip
+  if (id === 'forsaken-idol') {
+    const halved = Math.max(1, Math.floor(run.player.maxHp / 2))
+    run.player.maxHp = halved
+    run.player.hp = Math.min(run.player.hp, halved)
+    UI.updateHP(run.player.hp, run.player.maxHp)
+    UI.spawnFloat(document.getElementById('hud-portrait'), '🗿 Max HP halved!', 'damage')
+  }
 }
 
 function _canAddToBackpack(id) {
@@ -2632,6 +2847,31 @@ function _canAddToBackpack(id) {
   if (!item) return false
   if (item.stackable && inv.some(e => e.id === id)) return true
   return inv.length < BACKPACK_MAX_SLOTS
+}
+
+function _triggerStormcallerLightning(sourceTile, playerDmg) {
+  const grid = TileEngine.getGrid()
+  const lightningDmg = Math.max(1, Math.floor(playerDmg * 0.2))
+  let victims = 0
+  for (const row of grid) {
+    for (const t of row) {
+      if (t.revealed && t.enemyData && !t.enemyData._slain && t !== sourceTile) {
+        t.enemyData.currentHP = Math.max(0, t.enemyData.currentHP - lightningDmg)
+        UI.spawnFloat(t.element, `⚡ ${lightningDmg}`, 'damage')
+        UI.updateEnemyHP(t.element, t.enemyData.currentHP)
+        victims++
+        if (t.enemyData.currentHP <= 0) {
+          _gainGold(t.enemyData.goldDrop ? _rand(...t.enemyData.goldDrop) : 1, t.element, true)
+          _gainXP(t.enemyData.xpDrop ?? 0, t.element)
+          _endCombatVictory(t)
+        }
+      }
+    }
+  }
+  if (victims > 0) {
+    UI.spawnFloat(sourceTile.element, '⚡ Storm!', 'xp')
+    EventBus.emit('audio:play', { sfx: 'spell' })
+  }
 }
 
 function _checkFloorCleared() {
@@ -2784,6 +3024,142 @@ function useItem(id) {
     return
   }
 
+  // ── Common consumables ────────────────────────────────────────
+  if (effect.type === 'rope-coil') {
+    if (run.player.trapImmune) { UI.setMessage('Rope Coil already active — next trap is blocked.', true); return }
+    run.player.trapImmune = true
+    UI.spawnFloat(document.getElementById('hud-portrait'), '🪢 Ready!', 'heal')
+    UI.setMessage('🪢 Rope Coil readied — the next trap you reveal will be completely negated.')
+    entry.qty--
+    if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
+    EventBus.emit('audio:play', { sfx: 'menu' })
+    return
+  }
+  if (effect.type === 'bandage-roll') {
+    const immediate = 3
+    run.player.hp = Math.min(run.player.maxHp, run.player.hp + immediate)
+    run.player.regenTurns   = 3
+    run.player.regenPerTurn = 1
+    UI.updateHP(run.player.hp, run.player.maxHp)
+    UI.spawnFloat(document.getElementById('hud-portrait'), `🩹 +${immediate} HP`, 'heal')
+    UI.setMessage(`🩹 Bandage applied — +${immediate} HP now, +1 HP per turn for 3 turns.`)
+    entry.qty--
+    if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
+    EventBus.emit('audio:play', { sfx: 'heal' })
+    return
+  }
+  if (effect.type === 'shield-shard') {
+    if (run.player.shieldShard) { UI.setMessage('Shield Shard already active — next hit is blocked.', true); return }
+    run.player.shieldShard = true
+    UI.spawnFloat(document.getElementById('hud-portrait'), '🛡️ Raised!', 'heal')
+    UI.setMessage('🛡️ Shield Shard raised — the very next enemy hit will be absorbed completely.')
+    entry.qty--
+    if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
+    EventBus.emit('audio:play', { sfx: 'menu' })
+    return
+  }
+  if (effect.type === 'smelling-salts') {
+    run.player.tearyEyesTurns = 0
+    UI.setTearyEyes(0)
+    const grid = TileEngine.getGrid()
+    for (const row of grid) {
+      for (const t of row) {
+        if (t.enemyData && !t.enemyData._slain) {
+          t.enemyData.burnTurns   = 0
+          t.enemyData.poisonTurns = 0
+        }
+      }
+    }
+    UI.spawnFloat(document.getElementById('hud-portrait'), '💨 Cleared!', 'heal')
+    UI.setMessage('💨 Smelling Salts — all debuffs cleared.')
+    entry.qty--
+    if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
+    EventBus.emit('audio:play', { sfx: 'heal' })
+    return
+  }
+  if (effect.type === 'sonic-ear') {
+    const grid = TileEngine.getGrid()
+    let count = 0
+    for (const row of grid) {
+      for (const t of row) {
+        if ((t.type === 'enemy' || t.type === 'enemy_fast' || t.type === 'boss') && !t.enemyData?._slain) count++
+      }
+    }
+    UI.setMessage(`👂 Sonic Ear — ${count} living enem${count === 1 ? 'y' : 'ies'} remain on this floor.`)
+    entry.qty--
+    if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
+    EventBus.emit('audio:play', { sfx: 'menu' })
+    return
+  }
+  if (effect.type === 'throwing-knife') {
+    _throwingKnifeTargeting = true
+    UI.setMessage('🗡️ Throwing Knife — tap any revealed living enemy to strike for 3 damage (no counter).')
+    EventBus.emit('audio:play', { sfx: 'menu' })
+    entry.qty--
+    if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
+    return
+  }
+  if (effect.type === 'flash-powder') {
+    const combatTile = run.activeCombatTile
+    if (!combatTile || !combatTile.enemyData || combatTile.enemyData._slain) {
+      UI.setMessage('Flash Powder can only be used during combat.', true)
+      return
+    }
+    combatTile.enemyData.stunTurns = (combatTile.enemyData.stunTurns ?? 0) + 2
+    UI.spawnFloat(combatTile.element, '✨ Stunned!', 'xp')
+    UI.setMessage('✨ Flash Powder — enemy stunned for 2 turns! No counter-attacks.')
+    entry.qty--
+    if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
+    EventBus.emit('audio:play', { sfx: 'spell' })
+    return
+  }
+  if (effect.type === 'rusty-nail') {
+    _rustyNailTargeting = true
+    UI.setMessage('📌 Rusty Nail — tap any revealed living enemy to poison them (1 dmg/turn × 5 turns).')
+    EventBus.emit('audio:play', { sfx: 'menu' })
+    entry.qty--
+    if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
+    return
+  }
+  if (effect.type === 'loose-pouch') {
+    const gold = _rand(3, 6)
+    _gainGold(gold, document.getElementById('hud-portrait'), true)
+    UI.setMessage(`💰 Loose Pouch — +${gold} gold spills out.`)
+    entry.qty--
+    if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
+    EventBus.emit('audio:play', { sfx: 'gold' })
+    return
+  }
+  if (effect.type === 'whetstone') {
+    run.player.whettsoneHits = (run.player.whettsoneHits ?? 0) + 3
+    UI.spawnFloat(document.getElementById('hud-portrait'), '⚔️ +1 dmg ×3', 'xp')
+    UI.setMessage(`🪨 Whetstone — your next 3 melee hits deal +1 damage.`)
+    entry.qty--
+    if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
+    EventBus.emit('audio:play', { sfx: 'hit' })
+    return
+  }
+
+  if (effect.type === 'bone-dice') {
+    if (run.player.mana < 10) { UI.setMessage('Not enough mana! Bone Dice costs 10 mana.', true); return }
+    run.player.mana -= 10
+    UI.updateMana(run.player.mana, run.player.maxMana)
+    const grid = TileEngine.getGrid()
+    let count = 0
+    for (const row of grid) {
+      for (const t of row) {
+        if (t.revealed && t.enemyData && !t.enemyData._slain) {
+          TileEngine.refreshEnemyDamageOnTile(t, run.floor)
+          UI.updateEnemyHP(t.element, t.enemyData.currentHP)
+          count++
+        }
+      }
+    }
+    UI.setMessage(`🎲 Bone Dice rerolled ${count} enem${count === 1 ? 'y' : 'ies'} — better or worse? (10 mana)`)
+    EventBus.emit('audio:play', { sfx: 'menu' })
+    return
+  }
+
   EventBus.emit('audio:play', { sfx: 'heal' })
   if (effect.type === 'heal') {
     const missing = run.player.maxHp - run.player.hp
@@ -2822,6 +3198,21 @@ function dropItem(id) {
   const item = ITEMS[id]
   entry.qty--
   if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
+  // Blood Pact: revert on drop
+  if (id === 'blood-pact') {
+    run.player.damageBonus = Math.max(0, (run.player.damageBonus ?? 0) - 2)
+    run.player.maxHp += 3
+    UI.updateHP(run.player.hp, run.player.maxHp)
+    const [d0, d1] = _playerDamageRange(run.player)
+    UI.updateDamageRange(d0, d1)
+    UI.spawnFloat(document.getElementById('hud-portrait'), '🩸 Pact broken', 'heal')
+  }
+  // Forsaken Idol: restore max HP on drop
+  if (id === 'forsaken-idol') {
+    run.player.maxHp = Math.max(1, run.player.maxHp * 2)
+    UI.updateHP(run.player.hp, run.player.maxHp)
+    UI.spawnFloat(document.getElementById('hud-portrait'), '🗿 Max HP restored', 'heal')
+  }
   UI.setMessage(item ? `Dropped ${item.name}.` : 'Item removed.')
   EventBus.emit('audio:play', { sfx: 'menu' })
 }

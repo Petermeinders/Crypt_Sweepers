@@ -26,6 +26,8 @@
   --text-dim:      #7a7060;
   --radius:        8px;
   --hud-bar-bg:    linear-gradient(180deg, #1e1e2d 0%, #12121c 100%);
+  --color-back:    #1a2535;
+  --btn-text:      #d0a756;
 }
 
 html, body {

@@ -1015,7 +1015,8 @@ const UI = {
       const item = itemRegistry[entry.id]
       if (!item) return null
       const slot = document.createElement('div')
-      slot.className = 'backpack-slot occupied'
+      const rarity = item.rarity ?? 'common'
+      slot.className = `backpack-slot occupied rarity-${rarity}`
       const bpIcon = item.spriteSrc
         ? `<img class="bp-item-img" src="${item.spriteSrc}" alt="${item.name}">`
         : `<span class="bp-item-emoji">${item.icon}</span>`

@@ -6,6 +6,7 @@ export const ITEMS = {
     name:      'Mana Potion',
     icon:      '🔵',
     spriteSrc: 'assets/sprites/Items/potionBlue.png',
+    rarity:    'common',
     stackable: true,
     blurb:     'A vial of concentrated arcane essence. The liquid hums faintly against your fingers. Restores focus and magical reserves.',
     details: [
@@ -19,6 +20,7 @@ export const ITEMS = {
     name:      'Red Potion',
     icon:      '🧪',
     spriteSrc: 'assets/sprites/Items/potionRed.png',
+    rarity:    'common',
     stackable: true,
     blurb:     'A small vial of crimson restorative. Smells of iron and elderberries. Drink it when the shadows close in.',
     details: [
@@ -32,6 +34,7 @@ export const ITEMS = {
     name:      "Smith's Tools",
     icon:      '🔧',
     spriteSrc: 'assets/sprites/Items/smiths-tools.png',
+    rarity:    'common',
     stackable: false,
     blurb:     'Crossed hammer and wrench — just enough kit to tune an edge before the next fight.',
     details: [
@@ -44,7 +47,8 @@ export const ITEMS = {
   'fire-ring': {
     name:      'Fire Ring',
     icon:      '🔥',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/fire-ring.png',
+    rarity:    'rare',
     stackable: false,
     blurb:     'A band of blackened iron still warm to the touch. Faint embers swirl inside the stone. Something burns within it.',
     details: [
@@ -58,7 +62,8 @@ export const ITEMS = {
   'lantern': {
     name:      'Lantern',
     icon:      '🏮',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/lantern.png',
+    rarity:    'common',
     stackable: false,
     blurb:     'A dim glow that cuts through dungeon dark. Once lit, you can see what hides behind any single tile — but it only burns once.',
     details: [
@@ -72,7 +77,8 @@ export const ITEMS = {
   'mana-ring': {
     name:      'Mana Ring',
     icon:      '💍',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/mana-ring.png',
+    rarity:    'rare',
     stackable: false,
     blurb:     'An ornate silver band threaded with arcane wire. The inscription reads: "to the attentive, twice the power."',
     details: [
@@ -86,7 +92,8 @@ export const ITEMS = {
   'spyglass': {
     name:      'Spyglass',
     icon:      '🔭',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/spyglass.png',
+    rarity:    'common',
     stackable: false,
     blurb:     'Brass and smoked glass — a glimpse through the fog without stepping into it.',
     details: [
@@ -100,7 +107,8 @@ export const ITEMS = {
   'echo-charm': {
     name:      'Echo Charm',
     icon:      '🔔',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/echo-charm.png',
+    rarity:    'rare',
     stackable: false,
     blurb:     'A tiny bell that answers when something falls nearby.',
     details: [
@@ -112,8 +120,9 @@ export const ITEMS = {
 
   'vampire-fang': {
     name:      'Vampire Fang',
+    rarity:    'rare',
     icon:      '🦷',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/vampire-fang.png',
     stackable: false,
     blurb:     'A chipped tooth that still remembers the taste of victory.',
     details: [
@@ -125,8 +134,9 @@ export const ITEMS = {
 
   'glass-cannon-shard': {
     name:      'Glass Cannon Shard',
+    rarity:    'rare',
     icon:      '💠',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/glass-cannon-shard.png',
     stackable: false,
     blurb:     'A razor-sharp fragment of something that shatters beautifully.',
     details: [
@@ -138,8 +148,9 @@ export const ITEMS = {
 
   'duelists-glove': {
     name:      "Duelist's Glove",
+    rarity:    'rare',
     icon:      '🧤',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/duelists-glove.png',
     stackable: false,
     blurb:     'Worn leather that remembers the first clean line of every duel.',
     details: [
@@ -151,8 +162,9 @@ export const ITEMS = {
 
   'surge-pearl': {
     name:      'Surge Pearl',
+    rarity:    'rare',
     icon:      '⚪',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/surge-pearl.png',
     stackable: false,
     blurb:     'A pearl that pulses when a spell leaves your hand.',
     details: [
@@ -164,8 +176,9 @@ export const ITEMS = {
 
   'still-water-amulet': {
     name:      'Still Water Amulet',
+    rarity:    'rare',
     icon:      '💧',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/still-water-amulet.png',
     stackable: false,
     blurb:     'Still water runs deep — and cheap spells, if you wait.',
     details: [
@@ -178,8 +191,9 @@ export const ITEMS = {
 
   'greed-tooth': {
     name:      'Greed Tooth',
+    rarity:    'rare',
     icon:      '🤑',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/greed-tooth.png',
     stackable: false,
     blurb:     'A gold tooth that hungers for more — and pays for it in blood.',
     details: [
@@ -192,8 +206,9 @@ export const ITEMS = {
 
   'lucky-rabbit-foot': {
     name:      'Lucky Rabbit Foot',
+    rarity:    'rare',
     icon:      '🐇',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/lucky-rabbit-foot.png',
     stackable: false,
     blurb:     'A soft charm that steps aside for the worst blows.',
     details: [
@@ -205,8 +220,9 @@ export const ITEMS = {
 
   'cursed-lockpick': {
     name:      'Cursed Lockpick',
+    rarity:    'rare',
     icon:      '🗝️',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/cursed-lockpick.png',
     stackable: false,
     blurb:     'A bent pick that whispers of better locks.',
     details: [
@@ -216,10 +232,165 @@ export const ITEMS = {
     effect: { type: 'passive-cursed-lockpick' },
   },
 
+  // ── Common Consumables ──────────────────────────────────────
+
+  'rope-coil': {
+    name:      'Rope Coil',
+    icon:      '🪢',
+    spriteSrc: 'assets/sprites/Items/rope-coil.png',
+    rarity:    'common',
+    stackable: true,
+    maxStack:  3,
+    blurb:     'A length of sturdy rope. Lash it across a pit, loop it round a snare — whatever it takes.',
+    details: [
+      { icon: '🪤', label: 'Use',      desc: 'Completely negate the next trap you reveal — no damage taken' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 3' },
+    ],
+    effect: { type: 'rope-coil' },
+  },
+
+  'bandage-roll': {
+    name:      'Bandage Roll',
+    icon:      '🩹',
+    spriteSrc: 'assets/sprites/Items/bandage-roll.png',
+    rarity:    'common',
+    stackable: true,
+    maxStack:  3,
+    blurb:     'Clean linen and a steady hand. Stops the bleeding now and keeps mending for the next few steps.',
+    details: [
+      { icon: '❤️', label: 'Heal',     desc: 'Restores 3 HP immediately, then 1 HP per turn for 3 more turns' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 3' },
+    ],
+    effect: { type: 'bandage-roll' },
+  },
+
+  'shield-shard': {
+    name:      'Shield Shard',
+    icon:      '🛡️',
+    spriteSrc: 'assets/sprites/Items/shield-shard.png',
+    rarity:    'common',
+    stackable: true,
+    maxStack:  3,
+    blurb:     'A broken piece of a palladin\'s shield. Just enough left to catch one blow.',
+    details: [
+      { icon: '🛡️', label: 'Use',      desc: 'Absorbs the very next enemy hit entirely — then it shatters' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 3' },
+    ],
+    effect: { type: 'shield-shard' },
+  },
+
+  'smelling-salts': {
+    name:      'Smelling Salts',
+    icon:      '💨',
+    spriteSrc: 'assets/sprites/Items/smelling-salts.png',
+    rarity:    'common',
+    stackable: true,
+    maxStack:  3,
+    blurb:     'A sharp ammonia snap that cuts through fog and curse alike.',
+    details: [
+      { icon: '💨', label: 'Use',      desc: 'Instantly clears all active debuffs (Teary Eyes, burn, poison)' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 3' },
+    ],
+    effect: { type: 'smelling-salts' },
+  },
+
+  'sonic-ear': {
+    name:      'Sonic Ear',
+    icon:      '👂',
+    spriteSrc: 'assets/sprites/Items/sonic-ear.png',
+    rarity:    'common',
+    stackable: true,
+    maxStack:  3,
+    blurb:     'Press it to the stone and count the heartbeats. The dungeon doesn\'t lie.',
+    details: [
+      { icon: '👂', label: 'Use',      desc: 'Reveals the exact number of living enemies still hidden on this floor' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 3' },
+    ],
+    effect: { type: 'sonic-ear' },
+  },
+
+  'throwing-knife': {
+    name:      'Throwing Knife',
+    icon:      '🗡️',
+    spriteSrc: 'assets/sprites/Items/throwing-knife.png',
+    rarity:    'common',
+    stackable: true,
+    maxStack:  3,
+    blurb:     'Balanced for the throw, not the follow-up. Strike from a distance — no counter.',
+    details: [
+      { icon: '🗡️', label: 'Use',      desc: 'Tap to activate, then tap any revealed living enemy — deal 3 damage with no counter-attack' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 3' },
+    ],
+    effect: { type: 'throwing-knife' },
+  },
+
+  'flash-powder': {
+    name:      'Flash Powder',
+    icon:      '✨',
+    spriteSrc: 'assets/sprites/Items/flash-powder.png',
+    rarity:    'common',
+    stackable: true,
+    maxStack:  3,
+    blurb:     'A pinch of alchemist\'s dust. Blind them for two turns — that\'s all you need.',
+    details: [
+      { icon: '✨', label: 'Use',      desc: 'Stuns the enemy in your current fight for 2 turns — they cannot counter-attack' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 3' },
+    ],
+    effect: { type: 'flash-powder' },
+  },
+
+  'rusty-nail': {
+    name:      'Rusty Nail',
+    icon:      '📌',
+    spriteSrc: 'assets/sprites/Items/rusty-nail.png',
+    rarity:    'common',
+    stackable: true,
+    maxStack:  3,
+    blurb:     'Corroded iron, still sharp enough. What it lacks in damage it makes up for in persistence.',
+    details: [
+      { icon: '📌', label: 'Use',      desc: 'Tap to activate, then tap any revealed living enemy — poisons them for 1 damage per turn for 5 turns' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 3' },
+    ],
+    effect: { type: 'rusty-nail' },
+  },
+
+  'loose-pouch': {
+    name:      'Loose Pouch',
+    icon:      '💰',
+    spriteSrc: 'assets/sprites/Items/loose-pouch.png',
+    rarity:    'common',
+    stackable: true,
+    maxStack:  3,
+    blurb:     'Someone dropped it in a hurry. Their loss.',
+    details: [
+      { icon: '🪙', label: 'Use',      desc: 'Spills 3–6 gold directly into your purse' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 3' },
+    ],
+    effect: { type: 'loose-pouch' },
+  },
+
+  'whetstone': {
+    name:      'Whetstone',
+    icon:      '🪨',
+    spriteSrc: 'assets/sprites/Items/whetstone.png',
+    rarity:    'common',
+    stackable: true,
+    maxStack:  3,
+    blurb:     'A few strokes on the stone and the edge bites again. Good for three swings.',
+    details: [
+      { icon: '⚔️', label: 'Use',      desc: '+1 bonus damage on your next 3 melee hits' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 3' },
+    ],
+    effect: { type: 'whetstone' },
+  },
+
+  // ── Legendary consumable ────────────────────────────────────
+
   'hourglass-sand': {
     name:      'Hourglass Sand',
+    rarity:    'legendary',
     icon:      '⏳',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/hourglass-sand.png',
     stackable: false,
     blurb:     'A pinch of sand that falls upward — once, then again, until you run dry.',
     details: [
@@ -228,5 +399,239 @@ export const ITEMS = {
       { icon: '🎲', label: 'Legendary', desc: '1% chance from chests' },
     ],
     effect: { type: 'hourglass-sand' },
+  },
+
+  'thorn-wrap': {
+    name:      'Thorn Wrap',
+    rarity:    'rare',
+    icon:      '🌿',
+    spriteSrc: 'assets/sprites/Items/thorn-wrap.png',
+    stackable: false,
+    blurb:     'Woven briars still sharp enough to answer back. Every blow you take draws blood from the one who dealt it.',
+    details: [
+      { icon: '🌿', label: 'Passive', desc: 'Deal 1 damage to any enemy that hits you' },
+      { icon: '🎲', label: 'Rare',    desc: '3% chance from magic chest' },
+    ],
+    effect: { type: 'passive-thorn-wrap' },
+  },
+
+  'misers-pouch': {
+    name:      "Miser's Pouch",
+    rarity:    'rare',
+    icon:      '👝',
+    spriteSrc: 'assets/sprites/Items/misers-pouch.png',
+    stackable: false,
+    blurb:     'A coin purse that stretches for gold — but chests feel the pinch.',
+    details: [
+      { icon: '🪙', label: 'Passive', desc: '+1 gold from every enemy kill' },
+      { icon: '📦', label: 'Curse',   desc: 'Chest loot is always gold — no items' },
+      { icon: '🎲', label: 'Rare',    desc: '3% chance from magic chest' },
+    ],
+    effect: { type: 'passive-misers-pouch' },
+  },
+
+  'cracked-compass': {
+    name:      'Cracked Compass',
+    rarity:    'rare',
+    icon:      '🧭',
+    spriteSrc: 'assets/sprites/Items/cracked-compass.png',
+    stackable: false,
+    blurb:     'The needle is bent, but it still knows the way out.',
+    details: [
+      { icon: '🧭', label: 'Passive', desc: 'The exit tile is revealed at the start of every floor' },
+      { icon: '🎲', label: 'Rare',    desc: '3% chance from magic chest' },
+    ],
+    effect: { type: 'passive-cracked-compass' },
+  },
+
+  'plague-mask': {
+    name:      'Plague Mask',
+    rarity:    'rare',
+    icon:      '😷',
+    spriteSrc: 'assets/sprites/Items/plague-mask.png',
+    stackable: false,
+    blurb:     'The leather smells of ash and old medicine. It muffles the blows — and your own.',
+    details: [
+      { icon: '🛡️', label: 'Passive', desc: 'Take 1 less damage from all sources' },
+      { icon: '⚔️', label: 'Curse',   desc: 'Deal 1 less damage to enemies (min 1)' },
+      { icon: '🎲', label: 'Rare',    desc: '3% chance from magic chest' },
+    ],
+    effect: { type: 'passive-plague-mask' },
+  },
+
+  'soul-candle': {
+    name:      'Soul Candle',
+    rarity:    'rare',
+    icon:      '🕯️',
+    spriteSrc: 'assets/sprites/Items/soul-candle.png',
+    stackable: false,
+    blurb:     'A candle that burns a little brighter each time something dies near it.',
+    details: [
+      { icon: '🕯️', label: 'Passive', desc: '20% chance to restore 1 mana on every enemy kill' },
+      { icon: '🎲', label: 'Rare',    desc: '3% chance from magic chest' },
+    ],
+    effect: { type: 'passive-soul-candle' },
+  },
+
+  'blood-pact': {
+    name:      'Blood Pact',
+    rarity:    'rare',
+    icon:      '🩸',
+    spriteSrc: 'assets/sprites/Items/blood-pact.png',
+    stackable: false,
+    blurb:     'Sign in blood, gain in steel — but the debt is paid the moment you let go.',
+    details: [
+      { icon: '⚔️', label: 'On Equip', desc: '+2 attack damage; lose 3 max HP (healed proportionally)' },
+      { icon: '💔', label: 'On Drop',  desc: 'The +2 damage is lost; 3 max HP is restored' },
+      { icon: '🎲', label: 'Rare',     desc: '3% chance from magic chest' },
+    ],
+    effect: { type: 'passive-blood-pact' },
+  },
+
+  'bone-dice': {
+    name:      'Bone Dice',
+    rarity:    'rare',
+    icon:      '🎲',
+    spriteSrc: 'assets/sprites/Items/bone-dice.png',
+    stackable: false,
+    blurb:     'Carved from something that used to walk. Roll them and watch the dungeon rebalance itself.',
+    details: [
+      { icon: '🎲', label: 'Use',      desc: 'Re-rolls all revealed living enemies\' HP and damage stats. Costs 10 mana.' },
+      { icon: '♾️', label: 'Reusable', desc: 'Can be used every floor, unlimited times' },
+      { icon: '🎰', label: 'Legendary', desc: 'Rare find from magic chest' },
+    ],
+    effect: { type: 'bone-dice' },
+  },
+
+  'hunger-stone': {
+    name:      'Hunger Stone',
+    rarity:    'rare',
+    icon:      '🪨',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'Heavy, cold, and relentless. It feeds on your vitality — and sharpens your edge.',
+    details: [
+      { icon: '⚔️', label: 'Passive', desc: '+1 max attack damage on each new floor' },
+      { icon: '💔', label: 'Cost',    desc: 'Lose 2 HP at the start of each new floor (can be lethal)' },
+      { icon: '🎲', label: 'Rare',    desc: '3% chance from magic chest' },
+    ],
+    effect: { type: 'passive-hunger-stone' },
+  },
+
+  'gamblers-mark': {
+    name:      "Gambler's Mark",
+    rarity:    'rare',
+    icon:      '♠️',
+    spriteSrc: 'assets/sprites/Items/gamblers-mark.png',
+    stackable: false,
+    blurb:     'A brand burned into the palm. Every coin you earn is a wager — double or nothing.',
+    details: [
+      { icon: '🪙', label: 'Passive', desc: 'All gold rewards from enemies and tiles are ×0 or ×2 (coin flip)' },
+      { icon: '🎲', label: 'Rare',    desc: '3% chance from magic chest' },
+    ],
+    effect: { type: 'passive-gamblers-mark' },
+  },
+
+  'witching-stone': {
+    name:      'Witching Stone',
+    rarity:    'rare',
+    icon:      '🔮',
+    spriteSrc: 'assets/sprites/Items/witching-stone.png',
+    stackable: false,
+    blurb:     'The stone drinks from you with every incantation. Power has a price paid in flesh.',
+    details: [
+      { icon: '🔮', label: 'Passive', desc: 'Each spell cast costs an additional 1 HP' },
+      { icon: '🎲', label: 'Rare',    desc: '3% chance from magic chest' },
+    ],
+    effect: { type: 'passive-witching-stone' },
+  },
+
+  // ── Legendary Trinkets ──────────────────────────────────────
+
+  'forsaken-idol': {
+    name:      'Forsaken Idol',
+    rarity:    'legendary',
+    icon:      '🗿',
+    spriteSrc: 'assets/sprites/Items/forsaken-idol.png',
+    stackable: false,
+    blurb:     'An ancient effigy that sees everything — and leaves you half the man you were.',
+    details: [
+      { icon: '👁️', label: 'Passive',   desc: 'All enemies on each floor are revealed the moment you enter' },
+      { icon: '💔', label: 'Curse',     desc: 'Your max HP is permanently halved while you hold this' },
+      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+    ],
+    effect: { type: 'passive-forsaken-idol' },
+  },
+
+  'stormcallers-fist': {
+    name:      "Stormcaller's Fist",
+    rarity:    'legendary',
+    icon:      '⚡',
+    spriteSrc: 'assets/sprites/Items/stormcallers-fist.png',
+    stackable: false,
+    blurb:     'Every fifth blow calls the storm down. The dungeon shakes.',
+    details: [
+      { icon: '⚡', label: 'Passive',   desc: 'Every 5th melee hit, lightning strikes all revealed living enemies for 20% of your damage (min 1)' },
+      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+    ],
+    effect: { type: 'passive-stormcallers-fist' },
+  },
+
+  'mirror-of-vanity': {
+    name:      'Mirror of Vanity',
+    rarity:    'legendary',
+    icon:      '🪞',
+    spriteSrc: 'assets/sprites/Items/mirror-of-vanity.png',
+    blurb:     'It shows you at your best — and the reflection strikes for you.',
+    details: [
+      { icon: '🪞', label: 'Passive',   desc: '+20% of your current HP added as flat bonus damage to every attack and spell' },
+      { icon: '📉', label: 'Note',      desc: 'Bonus shrinks as you take damage — stay healthy to hit hard' },
+      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+    ],
+    effect: { type: 'passive-mirror-of-vanity' },
+  },
+
+  'deathmask': {
+    name:      'Deathmask of the Fallen',
+    rarity:    'legendary',
+    icon:      '💀',
+    spriteSrc: 'assets/sprites/Items/deathmask.png',
+    stackable: false,
+    blurb:     'Wear the face of the dead and the next one comes to you willingly.',
+    details: [
+      { icon: '💀', label: 'Passive',   desc: 'On kill: 25% chance — the next enemy you reveal is instantly slain (no combat)' },
+      { icon: '🪙', label: 'Note',      desc: 'Instant kills still grant gold and XP' },
+      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+    ],
+    effect: { type: 'passive-deathmask' },
+  },
+
+  'traded-codex': {
+    name:      'The Traded Codex',
+    rarity:    'legendary',
+    icon:      '📖',
+    spriteSrc: 'assets/sprites/Items/traded-codex.png',
+    stackable: false,
+    blurb:     'Written in blood on every page: the lower you fall, the louder the words speak.',
+    details: [
+      { icon: '📖', label: 'Passive',   desc: 'Spell damage scales with missing HP — full HP = 1×, 50% HP = 2×, near death = up to 3×' },
+      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+    ],
+    effect: { type: 'passive-traded-codex' },
+  },
+
+  'philosophers-coin': {
+    name:      "Philosopher's Coin",
+    rarity:    'legendary',
+    icon:      '🥇',
+    spriteSrc: 'assets/sprites/Items/philosophers-coin.png',
+    stackable: false,
+    blurb:     'It turns potions into gold and gold into legend.',
+    details: [
+      { icon: '🥇', label: 'Passive',   desc: 'Potions found are instantly converted to gold instead' },
+      { icon: '🪙', label: 'Bonus',     desc: 'All gold tile and enemy gold rewards are worth 5×' },
+      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+    ],
+    effect: { type: 'passive-philosophers-coin' },
   },
 }

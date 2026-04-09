@@ -16,7 +16,7 @@ import { GLOBAL_PASSIVE_UPGRADES, GLOBAL_PASSIVE_IDS } from './data/passives.js'
 const CHARACTERS = [
   {
     id:         'warrior',
-    name:       'Warrior',
+    name:       'Palladin',
     tagline:    'Battle-hardened fighter. Slow but hits hard.',
     gif:        'assets/sprites/Heroes/Warrior/warrior-idle.gif',
     attackGif:  'assets/sprites/Heroes/Warrior/warrior-strike.gif',
@@ -214,7 +214,7 @@ async function boot() {
         UI.showInfoCard({
           spriteSrc: WARRIOR_UPGRADES.slam.iconSrc,
           name:   'Slam',
-          type:   'Warrior Ability',
+          type:   'Palladin Ability',
           blurb:  'Bring your weapon down with crushing force. Strikes every revealed enemy; each takes the same Slam damage (scales with your HUD attack + Slam Mastery).',
           details: [
             { icon: '🔵', label: 'Mana Cost',  desc: `${WARRIOR_UPGRADES.slam.manaCost} mana per use` },
@@ -264,11 +264,11 @@ async function boot() {
               : `${mult.toFixed(1)}`
             return `max(2, round(${avgStr} × ${inner})) = ${stunTurns} stun turn(s) — Undead/Beast Bane can double stun`
           })()
-        : 'Start a warrior run to see stun turns (scales with HUD attack + Blinding Mastery).'
+        : 'Start a palladin run to see stun turns (scales with HUD attack + Blinding Mastery).'
       UI.showInfoCard({
         spriteSrc: WARRIOR_UPGRADES['blinding-light'].iconSrc,
         name:   'Blinding Light',
-        type:   'Warrior Ability',
+        type:   'Palladin Ability',
         blurb:  'A flash of searing light adds stun turns based on your attack scaling (no HP damage). Stunned enemies cannot counter-attack.',
         details: [
           { icon: '🔵', label: 'Mana Cost', desc: `${WARRIOR_UPGRADES['blinding-light'].manaCost} mana per use` },
@@ -299,7 +299,7 @@ async function boot() {
           spriteSrc:   WARRIOR_UPGRADES['divine-light'].iconSrc,
           spriteSrcBg: WARRIOR_UPGRADES['divine-light'].iconBgSrc,
           name:   'Divine Light',
-          type:   'Warrior Ability',
+          type:   'Palladin Ability',
           blurb:  'Channel sacred energy in two ways: smite a revealed enemy with divine force, or touch your portrait to bathe yourself in healing light.',
           details: [
             { icon: '🔵', label: 'Mana Cost',  desc: `${WARRIOR_UPGRADES['divine-light'].manaCost} mana per use` },
@@ -965,7 +965,7 @@ function _renderUpgradeDetail(id, def, isOwned, canAfford) {
 function _showResumePrompt() {
   const info = GameController.getActiveRunInfo()
   if (!info) return
-  const heroName = info.player.isRanger ? 'Ranger' : 'Warrior'
+  const heroName = info.player.isRanger ? 'Ranger' : 'Palladin'
   const floorLabel = info.atRest ? `Floor ${info.floor} — Sanctuary` : `Floor ${info.floor}`
   document.getElementById('resume-hero-name').textContent = heroName
   document.getElementById('resume-floor').textContent    = `🗺 ${floorLabel}`
