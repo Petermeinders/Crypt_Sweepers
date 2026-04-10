@@ -46,6 +46,12 @@
 
     <button type="button" id="skip-floor-btn" class="skip-floor-btn hidden" aria-hidden="true" title="Cheat: advance to next floor">Skip floor</button>
 
+    <!-- Freezing Hit screen border overlay -->
+    <div id="freeze-overlay" class="freeze-overlay hidden" aria-hidden="true"></div>
+
+    <!-- Low health blood border overlay -->
+    <div id="blood-overlay" class="blood-overlay hidden" aria-hidden="true"></div>
+
     <div id="grid-container">
       <div id="grid"></div>
       <div id="floor-banner" class="floor-banner hidden" aria-hidden="true">
@@ -77,6 +83,7 @@
           <img id="hud-portrait-img" src="assets/sprites/Heroes/Warrior/__Idle.gif" alt="Palladin">
         </div>
         <button id="hud-teary-eyes" class="hud-debuff-btn hidden" title="Teary Eyes debuff">💧</button>
+        <button id="hud-freezing-hit" class="hud-debuff-btn hidden" title="Freezing Hit — reduces your damage by 20% per stack">🧊</button>
       </div>
 
       <div id="hud-stats">
@@ -129,6 +136,17 @@
     <div class="backpack-drawer-handle" aria-hidden="true"></div>
     <div class="backpack-drawer-header">
       <span class="backpack-drawer-title">Backpack</span>
+    </div>
+    <!-- Shown only when backpack is full and a new item is pending -->
+    <div id="backpack-pending-bar" class="backpack-pending-bar hidden">
+      <div class="backpack-pending-item">
+        <div id="backpack-pending-art" class="backpack-pending-art"></div>
+        <div class="backpack-pending-info">
+          <div id="backpack-pending-name" class="backpack-pending-name"></div>
+          <div class="backpack-pending-hint">Tap a slot to replace it, or trash this item.</div>
+        </div>
+      </div>
+      <button type="button" id="backpack-pending-trash" class="backpack-pending-trash-btn">🗑️ Trash</button>
     </div>
     <div class="backpack-content">
       <div id="backpack-grid">
@@ -193,8 +211,9 @@
 
   <!-- ── Merchant shop overlay ── -->
   <div id="merchant-shop-overlay" class="panel-overlay hidden">
-    <div class="panel-header">
-      <div class="panel-title">🛒 Travelling Merchant</div>
+    <div class="event-header-img-wrap">
+      <img src="assets/ui/event-merchant.png" alt="" class="event-header-img" aria-hidden="true">
+      <div class="event-header-title">🛒 Travelling Merchant</div>
     </div>
     <div class="event-body">
       <p class="event-blurb">"Fine wares for a fine adventurer. You have <span id="merchant-shop-gold">0</span> 🪙."</p>
@@ -203,22 +222,48 @@
     </div>
   </div>
 
-  <!-- ── Gambler overlay (stub) ── -->
+  <!-- ── Gambler overlay ── -->
   <div id="gambler-overlay" class="panel-overlay hidden">
-    <div class="panel-header">
-      <div class="panel-title">🎲 The Gambler</div>
+    <div class="event-header-img-wrap event-header-placeholder">
+      <div class="event-header-title">🎲 The Gambler</div>
     </div>
-    <div class="event-body">
-      <p class="event-blurb">"Step right up... the dice don't lie. Usually."</p>
-      <p class="event-blurb" style="margin-top:8px;color:var(--torch-yellow)">🚧 Rework coming soon.</p>
-      <button id="gambler-close" class="menu-btn secondary">Walk Away</button>
+    <div class="event-body gambler-body">
+
+      <!-- Phase 1: bet selection -->
+      <div id="gambler-phase-bet" class="gambler-phase">
+        <p class="event-blurb">"Roll 7 or higher and I double your gold. Roll under and it's mine. Simple as that."</p>
+        <p class="gambler-bet-label">Place your bet:</p>
+        <div id="gambler-bet-buttons" class="gambler-bet-buttons"></div>
+        <button id="gambler-walk-away" class="menu-btn secondary">Walk Away</button>
+      </div>
+
+      <!-- Phase 2: dice roll -->
+      <div id="gambler-phase-roll" class="gambler-phase hidden">
+        <div class="gambler-canvas-wrap">
+          <canvas id="gambler-canvas" width="300" height="200"></canvas>
+        </div>
+        <p id="gambler-roll-hint" class="gambler-roll-hint">Tap to roll the dice!</p>
+        <button id="gambler-roll-btn" class="menu-btn primary">🎲 Roll!</button>
+      </div>
+
+      <!-- Phase 3: outcome -->
+      <div id="gambler-phase-outcome" class="gambler-phase hidden">
+        <div class="gambler-canvas-wrap">
+          <canvas id="gambler-canvas-result" width="300" height="200"></canvas>
+        </div>
+        <p id="gambler-outcome-total" class="gambler-outcome-total"></p>
+        <p id="gambler-outcome-text" class="gambler-outcome-text"></p>
+        <button id="gambler-outcome-ok" class="menu-btn primary">Continue</button>
+      </div>
+
     </div>
   </div>
 
   <!-- ── Triple chest overlay ── -->
   <div id="triple-chest-overlay" class="panel-overlay hidden">
-    <div class="panel-header">
-      <div class="panel-title">📦 Three Chests</div>
+    <div class="event-header-img-wrap">
+      <img src="assets/ui/event-triple-chest.png" alt="" class="event-header-img" aria-hidden="true">
+      <div class="event-header-title">📦 Three Chests</div>
     </div>
     <div class="event-body">
       <p class="event-blurb">Three chests sit before you. Only one holds something worthwhile — choose wisely.</p>
@@ -227,10 +272,27 @@
     </div>
   </div>
 
+  <!-- ── Trinket Trader overlay ── -->
+  <div id="trinket-trader-overlay" class="panel-overlay hidden">
+    <div class="event-header-img-wrap">
+      <img src="assets/ui/event-trinket-trader.png" alt="" class="event-header-img" aria-hidden="true">
+      <div class="event-header-title">🔮 Trinket Trader</div>
+    </div>
+    <div class="event-body">
+      <p class="event-blurb" id="trinket-trader-blurb">A hooded figure offers a glowing exchange — one trinket for another, unknown. Choose what to give up.</p>
+      <div id="trinket-trader-list" class="trinket-trader-list"></div>
+      <button id="trinket-trader-leave" class="menu-btn secondary">Decline and leave</button>
+    </div>
+  </div>
+
   <!-- ── Story event overlay ── -->
   <div id="story-event-overlay" class="panel-overlay hidden">
-    <div class="panel-header">
-      <div class="panel-title" id="story-event-title">An Encounter</div>
+    <div class="event-header-img-wrap">
+      <img src="assets/ui/event-story.png" alt="" class="event-header-img" aria-hidden="true">
+      <div class="event-header-title story-header-title">
+        <span class="story-header-narrator">Storyteller:</span>
+        <span id="story-event-title">'An Encounter'</span>
+      </div>
     </div>
     <div class="event-body">
       <p class="event-blurb" id="story-event-text"></p>
@@ -287,6 +349,7 @@
       <button id="gold-shop-btn" class="menu-btn secondary">🛒 Gold Shop</button>
       <button id="passive-upgrades-btn" class="menu-btn secondary">📜 Passive Upgrades</button>
       <button id="bestiary-btn" class="menu-btn secondary">📖 Bestiary</button>
+      <button id="trinket-codex-btn" class="menu-btn secondary">🔮 Trinkets</button>
     </div>
     <div id="difficulty-row">
       <span class="diff-label">Difficulty</span>
@@ -550,6 +613,54 @@
     </div>
   </div>
 
+  <!-- Trinket Codex panel -->
+  <div id="trinket-codex-overlay" class="panel-overlay hidden">
+    <div class="panel-header">
+      <button class="panel-back-btn" id="trinket-codex-back">← Back</button>
+      <div class="panel-title">🔮 Trinkets</div>
+    </div>
+    <p class="trinket-codex-desc">Trinkets you have discovered on your runs. Tap an entry for details.</p>
+    <div id="trinket-codex-list" class="trinket-codex-list panel-list"></div>
+  </div>
+
+  <!-- First-time trinket discovery (in-run) -->
+  <div id="trinket-discovery-overlay" class="bestiary-discovery-overlay trinket-discovery-overlay hidden" aria-hidden="true">
+    <div id="trinket-discovery-backdrop" class="bestiary-discovery-backdrop"></div>
+    <div class="trinket-acquired-banner">✨ Trinket Acquired!</div>
+    <div class="bestiary-discovery-modal trinket-discovery-modal" role="dialog" aria-modal="true" aria-labelledby="trinket-discovery-name">
+      <div class="trinket-discovery-art-wrap">
+        <img id="trinket-discovery-img" class="trinket-discovery-img hidden" src="" alt="">
+        <div id="trinket-discovery-emoji" class="bestiary-discovery-emoji-fallback" aria-hidden="true"></div>
+      </div>
+      <div class="bestiary-discovery-header">
+        <div id="trinket-discovery-rarity" class="trinket-discovery-rarity"></div>
+        <h2 id="trinket-discovery-name" class="bestiary-discovery-name"></h2>
+      </div>
+      <p id="trinket-discovery-blurb" class="trinket-discovery-blurb"></p>
+      <ul id="trinket-discovery-effects" class="trinket-discovery-effects"></ul>
+      <button type="button" id="trinket-discovery-ok" class="menu-btn primary">Continue</button>
+    </div>
+  </div>
+
+  <!-- Trinket detail card (from Codex panel) -->
+  <div id="trinket-detail-overlay" class="bestiary-detail-overlay trinket-detail-overlay hidden" aria-hidden="true">
+    <div id="trinket-detail-backdrop" class="bestiary-discovery-backdrop"></div>
+    <div class="bestiary-discovery-modal bestiary-detail-modal trinket-detail-modal" role="dialog" aria-modal="true" aria-labelledby="trinket-detail-name">
+      <div class="trinket-discovery-art-wrap">
+        <img id="trinket-detail-img" class="trinket-discovery-img hidden" src="" alt="">
+        <div id="trinket-detail-emoji" class="bestiary-discovery-emoji-fallback" aria-hidden="true"></div>
+      </div>
+      <div class="bestiary-discovery-header">
+        <div id="trinket-detail-rarity" class="trinket-discovery-rarity"></div>
+        <h2 id="trinket-detail-name" class="bestiary-discovery-name"></h2>
+      </div>
+      <p id="trinket-detail-blurb" class="trinket-discovery-blurb"></p>
+      <ul id="trinket-detail-effects" class="trinket-discovery-effects"></ul>
+      <button type="button" id="trinket-detail-back" class="menu-btn secondary">Back</button>
+    </div>
+  </div>
+
+  <script src="js/lib/matter.min.js"></script>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

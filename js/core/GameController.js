@@ -15,6 +15,7 @@ import { TILE_BLURBS }       from '../data/tileBlurbs.js'
 import { ITEMS }             from '../data/items.js'
 import { STORY_EVENTS, MERCHANT_ITEMS, rollEventType } from '../data/events.js'
 import Bestiary              from '../systems/Bestiary.js'
+import TrinketCodex          from '../systems/TrinketCodex.js'
 
 // ── Loot pools by rarity ─────────────────────────────────────
 
@@ -85,14 +86,32 @@ function _rollMagicChestLoot() {
 }
 
 function _playerOutgoingDamageMult() {
-  if (!run?.player?.inventory?.some(e => e.id === 'glass-cannon-shard')) return 1
-  const p = run.player
-  const ratio = p.maxHp > 0 ? p.hp / p.maxHp : 0
-  return ratio > 0.5 ? 1.5 : 0.5
+  let mult = 1
+  // Glass Cannon Shard
+  if (run?.player?.inventory?.some(e => e.id === 'glass-cannon-shard')) {
+    const p = run.player
+    const ratio = p.maxHp > 0 ? p.hp / p.maxHp : 0
+    mult *= ratio > 0.5 ? 1.5 : 0.5
+  }
+  // Freezing Hit: -20% per stack, max 5 stacks
+  const freezeStacks = run?.player?.freezingHitStacks ?? 0
+  if (freezeStacks > 0) {
+    mult *= Math.max(0.05, 1 - freezeStacks * 0.20)
+  }
+  return mult
 }
 
 function _scaleOutgoingDamageToEnemy(dmg) {
   return Math.max(1, Math.round(dmg * _playerOutgoingDamageMult()))
+}
+
+/** Apply two Freezing Hit stacks (max 5). Called when Frost Giant counter-attacks. */
+function _applyFreezingHit() {
+  if (!run) return
+  const stacks = Math.min(5, (run.player.freezingHitStacks ?? 0) + 2)
+  run.player.freezingHitStacks = stacks
+  UI.setFreezingHit(stacks)
+  UI.spawnFloat(document.getElementById('hud-portrait'), `🧊 Freezing Hit! (${stacks})`, 'damage')
 }
 
 /** Still Water Amulet: after 10 turns without spending mana on spells/abilities, next mana cost is 35% less. */
@@ -462,7 +481,7 @@ function _startFloor() {
   _poisonArrowShotSelecting = false
   UI.setPoisonArrowShotActive(false)
   UI.setGridPoisonArrowShotMode(false)
-  if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0) }
+  if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0); run.player.freezingHitStacks = 0; UI.setFreezingHit(0) }
   if (run) { run._hourglassSnapshot = null }
   _throwingKnifeTargeting = false
   _rustyNailTargeting     = false
@@ -976,6 +995,11 @@ function _tickPoisonArrowDotOnGlobalTurn() {
     run.player.tearyEyesTurns--
     UI.setTearyEyes(run.player.tearyEyesTurns)
   }
+  // Freezing Hit debuff tick (1 stack falls off per global turn)
+  if ((run.player.freezingHitStacks ?? 0) > 0) {
+    run.player.freezingHitStacks--
+    UI.setFreezingHit(run.player.freezingHitStacks)
+  }
   const grid = TileEngine.getGrid()
   if (!grid) return
   const plagueBonus = run.player.inventory?.some(e => e.id === 'plague-rat-skull') ? 1 : 0
@@ -1096,7 +1120,7 @@ function _forcePlayChestGif(img, gifSrc) {
   })
 }
 
-function _openChest(tile) {
+async function _openChest(tile) {
   tile.chestReady = false
   tile.element?.classList.remove('chest-ready')
   const loot = tile.chestLoot
@@ -1118,7 +1142,7 @@ function _openChest(tile) {
   } else {
     const def = ITEMS[loot.type]
     if (def) {
-      _addToBackpack(loot.type)
+      await _addToBackpack(loot.type)
       const tag = def.effect?.type?.startsWith('passive') ? 'Passive' : 'Item'
       UI.spawnFloat(tile.element, `${def.icon} ${def.name}`, 'xp')
       UI.setMessage(`You pry it open — ${def.name}! (${tag})`)
@@ -1417,8 +1441,9 @@ function _openEvent(tile) {
   switch (tile.eventType) {
     case 'merchant':    _openMerchantShop(tile);  break
     case 'gambler':     _openGamblerEvent(tile);   break
-    case 'triple-chest': _openTripleChestEvent(tile); break
-    default:            _openStoryEvent(tile);     break
+    case 'triple-chest':   _openTripleChestEvent(tile);  break
+    case 'trinket-trader': _openTrinketTraderEvent(tile); break
+    default:               _openStoryEvent(tile);         break
   }
 }
 
@@ -1452,15 +1477,14 @@ function _openMerchantShop(tile) {
   })
 }
 
-function _doMerchantBuy(tile, itemId, items) {
+async function _doMerchantBuy(tile, itemId, items) {
   const p = run.player
   const def = items.find(i => i.id === itemId)
   if (!def) return
   if (p.gold < def.price) { UI.setMessage('Not enough gold!', true); return }
-  if (!_canAddToBackpack(itemId)) { UI.setMessage('Your backpack is full!', true); return }
   p.gold -= def.price
   UI.updateGold(p.gold)
-  _addToBackpack(itemId)
+  await _addToBackpack(itemId)
   UI.renderBackpack(p.inventory)
   EventBus.emit('audio:play', { sfx: 'chest' })
   UI.setMessage(`You purchase the ${def.label}.`)
@@ -1468,15 +1492,56 @@ function _doMerchantBuy(tile, itemId, items) {
   UI.refreshMerchantShopGold(p.gold)
 }
 
-// ── Gambler event (stub — rework TBD) ─────────────────────────
+// ── Gambler event ─────────────────────────────────────────────
 
 function _openGamblerEvent(tile) {
-  UI.showGamblerEvent(() => _closeEventSession(tile))
+  const p = run.player
+  UI.showGamblerEvent(
+    p.gold,
+    // onBetAndRoll
+    (bet) => {
+      // Deduct bet immediately; refund handled in outcome
+      const actualBet = Math.min(bet, p.gold)
+      p.gold -= actualBet
+      UI.updateGold(p.gold)
+
+      UI.gamblerShowRollPhase((r1, r2) => {
+        const total = r1 + r2
+        const won   = total >= 7
+
+        if (won) {
+          // Return bet + winnings
+          _gainGold(actualBet * 2, document.getElementById('hud-portrait'))
+        }
+
+        UI.gamblerShowOutcome(actualBet, r1, r2, won)
+
+        // Wire the Continue button
+        const ov  = document.getElementById('gambler-overlay')
+        const btn = ov?.querySelector('#gambler-outcome-ok')
+        if (btn) {
+          btn.onclick = () => {
+            _closeEventSession(tile)
+            if (won) {
+              UI.setMessage(`You rolled ${r1 + r2}! You win ${actualBet}🪙 — the gambler tips his hat.`)
+            } else {
+              UI.setMessage(`You rolled ${r1 + r2}. The gambler pockets your gold with a grin.`)
+            }
+          }
+        }
+      })
+    },
+    // onWalkAway
+    () => {
+      _closeEventSession(tile)
+      UI.setMessage('You walk away from the gambler\'s table.')
+    },
+  )
 }
 
 // ── Triple chest event ────────────────────────────────────────
 
-function _openTripleChestEvent(tile) {
+async function _openTripleChestEvent(tile) {
   const chests = [
     { rarity: 'common',    loot: _rollCommonLoot() },
     { rarity: 'rare',      loot: { type: _pickRandom(RARE_TRINKET_IDS) } },
@@ -1485,22 +1550,77 @@ function _openTripleChestEvent(tile) {
   // Shuffle so player can't always pick right
   chests.sort(() => Math.random() - 0.5)
 
-  UI.showTripleChestEvent(chests, (idx) => {
-    const chosen = chests[idx]
-    const loot = chosen.loot
-    if (loot.type === 'gold') {
-      _gainGold(loot.amount ?? 5, tile.element)
-      UI.setMessage(`You open the chest — ${loot.amount ?? 5} gold spills out!`)
-    } else if (_canAddToBackpack(loot.type)) {
-      _addToBackpack(loot.type)
-      UI.renderBackpack(run.player.inventory)
-      UI.setMessage(`You open the chest and find: ${ITEMS[loot.type]?.name ?? loot.type}!`)
-    } else {
-      UI.setMessage('Your backpack is full — the loot is left behind.')
+  UI.showTripleChestEvent(chests, async (idx) => {
+    try {
+      const chosen = chests[idx]
+      const loot = chosen.loot
+      if (loot.type === 'gold') {
+        _gainGold(loot.amount ?? 5, tile.element)
+        UI.setMessage(`You open the chest — ${loot.amount ?? 5} gold spills out!`)
+      } else {
+        await _addToBackpack(loot.type)
+        UI.renderBackpack(run.player.inventory)
+        UI.setMessage(`You open the chest and find: ${ITEMS[loot.type]?.name ?? loot.type}!`)
+      }
+      EventBus.emit('audio:play', { sfx: 'chest' })
+    } finally {
+      _closeEventSession(tile)
     }
-    EventBus.emit('audio:play', { sfx: 'chest' })
-    _closeEventSession(tile)
   }, () => _closeEventSession(tile))
+}
+
+// ── Trinket Trader event ──────────────────────────────────────
+
+function _openTrinketTraderEvent(tile) {
+  UI.showTrinketTraderEvent(
+    run.player.inventory,
+    ITEMS,
+    async (offeredId) => {
+      // Drop the offered trinket
+      dropItem(offeredId)
+      // Roll a replacement — same rarity as what was given, with a small upgrade chance
+      const offeredRarity = ITEMS[offeredId]?.rarity ?? 'common'
+      const newId = _rollTrinketTradeReward(offeredRarity)
+      const newItem = ITEMS[newId]
+      _closeEventSession(tile)
+      await _addToBackpack(newId)
+      EventBus.emit('inventory:changed')
+      UI.setMessage(`✨ You traded ${ITEMS[offeredId]?.name ?? offeredId} for ${newItem?.name ?? newId}!`)
+      EventBus.emit('audio:play', { sfx: 'chest' })
+    },
+    () => {
+      _closeEventSession(tile)
+      UI.setMessage('The trader nods and disappears into the shadows.')
+    },
+  )
+}
+
+/** Roll a trinket reward for the Trinket Trader, biased toward the offered rarity with a small upgrade chance. */
+function _rollTrinketTradeReward(offeredRarity) {
+  // 15% chance to upgrade one tier, 5% chance to downgrade, otherwise same
+  const r = Math.random()
+  let targetRarity = offeredRarity
+  if (offeredRarity === 'common' && r < 0.15)       targetRarity = 'rare'
+  else if (offeredRarity === 'rare' && r < 0.15)    targetRarity = 'legendary'
+  else if (offeredRarity === 'rare' && r < 0.20)    targetRarity = 'common'
+  else if (offeredRarity === 'legendary' && r < 0.15) targetRarity = 'rare'
+
+  // Build pool from the matching rarity, excluding what player already has and what they just traded
+  const owned = new Set(run.player.inventory.map(e => e.id))
+  let pool = []
+  if (targetRarity === 'common')    pool = COMMON_LOOT_IDS.filter(id => !owned.has(id) && ITEMS[id]?.rarity === 'common')
+  if (targetRarity === 'rare')      pool = RARE_TRINKET_IDS.filter(id => !owned.has(id))
+  if (targetRarity === 'legendary') pool = LEGENDARY_TRINKET_IDS.filter(id => !owned.has(id))
+
+  // Fallback: allow duplicates if pool is exhausted
+  if (pool.length === 0) {
+    if (targetRarity === 'common')    pool = COMMON_LOOT_IDS.filter(id => ITEMS[id]?.rarity === 'common')
+    if (targetRarity === 'rare')      pool = [...RARE_TRINKET_IDS]
+    if (targetRarity === 'legendary') pool = [...LEGENDARY_TRINKET_IDS]
+  }
+  if (pool.length === 0) pool = RARE_TRINKET_IDS  // final fallback
+
+  return pool[Math.floor(Math.random() * pool.length)]
 }
 
 // ── Story event ───────────────────────────────────────────────
@@ -1698,6 +1818,7 @@ function fightAction(tile) {
       // Enemy counter-attack (skipped if stunned)
       if (!isStunned) {
         _setEnemySprite(tile, 'attack')
+        if (tile.enemyData?.freezingHit) _applyFreezingHit()
         _takeDamage(result.enemyDmg, tile.element, true, tile.enemyData)
         UI.shakeTile(tile.element)
         if (GameState.is(States.DEATH)) { _combatBusy = false; return }
@@ -2944,7 +3065,7 @@ function _die(killerData = null) {
   _cancelRicochetMode()
   _cancelArrowBarrageMode()
   _cancelPoisonArrowShotMode()
-  if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0) }
+  if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0); run.player.freezingHitStacks = 0; UI.setFreezingHit(0) }
   _clearActiveRun()
   UI.setPortraitAnim('death')
   GameState.transition(States.DEATH)
@@ -3006,7 +3127,7 @@ function _rand(min, max) {
 
 // ── Inventory / backpack ─────────────────────────────────────
 
-function _addToBackpack(id) {
+async function _addToBackpack(id) {
   const inv   = run.player.inventory
   const item  = ITEMS[id]
   if (!item) return
@@ -3025,7 +3146,17 @@ function _addToBackpack(id) {
       return
     }
   }
+  // Full backpack — let the UI handle replace/trash flow; do NOT add the item yet
+  if (inv.length >= BACKPACK_MAX_SLOTS) {
+    EventBus.emit('backpack:full', { id })
+    return
+  }
   inv.push({ id, qty: 1 })
+  // Trinket Codex: show discovery card first time this trinket is seen
+  if (TrinketCodex.registerIfNew(_save, id)) {
+    await SaveManager.save(_save).catch(() => {})
+    await UI.showTrinketDiscovery(id)
+  }
   // Blood Pact: apply on equip
   if (id === 'blood-pact') {
     run.player.damageBonus = (run.player.damageBonus ?? 0) + 2
@@ -3440,6 +3571,14 @@ function dropItem(id) {
   EventBus.emit('audio:play', { sfx: 'menu' })
 }
 
+/** Trash the item currently sitting in the backpack:full pending slot (no-op if pack isn't full). */
+async function forceReplaceItem(oldId, newId) {
+  if (!run) return
+  dropItem(oldId)
+  await _addToBackpack(newId)
+  EventBus.emit('inventory:changed')
+}
+
 // ── Cheat helpers ─────────────────────────────────────────────
 
 function cheatSkipFloor() {
@@ -3583,9 +3722,11 @@ export default {
   cheatHudStatBoost,
   useItem,
   dropItem,
+  forceReplaceItem,
   getInventory,
   getLevelUpLog,
-  getTearyEyesTurns() { return run?.player?.tearyEyesTurns ?? 0 },
+  getTearyEyesTurns()    { return run?.player?.tearyEyesTurns ?? 0 },
+  getFreezingHitStacks() { return run?.player?.freezingHitStacks ?? 0 },
   hasActiveRun()      { return !!_save?.activeRun },
   getActiveRunInfo()  { return _save?.activeRun ?? null },
   resumeRun,

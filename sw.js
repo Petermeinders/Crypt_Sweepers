@@ -2,7 +2,7 @@
 // Strategy: Cache-first for assets, network-first for HTML.
 // Version bump CACHE_NAME to force cache refresh on deploy.
 
-const CACHE_NAME = 'crypt-sweepers-v98'
+const CACHE_NAME = 'crypt-sweepers-v122'
 
 const PRECACHE_ASSETS = [
   './',
@@ -18,6 +18,8 @@ const PRECACHE_ASSETS = [
 
   // JS
   './js/main.js',
+  './js/lib/matter.min.js',
+  './js/ui/DiceRoller.js',
   './js/config.js',
   './js/core/GameState.js',
   './js/core/EventBus.js',
@@ -37,6 +39,7 @@ const PRECACHE_ASSETS = [
   './js/systems/CombatResolver.js',
   './js/systems/MetaProgression.js',
   './js/systems/Bestiary.js',
+  './js/systems/TrinketCodex.js',
   './js/systems/ProgressionSystem.js',
   './js/systems/TileEngine.js',
   './js/ui/UI.js',
@@ -53,8 +56,24 @@ const PRECACHE_ASSETS = [
   './assets/sprites/abilities/poison-arrow-badge.png',
   './assets/DungeonBackground.png',
   './assets/DungeonBackgroundJungle.png',
+  './assets/DungeonBackgroundFrozen.png',
+  './assets/DungeonBackgroundVolcanic.png',
+  './assets/DungeonBackgroundCatacombs.png',
+  './assets/DungeonBackgroundCorrupted.png',
+  './assets/DungeonBackgroundSunken.png',
+  './assets/DungeonBackgroundMushroom.png',
+  './assets/DungeonBackgroundCrystal.png',
+  './assets/DungeonBackgroundShadow.png',
+  './assets/DungeonBackgroundInfernal.png',
   './assets/SanctuaryBackground.png',
   './assets/ui/bestiary-scroll-bg.png',
+  './assets/ui/freeze-effect.png',
+  './assets/ui/fire-ice-frame.png',
+  './assets/ui/blood-border.png',
+  './assets/ui/event-merchant.png',
+  './assets/ui/event-triple-chest.png',
+  './assets/ui/event-story.png',
+  './assets/ui/event-trinket-trader.png',
   './assets/ui/common-tile.png',
   './assets/ui/rare-tile.png',
   './assets/ui/legendary-tile.png',
@@ -122,8 +141,8 @@ const PRECACHE_ASSETS = [
   './assets/sprites/monsters/gnome/gnome-idle.gif',
   './assets/sprites/monsters/skeleton/skeleton-idle.gif',
   './assets/sprites/monsters/slime/slime-idle.gif',
-  './assets/sprites/monsters/goblin/goblin-idle.gif',
-  './assets/sprites/monsters/goblin/goblin-strike.gif',
+  './assets/sprites/monsters/goblin/goblin-creature.gif',
+  './assets/sprites/monsters/frost_giant/frost-giant-idle.gif',
   './assets/sprites/monsters/vine_witch/vine-witch-idle.gif',
   './assets/sprites/monsters/ogre/ogre-idle.gif',
   './assets/sprites/Heroes/Ranger/__Idle.gif',

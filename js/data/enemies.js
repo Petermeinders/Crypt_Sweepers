@@ -1,6 +1,11 @@
 // Enemy definitions — plain data only, no functions.
 // Factory function lives in TileEngine.js (createEnemy).
 // Stats listed are BASE values at floor 1; CombatResolver scales per floor depth.
+//
+// spawn field (controls which biomes/floors the enemy appears in):
+//   'universal'              — appears on all floors (default if omitted)
+//   { fromBiome: 'id' }      — appears in that biome and every biome after it
+//   { biomes: ['id', ...] }  — only in the listed biomes
 
 export const ENEMY_DEFS = {
   // ── Undead (Warrior Undead Bane applies) ───────────────────
@@ -15,6 +20,7 @@ export const ENEMY_DEFS = {
     xpDrop:     2,
     blurb:      'Bleached bones held together by dark magic. Mindless, relentless, and immune to pain.',
     attributes: [],
+    spawn:      'universal',
   },
   zombie: {
     hp:         3,
@@ -27,6 +33,7 @@ export const ENEMY_DEFS = {
     xpDrop:     3,
     blurb:      'A shambling corpse that refuses to stay dead. Slow but surprisingly tough.',
     attributes: [],
+    spawn:      'universal',
   },
   wraith: {
     hp:         2,
@@ -39,6 +46,7 @@ export const ENEMY_DEFS = {
     xpDrop:     4,
     blurb:      'A vengeful spirit drifting through stone walls. Its cold touch drains life force.',
     attributes: [],
+    spawn:      { fromBiome: 'dungeon' },
   },
 
   // ── Humanoid ────────────────────────────────────────────────
@@ -53,6 +61,7 @@ export const ENEMY_DEFS = {
     xpDrop:     2,
     blurb:      'A wiry little menace armed with stolen blades. Quick to flee, quicker to stab you in the back.',
     attributes: ['fast'],
+    spawn:      'universal',
   },
   goblin_fast: {
     hp:         1,
@@ -65,6 +74,7 @@ export const ENEMY_DEFS = {
     xpDrop:     3,
     blurb:      'A wiry little menace armed with stolen blades. Quick to flee, quicker to stab you in the back.',
     attributes: ['fast'],
+    spawn:      'universal',
   },
   troll: {
     hp:         5,
@@ -77,6 +87,7 @@ export const ENEMY_DEFS = {
     xpDrop:     5,
     blurb:      'A mountain of muscle and bad temper. Its thick hide shrugs off most blows.',
     attributes: [],
+    spawn:      { fromBiome: 'jungle' },
   },
 
   vine_witch: {
@@ -90,6 +101,7 @@ export const ENEMY_DEFS = {
     xpDrop:     3,
     blurb:      'A cursed spirit fused with ancient roots. Her tendrils reach further than they should.',
     attributes: [],
+    spawn:      'universal',
   },
 
   slime: {
@@ -103,6 +115,7 @@ export const ENEMY_DEFS = {
     xpDrop:     4,
     blurb:      'A quivering mass of corrosive ooze. Cut it down and it simply splits in two — each half hungry for more.',
     attributes: ['splits'],
+    spawn:      'universal',
   },
 
   // ── Beast ────────────────────────────────────────────────────
@@ -118,6 +131,7 @@ export const ENEMY_DEFS = {
     blurb:      'A bloated, mushroom-capped horror lurking in the jungle depths. Before you can raise your weapon, its tongue has already relieved you of your coin.',
     attributes: ['tongue-snatch'],
     tongueSnatch: true,
+    spawn:      { fromBiome: 'jungle' },
   },
 
   spider: {
@@ -131,6 +145,7 @@ export const ENEMY_DEFS = {
     xpDrop:     2,
     blurb:      'Eight eyes, eight legs, one goal. Its venom works fast.',
     attributes: ['fast'],
+    spawn:      'universal',
   },
 
   onion: {
@@ -145,6 +160,7 @@ export const ENEMY_DEFS = {
     blurb:      'This furious plant gets meaner as you peel it back. The stench alone brings tears to your eyes — and costs extra mana.',
     attributes: ['layered', 'teary'],
     onionLayer: 3,
+    spawn:      { fromBiome: 'jungle' },
   },
 
   gnome: {
@@ -159,6 +175,22 @@ export const ENEMY_DEFS = {
     blurb:      'A stout and stubborn rune-carver. Magic slides right off his enchanted hide — you\'ll have to get your hands dirty.',
     attributes: ['spell-immune'],
     spellImmune: true,
+    spawn:      { fromBiome: 'frozen-tundra' },
+  },
+
+  frost_giant: {
+    hp:         8,
+    dmg:        [2, 4],
+    type:       'beast',
+    behaviour:  'standard',
+    emoji:      '🧊',
+    label:      'Frost Giant',
+    goldDrop:   [3, 5],
+    xpDrop:     8,
+    blurb:      'A colossal being of living ice. Every blow from its frozen fists chills you to the bone, sapping your strength.',
+    attributes: ['freezing-hit'],
+    freezingHit: true,
+    spawn:      { biomes: ['frozen-tundra', 'crystal-cavern'] },
   },
 
   // ── Boss variants (one per boss floor) ────────────────────────
@@ -174,6 +206,7 @@ export const ENEMY_DEFS = {
     isBoss:     true,
     blurb:      'Commander of the undead legion. Ancient armor fused to ancient bone.',
     attributes: ['boss'],
+    spawn:      'universal',
   },
   goblin_king: {
     hp:         10,
@@ -187,6 +220,7 @@ export const ENEMY_DEFS = {
     isBoss:     true,
     blurb:      'Ruler of the warrens. What he lacks in size he makes up for in sheer cruelty.',
     attributes: ['fast', 'boss'],
+    spawn:      'universal',
   },
   troll_warlord: {
     hp:         15,
@@ -200,6 +234,7 @@ export const ENEMY_DEFS = {
     isBoss:     true,
     blurb:      'Ancient warlord turned to stone and back again. The dungeon trembles when he walks.',
     attributes: ['boss'],
+    spawn:      'universal',
   },
 }
 

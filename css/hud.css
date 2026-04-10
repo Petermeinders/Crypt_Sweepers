@@ -281,9 +281,57 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
   position: relative;
 }
 
+/* ── Freezing Hit screen border ── */
+.freeze-overlay {
+  position: fixed;
+  /* Cover from top of screen down to just above the HUD — pointer-events: none so taps pass through */
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 55;
+  pointer-events: none;
+  background-image: url('../assets/ui/freeze-effect.png');
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.freeze-overlay.hidden { display: none; }
+.freeze-overlay.stacks-1 { opacity: 0.75; }
+.freeze-overlay.stacks-2 { opacity: 0.82; }
+.freeze-overlay.stacks-3 { opacity: 0.88; }
+.freeze-overlay.stacks-4 { opacity: 0.93; }
+.freeze-overlay.stacks-5 { opacity: 1.00; }
+
+/* ── Low health blood border ── */
+.blood-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 54;
+  pointer-events: none;
+  background-image: url('../assets/ui/blood-border.png');
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  animation: blood-pulse 1.8s ease-in-out infinite;
+}
+.blood-overlay.hidden { display: none; }
+.blood-overlay.active { opacity: 1; }
+
+@keyframes blood-pulse {
+  0%, 100% { opacity: 0.75; }
+  50%       { opacity: 1.00; }
+}
+
 /* Teary Eyes debuff badge — sits top-right of the portrait */
 /* No global `.hidden` in this project — must be explicit (see main.css comment). */
-#hud-teary-eyes.hidden {
+#hud-teary-eyes.hidden,
+#hud-freezing-hit.hidden {
   display: none !important;
 }
 

@@ -118,6 +118,10 @@ async function boot() {
     if (ov?.classList.contains('is-open')) _renderBackpack()
   })
 
+  EventBus.on('backpack:full', ({ id }) => {
+    _openBackpackFull(id)
+  })
+
   // ── Audio ────────────────────────────────────────────────
   AudioManager.init()
 
@@ -480,6 +484,11 @@ async function boot() {
     UI.showBestiaryPanel(GameController.getSave())
   })
   document.getElementById('bestiary-back')?.addEventListener('click', () => UI.hideBestiaryPanel())
+  document.getElementById('trinket-codex-btn')?.addEventListener('click', () => {
+    UI.showTrinketCodexPanel(GameController.getSave())
+  })
+  document.getElementById('trinket-codex-back')?.addEventListener('click', () => UI.hideTrinketCodexPanel())
+  document.getElementById('trinket-detail-back')?.addEventListener('click', () => UI.hideTrinketDetail())
 
   // Difficulty
   document.querySelectorAll('.diff-btn').forEach(btn => {
@@ -1057,11 +1066,20 @@ function _openShop() {
 
 // ── Backpack panel ───────────────────────────────────────────
 
+let _pendingPickupId = null  // item waiting to replace a backpack slot
+
 function _renderBackpack() {
+  const replaceMode = _pendingPickupId !== null
   UI.renderBackpack(
     GameController.getInventory(),
     ITEMS,
+    // onUse / onTap — disabled in replace mode
     (id) => {
+      if (replaceMode) {
+        // Tapping a slot replaces it with the pending item
+        _doReplace(id)
+        return
+      }
       GameController.useItem(id)
       const et = ITEMS[id]?.effect?.type
       if (et === 'lantern' || et === 'spyglass' || et === 'hourglass-sand') {
@@ -1070,7 +1088,9 @@ function _renderBackpack() {
         _renderBackpack()
       }
     },
+    // onHold — disabled in replace mode
     (id) => {
+      if (replaceMode) return
       const item = ITEMS[id]
       if (!item) return
       UI.showInfoCard(
@@ -1084,8 +1104,53 @@ function _renderBackpack() {
         },
       )
     },
+    replaceMode,
   )
   UI.renderBackpackLevelUpLog(GameController.getLevelUpLog())
+}
+
+function _openBackpackFull(newItemId) {
+  _pendingPickupId = newItemId
+  const item = ITEMS[newItemId]
+
+  // Populate pending bar
+  const bar  = document.getElementById('backpack-pending-bar')
+  const art  = document.getElementById('backpack-pending-art')
+  const name = document.getElementById('backpack-pending-name')
+  if (bar && art && name) {
+    art.innerHTML = item?.spriteSrc
+      ? `<img src="${item.spriteSrc}" alt="${item.name ?? ''}">`
+      : `<span>${item?.icon ?? '?'}</span>`
+    name.textContent = item?.name ?? newItemId
+    bar.classList.remove('hidden')
+  }
+
+  // Wire trash button (replace any old listener by cloning)
+  const trashBtn = document.getElementById('backpack-pending-trash')
+  if (trashBtn) {
+    const fresh = trashBtn.cloneNode(true)
+    trashBtn.replaceWith(fresh)
+    fresh.addEventListener('click', () => _clearPendingPickup())
+  }
+
+  _renderBackpack()
+  _setBackpackOpen(true)
+  UI.setMessage(`Backpack full! Tap a slot to replace it, or trash the new item.`, true)
+}
+
+function _clearPendingPickup() {
+  _pendingPickupId = null
+  const bar = document.getElementById('backpack-pending-bar')
+  bar?.classList.add('hidden')
+  _renderBackpack()
+}
+
+async function _doReplace(oldId) {
+  const newId = _pendingPickupId
+  if (!newId) return
+  _clearPendingPickup()
+  await GameController.forceReplaceItem(oldId, newId)
+  _renderBackpack()
 }
 
 function _setBackpackOpen(open) {
@@ -1095,6 +1160,8 @@ function _setBackpackOpen(open) {
   el.classList.toggle('is-open', open)
   el.setAttribute('aria-hidden', open ? 'false' : 'true')
   btn?.setAttribute('aria-expanded', open ? 'true' : 'false')
+  // If closing while replace mode active, treat as trash
+  if (!open && _pendingPickupId) _clearPendingPickup()
 }
 
 function _toggleBackpack() {

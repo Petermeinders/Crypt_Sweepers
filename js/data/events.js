@@ -351,6 +351,7 @@ export function rollEventType() {
   const r = Math.random() * 100
   if (r < 5)  return 'merchant'
   if (r < 10) return 'gambler'
-  if (r < 15) return 'triple-chest'
+  if (r < 30) return 'triple-chest'
+  if (r < 35) return 'trinket-trader'
   return 'story'
 }

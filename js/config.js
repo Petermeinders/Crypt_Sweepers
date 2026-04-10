@@ -94,22 +94,59 @@ export const CONFIG = {
   bossFloors: [5, 10, 15, 20, 25],
 
   /**
-   * Full-screen dungeon backgrounds per floor range (theme segments after each boss).
-   * First matching range wins; paths are relative to index.html.
+   * Biome definitions — one per theme segment.
+   * id       : unique key used for CSS classes and asset filenames
+   * label    : display name shown to the player
+   * floors   : [min, max] inclusive floor range
+   * image    : background asset path (relative to index.html)
+   * floorTag : short subtitle shown on the floor HUD (e.g. "Floors 1–5")
+   *
+   * TODO — The Void: after completing floor 100 unlock a new game mode
+   *   accessible from the main menu. The Void is an endless, escalating
+   *   challenge with unique mechanics (reality-bending events, mirror
+   *   enemies, inverted rules). Implement as a separate run type that
+   *   never ends — track depth score on the meta-progression save.
    */
-  floorThemeBackgrounds: [
-    { min: 6, max: 10, image: 'assets/DungeonBackgroundJungle.png' },
+  biomes: [
+    { id: 'dungeon',          label: 'Standard Dungeon', floors: [1,   5],  image: 'assets/DungeonBackground.png',               floorTag: 'Floors 1–5'   },
+    { id: 'jungle',           label: 'Jungle Ruins',     floors: [6,  10],  image: 'assets/DungeonBackgroundJungle.png',          floorTag: 'Floors 6–10'  },
+    { id: 'frozen-tundra',    label: 'Frozen Tundra',    floors: [11, 20],  image: 'assets/DungeonBackgroundFrozen.png',          floorTag: 'Floors 11–20' },
+    { id: 'volcanic-cavern',  label: 'Volcanic Cavern',  floors: [21, 30],  image: 'assets/DungeonBackgroundVolcanic.png',        floorTag: 'Floors 21–30' },
+    { id: 'catacombs',        label: 'Catacombs',        floors: [31, 40],  image: 'assets/DungeonBackgroundCatacombs.png',       floorTag: 'Floors 31–40' },
+    { id: 'corrupted-forest', label: 'Corrupted Forest', floors: [41, 50],  image: 'assets/DungeonBackgroundCorrupted.png',       floorTag: 'Floors 41–50' },
+    { id: 'sunken-temple',    label: 'Sunken Temple',    floors: [51, 60],  image: 'assets/DungeonBackgroundSunken.png',          floorTag: 'Floors 51–60' },
+    { id: 'mushroom-grotto',  label: 'Mushroom Grotto',  floors: [61, 70],  image: 'assets/DungeonBackgroundMushroom.png',        floorTag: 'Floors 61–70' },
+    { id: 'crystal-cavern',   label: 'Crystal Cavern',   floors: [71, 80],  image: 'assets/DungeonBackgroundCrystal.png',         floorTag: 'Floors 71–80' },
+    { id: 'shadow-realm',     label: 'Shadow Realm',     floors: [81, 90],  image: 'assets/DungeonBackgroundShadow.png',          floorTag: 'Floors 81–90' },
+    { id: 'infernal-pit',     label: 'Infernal Pit',     floors: [91, 100], image: 'assets/DungeonBackgroundInfernal.png',        floorTag: 'Floors 91–100'},
   ],
+
+  /**
+   * Full-screen dungeon backgrounds per floor range.
+   * Derived automatically from biomes — kept for quick lookup.
+   */
+  get floorThemeBackgrounds() {
+    return this.biomes.map(b => ({ min: b.floors[0], max: b.floors[1], image: b.image }))
+  },
 
   /** Rest / sanctuary floors between boss segments (path relative to index.html). */
   restSanctuaryBackground: 'assets/SanctuaryBackground.png',
 
   /** @param {number} floor */
   floorBackgroundFor(floor) {
-    for (const t of this.floorThemeBackgrounds) {
-      if (floor >= t.min && floor <= t.max) return t.image
+    for (const b of this.biomes) {
+      if (floor >= b.floors[0] && floor <= b.floors[1]) return b.image
     }
-    return 'assets/DungeonBackground.png'
+    // Beyond floor 100 — stay in Infernal Pit until The Void is implemented
+    return this.biomes[this.biomes.length - 1].image
+  },
+
+  /** @param {number} floor — returns the biome object for that floor */
+  biomeFor(floor) {
+    for (const b of this.biomes) {
+      if (floor >= b.floors[0] && floor <= b.floors[1]) return b
+    }
+    return this.biomes[this.biomes.length - 1]
   },
 
   difficulty: {
@@ -133,17 +170,19 @@ export const CONFIG = {
   // Ranger character unlock cost (persistent gold)
   rangerUnlockCost: 20,
 
+  // Legacy — kept for any code that still reads floorNames by index.
+  // The source of truth for floor theming is now CONFIG.biomes.
   floorNames: [
-    'The Shallow Dark',
-    'The Forgotten Halls',
-    'The Dripping Dark',
-    'The Bone Corridor',
-    'The Ancient Deep',
-    'The Abyssal Dark',
-    'The Sunken Crypts',
-    'The Void Below',
-    'The Eternal Night',
-    'The Abyss',
+    'The Shallow Dark',       // 1
+    'The Forgotten Halls',    // 2
+    'The Dripping Dark',      // 3
+    'The Bone Corridor',      // 4
+    'The Ancient Deep',       // 5
+    'Jungle Ruins',           // 6
+    'The Overgrown Path',     // 7
+    'Temple of Thorns',       // 8
+    'The Verdant Depths',     // 9
+    'Heart of the Jungle',    // 10
   ],
 }
 

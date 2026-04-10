@@ -112,27 +112,50 @@ function _adjustedWeights(floor) {
   return weights
 }
 
+/**
+ * Returns true if an enemy's spawn rule allows it on the given biome.
+ * spawn: 'universal' | { fromBiome: 'id' } | { biomes: ['id',...] }
+ */
+function _enemyAllowedInBiome(enemyId, biomeId) {
+  const def   = ENEMY_DEFS[enemyId]
+  if (!def) return false
+  const spawn = def.spawn ?? 'universal'
+  if (spawn === 'universal') return true
+  if (spawn.biomes) return spawn.biomes.includes(biomeId)
+  if (spawn.fromBiome) {
+    // Find ordered biome index; enemy allowed if current biome index >= fromBiome index
+    const biomes = CONFIG.biomes.map(b => b.id)
+    const fromIdx    = biomes.indexOf(spawn.fromBiome)
+    const currentIdx = biomes.indexOf(biomeId)
+    return fromIdx !== -1 && currentIdx >= fromIdx
+  }
+  return true
+}
+
 // Pick enemy type for standard enemy slot, scaling by floor
 function _pickEnemyType(floor, tileType) {
   if (tileType === 'boss') {
     const idx = Math.floor((floor - 1) / 5) % BOSS_POOL.length
     return BOSS_POOL[idx]
   }
-  // Pool of available non-boss enemies unlocked by floor
-  const pool = ['skeleton', 'goblin', 'vine_witch']
-  if (floor >= 2) pool.push('zombie', 'goblin_fast', 'slime')
-  if (floor >= 3) pool.push('spider')
-  if (floor >= 4) pool.push('wraith')
-  if (floor >= 6)  pool.push('troll', 'onion', 'toad_beast')
-  if (floor >= 11) pool.push('gnome')
+
+  const biomeId = CONFIG.biomeFor(floor)?.id ?? 'dungeon'
+
+  // All non-boss enemies, filtered by spawn rules for this biome
+  const allIds = Object.keys(ENEMY_DEFS).filter(id => {
+    const def = ENEMY_DEFS[id]
+    return def.behaviour !== 'boss' && _enemyAllowedInBiome(id, biomeId)
+  })
 
   if (tileType === 'enemy_fast') {
-    const fastPool = pool.filter(e => ENEMY_DEFS[e]?.behaviour === 'fast')
+    const fastPool = allIds.filter(e => ENEMY_DEFS[e]?.behaviour === 'fast')
     return fastPool.length ? fastPool[Math.floor(Math.random() * fastPool.length)] : 'goblin_fast'
   }
   // Standard enemy — prefer non-fast types
-  const stdPool = pool.filter(e => ENEMY_DEFS[e]?.behaviour !== 'fast')
-  return stdPool[Math.floor(Math.random() * stdPool.length)]
+  const stdPool = allIds.filter(e => ENEMY_DEFS[e]?.behaviour !== 'fast')
+  return stdPool.length
+    ? stdPool[Math.floor(Math.random() * stdPool.length)]
+    : allIds[Math.floor(Math.random() * allIds.length)]
 }
 
 // ── Grid generation ──────────────────────────────────────────

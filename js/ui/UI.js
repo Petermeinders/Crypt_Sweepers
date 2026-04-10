@@ -3,6 +3,8 @@ import TileEngine             from '../systems/TileEngine.js'
 import { TILE_BLURBS } from '../data/tileBlurbs.js'
 import { ENEMY_DEFS } from '../data/enemies.js'
 import Bestiary from '../systems/Bestiary.js'
+import TrinketCodex from '../systems/TrinketCodex.js'
+import { ITEMS } from '../data/items.js'
 import EventBus from '../core/EventBus.js'
 import {
   ITEM_ICONS_BASE,
@@ -42,6 +44,108 @@ function _fillBestiaryCreatureParts(parts, def, enemyId) {
   }
   if (parts.blurb) parts.blurb.textContent = def.blurb ?? ''
 }
+function _fillTrinketCard(parts, def) {
+  const RARITY_LABEL = { common: 'Common', rare: 'Rare', legendary: 'Legendary' }
+  if (parts.rarity) {
+    const r = def.rarity ?? 'common'
+    parts.rarity.textContent = RARITY_LABEL[r] ?? r
+    parts.rarity.className = `trinket-discovery-rarity trinket-rarity-${r}`
+  }
+  if (parts.name) parts.name.textContent = def.name ?? ''
+  if (parts.img) {
+    if (def.spriteSrc) {
+      parts.img.src = def.spriteSrc
+      parts.img.alt = def.name ?? ''
+      parts.img.classList.remove('hidden')
+      if (parts.emoji) parts.emoji.classList.add('hidden')
+    } else {
+      parts.img.removeAttribute('src')
+      parts.img.classList.add('hidden')
+      if (parts.emoji) {
+        parts.emoji.textContent = def.icon ?? '?'
+        parts.emoji.classList.remove('hidden')
+      }
+    }
+  }
+  if (parts.blurb) {
+    parts.blurb.textContent = def.blurb ?? ''
+    parts.blurb.classList.toggle('hidden', !def.blurb)
+  }
+  if (parts.effects) {
+    parts.effects.innerHTML = ''
+    for (const line of (def.details ?? def.tooltipLines ?? [])) {
+      const li = document.createElement('li')
+      li.className = 'trinket-effect-line'
+      li.innerHTML = `<span class="trinket-effect-icon">${line.icon ?? ''}</span><span class="trinket-effect-label">${line.label ?? ''}</span><span class="trinket-effect-desc">${line.desc ?? ''}</span>`
+      parts.effects.appendChild(li)
+    }
+  }
+}
+
+/** Draw two settled dice at fixed positions on a canvas — used for the gambler outcome screen. */
+function _drawSettledDice(canvas, face1, face2) {
+  const ctx = canvas.getContext('2d')
+  const W = canvas.width, H = canvas.height
+  const S = 52, R = 9
+  const HALF = S * 0.28
+
+  const PIPS = {
+    1: [[0, 0]],
+    2: [[-HALF, -HALF], [HALF, HALF]],
+    3: [[-HALF, -HALF], [0, 0], [HALF, HALF]],
+    4: [[-HALF, -HALF], [HALF, -HALF], [-HALF, HALF], [HALF, HALF]],
+    5: [[-HALF, -HALF], [HALF, -HALF], [0, 0], [-HALF, HALF], [HALF, HALF]],
+    6: [[-HALF, -HALF], [HALF, -HALF], [-HALF, 0], [HALF, 0], [-HALF, HALF], [HALF, HALF]],
+  }
+
+  function rr(c, x, y, w, h, r) {
+    c.beginPath()
+    c.moveTo(x+r,y); c.lineTo(x+w-r,y); c.quadraticCurveTo(x+w,y,x+w,y+r)
+    c.lineTo(x+w,y+h-r); c.quadraticCurveTo(x+w,y+h,x+w-r,y+h)
+    c.lineTo(x+r,y+h); c.quadraticCurveTo(x,y+h,x,y+h-r)
+    c.lineTo(x,y+r); c.quadraticCurveTo(x,y,x+r,y); c.closePath()
+  }
+
+  // Felt background
+  ctx.fillStyle = '#17402a'; ctx.fillRect(0,0,W,H)
+  ctx.strokeStyle = 'rgba(195,155,60,0.55)'; ctx.lineWidth = 3
+  rr(ctx,5,5,W-10,H-10,10); ctx.stroke()
+
+  const positions = [
+    [W * 0.30, H * 0.5],
+    [W * 0.70, H * 0.5],
+  ]
+  const faces = [face1, face2]
+
+  for (let i = 0; i < 2; i++) {
+    const [cx, cy] = positions[i]
+    const face = faces[i]
+    ctx.save()
+    ctx.translate(cx, cy)
+
+    ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 10; ctx.shadowOffsetX = 3; ctx.shadowOffsetY = 5
+    ctx.fillStyle = '#fffbf0'
+    rr(ctx, -S/2, -S/2, S, S, R); ctx.fill()
+    ctx.shadowColor = 'transparent'
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.2
+    rr(ctx, -S/2+1, -S/2+1, S-2, S-2, R-1); ctx.stroke()
+
+    // Gold glow ring
+    ctx.strokeStyle = 'rgba(255,215,60,0.75)'; ctx.lineWidth = 2.5
+    rr(ctx, -S/2-2, -S/2-2, S+4, S+4, R+2); ctx.stroke()
+
+    ctx.fillStyle = '#1a0f05'
+    const pipR = S * 0.076
+    for (const [px, py] of (PIPS[face] || PIPS[1])) {
+      ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 3
+      ctx.beginPath(); ctx.arc(px, py, pipR, 0, Math.PI*2); ctx.fill()
+    }
+    ctx.shadowColor = 'transparent'
+    ctx.restore()
+  }
+}
+
 const _logHistory = []
 
 /** HUD portrait gifs per animation state (hero-specific). */
@@ -105,6 +209,7 @@ const UI = {
     el.gamblerOverlay       = document.getElementById('gambler-overlay')
     el.tripleChestOverlay   = document.getElementById('triple-chest-overlay')
     el.storyEventOverlay    = document.getElementById('story-event-overlay')
+    el.trinketTraderOverlay = document.getElementById('trinket-trader-overlay')
     el.infoCardOverlay    = document.getElementById('info-card-overlay')
     el.infoCard           = document.getElementById('info-card')
     el.bestiaryOverlay         = document.getElementById('bestiary-overlay')
@@ -125,6 +230,26 @@ const UI = {
     el.bestiaryDetailType       = document.getElementById('bestiary-detail-type')
     el.bestiaryDetailBlurb      = document.getElementById('bestiary-detail-blurb')
     el.bestiaryDetailBack       = document.getElementById('bestiary-detail-back')
+    el.trinketCodexOverlay      = document.getElementById('trinket-codex-overlay')
+    el.trinketCodexList         = document.getElementById('trinket-codex-list')
+    el.trinketDiscoveryOverlay  = document.getElementById('trinket-discovery-overlay')
+    el.trinketDiscoveryBackdrop = document.getElementById('trinket-discovery-backdrop')
+    el.trinketDiscoveryImg      = document.getElementById('trinket-discovery-img')
+    el.trinketDiscoveryEmoji    = document.getElementById('trinket-discovery-emoji')
+    el.trinketDiscoveryRarity   = document.getElementById('trinket-discovery-rarity')
+    el.trinketDiscoveryName     = document.getElementById('trinket-discovery-name')
+    el.trinketDiscoveryBlurb    = document.getElementById('trinket-discovery-blurb')
+    el.trinketDiscoveryEffects  = document.getElementById('trinket-discovery-effects')
+    el.trinketDiscoveryOk       = document.getElementById('trinket-discovery-ok')
+    el.trinketDetailOverlay     = document.getElementById('trinket-detail-overlay')
+    el.trinketDetailBackdrop    = document.getElementById('trinket-detail-backdrop')
+    el.trinketDetailImg         = document.getElementById('trinket-detail-img')
+    el.trinketDetailEmoji       = document.getElementById('trinket-detail-emoji')
+    el.trinketDetailRarity      = document.getElementById('trinket-detail-rarity')
+    el.trinketDetailName        = document.getElementById('trinket-detail-name')
+    el.trinketDetailBlurb       = document.getElementById('trinket-detail-blurb')
+    el.trinketDetailEffects     = document.getElementById('trinket-detail-effects')
+    el.trinketDetailBack        = document.getElementById('trinket-detail-back')
     el.trapModalOverlay   = document.getElementById('trap-modal-overlay')
     el.trapModalBackdrop  = document.getElementById('trap-modal-backdrop')
     el.trapModalBody      = document.getElementById('trap-modal-body')
@@ -182,6 +307,7 @@ const UI = {
     el.hpBar.style.width = pct + '%'
     el.hpBar.classList.toggle('critical', pct < 25)
     el.hpValue.textContent = `${current}/${max}`
+    this.setBloodOverlay(pct < 10)
   },
 
   updateMana(current, max) {
@@ -450,6 +576,43 @@ const UI = {
     }
     btn.classList.remove('hidden')
     btn.textContent = `💧${v}`
+  },
+
+  setFreezingHit(stacks) {
+    const btn     = document.getElementById('hud-freezing-hit')
+    const overlay = document.getElementById('freeze-overlay')
+    const v = Math.max(0, Math.floor(Number(stacks) || 0))
+    // HUD badge
+    if (btn) {
+      if (v < 1) {
+        btn.classList.add('hidden')
+        btn.textContent = '🧊'
+      } else {
+        btn.classList.remove('hidden')
+        btn.textContent = `🧊${v}`
+      }
+    }
+    // Screen border overlay
+    if (overlay) {
+      if (v < 1) {
+        overlay.classList.add('hidden')
+        overlay.className = 'freeze-overlay hidden'
+      } else {
+        overlay.className = `freeze-overlay stacks-${Math.min(v, 5)}`
+      }
+    }
+  },
+
+  setBloodOverlay(active) {
+    const el = document.getElementById('blood-overlay')
+    if (!el) return
+    if (active) {
+      el.classList.remove('hidden')
+      el.classList.add('active')
+    } else {
+      el.classList.add('hidden')
+      el.classList.remove('active')
+    }
   },
 
   setLanternTargeting(active) {
@@ -1019,11 +1182,12 @@ const UI = {
 
   // ── Backpack ──────────────────────────────────
 
-  renderBackpack(inventory, itemRegistry, onUse, onHold) {
+  renderBackpack(inventory, itemRegistry, onUse, onHold, replaceMode = false) {
     const grid = document.getElementById('backpack-grid')
     if (!grid) return
     const SLOTS = 9
     grid.innerHTML = ''
+    grid.classList.toggle('replace-mode', replaceMode)
 
     // Build a slot for each occupied item, then fill remainder with empty slots
     const filled = inventory.map(entry => {
@@ -1031,30 +1195,35 @@ const UI = {
       if (!item) return null
       const slot = document.createElement('div')
       const rarity = item.rarity ?? 'common'
-      slot.className = `backpack-slot occupied rarity-${rarity}`
+      slot.className = `backpack-slot occupied rarity-${rarity}${replaceMode ? ' replace-target' : ''}`
       const bpIcon = item.spriteSrc
         ? `<img class="bp-item-img" src="${item.spriteSrc}" alt="${item.name}">`
         : `<span class="bp-item-emoji">${item.icon}</span>`
       slot.innerHTML = `
         ${bpIcon}
         ${entry.qty > 1 ? `<span class="bp-item-qty">${entry.qty}</span>` : ''}
+        ${replaceMode ? '<div class="bp-replace-badge">Replace</div>' : ''}
       `
 
-      // Hold-to-inspect
-      let _timer = null, _didHold = false, _sx = 0, _sy = 0
-      slot.addEventListener('pointerdown', e => {
-        _didHold = false; _sx = e.clientX; _sy = e.clientY
-        _timer = setTimeout(() => { _didHold = true; onHold(entry.id) }, 380)
-      })
-      slot.addEventListener('pointermove', e => {
-        if (!_timer) return
-        if (Math.hypot(e.clientX - _sx, e.clientY - _sy) > 8) { clearTimeout(_timer); _timer = null }
-      })
-      const cancel = () => { clearTimeout(_timer); _timer = null }
-      slot.addEventListener('pointerup',     cancel)
-      slot.addEventListener('pointercancel', cancel)
-      slot.addEventListener('contextmenu',   e => e.preventDefault())
-      slot.addEventListener('click', () => { if (!_didHold) onUse(entry.id) })
+      if (replaceMode) {
+        slot.addEventListener('click', () => onUse(entry.id))
+      } else {
+        // Hold-to-inspect
+        let _timer = null, _didHold = false, _sx = 0, _sy = 0
+        slot.addEventListener('pointerdown', e => {
+          _didHold = false; _sx = e.clientX; _sy = e.clientY
+          _timer = setTimeout(() => { _didHold = true; onHold(entry.id) }, 380)
+        })
+        slot.addEventListener('pointermove', e => {
+          if (!_timer) return
+          if (Math.hypot(e.clientX - _sx, e.clientY - _sy) > 8) { clearTimeout(_timer); _timer = null }
+        })
+        const cancel = () => { clearTimeout(_timer); _timer = null }
+        slot.addEventListener('pointerup',     cancel)
+        slot.addEventListener('pointercancel', cancel)
+        slot.addEventListener('contextmenu',   e => e.preventDefault())
+        slot.addEventListener('click', () => { if (!_didHold) onUse(entry.id) })
+      }
 
       return slot
     }).filter(Boolean)
@@ -1347,10 +1516,114 @@ const UI = {
     document.body.classList.remove('bestiary-detail-open')
   },
 
+  // ── Trinket Codex ─────────────────────────────
+
+  /** First-time trinket discovery — resolves when dismissed. */
+  showTrinketDiscovery(itemId) {
+    return new Promise((resolve) => {
+      const def = ITEMS[itemId]
+      if (!def || !el.trinketDiscoveryOverlay) { resolve(); return }
+      _fillTrinketCard({
+        img: el.trinketDiscoveryImg, emoji: el.trinketDiscoveryEmoji,
+        rarity: el.trinketDiscoveryRarity, name: el.trinketDiscoveryName,
+        blurb: el.trinketDiscoveryBlurb, effects: el.trinketDiscoveryEffects,
+      }, def)
+      const close = () => {
+        el.trinketDiscoveryOverlay.classList.add('hidden')
+        el.trinketDiscoveryOverlay.setAttribute('aria-hidden', 'true')
+        document.body.classList.remove('trinket-discovery-open')
+        el.trinketDiscoveryOk?.removeEventListener('click', close)
+        el.trinketDiscoveryBackdrop?.removeEventListener('click', close)
+        resolve()
+      }
+      el.trinketDiscoveryOverlay.classList.remove('hidden')
+      el.trinketDiscoveryOverlay.setAttribute('aria-hidden', 'false')
+      document.body.classList.add('trinket-discovery-open')
+      el.trinketDiscoveryOk?.addEventListener('click', close)
+      el.trinketDiscoveryBackdrop?.addEventListener('click', close)
+      EventBus.emit('audio:play', { sfx: 'levelup' })
+    })
+  },
+
+  /** Full trinket card from the Codex panel. */
+  showTrinketDetail(itemId) {
+    const def = ITEMS[itemId]
+    if (!def || !el.trinketDetailOverlay) return
+    _fillTrinketCard({
+      img: el.trinketDetailImg, emoji: el.trinketDetailEmoji,
+      rarity: el.trinketDetailRarity, name: el.trinketDetailName,
+      blurb: el.trinketDetailBlurb, effects: el.trinketDetailEffects,
+    }, def)
+    el.trinketDetailOverlay.classList.remove('hidden')
+    el.trinketDetailOverlay.setAttribute('aria-hidden', 'false')
+  },
+
+  hideTrinketDetail() {
+    el.trinketDetailOverlay?.classList.add('hidden')
+    el.trinketDetailOverlay?.setAttribute('aria-hidden', 'true')
+  },
+
+  /** Render the Codex panel grouped by rarity, then open it. */
+  showTrinketCodexPanel(save) {
+    if (!el.trinketCodexOverlay || !el.trinketCodexList) return
+    TrinketCodex.ensure(save)
+    const seen = save.trinketsSeen
+    el.trinketCodexList.innerHTML = ''
+
+    const RARITIES = ['common', 'rare', 'legendary']
+    const RARITY_LABELS = { common: 'Common', rare: 'Rare', legendary: 'Legendary' }
+
+    let anyShown = false
+    for (const rarity of RARITIES) {
+      const ids = seen.filter(id => ITEMS[id]?.rarity === rarity)
+      if (ids.length === 0) continue
+      anyShown = true
+
+      const header = document.createElement('h3')
+      header.className = `trinket-codex-section-header trinket-rarity-${rarity}`
+      header.textContent = RARITY_LABELS[rarity]
+      el.trinketCodexList.appendChild(header)
+
+      const grid = document.createElement('div')
+      grid.className = 'trinket-codex-grid'
+      for (const id of ids) {
+        const def = ITEMS[id]
+        if (!def) continue
+        const artHtml = def.spriteSrc
+          ? `<img src="${def.spriteSrc}" alt="" loading="lazy">`
+          : `<span class="trinket-codex-card-emoji">${def.icon ?? '?'}</span>`
+        const card = document.createElement('button')
+        card.type = 'button'
+        card.className = `trinket-codex-card trinket-rarity-border-${rarity}`
+        card.innerHTML = `
+          <div class="trinket-codex-card-art">${artHtml}</div>
+          <div class="trinket-codex-card-name">${def.name}</div>`
+        card.addEventListener('click', () => UI.showTrinketDetail(id))
+        grid.appendChild(card)
+      }
+      el.trinketCodexList.appendChild(grid)
+    }
+
+    if (!anyShown) {
+      const p = document.createElement('p')
+      p.className = 'bestiary-empty'
+      p.textContent = 'No trinkets discovered yet. Find them in chests and magic chests during your runs.'
+      el.trinketCodexList.appendChild(p)
+    }
+
+    el.trinketCodexOverlay.classList.remove('hidden')
+  },
+
+  hideTrinketCodexPanel() {
+    el.trinketCodexOverlay?.classList.add('hidden')
+    el.trinketDetailOverlay?.classList.add('hidden')
+    el.trinketDetailOverlay?.setAttribute('aria-hidden', 'true')
+  },
+
   // ── Event overlays ────────────────────────────
 
   hideEventOverlays() {
-    ;[el.merchantShopOverlay, el.gamblerOverlay, el.tripleChestOverlay, el.storyEventOverlay]
+    ;[el.merchantShopOverlay, el.gamblerOverlay, el.tripleChestOverlay, el.storyEventOverlay, el.trinketTraderOverlay]
       .forEach(o => o?.classList.add('hidden'))
   },
 
@@ -1389,12 +1662,105 @@ const UI = {
     })
   },
 
-  // Gambler (stub)
-  showGamblerEvent(onClose) {
+  // Gambler — physics dice
+  showGamblerEvent(playerGold, onBetAndRoll, onWalkAway) {
     const ov = el.gamblerOverlay
     if (!ov) return
-    ov.querySelector('#gambler-close')?.addEventListener('click', onClose, { once: true })
+
+    // Reset all phases
+    ov.querySelector('#gambler-phase-bet').classList.remove('hidden')
+    ov.querySelector('#gambler-phase-roll').classList.add('hidden')
+    ov.querySelector('#gambler-phase-outcome').classList.add('hidden')
+
+    // Build bet buttons
+    const BET_AMOUNTS = [5, 10, 25]
+    const btnWrap = ov.querySelector('#gambler-bet-buttons')
+    if (btnWrap) {
+      btnWrap.innerHTML = ''
+      for (const amt of BET_AMOUNTS) {
+        const btn = document.createElement('button')
+        btn.type = 'button'
+        btn.className = 'menu-btn gambler-bet-btn'
+        btn.textContent = `${amt}🪙`
+        btn.disabled = playerGold < amt
+        btn.addEventListener('click', () => onBetAndRoll(amt), { once: true })
+        btnWrap.appendChild(btn)
+      }
+    }
+
+    ov.querySelector('#gambler-walk-away')?.addEventListener('click', onWalkAway, { once: true })
     ov.classList.remove('hidden')
+  },
+
+  /** Switch gambler to roll phase and return a function to trigger the physics roll. */
+  gamblerShowRollPhase(onRollComplete) {
+    const ov = el.gamblerOverlay
+    if (!ov) return null
+    ov.querySelector('#gambler-phase-bet').classList.add('hidden')
+    const rollPhase = ov.querySelector('#gambler-phase-roll')
+    rollPhase.classList.remove('hidden')
+
+    const canvas  = ov.querySelector('#gambler-canvas')
+    const rollBtn = ov.querySelector('#gambler-roll-btn')
+    const hint    = ov.querySelector('#gambler-roll-hint')
+
+    // Lazy-import so Matter.js stays out of the critical path
+    import('./DiceRoller.js').then(({ createDiceRoller }) => {
+      const roller = createDiceRoller(canvas)
+      roller.drawIdle()
+
+      let rolled = false
+      const doRoll = () => {
+        if (rolled) return
+        rolled = true
+        rollBtn.disabled = true
+        if (hint) hint.textContent = 'Dice are rolling…'
+        roller.roll((r1, r2) => {
+          roller.destroy()
+          onRollComplete(r1, r2)
+        })
+      }
+
+      rollBtn.addEventListener('click', doRoll, { once: true })
+    })
+  },
+
+  /** Switch gambler to outcome phase, copying the settled canvas result visually. */
+  gamblerShowOutcome(bet, r1, r2, won) {
+    const ov = el.gamblerOverlay
+    if (!ov) return
+    ov.querySelector('#gambler-phase-roll').classList.add('hidden')
+    const outcomePhase = ov.querySelector('#gambler-phase-outcome')
+    outcomePhase.classList.remove('hidden')
+
+    const total = r1 + r2
+    const totalEl   = ov.querySelector('#gambler-outcome-total')
+    const textEl    = ov.querySelector('#gambler-outcome-text')
+
+    // Re-render settled dice on the result canvas
+    const resultCanvas = ov.querySelector('#gambler-canvas-result')
+    if (resultCanvas) {
+      import('./DiceRoller.js').then(({ createDiceRoller }) => {
+        // Draw single settled frame
+        const tmpRoller = createDiceRoller(resultCanvas)
+        // Access internals via a quick settled render trick — draw idle then overlay text
+        tmpRoller.drawIdle()
+        tmpRoller.destroy()
+        // Draw the actual result on top
+        _drawSettledDice(resultCanvas, r1, r2)
+      })
+    }
+
+    if (totalEl) {
+      totalEl.textContent = `Total: ${total}`
+      totalEl.className = `gambler-outcome-total ${won ? 'outcome-win' : 'outcome-lose'}`
+    }
+    if (textEl) {
+      textEl.textContent = won
+        ? `You rolled ${r1} + ${r2} = ${total}. You win ${bet}🪙!`
+        : `You rolled ${r1} + ${r2} = ${total}. Better luck next time.`
+      textEl.className = `gambler-outcome-text ${won ? 'outcome-win' : 'outcome-lose'}`
+    }
   },
 
   // Triple chest
@@ -1426,7 +1792,7 @@ const UI = {
     const titleEl = ov.querySelector('#story-event-title')
     const textEl  = ov.querySelector('#story-event-text')
     const choicesEl = ov.querySelector('#story-event-choices')
-    if (titleEl)   titleEl.textContent   = scenario.title
+    if (titleEl)   titleEl.textContent   = `'${scenario.title}'`
     if (textEl)    textEl.textContent    = scenario.text
     if (choicesEl) {
       choicesEl.innerHTML = scenario.choices.map((c, i) => `
@@ -1447,6 +1813,55 @@ const UI = {
           onChoice(choiceIdx, outcomeIdx)
         }
       })
+    }
+    ov.classList.remove('hidden')
+  },
+
+  // Trinket Trader
+  showTrinketTraderEvent(inventory, itemRegistry, onTrade, onLeave) {
+    const ov = el.trinketTraderOverlay
+    if (!ov) return
+    const list   = ov.querySelector('#trinket-trader-list')
+    const blurb  = ov.querySelector('#trinket-trader-blurb')
+    const leaveBtn = ov.querySelector('#trinket-trader-leave')
+
+    // Filter to tradeable trinkets (passives only — not consumables like potions)
+    const tradeable = inventory.filter(entry => {
+      const item = itemRegistry[entry.id]
+      return item && item.effect?.type?.startsWith('passive')
+    })
+
+    if (list) {
+      list.innerHTML = ''
+      if (tradeable.length === 0) {
+        if (blurb) blurb.textContent = 'You have no trinkets to offer. The trader shrugs and steps back into the shadows.'
+      } else {
+        if (blurb) blurb.textContent = 'A hooded figure offers a glowing exchange — one trinket for another, unknown. Choose what to give up.'
+        for (const entry of tradeable) {
+          const item = itemRegistry[entry.id]
+          if (!item) continue
+          const artHtml = item.spriteSrc
+            ? `<img src="${item.spriteSrc}" alt="${item.name}">`
+            : `<span class="trinket-trader-card-emoji">${item.icon ?? '?'}</span>`
+          const rarity = item.rarity ?? 'common'
+          const btn = document.createElement('button')
+          btn.type = 'button'
+          btn.className = `trinket-trader-card trinket-rarity-border-${rarity}`
+          btn.innerHTML = `
+            <div class="trinket-trader-card-art">${artHtml}</div>
+            <div class="trinket-trader-card-info">
+              <div class="trinket-trader-card-name">${item.name}</div>
+              <div class="trinket-trader-card-rarity trinket-rarity-${rarity}">${rarity.charAt(0).toUpperCase() + rarity.slice(1)}</div>
+            </div>
+            <div class="trinket-trader-card-action">Trade →</div>`
+          btn.addEventListener('click', () => onTrade(entry.id), { once: true })
+          list.appendChild(btn)
+        }
+      }
+    }
+
+    if (leaveBtn) {
+      leaveBtn.onclick = onLeave
     }
     ov.classList.remove('hidden')
   },
