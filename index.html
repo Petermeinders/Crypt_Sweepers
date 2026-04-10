@@ -324,6 +324,12 @@
 
   <!-- ── Main menu ── -->
   <div id="main-menu">
+    <!-- Hero carousel background -->
+    <div id="menu-hero-carousel" aria-hidden="true">
+      <img class="carousel-hero active" src="assets/sprites/Heroes/Warrior/warrior-idle.gif" alt="">
+      <img class="carousel-hero" src="assets/sprites/Heroes/Ranger/__Idle.gif" alt="">
+    </div>
+
     <div id="menu-title">CRYPT SWEEPERS</div>
 
     <!-- Mini hero preview -->
@@ -344,6 +350,8 @@
     </div>
 
     <button id="new-run-btn" class="menu-btn primary">⚔️ New Run</button>
+    <button id="void-btn" class="menu-btn secondary" disabled title="Complete floor 100 to unlock">🌀 The Void — Coming Soon</button>
+    <button id="how-to-play-btn" class="menu-btn secondary">📖 How to Play</button>
     <button id="settings-btn" class="menu-btn secondary">⚙️ Settings</button>
     <div id="menu-secondary">
       <button id="gold-shop-btn" class="menu-btn secondary">🛒 Gold Shop</button>
@@ -568,6 +576,146 @@
     <div id="shop-desc">These items are one-time consumables — they apply only to your next run and are lost whether you win or die.</div>
     <div id="shop-cart-info" class="hidden">Items in cart are applied to your next run.</div>
     <div id="shop-list" class="panel-list"></div>
+  </div>
+
+  <!-- ── How to Play ── -->
+  <div id="how-to-play-overlay" class="panel-overlay hidden">
+    <div class="panel-header">
+      <button class="panel-back-btn" id="how-to-play-back">← Back</button>
+      <div class="panel-title">📖 How to Play</div>
+    </div>
+    <div class="htp-body">
+
+      <!-- OVERVIEW -->
+      <section class="htp-section">
+        <h2 class="htp-heading">⚔️ The Dungeon Awaits</h2>
+        <p class="htp-text">Crypt Sweepers is a <strong>dungeon-crawling tile flipper</strong>. Each floor is a hidden grid — tap tiles to reveal what lurks beneath. Fight monsters, grab loot, and descend deeper before death finds you.</p>
+        <p class="htp-text">This is a <strong>Roguelike</strong> — death is part of the journey. Each run starts fresh, and the dungeon will humble you. Don't be discouraged; every death teaches you something new. <strong>Expect to die. A lot.</strong> The fun is in going a little further each time.</p>
+        <p class="htp-text">Between runs, visit the <strong>main menu</strong> to grow stronger for the next attempt:</p>
+        <div class="htp-meta-list">
+          <div class="htp-meta-row"><span>🗡️</span><div><strong>Heroes</strong> — unlock new characters with unique playstyles and abilities.</div></div>
+          <div class="htp-meta-row"><span>⚡</span><div><strong>Active Abilities</strong> — purchase powerful skills like Slam, Arrow Barrage, and Blinding Light.</div></div>
+          <div class="htp-meta-row"><span>📜</span><div><strong>Passive Upgrades</strong> — permanent bonuses that carry into every run — more HP, better damage, deeper pockets.</div></div>
+          <div class="htp-meta-row"><span>🛒</span><div><strong>Gold Shop</strong> — spend gold earned in runs on upgrades and unlocks that persist forever.</div></div>
+        </div>
+      </section>
+
+      <!-- GRID -->
+      <section class="htp-section">
+        <h2 class="htp-heading">🗺 The Grid</h2>
+        <p class="htp-text">Every floor is a grid of hidden tiles. Tap any reachable tile to flip it. Only tiles <strong>adjacent</strong> to a revealed tile can be flipped.</p>
+        <div class="htp-grid-demo">
+          <div class="htp-tile htp-tile--revealed">🪙<span>Gold</span></div>
+          <div class="htp-tile htp-tile--revealed">💀<span>Enemy</span></div>
+          <div class="htp-tile htp-tile--hidden">?</div>
+          <div class="htp-tile htp-tile--revealed">📦<span>Chest</span></div>
+          <div class="htp-tile htp-tile--revealed htp-tile--start">🟢<span>Start</span></div>
+          <div class="htp-tile htp-tile--locked">🔒</div>
+          <div class="htp-tile htp-tile--revealed">🕸️<span>Trap</span></div>
+          <div class="htp-tile htp-tile--hidden">?</div>
+          <div class="htp-tile htp-tile--revealed">🏕️<span>Camp</span></div>
+        </div>
+        <div class="htp-tile-legend">
+          <div class="htp-legend-row"><span class="htp-legend-icon">💀</span><span>Enemy — fight to gain gold &amp; XP</span></div>
+          <div class="htp-legend-row"><span class="htp-legend-icon">⚡💀</span><span>Fast Enemy — strikes first, no counter if you kill it</span></div>
+          <div class="htp-legend-row"><span class="htp-legend-icon">📦</span><span>Chest — random item loot</span></div>
+          <div class="htp-legend-row"><span class="htp-legend-icon">🪙</span><span>Gold — coin drops</span></div>
+          <div class="htp-legend-row"><span class="htp-legend-icon">🕸️</span><span>Trap — deals damage on reveal</span></div>
+          <div class="htp-legend-row"><span class="htp-legend-icon">❤️</span><span>Heart — restores HP or raises max HP</span></div>
+          <div class="htp-legend-row"><span class="htp-legend-icon">🏕️</span><span>Checkpoint — rest to restore HP &amp; mana</span></div>
+          <div class="htp-legend-row"><span class="htp-legend-icon">❓</span><span>Event — random encounter</span></div>
+          <div class="htp-legend-row"><span class="htp-legend-icon">🪨</span><span>Blockage — impassable rubble</span></div>
+          <div class="htp-legend-row"><span class="htp-legend-icon">☠️</span><span>Boss — powerful enemy every 5 floors</span></div>
+          <div class="htp-legend-row"><span class="htp-legend-icon">🚪</span><span>Exit — descend to the next floor</span></div>
+        </div>
+      </section>
+
+      <!-- COMBAT -->
+      <section class="htp-section">
+        <h2 class="htp-heading">⚔️ Combat</h2>
+        <p class="htp-text">Tap a revealed enemy to fight. Combat is a <strong>trade of blows</strong> — you hit, they hit back. Check the enemy's ❤️ HP and ⚔️ damage before engaging.</p>
+        <div class="htp-combat-diagram">
+          <div class="htp-combatant htp-combatant--player">
+            <div class="htp-combatant-icon">🛡️</div>
+            <div class="htp-combatant-label">You</div>
+            <div class="htp-combatant-stat">❤️ 34/50</div>
+            <div class="htp-combatant-stat">⚔️ 3–5</div>
+          </div>
+          <div class="htp-vs">VS</div>
+          <div class="htp-combatant htp-combatant--enemy">
+            <div class="htp-combatant-icon">💀</div>
+            <div class="htp-combatant-label">Skeleton</div>
+            <div class="htp-combatant-stat">❤️ 4</div>
+            <div class="htp-combatant-stat">⚔️ 1</div>
+          </div>
+        </div>
+        <div class="htp-tip">💡 <strong>Kill in one hit</strong> — the enemy never gets to counter-attack!</div>
+        <div class="htp-tip">⚡ <strong>Fast enemies</strong> are revealed with an ambush — they always strike first.</div>
+      </section>
+
+      <!-- RESOURCES -->
+      <section class="htp-section">
+        <h2 class="htp-heading">📊 Your Resources</h2>
+        <div class="htp-resource-list">
+          <div class="htp-resource"><span class="htp-res-icon">❤️</span><div><strong>HP</strong> — reach 0 and it's over. Restore with potions, hearts, and camps.</div></div>
+          <div class="htp-resource"><span class="htp-res-icon">🔵</span><div><strong>Mana</strong> — spent on spells and abilities. Regenerates 1 per tile revealed.</div></div>
+          <div class="htp-resource"><span class="htp-res-icon">⚔️</span><div><strong>Damage</strong> — your melee range. Boosted by trinkets, level-ups, and upgrades.</div></div>
+          <div class="htp-resource"><span class="htp-res-icon">🪙</span><div><strong>Gold</strong> — spent at shops and the Gold Shop between runs.</div></div>
+          <div class="htp-resource"><span class="htp-res-icon">✨</span><div><strong>XP</strong> — gained by revealing tiles. Level up to gain mana and damage.</div></div>
+        </div>
+      </section>
+
+      <!-- ITEMS -->
+      <section class="htp-section">
+        <h2 class="htp-heading">🎒 Backpack &amp; Items</h2>
+        <p class="htp-text">Your backpack holds up to <strong>9 items</strong>. When it's full and you find something new, you'll be asked to swap or trash the new item.</p>
+        <div class="htp-rarity-list">
+          <div class="htp-rarity htp-rarity--common">⬜ <strong>Common</strong> — potions, tools, utility items</div>
+          <div class="htp-rarity htp-rarity--rare">🔷 <strong>Rare</strong> — powerful passive trinkets</div>
+          <div class="htp-rarity htp-rarity--legendary">🟡 <strong>Legendary</strong> — game-changing relics</div>
+        </div>
+        <div class="htp-tip">💡 Some trinkets trigger on equip — read the description before swapping!</div>
+      </section>
+
+      <!-- ABILITIES -->
+      <section class="htp-section">
+        <h2 class="htp-heading">🔮 Abilities &amp; Spells</h2>
+        <p class="htp-text">Each hero has unique abilities unlocked via upgrades. Abilities cost <strong>mana</strong> to use.</p>
+        <div class="htp-ability-list">
+          <div class="htp-ability"><span>🌀</span><div><strong>Spell</strong> — ranged magic attack. Tap an enemy to fire. Costs 3 mana.</div></div>
+          <div class="htp-ability"><span>🔨</span><div><strong>Slam</strong> (Warrior) — hits all revealed enemies for area damage.</div></div>
+          <div class="htp-ability"><span>🏹</span><div><strong>Arrow Barrage</strong> (Ranger) — rains arrows on a 3×3 area.</div></div>
+          <div class="htp-ability"><span>☠️</span><div><strong>Poison Arrow</strong> (Ranger) — applies 3 turns of poison damage.</div></div>
+        </div>
+      </section>
+
+      <!-- EVENTS -->
+      <section class="htp-section">
+        <h2 class="htp-heading">❓ Events</h2>
+        <p class="htp-text">Event tiles trigger random encounters. Each run is different.</p>
+        <div class="htp-event-list">
+          <div class="htp-event"><span>🧙</span><div><strong>Goblin Merchant</strong> — spend gold on potions, tools, or a mystery relic.</div></div>
+          <div class="htp-event"><span>🎲</span><div><strong>Gambler</strong> — bet gold and roll dice. Roll 7+ to double your bet.</div></div>
+          <div class="htp-event"><span>📦</span><div><strong>Three Chests</strong> — pick one of three chests (common, rare, or legendary loot).</div></div>
+          <div class="htp-event"><span>🔮</span><div><strong>Trinket Trader</strong> — swap one of your trinkets for a random new one.</div></div>
+          <div class="htp-event"><span>📜</span><div><strong>Storyteller</strong> — narrative choice events with random outcomes.</div></div>
+        </div>
+      </section>
+
+      <!-- TIPS -->
+      <section class="htp-section">
+        <h2 class="htp-heading">💡 Pro Tips</h2>
+        <div class="htp-tips-list">
+          <div class="htp-tip-card">🗺️ <strong>Reveal tiles strategically</strong> — uncover paths before fighting so you have escape routes.</div>
+          <div class="htp-tip-card">⚡ <strong>One-shot fast enemies</strong> — they ambush you, so hit hard enough to kill in one blow.</div>
+          <div class="htp-tip-card">🔑 <strong>Golden Keys</strong> — clear every enemy on a floor to earn a key. Spend them at the Magic Chest in Sanctuaries.</div>
+          <div class="htp-tip-card">🏕️ <strong>Save your mana</strong> — mana regenerates slowly. Use spells on tough enemies, not weak ones.</div>
+          <div class="htp-tip-card">💀 <strong>Boss on floor 5, then every 10 floors</strong> (15, 25, 35…) — use all your abilities and save mana for the fight.</div>
+          <div class="htp-tip-card">🪙 <strong>Retreat wisely</strong> — retreating keeps 20% of your gold. Better than dying with full pockets.</div>
+        </div>
+      </section>
+
+    </div>
   </div>
 
   <div id="bestiary-overlay" class="panel-overlay hidden">

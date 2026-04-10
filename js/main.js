@@ -480,6 +480,13 @@ async function boot() {
     document.getElementById('passive-upgrades-overlay').classList.add('hidden')
   })
   document.getElementById('gold-shop-back').addEventListener('click', () => UI.hideGoldShop())
+  document.getElementById('how-to-play-btn')?.addEventListener('click', () => {
+    document.getElementById('how-to-play-overlay')?.classList.remove('hidden')
+  })
+  document.getElementById('how-to-play-back')?.addEventListener('click', () => {
+    document.getElementById('how-to-play-overlay')?.classList.add('hidden')
+  })
+
   document.getElementById('bestiary-btn')?.addEventListener('click', () => {
     UI.showBestiaryPanel(GameController.getSave())
   })
@@ -523,12 +530,12 @@ async function boot() {
   // PWA install nudge
   _wireInstallNudge()
 
-  // ── Resume prompt or main menu ───────────────────────────
+  // ── Auto-resume or main menu ─────────────────────────────
   _updateMenuHeroPreview()
   UI.setActiveDifficulty(save.settings.difficulty)
   EventBus.emit('audio:music', { track: 'menu' })
   if (GameController.hasActiveRun()) {
-    _showResumePrompt()
+    GameController.resumeRun()
   } else {
     UI.showMainMenu()
   }
@@ -1258,6 +1265,20 @@ if (document.readyState === 'loading') {
 } else {
   boot()
 }
+
+// ── Hero carousel ────────────────────────────────────────────
+;(function _initHeroCarousel() {
+  const heroes = Array.from(document.querySelectorAll('.carousel-hero'))
+  if (heroes.length < 2) return
+  let current = 0
+  const DISPLAY_MS = 5000   // how long each hero is shown
+  const next = () => {
+    heroes[current].classList.remove('active')
+    current = (current + 1) % heroes.length
+    heroes[current].classList.add('active')
+  }
+  setInterval(next, DISPLAY_MS)
+})()
 
 // ── Service worker registration ───────────────────────────────
 if ('serviceWorker' in navigator) {
