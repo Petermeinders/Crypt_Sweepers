@@ -4,7 +4,7 @@
 export const WARRIOR_UPGRADES = {
   'slam': {
     name:     'Slam',
-    desc:     'Bring your weapon down with crushing force. The next enemy you strike takes double damage and cannot counter-attack.',
+    desc:     'Bring your weapon down with crushing force. Deals damage to all visible enemies — no counter-attack.',
     icon:     '💥',
     iconSrc:  'assets/sprites/abilities/slam.png',
     xpCost:   50,

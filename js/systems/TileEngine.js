@@ -168,7 +168,7 @@ function _generateRestGrid(floor) {
   const cols = 3
   _grid = []
   const layout = [
-    ['empty', 'anvil', 'magic_chest'],
+    ['forge', 'anvil', 'magic_chest'],
     ['rope',  'well',  'empty'],
     ['empty', 'exit',  'empty'],
   ]

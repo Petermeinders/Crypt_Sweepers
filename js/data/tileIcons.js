@@ -18,6 +18,7 @@ export const TILE_TYPE_ICON_FILES = {
   event:      null,           // question mark emoji
   blockage:   '../tiles/rubble.png',
   checkpoint: null,           // no matching sprite — use emoji
+  forge:      null,           // emoji ⚒️ fallback
   exit:       'stairs-down.png', // stairs art (tiles.js: no door emoji)
   well:       null,
   anvil:      null,

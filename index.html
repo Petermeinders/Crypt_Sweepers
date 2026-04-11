@@ -341,6 +341,7 @@
       <img class="carousel-hero active" src="assets/sprites/Heroes/Warrior/warrior-idle.gif" alt="">
       <img class="carousel-hero" src="assets/sprites/Heroes/Ranger/__Idle.gif" alt="">
       <img class="carousel-hero" src="assets/sprites/Heroes/Necromancer/necromancer-hero-idle.gif" alt="">
+      <img class="carousel-hero" src="assets/sprites/Heroes/Engineer/engineer-hero-idle.gif" alt="">
     </div>
 
     <div id="menu-title">CRYPT SWEEPERS</div>
@@ -791,8 +792,19 @@
       <button class="panel-back-btn" id="trinket-codex-back">← Back</button>
       <div class="panel-title">🔮 Trinkets</div>
     </div>
-    <p class="trinket-codex-desc">Trinkets you have discovered on your runs. Tap an entry for details.</p>
+    <p class="trinket-codex-desc">Trinkets you have discovered on your runs. Tap an entry for details. Forged trinkets are created at the Sanctuary Forge.</p>
     <div id="trinket-codex-list" class="trinket-codex-list panel-list"></div>
+  </div>
+
+  <!-- Forge overlay (sanctuary) -->
+  <div id="forge-overlay" class="event-overlay hidden" role="dialog" aria-label="The Forge">
+    <div class="forge-panel">
+      <h2 class="forge-title">⚒️ The Forge</h2>
+      <p class="forge-desc">Combine two trinkets into a powerful merged trinket. Both ingredients are consumed and a new item takes their place.</p>
+      <button id="forge-leave-btn-top" class="event-btn forge-leave-btn secondary">Leave Forge</button>
+      <div id="forge-recipe-list" class="forge-recipe-list"></div>
+      <button id="forge-leave-btn" class="event-btn forge-leave-btn secondary">Leave Forge</button>
+    </div>
   </div>
 
   <!-- First-time trinket discovery (in-run) -->

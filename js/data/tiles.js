@@ -23,4 +23,6 @@ export const TILE_DEFS = {
   rope:       { emoji: '🧵',   label: '',           cssClass: 'type-rope',       weight:  0, isEnemy: false },
   /** Rest floor only — spend golden keys for premium loot */
   magic_chest: { emoji: '✨',  label: 'Magic Chest', cssClass: 'type-magic-chest', weight: 0, isEnemy: false },
+  /** Rest floor only — combine two trinkets into a merged trinket */
+  forge:        { emoji: '⚒️',  label: 'Forge',       cssClass: 'type-forge',       weight: 0, isEnemy: false },
 }

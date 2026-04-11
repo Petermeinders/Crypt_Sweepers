@@ -16,6 +16,7 @@ import { ITEMS }             from '../data/items.js'
 import { STORY_EVENTS, MERCHANT_ITEMS, rollEventType } from '../data/events.js'
 import Bestiary              from '../systems/Bestiary.js'
 import TrinketCodex          from '../systems/TrinketCodex.js'
+import { FORGE_RECIPES }     from '../data/combinations.js'
 
 // ── Loot pools by rarity ─────────────────────────────────────
 
@@ -242,6 +243,54 @@ function _applyHulkBuffToAll() {
   }
 }
 
+// ── Forge ─────────────────────────────────────────────────────
+
+function _openForge(tile) {
+  if (tile.forgeUsed) { UI.setMessage('The forge has already been used this sanctuary.'); return }
+  const inv = run.player.inventory
+  const recipes = FORGE_RECIPES.map(r => {
+    // For duplicate recipes (same ingredient), need two in inventory
+    const isDupe = r.ingredientA === r.ingredientB
+    const count  = inv.filter(e => e.id === r.ingredientA).length
+    const hasA   = isDupe ? count >= 2 : inv.some(e => e.id === r.ingredientA)
+    const hasB   = isDupe ? true        : inv.some(e => e.id === r.ingredientB)
+    const canForge = hasA && hasB && _canAddToBackpack(r.result)
+    return { ...r, canForge, hasA, hasB, isDupe }
+  })
+  UI.showForgeOverlay(recipes, ITEMS, (recipeId) => _doForge(tile, recipeId), () => {
+    UI.hideForgeOverlay()
+    UI.setMessage('The forge cools as you step away.')
+  })
+}
+
+async function _doForge(tile, recipeId) {
+  const recipe = FORGE_RECIPES.find(r => r.id === recipeId)
+  if (!recipe) return
+  const inv    = run.player.inventory
+  const isDupe = recipe.ingredientA === recipe.ingredientB
+  const count  = inv.filter(e => e.id === recipe.ingredientA).length
+  const hasA   = isDupe ? count >= 2 : inv.some(e => e.id === recipe.ingredientA)
+  const hasB   = isDupe ? true        : inv.some(e => e.id === recipe.ingredientB)
+  if (!hasA || !hasB) { UI.setMessage('Missing ingredients!', true); return }
+
+  dropItem(recipe.ingredientA)
+  if (!isDupe) dropItem(recipe.ingredientB)
+  else         dropItem(recipe.ingredientA)   // drop second copy
+
+  UI.hideForgeOverlay()
+  await _addToBackpack(recipe.result)
+  EventBus.emit('inventory:changed')
+
+  if (TrinketCodex.registerIfNew(_save, recipe.result)) {
+    await SaveManager.save(_save).catch(() => {})
+    await UI.showTrinketDiscovery(recipe.result)
+  }
+
+  tile.forgeUsed = true
+  EventBus.emit('audio:play', { sfx: 'spell' })
+  UI.setMessage(`⚒️ Forged: ${ITEMS[recipe.result]?.name ?? recipe.result}!`)
+}
+
 /** Crystal Bone Demon: 10% chance per counter-attack to flip a random unrevealed enemy tile. */
 function _tryDemonFlip(demonTile) {
   const chance = demonTile.enemyData?.demonFlipChance ?? 0.10
@@ -365,6 +414,9 @@ function _restoreHourglassSnapshot(snap) {
       }
       if (t.type === 'magic_chest') {
         t.element.classList.toggle('chest-ready', !!t.magicChestReady)
+      }
+      if (t.type === 'forge') {
+        t.element.classList.toggle('forge-used', !!t.forgeUsed)
       }
       if (t.type === 'exit') {
         t.element.classList.toggle('exit-pending', !t.exitResolved)
@@ -640,8 +692,10 @@ function _startFloor() {
   UI.setGridPoisonArrowShotMode(false)
   if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0); run.player.freezingHitStacks = 0; UI.setFreezingHit(0); run.player.burnStacks = 0; UI.setBurnOverlay(0); run.player.poisonStacks = 0; UI.setPlayerPoison(0); run.player.corruptionStacks = 0; if (run.player.corruptionBaseMaxHp) { run.player.maxHp = run.player.corruptionBaseMaxHp; run.player.corruptionBaseMaxHp = 0 } if (run.player.corruptionBaseMaxMana) { run.player.maxMana = run.player.corruptionBaseMaxMana; run.player.corruptionBaseMaxMana = 0 } UI.setCorruption(0) }
   if (run) { run._hourglassSnapshot = null }
-  _throwingKnifeTargeting = false
-  _rustyNailTargeting     = false
+  _throwingKnifeTargeting  = false
+  _rustyNailTargeting      = false
+  _twinBladesTargeting     = false
+  if (run?.player) run.player.navigatorsChartUsed = false
   // Hunger Stone: costs 2 HP and grants +1 max damage each floor (skip sanctuary)
   if (!run.atRest && run.floor > 1 && run.player.inventory.some(e => e.id === 'hunger-stone')) {
     run.player.damageBonus = (run.player.damageBonus ?? 0) + 1
@@ -813,6 +867,7 @@ let _tripleVolleyCenter = null
 let _poisonArrowShotSelecting = false
 let _throwingKnifeTargeting  = false
 let _rustyNailTargeting      = false
+let _twinBladesTargeting     = false
 
 // ── Angry Onion helpers ───────────────────────────────────────
 
@@ -937,6 +992,28 @@ function onTileTap(row, col) {
       } else {
         UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
         UI.setMessage(`🗡️ Knife deals ${dmg} damage. Enemy has ${tile.enemyData.currentHP} HP left.`)
+      }
+    }
+    return
+  }
+
+  // Twin Blades targeting
+  if (_twinBladesTargeting) {
+    _twinBladesTargeting = false
+    UI.setMessage('')
+    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      const dmg = 5
+      tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - dmg)
+      UI.spawnFloat(tile.element, `⚔️ ${dmg}`, 'damage')
+      EventBus.emit('audio:play', { sfx: 'hit' })
+      if (tile.enemyData.currentHP <= 0) {
+        _gainGold(tile.enemyData.goldDrop ? _rand(...tile.enemyData.goldDrop) : 1, tile.element, true)
+        _gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
+        _endCombatVictory(tile)
+        UI.setMessage(`⚔️ Twin Blades — enemy slain! No counter-attack.`)
+      } else {
+        UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
+        UI.setMessage(`⚔️ Twin Blades deal ${dmg} damage. Enemy has ${tile.enemyData.currentHP} HP left.`)
       }
     }
     return
@@ -1073,6 +1150,8 @@ function onTileTap(row, col) {
       _openChest(tile)
     } else if (tile.revealed && tile.type === 'magic_chest' && tile.magicChestReady) {
       _openMagicChest(tile)
+    } else if (tile.revealed && tile.type === 'forge') {
+      _openForge(tile)
     } else if (tile.revealed && tile.type === 'exit' && !tile.exitResolved) {
       _confirmExit(tile)
     } else if (tile.revealed && tile.type === 'rope' && !tile.ropeResolved) {
@@ -1498,6 +1577,24 @@ function _resolveEffect(tile) {
       UI.setMessage('You temper your weapon on the anvil — +1 attack damage for this run.')
       EventBus.emit('audio:play', { sfx: 'hit' })
       UI.showRetreat()
+      break
+    }
+
+    case 'forge': {
+      const inv = run.player.inventory
+      const hasMatch = FORGE_RECIPES.some(r => {
+        const isDupe = r.ingredientA === r.ingredientB
+        const count  = inv.filter(e => e.id === r.ingredientA).length
+        const hasA   = isDupe ? count >= 2 : inv.some(e => e.id === r.ingredientA)
+        const hasB   = isDupe ? true        : inv.some(e => e.id === r.ingredientB)
+        return hasA && hasB
+      })
+      if (hasMatch) {
+        _openForge(tile)
+      } else {
+        UI.setMessage('The forge awaits — bring two combinable trinkets to merge them.')
+        UI.showRetreat()
+      }
       break
     }
 
@@ -1960,6 +2057,11 @@ function fightAction(tile) {
   // Fire Ring: 10% chance to ignite on hit
   const hasFireRing = run.player.inventory.some(e => e.id === 'fire-ring')
   const ignite = hasFireRing && !killsEnemy && Math.random() < 0.10
+
+  // Infected Blade: every melee hit poisons the enemy (3 turns)
+  if (!killsEnemy && run.player.inventory.some(e => e.id === 'infected-blade')) {
+    tile.enemyData.poisonTurns = Math.max(tile.enemyData.poisonTurns ?? 0, 3)
+  }
 
   // Stun: enemy is stunned if stunTurns > 0
   const isStunned = (tile.enemyData.stunTurns ?? 0) > 0
@@ -2809,7 +2911,14 @@ function _castSpell(tile) {
     const refund = Math.floor(effectiveCost / 2)
     if (refund > 0) {
       run.player.mana = Math.min(run.player.maxMana, run.player.mana + refund)
-      UI.spawnFloat(document.getElementById('hud-portrait'), `+${refund} MP`, 'mana')
+      UI.spawnFloat(document.getElementById('hud-portrait'), `⚪ +${refund} MP`, 'mana')
+    }
+  }
+  if (run.player.inventory.some(e => e.id === 'resonance-core') && Math.random() < 0.30) {
+    const refund = effectiveCost
+    if (refund > 0) {
+      run.player.mana = Math.min(run.player.maxMana, run.player.mana + refund)
+      UI.spawnFloat(document.getElementById('hud-portrait'), `🔮 +${refund} MP`, 'mana')
     }
   }
   UI.updateMana(run.player.mana, run.player.maxMana)
@@ -2869,10 +2978,30 @@ function _endCombatVictory(tile) {
     UI.spawnFloat(tile.element, '+1 HP', 'heal')
     UI.updateHP(run.player.hp, run.player.maxHp)
   }
+  if (run.player.inventory.some(e => e.id === 'sanguine-covenant')) {
+    run.player.hp = Math.min(run.player.maxHp, run.player.hp + 2)
+    UI.spawnFloat(tile.element, '⚗️ +2 HP', 'heal')
+    UI.updateHP(run.player.hp, run.player.maxHp)
+  }
   if (run.player.inventory.some(e => e.id === 'soul-candle') && Math.random() < 0.20) {
     run.player.mana = Math.min(run.player.maxMana, run.player.mana + 1)
     UI.spawnFloat(tile.element, '🕯️ +1 MP', 'mana')
     UI.updateMana(run.player.mana, run.player.maxMana)
+  }
+  if (run.player.inventory.some(e => e.id === 'temporal-wick') && Math.random() < 0.30) {
+    run.player.mana = Math.min(run.player.maxMana, run.player.mana + 1)
+    UI.spawnFloat(tile.element, '⏳ +1 MP', 'mana')
+    UI.updateMana(run.player.mana, run.player.maxMana)
+  }
+  if (run.player.inventory.some(e => e.id === 'resonance-core')) {
+    for (const adj of TileEngine.getOrthogonalTiles(tile.row, tile.col)) {
+      if (!adj.revealed && adj.element) {
+        const cat = _echoCharmCategoryForTileType(adj.type)
+        adj.echoHintCategory = cat
+        adj.element.classList.add('echo-hint')
+        adj.element.dataset.echoHint = cat
+      }
+    }
   }
   // Deathmask: 25% chance next reveal is an instant kill
   if (!run.player.deathmaskPending && run.player.inventory.some(e => e.id === 'deathmask') && Math.random() < 0.25) {
@@ -3010,8 +3139,9 @@ function _nextFloor() {
 
 function _computeEffectiveDamageTaken(rawAmount) {
   const scaled = Math.round(rawAmount * (run.player.damageTakenMult ?? 1))
-  const maskReduction = run.player.inventory.some(e => e.id === 'plague-mask') ? 1 : 0
-  return Math.max(1, scaled - (run.player.damageReduction ?? 0) - maskReduction)
+  const maskReduction   = run.player.inventory.some(e => e.id === 'plague-mask')    ? 1 : 0
+  const bladeReduction  = run.player.inventory.some(e => e.id === 'infected-blade') ? 1 : 0
+  return Math.max(1, scaled - (run.player.damageReduction ?? 0) - maskReduction - bladeReduction)
 }
 
 function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null) {
@@ -3020,6 +3150,10 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
   if (run?.player?.shieldShard) {
     run.player.shieldShard = false
     UI.spawnFloat(tileEl, '🛡️ Blocked!', 'heal')
+    return
+  }
+  if (run?.player?.inventory?.some(e => e.id === 'devils-gambit') && Math.random() < 0.05) {
+    UI.spawnFloat(tileEl, '🃏 Gambit!', 'heal')
     return
   }
   if (run?.player?.inventory?.some(e => e.id === 'lucky-rabbit-foot') && Math.random() < 0.02) {
@@ -3062,10 +3196,14 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
     return
   }
   if (run.player.hp <= 0) { _die(killerData); return }
-  // Thorn Wrap: reflect 1 damage to attacker
-  if (killerData && !killerData._slain && run.player.inventory.some(e => e.id === 'thorn-wrap')) {
-    killerData.currentHP = Math.max(0, killerData.currentHP - 1)
-    UI.spawnFloat(tileEl, '🌿 Thorn!', 'heal')
+  // Thorn Wrap / Inferno Barbs: reflect damage to attacker
+  const hasThorn  = run.player.inventory.some(e => e.id === 'thorn-wrap')
+  const hasInferno = run.player.inventory.some(e => e.id === 'inferno-barbs')
+  if (killerData && !killerData._slain && (hasThorn || hasInferno)) {
+    const reflectDmg = hasInferno ? 2 : 1
+    killerData.currentHP = Math.max(0, killerData.currentHP - reflectDmg)
+    UI.spawnFloat(tileEl, hasInferno ? `🌋 Barbs! −${reflectDmg}` : '🌿 Thorn!', 'heal')
+    if (hasInferno) _applyBurnHit(1)   // Inferno Barbs also burns attacker
     if (killerData.currentHP <= 0) {
       const combatTile = run.activeCombatTile
       if (combatTile) {
@@ -3088,7 +3226,17 @@ function _gainGold(amount, tileEl, fromEnemy = false) {
   if (fromEnemy) {
     if (run.player.inventory.some(e => e.id === 'misers-pouch')) actual += 1
     if (run.player.inventory.some(e => e.id === 'gamblers-mark')) actual = Math.random() < 0.5 ? 0 : actual * 2
+    if (run.player.inventory.some(e => e.id === 'devils-gambit') && Math.random() < 0.20) actual *= 2
+    if (run.player.inventory.some(e => e.id === 'vault-key')) actual += 2
     actual = Math.round(actual)
+  }
+  // Vault Key: auto-bank 15% of all earned gold to persistent gold
+  if (run.player.inventory.some(e => e.id === 'vault-key') && actual > 0) {
+    const bank = Math.floor(actual * 0.15)
+    if (bank > 0) {
+      _save.persistentGold = (_save.persistentGold ?? 0) + bank
+      UI.spawnFloat(tileEl, `🗝️ +${bank} banked`, 'gold')
+    }
   }
   // Philosopher's Coin: all gold × 5
   if (run.player.inventory.some(e => e.id === 'philosophers-coin')) actual *= 5
@@ -3186,23 +3334,22 @@ function _xpNeeded() {
 }
 
 function _playerDamageRange(player) {
-  const bonus = player.damageBonus ?? 0
-  const maskPenalty  = player.inventory?.some(e => e.id === 'plague-mask')    ? 1 : 0
-  const collarBonus  = player.inventory?.some(e => e.id === 'spiked-collar')  ? 3 : 0
-  const soulBonus    = Math.floor(player.soulboundBonus ?? 0)
+  const bonus       = player.damageBonus ?? 0
+  const maskPenalty = player.inventory?.some(e => e.id === 'plague-mask')    ? 1 : 0
+  const collarBonus = player.inventory?.some(e => e.id === 'spiked-collar')  ? 3 : 0
+  const soulBonus   = Math.floor(player.soulboundBonus ?? 0)
+  const hasRazor    = player.inventory?.some(e => e.id === 'razors-edge')
   if (player.isRanger) {
     const [lo, hi] = RANGER_BASE.damage
-    return [
-      Math.max(1, lo + bonus + collarBonus + soulBonus - maskPenalty),
-      Math.max(1, hi + bonus + collarBonus + soulBonus - maskPenalty),
-    ]
+    const max = Math.max(1, hi + bonus + collarBonus + soulBonus - maskPenalty)
+    return hasRazor
+      ? [max, max]
+      : [Math.max(1, lo + bonus + collarBonus + soulBonus - maskPenalty), max]
   }
   const base = CONFIG.player.baseDamage
   const b = Array.isArray(base) ? base[0] : base
-  return [
-    Math.max(1, b + bonus + collarBonus + soulBonus - maskPenalty),
-    Math.max(1, b + bonus + collarBonus + soulBonus - maskPenalty),
-  ]
+  const max = Math.max(1, b + bonus + collarBonus + soulBonus - maskPenalty)
+  return [max, max]   // warrior is always fixed (same lo/hi), razor's edge is a no-op here but kept for clarity
 }
 
 function _avgMeleeDamage() {
@@ -3440,6 +3587,31 @@ async function _addToBackpack(id) {
     UI.updateMana(run.player.mana, run.player.maxMana)
     UI.spawnFloat(document.getElementById('hud-portrait'), '🌰 +10 Mana!', 'mana')
   }
+  // Sanguine Covenant: +3 dmg, halve max HP on equip
+  if (id === 'sanguine-covenant') {
+    run.player.damageBonus = (run.player.damageBonus ?? 0) + 3
+    const halved = Math.max(1, Math.floor(run.player.maxHp / 2))
+    run.player.maxHp = halved
+    run.player.hp    = Math.min(run.player.hp, halved)
+    UI.updateHP(run.player.hp, run.player.maxHp)
+    const [d0, d1] = _playerDamageRange(run.player)
+    UI.updateDamageRange(d0, d1)
+    UI.spawnFloat(document.getElementById('hud-portrait'), '⚗️ Covenant!', 'damage')
+  }
+  // Razor's Edge: −10 max HP on equip
+  if (id === 'razors-edge') {
+    run.player.maxHp = Math.max(1, run.player.maxHp - 10)
+    run.player.hp    = Math.min(run.player.hp, run.player.maxHp)
+    UI.updateHP(run.player.hp, run.player.maxHp)
+    UI.spawnFloat(document.getElementById('hud-portrait'), '💠 −10 Max HP', 'damage')
+  }
+  // Honed Edge: +1 permanent attack damage
+  if (id === 'honed-edge') {
+    run.player.damageBonus = (run.player.damageBonus ?? 0) + 1
+    const [d0, d1] = _playerDamageRange(run.player)
+    UI.updateDamageRange(d0, d1)
+    UI.spawnFloat(document.getElementById('hud-portrait'), '⚔️ +1 ATK', 'xp')
+  }
 }
 
 function _canAddToBackpack(id) {
@@ -3625,6 +3797,83 @@ function useItem(id) {
   }
   if (effect.type === 'hourglass-sand') {
     hourglassAction()
+    return
+  }
+  if (effect.type === 'temporal-wick') {
+    if (!run._hourglassSnapshot) { UI.setMessage('Nothing to rewind yet.', true); return }
+    if (_combatBusy) { UI.setMessage('Not while combat is resolving.', true); return }
+    if (GameState.is(States.LEVEL_UP)) { UI.setMessage('Cannot rewind during level-up.', true); return }
+    const p = run.player
+    if (p.gold < 1) { UI.setMessage('You need 1 gold to use Temporal Wick.', true); return }
+    _restoreHourglassSnapshot(run._hourglassSnapshot)
+    _spyglassTargeting = false; _lanternTargeting = false
+    UI.setLanternTargeting(false)
+    p.mana = 0; p.hp -= 1; p.gold -= 1
+    const wickHeal = Math.max(1, Math.floor(p.maxHp * 0.15))
+    p.hp = Math.min(p.maxHp, p.hp + wickHeal)
+    UI.updateMana(p.mana, p.maxMana)
+    UI.updateHP(p.hp, p.maxHp)
+    UI.updateGold(p.gold)
+    if (p.hp <= 0) { _die(); return }
+    UI.setMessage(`⏳ The wick flickers — your last step is undone. +${wickHeal} HP restored.`)
+    EventBus.emit('audio:play', { sfx: 'spell' })
+    return
+  }
+  if (effect.type === 'navigators-chart') {
+    if (run.player.navigatorsChartUsed) {
+      UI.setMessage("🗺️ Navigator's Chart — already used this floor. Renews on the next floor.", true); return
+    }
+    run.player.navigatorsChartUsed = true
+    const grid = TileEngine.getGrid()
+    const unrevealed = []
+    for (const row of grid) { for (const t of row) { if (!t.revealed) unrevealed.push(t) } }
+    unrevealed.forEach((t, i) => setTimeout(() => revealTile(t), i * 50))
+    UI.setMessage("🗺️ Navigator's Chart — the entire floor is revealed!")
+    EventBus.emit('audio:play', { sfx: 'spell' })
+    return
+  }
+  if (effect.type === 'field-kit') {
+    if (run.player.mana < 5) { UI.setMessage('Not enough mana! Field Kit costs 5 mana.', true); return }
+    run.player.mana -= 5
+    UI.updateMana(run.player.mana, run.player.maxMana)
+    run.player.burnStacks = 0; UI.setBurnOverlay(0)
+    run.player.poisonStacks = 0; UI.setPlayerPoison(0)
+    run.player.tearyEyesTurns = 0; UI.setTearyEyes(0)
+    run.player.freezingHitStacks = 0; UI.setFreezingHit(0)
+    if (run.player.corruptionStacks > 0) {
+      if (run.player.corruptionBaseMaxHp)   { run.player.maxHp  = run.player.corruptionBaseMaxHp;  run.player.corruptionBaseMaxHp  = 0 }
+      if (run.player.corruptionBaseMaxMana) { run.player.maxMana = run.player.corruptionBaseMaxMana; run.player.corruptionBaseMaxMana = 0 }
+      run.player.corruptionStacks = 0; UI.setCorruption(0)
+    }
+    const kitHeal = Math.min(5, run.player.maxHp - run.player.hp)
+    run.player.hp = Math.min(run.player.maxHp, run.player.hp + kitHeal)
+    UI.updateHP(run.player.hp, run.player.maxHp)
+    UI.spawnFloat(document.getElementById('hud-portrait'), `🧰 +${kitHeal} HP`, 'heal')
+    UI.setMessage(`🧰 Field Kit — +${kitHeal} HP and all debuffs cleared. (5 mana)`)
+    EventBus.emit('audio:play', { sfx: 'heal' })
+    return
+  }
+  if (effect.type === 'twin-blades') {
+    if (run.player.mana < 5) { UI.setMessage('Not enough mana! Twin Blades costs 5 mana.', true); return }
+    run.player.mana -= 5
+    UI.updateMana(run.player.mana, run.player.maxMana)
+    _twinBladesTargeting = true
+    UI.setMessage('⚔️ Twin Blades — tap any revealed living enemy to strike for 5 damage (no counter). (5 mana)')
+    EventBus.emit('audio:play', { sfx: 'menu' })
+    return
+  }
+  if (effect.type === 'smoke-bomb') {
+    const combatTile = run.activeCombatTile
+    if (!combatTile || !combatTile.enemyData || combatTile.enemyData._slain) {
+      UI.setMessage('Smoke Bomb can only be used during combat.', true); return
+    }
+    if (run.player.mana < 5) { UI.setMessage('Not enough mana! Smoke Bomb costs 5 mana.', true); return }
+    run.player.mana -= 5
+    UI.updateMana(run.player.mana, run.player.maxMana)
+    combatTile.enemyData.stunTurns = (combatTile.enemyData.stunTurns ?? 0) + 3
+    UI.spawnFloat(combatTile.element, '💨 Stunned 3!', 'xp')
+    UI.setMessage('💨 Smoke Bomb — enemy stunned for 3 turns! (5 mana)')
+    EventBus.emit('audio:play', { sfx: 'spell' })
     return
   }
 
@@ -3826,6 +4075,25 @@ function dropItem(id) {
     UI.updateMana(run.player.mana, run.player.maxMana)
     UI.spawnFloat(document.getElementById('hud-portrait'), '🌰 −10 Mana', 'damage')
   }
+  // Sanguine Covenant: revert on drop
+  if (id === 'sanguine-covenant') {
+    run.player.damageBonus = Math.max(0, (run.player.damageBonus ?? 0) - 3)
+    run.player.maxHp = Math.max(1, run.player.maxHp * 2)
+    UI.updateHP(run.player.hp, run.player.maxHp)
+    const [d0, d1] = _playerDamageRange(run.player)
+    UI.updateDamageRange(d0, d1)
+  }
+  // Razor's Edge: restore max HP on drop
+  if (id === 'razors-edge') {
+    run.player.maxHp += 10
+    UI.updateHP(run.player.hp, run.player.maxHp)
+  }
+  // Honed Edge: revert damage on drop
+  if (id === 'honed-edge') {
+    run.player.damageBonus = Math.max(0, (run.player.damageBonus ?? 0) - 1)
+    const [d0, d1] = _playerDamageRange(run.player)
+    UI.updateDamageRange(d0, d1)
+  }
   UI.setMessage(item ? `Dropped ${item.name}.` : 'Item removed.')
   EventBus.emit('audio:play', { sfx: 'menu' })
 }
@@ -3983,6 +4251,7 @@ export default {
   dropItem,
   forceReplaceItem,
   getInventory,
+  openForge: _openForge,
   getLevelUpLog,
   getTearyEyesTurns()    { return run?.player?.tearyEyesTurns ?? 0 },
   getFreezingHitStacks() { return run?.player?.freezingHitStacks ?? 0 },

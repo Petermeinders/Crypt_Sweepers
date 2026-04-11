@@ -230,6 +230,8 @@ const UI = {
     el.bestiaryDetailType       = document.getElementById('bestiary-detail-type')
     el.bestiaryDetailBlurb      = document.getElementById('bestiary-detail-blurb')
     el.bestiaryDetailBack       = document.getElementById('bestiary-detail-back')
+    el.forgeOverlay             = document.getElementById('forge-overlay')
+    el.forgeRecipeList          = document.getElementById('forge-recipe-list')
     el.trinketCodexOverlay      = document.getElementById('trinket-codex-overlay')
     el.trinketCodexList         = document.getElementById('trinket-codex-list')
     el.trinketDiscoveryOverlay  = document.getElementById('trinket-discovery-overlay')
@@ -1612,8 +1614,8 @@ const UI = {
     const seen = save.trinketsSeen
     el.trinketCodexList.innerHTML = ''
 
-    const RARITIES = ['common', 'rare', 'legendary']
-    const RARITY_LABELS = { common: 'Common', rare: 'Rare', legendary: 'Legendary' }
+    const RARITIES = ['common', 'rare', 'legendary', 'merged']
+    const RARITY_LABELS = { common: 'Common', rare: 'Rare', legendary: 'Legendary', merged: '⚒️ Forged' }
 
     let anyShown = false
     for (const rarity of RARITIES) {
@@ -1660,6 +1662,80 @@ const UI = {
     el.trinketCodexOverlay?.classList.add('hidden')
     el.trinketDetailOverlay?.classList.add('hidden')
     el.trinketDetailOverlay?.setAttribute('aria-hidden', 'true')
+  },
+
+  // ── Forge overlay ─────────────────────────────────────────────
+
+  showForgeOverlay(recipes, itemDefs, onForge, onLeave) {
+    const ov   = el.forgeOverlay
+    const list = el.forgeRecipeList
+    if (!ov || !list) return
+    list.innerHTML = ''
+
+    for (const r of recipes) {
+      const defA   = itemDefs[r.ingredientA]
+      const defB   = itemDefs[r.ingredientB]
+      const defRes = itemDefs[r.result]
+      if (!defA || !defB || !defRes) continue
+
+      const row = document.createElement('div')
+      row.className = `forge-recipe${r.canForge ? ' forge-can-forge' : ' forge-cannot-forge'}`
+
+      const iconA  = defA.spriteSrc  ? `<img src="${defA.spriteSrc}"   alt="" class="forge-ing-img">` : `<span class="forge-ing-emoji">${defA.icon ?? '?'}</span>`
+      const iconB  = defB.spriteSrc  ? `<img src="${defB.spriteSrc}"   alt="" class="forge-ing-img">` : `<span class="forge-ing-emoji">${defB.icon ?? '?'}</span>`
+      const iconR  = defRes.spriteSrc ? `<img src="${defRes.spriteSrc}" alt="" class="forge-ing-img">` : `<span class="forge-ing-emoji">${defRes.icon ?? '?'}</span>`
+
+      const missingParts = []
+      if (!r.hasA) missingParts.push(defA.name)
+      if (!r.hasB && !r.isDupe) missingParts.push(defB.name)
+      if (r.isDupe && !r.hasA) missingParts.push(`2× ${defA.name}`)
+      const missingHtml = missingParts.length
+        ? `<div class="forge-missing">Missing: ${missingParts.join(', ')}</div>`
+        : ''
+      const btnHtml = r.canForge
+        ? `<button class="forge-btn event-btn" data-recipe="${r.id}">⚒️ Forge</button>`
+        : `<button class="forge-btn event-btn forge-btn-disabled" disabled>⚒️ Forge</button>`
+
+      row.innerHTML = `
+        <div class="forge-ingredients">
+          <span class="forge-ing">${iconA}<span class="forge-ing-name">${defA.name}</span></span>
+          <span class="forge-plus">+</span>
+          <span class="forge-ing">${iconB}<span class="forge-ing-name">${r.isDupe ? defA.name : defB.name}</span></span>
+        </div>
+        <div class="forge-arrow">→</div>
+        <div class="forge-result">
+          <span class="forge-result-icon">${iconR}</span>
+          <div class="forge-result-text">
+            <div class="forge-result-name">${defRes.name}</div>
+            <div class="forge-result-hint">${r.hint ?? ''}</div>
+          </div>
+        </div>
+        ${missingHtml}
+        ${btnHtml}
+      `
+
+      const btn = row.querySelector('.forge-btn')
+      if (btn && r.canForge) {
+        btn.addEventListener('click', () => onForge(r.id))
+      }
+      list.appendChild(row)
+    }
+
+    // Leave buttons (top + bottom)
+    for (const id of ['#forge-leave-btn-top', '#forge-leave-btn']) {
+      const btn = ov.querySelector(id)
+      if (btn) {
+        const fresh = btn.cloneNode(true)
+        btn.replaceWith(fresh)
+        fresh.addEventListener('click', onLeave)
+      }
+    }
+
+    ov.classList.remove('hidden')
+  },
+
+  hideForgeOverlay() {
+    el.forgeOverlay?.classList.add('hidden')
   },
 
   // ── Event overlays ────────────────────────────

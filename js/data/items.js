@@ -815,4 +815,205 @@ export const ITEMS = {
     ],
     effect: { type: 'passive-wardens-brand' },
   },
+
+  // ── Forged (Merged) Trinkets ─────────────────────────────────
+  // Created at the Sanctuary Forge by combining two ingredients.
+  // spriteSrc is null until art is provided.
+
+  'sanguine-covenant': {
+    name:      'Sanguine Covenant',
+    rarity:    'merged',
+    icon:      '⚗️',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'Blood and steel, bound by an oath neither party survives alone. The sacrifice is permanent. The power is not.',
+    details: [
+      { icon: '⚔️', label: 'On Equip', desc: '+3 attack damage; max HP is halved' },
+      { icon: '🦷', label: 'Passive',  desc: 'Heal 2 HP on every enemy kill' },
+      { icon: '⚒️', label: 'Forged',   desc: 'Vampire Fang + Blood Pact' },
+    ],
+    effect: { type: 'passive-sanguine-covenant' },
+  },
+
+  'inferno-barbs': {
+    name:      'Inferno Barbs',
+    rarity:    'merged',
+    icon:      '🌋',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'Thorns wreathed in living flame. Strike the hand that reaches for you — and leave it burning.',
+    details: [
+      { icon: '🌿', label: 'Passive', desc: 'Reflect 2 damage to any enemy that hits you' },
+      { icon: '🔥', label: 'Burn',   desc: 'Each reflection also applies 1 burn stack to the attacker' },
+      { icon: '⚒️', label: 'Forged', desc: 'Fire Ring + Thorn Wrap' },
+    ],
+    effect: { type: 'passive-inferno-barbs' },
+  },
+
+  'resonance-core': {
+    name:      'Resonance Core',
+    rarity:    'merged',
+    icon:      '🔮',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'A pearl threaded through a bell that rings twice. The magic remembers — and answers.',
+    details: [
+      { icon: '🔔', label: 'Passive',  desc: 'On enemy kill: adjacent hidden tiles show an echo hint' },
+      { icon: '⚪', label: 'Spell',    desc: '30% chance after any spell to fully refund its mana cost' },
+      { icon: '⚒️', label: 'Forged',  desc: 'Echo Charm + Surge Pearl' },
+    ],
+    effect: { type: 'passive-resonance-core' },
+  },
+
+  'devils-gambit': {
+    name:      "Devil's Gambit",
+    rarity:    'merged',
+    icon:      '🃏',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'Every step is a wager. Most days the house loses.',
+    details: [
+      { icon: '🐇', label: 'Dodge',  desc: '5% chance to completely avoid any incoming damage' },
+      { icon: '🪙', label: 'Gold',   desc: '20% chance enemy gold drops double' },
+      { icon: '⚒️', label: 'Forged', desc: 'Lucky Rabbit Foot + Bone Dice' },
+    ],
+    effect: { type: 'passive-devils-gambit' },
+  },
+
+  'navigators-chart': {
+    name:      "Navigator's Chart",
+    rarity:    'merged',
+    icon:      '🗺️',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'A map stitched from broken instruments. It can only be right once per floor — but once is enough.',
+    details: [
+      { icon: '🗺️', label: 'Use',     desc: 'Reveals all hidden tiles on the current floor' },
+      { icon: '♾️', label: 'Reusable', desc: 'Once per floor — renews when you advance' },
+      { icon: '⚒️', label: 'Forged',  desc: 'Spyglass + Cracked Compass' },
+    ],
+    effect: { type: 'navigators-chart' },
+  },
+
+  'temporal-wick': {
+    name:      'Temporal Wick',
+    rarity:    'merged',
+    icon:      '🕯️',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'The flame burns backward when you need it to. Life and time, spent carefully.',
+    details: [
+      { icon: '⏳', label: 'Use',     desc: 'Undo your last tile reveal (infinite uses). Costs all mana, 1 gold, and 1 HP — then restores 15% max HP.' },
+      { icon: '🕯️', label: 'Passive', desc: '30% chance to restore 1 mana on every enemy kill' },
+      { icon: '⚒️', label: 'Forged',  desc: 'Hourglass Sand + Soul Candle' },
+    ],
+    effect: { type: 'temporal-wick' },
+  },
+
+  'infected-blade': {
+    name:      'Infected Blade',
+    rarity:    'merged',
+    icon:      '🗡️',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'The mask filters what it catches; the blade spreads what it finds. A walking pestilence.',
+    details: [
+      { icon: '🛡️', label: 'Passive', desc: 'Take 1 less damage from all sources' },
+      { icon: '☣️', label: 'On Hit',  desc: 'Every melee hit poisons the enemy (1 dmg/turn × 3 turns)' },
+      { icon: '⚒️', label: 'Forged',  desc: 'Plague Mask + Rusty Nail' },
+    ],
+    effect: { type: 'passive-infected-blade' },
+  },
+
+  'vault-key': {
+    name:      'Vault Key',
+    rarity:    'merged',
+    icon:      '🗝️',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'Opens every door — including the one to the surface. Some of what you carry always finds its way home.',
+    details: [
+      { icon: '🪙', label: 'Passive', desc: '+2 gold on every enemy kill' },
+      { icon: '🏦', label: 'Bank',    desc: '15% of all earned gold auto-deposits to your persistent gold bank' },
+      { icon: '⚒️', label: 'Forged',  desc: "Miser's Pouch + Greed Tooth" },
+    ],
+    effect: { type: 'passive-vault-key' },
+  },
+
+  'razors-edge': {
+    name:      "Razor's Edge",
+    rarity:    'merged',
+    icon:      '💠',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'Sharpened past the point of reason. Every swing lands exactly where the math says it should.',
+    details: [
+      { icon: '⚔️', label: 'Passive',  desc: 'Always deal maximum possible damage (no random roll)' },
+      { icon: '💔', label: 'On Equip', desc: '−10 max HP while held' },
+      { icon: '⚒️', label: 'Forged',   desc: 'Whetstone + Glass Cannon Shard' },
+    ],
+    effect: { type: 'passive-razors-edge' },
+  },
+
+  'field-kit': {
+    name:      'Field Kit',
+    rarity:    'merged',
+    icon:      '🧰',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'Everything a soldier needs to keep moving: a bandage and a sharp snap of something acrid.',
+    details: [
+      { icon: '🧰', label: 'Use',      desc: 'Heals 5 HP and clears all active debuffs (burn, poison, corruption, freeze, teary eyes)' },
+      { icon: '🔵', label: 'Cost',     desc: 'Costs 5 mana per use' },
+      { icon: '♾️', label: 'Reusable', desc: 'Never consumed — use as many times as you have mana' },
+      { icon: '⚒️', label: 'Forged',   desc: 'Smelling Salts + Bandage Roll' },
+    ],
+    effect: { type: 'field-kit' },
+  },
+
+  'honed-edge': {
+    name:      'Honed Edge',
+    rarity:    'merged',
+    icon:      '⚔️',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'Two stones, one edge. It will not dull.',
+    details: [
+      { icon: '⚔️', label: 'Passive', desc: '+1 permanent attack damage for this run (stacks with other bonuses)' },
+      { icon: '⚒️', label: 'Forged',  desc: 'Whetstone + Whetstone' },
+    ],
+    effect: { type: 'passive-honed-edge' },
+  },
+
+  'twin-blades': {
+    name:      'Twin Blades',
+    rarity:    'merged',
+    icon:      '⚔️',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'One knife is a warning. Two is a promise.',
+    details: [
+      { icon: '⚔️', label: 'Use',      desc: 'Deal 5 damage to any revealed living enemy — no counter-attack' },
+      { icon: '🔵', label: 'Cost',     desc: 'Costs 5 mana per use' },
+      { icon: '♾️', label: 'Reusable', desc: 'Never consumed' },
+      { icon: '⚒️', label: 'Forged',   desc: 'Throwing Knife + Throwing Knife' },
+    ],
+    effect: { type: 'twin-blades' },
+  },
+
+  'smoke-bomb': {
+    name:      'Smoke Bomb',
+    rarity:    'merged',
+    icon:      '💨',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'Double the powder, double the cloud. Three turns of silence.',
+    details: [
+      { icon: '💨', label: 'Use',      desc: 'Stun the enemy in your current fight for 3 turns — they cannot counter-attack' },
+      { icon: '🔵', label: 'Cost',     desc: 'Costs 5 mana per use' },
+      { icon: '♾️', label: 'Reusable', desc: 'Never consumed; only usable during combat' },
+      { icon: '⚒️', label: 'Forged',   desc: 'Flash Powder + Flash Powder' },
+    ],
+    effect: { type: 'smoke-bomb' },
+  },
 }
