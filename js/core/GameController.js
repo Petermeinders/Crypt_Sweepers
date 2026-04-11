@@ -2890,7 +2890,7 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
   }
   UI.updateHP(run.player.hp, run.player.maxHp)
   if (navigator.vibrate && (_save?.settings?.hapticFeedback ?? true)) {
-    navigator.vibrate([30, 50, 30])
+    navigator.vibrate([50, 40, 80])
   }
   EventBus.emit('player:hpChange', { amount: -effective, newHP: run.player.hp })
   // Resurrection Stone: prevent death once, restore half max HP
