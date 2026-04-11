@@ -1718,10 +1718,10 @@ async function _doMerchantBuy(tile, itemId, items) {
   p.gold -= def.price
   UI.updateGold(p.gold)
   await _addToBackpack(itemId)
-  UI.renderBackpack(p.inventory)
+  EventBus.emit('inventory:changed')
   EventBus.emit('audio:play', { sfx: 'chest' })
   UI.setMessage(`You purchase the ${def.label}.`)
-  // Refresh shop display with updated gold
+  // Refresh shop display with updated gold (no-op if backpack:full already closed it)
   UI.refreshMerchantShopGold(p.gold)
 }
 
@@ -1792,7 +1792,7 @@ async function _openTripleChestEvent(tile) {
         UI.setMessage(`You open the chest — ${loot.amount ?? 5} gold spills out!`)
       } else {
         await _addToBackpack(loot.type)
-        UI.renderBackpack(run.player.inventory)
+        EventBus.emit('inventory:changed')
         UI.setMessage(`You open the chest and find: ${ITEMS[loot.type]?.name ?? loot.type}!`)
       }
       EventBus.emit('audio:play', { sfx: 'chest' })
@@ -1810,15 +1810,17 @@ function _openTrinketTraderEvent(tile) {
     ITEMS,
     async (offeredId) => {
       // Drop the offered trinket
+      const offeredName = ITEMS[offeredId]?.name ?? offeredId
       dropItem(offeredId)
       // Roll a replacement — same rarity as what was given, with a small upgrade chance
       const offeredRarity = ITEMS[offeredId]?.rarity ?? 'common'
       const newId = _rollTrinketTradeReward(offeredRarity)
       const newItem = ITEMS[newId]
+      // Close event BEFORE adding so any backpack:full prompt appears cleanly
       _closeEventSession(tile)
       await _addToBackpack(newId)
       EventBus.emit('inventory:changed')
-      UI.setMessage(`✨ You traded ${ITEMS[offeredId]?.name ?? offeredId} for ${newItem?.name ?? newId}!`)
+      UI.setMessage(`✨ You traded ${offeredName} for ${newItem?.name ?? newId}!`)
       EventBus.emit('audio:play', { sfx: 'chest' })
     },
     () => {

@@ -47,13 +47,6 @@ export const SHOP_ITEMS = {
     goldCost: 25,
     effect:  { type: 'bonus-mana-this-run', amount: 20 },
   },
-  'lucky-coin': {
-    name:    'Lucky Coin',
-    desc:    'Start this run with +15 gold',
-    icon:    '🍀',
-    goldCost: 15,
-    effect:  { type: 'bonus-starting-gold-run', amount: 15 },
-  },
   'sturdy-shield': {
     name:    'Sturdy Shield',
     desc:    'Take 3 less damage this run',
