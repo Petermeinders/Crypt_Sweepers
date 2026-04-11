@@ -2,7 +2,7 @@
 // Strategy: Cache-first for assets, network-first for HTML.
 // Version bump CACHE_NAME to force cache refresh on deploy.
 
-const CACHE_NAME = 'crypt-sweepers-v134'
+const CACHE_NAME = 'crypt-sweepers-v143'
 
 const PRECACHE_ASSETS = [
   './',
@@ -151,12 +151,21 @@ const PRECACHE_ASSETS = [
   './assets/sprites/monsters/corrupted_cyclops/corrupted-cyclops.gif',
   './assets/sprites/monsters/corrupted_goblin/corrupted-goblin-creature.gif',
   './assets/sprites/monsters/corrupted_pirate/corrupted-pirate-creature.gif',
+  './assets/sprites/monsters/molten_spiderling/molten-spiderling-creature.gif',
+  './assets/sprites/monsters/fire_centipede/fire-centipede.gif',
+  './assets/sprites/monsters/drowned_hulk_pirate/drowned-hulk-pirate-creature.gif',
+  './assets/sprites/monsters/mushroom_harvester/mushroom-harvester-creature.gif',
+  './assets/sprites/monsters/shadow_bat/shadow-bat-creature.gif',
+  './assets/sprites/monsters/crystal_bone_demon/crystal-bone-demon-creature.gif',
+  './assets/sprites/monsters/dark_bone_demon/dark-bone-demon-creature.gif',
   './assets/sprites/monsters/vine_witch/vine-witch-idle.gif',
   './assets/sprites/monsters/ogre/ogre-idle.gif',
   './assets/sprites/Heroes/Ranger/__Idle.gif',
   './assets/sprites/Heroes/Ranger/__Attack.gif',
   './assets/sprites/Heroes/Warrior/warrior-idle.gif',
   './assets/sprites/Heroes/Warrior/warrior-strike.gif',
+  './assets/sprites/Heroes/Necromancer/necromancer-hero-idle.gif',
+  './assets/sprites/Heroes/Necromancer/necromancer-hero-strike.gif',
 
   // SFX
   './audio/sfx/flip.ogg',

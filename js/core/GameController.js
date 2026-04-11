@@ -154,13 +154,112 @@ function _applyCorruption() {
   UI.spawnFloat(document.getElementById('hud-portrait'), `☣️ Corrupted! (${stacks})`, 'damage')
 }
 
-/** Apply two Burn stacks (max 3). Called when Fire Goblin counter-attacks. */
-function _applyBurnHit() {
+/** Apply burn stacks to the player. amount defaults to 2. Max 3 stacks. */
+function _applyBurnHit(amount = 2) {
   if (!run) return
-  const stacks = Math.min(3, (run.player.burnStacks ?? 0) + 2)
+  const stacks = Math.min(3, (run.player.burnStacks ?? 0) + amount)
   run.player.burnStacks = stacks
   UI.setBurnOverlay(stacks)
   UI.spawnFloat(document.getElementById('hud-portrait'), `🔥 Burning! (${stacks})`, 'damage')
+}
+
+/** Apply poison stacks to the player (enemy ability — separate from poison arrow DoT on enemies).
+ *  Each stack deals 1 HP per turn. Max 5 stacks, decays 1 per turn. */
+function _applyPlayerPoison(amount = 2) {
+  if (!run) return
+  const stacks = Math.min(5, (run.player.poisonStacks ?? 0) + amount)
+  run.player.poisonStacks = stacks
+  UI.setPlayerPoison(stacks)
+  UI.spawnFloat(document.getElementById('hud-portrait'), `☠️ Poisoned! (${stacks})`, 'damage')
+}
+
+/** Mushroom Harvester taunt: if a live, visible Harvester exists and the target is NOT one,
+ *  redirect the attack to a random Harvester. Returns the new target tile (or original if no taunt). */
+function _resolveTauntTarget(tile) {
+  if (tile.enemyData?.taunt) return tile  // already targeting a harvester — no redirect
+  const grid = TileEngine.getGrid()
+  if (!grid) return tile
+  const harvesters = []
+  for (const row of grid) {
+    for (const t of row) {
+      if (t.revealed && t.enemyData && !t.enemyData._slain && t.enemyData.taunt) harvesters.push(t)
+    }
+  }
+  if (harvesters.length === 0) return tile
+  const tauntTarget = harvesters[Math.floor(Math.random() * harvesters.length)]
+  UI.spawnFloat(tile.element, '🍄 Taunted!', 'damage')
+  UI.spawnFloat(tauntTarget.element, '🛡️', 'xp')
+  return tauntTarget
+}
+
+/** Returns the live, revealed Drowned Hulk tile if one exists on the grid, otherwise null. */
+function _findLiveHulk() {
+  const grid = TileEngine.getGrid()
+  if (!grid) return null
+  for (const row of grid) {
+    for (const t of row) {
+      if (t.revealed && t.enemyData && !t.enemyData._slain && t.enemyData.crewBuffAura) return t
+    }
+  }
+  return null
+}
+
+const CREW_BUFF_HP = 3
+
+/** Apply the Drowned Hulk +3 HP aura to a single enemy tile (idempotent). */
+function _applyHulkBuffToTile(t) {
+  if (!t.revealed || !t.enemyData || t.enemyData._slain || t.enemyData.crewBuffAura) return
+  if (t.enemyData._hulkBuffed) return
+  t.enemyData.currentHP += CREW_BUFF_HP
+  t.enemyData._hulkBuffed = true
+  UI.updateEnemyHP(t.element, t.enemyData.currentHP)
+  UI.spawnFloat(t.element, `⚓ +${CREW_BUFF_HP} HP`, 'heal')
+}
+
+/** Remove the Drowned Hulk +3 HP aura from all buffed visible enemies (called on hulk death). */
+function _removeHulkBuffFromAll() {
+  const grid = TileEngine.getGrid()
+  if (!grid) return
+  for (const row of grid) {
+    for (const t of row) {
+      if (!t.enemyData || t.enemyData._slain || !t.enemyData._hulkBuffed) continue
+      t.enemyData.currentHP = Math.max(1, t.enemyData.currentHP - CREW_BUFF_HP)
+      t.enemyData._hulkBuffed = false
+      UI.updateEnemyHP(t.element, t.enemyData.currentHP)
+      UI.spawnFloat(t.element, `⚓ -${CREW_BUFF_HP} HP`, 'damage')
+    }
+  }
+}
+
+/** Apply hulk aura to all currently visible enemies (called when the hulk is first revealed). */
+function _applyHulkBuffToAll() {
+  const grid = TileEngine.getGrid()
+  if (!grid) return
+  for (const row of grid) {
+    for (const t of row) {
+      _applyHulkBuffToTile(t)
+    }
+  }
+}
+
+/** Crystal Bone Demon: 10% chance per counter-attack to flip a random unrevealed enemy tile. */
+function _tryDemonFlip(demonTile) {
+  const chance = demonTile.enemyData?.demonFlipChance ?? 0.10
+  if (Math.random() >= chance) return
+  const grid = TileEngine.getGrid()
+  if (!grid) return
+  const candidates = []
+  for (const row of grid) {
+    for (const t of row) {
+      if (!t.revealed && (t.type === 'enemy' || t.type === 'enemy_fast')) {
+        candidates.push(t)
+      }
+    }
+  }
+  if (!candidates.length) return
+  const target = candidates[Math.floor(Math.random() * candidates.length)]
+  UI.spawnFloat(demonTile.element, '💎 Awakens ally!', 'xp')
+  revealTile(target)
 }
 
 /** Still Water Amulet: after 10 turns without spending mana on spells/abilities, next mana cost is 35% less. */
@@ -282,6 +381,7 @@ function _restoreHourglassSnapshot(snap) {
   _syncMagicChestKeyGlow()
   UI.setFreezingHit(run.player.freezingHitStacks ?? 0)
   UI.setBurnOverlay(run.player.burnStacks ?? 0)
+  UI.setPlayerPoison(run.player.poisonStacks ?? 0)
   UI.setCorruption(run.player.corruptionStacks ?? 0)
   UI.updateXP(run.player.xp, _xpNeeded())
   {
@@ -414,6 +514,7 @@ function buildRunState() {
     soulboundBonus:     0,    // Soulbound Blade: accumulated kill bonus (float)
     resurrectionUsed:   false, // Resurrection Stone: one-time death prevention
     burnStacks:         0,    // Fire Goblin: burning DoT stacks (max 3)
+    poisonStacks:       0,    // Enemy poison: player poison stacks (max 5)
     corruptionStacks:      0, // Infected Goblin: corruption stacks (max 5)
     corruptionBaseMaxHp:   0, // Uncorrupted maxHp — restored when stacks clear
     corruptionBaseMaxMana: 0, // Uncorrupted maxMana — restored when stacks clear
@@ -537,7 +638,7 @@ function _startFloor() {
   _poisonArrowShotSelecting = false
   UI.setPoisonArrowShotActive(false)
   UI.setGridPoisonArrowShotMode(false)
-  if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0); run.player.freezingHitStacks = 0; UI.setFreezingHit(0); run.player.burnStacks = 0; UI.setBurnOverlay(0); run.player.corruptionStacks = 0; if (run.player.corruptionBaseMaxHp) { run.player.maxHp = run.player.corruptionBaseMaxHp; run.player.corruptionBaseMaxHp = 0 } if (run.player.corruptionBaseMaxMana) { run.player.maxMana = run.player.corruptionBaseMaxMana; run.player.corruptionBaseMaxMana = 0 } UI.setCorruption(0) }
+  if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0); run.player.freezingHitStacks = 0; UI.setFreezingHit(0); run.player.burnStacks = 0; UI.setBurnOverlay(0); run.player.poisonStacks = 0; UI.setPlayerPoison(0); run.player.corruptionStacks = 0; if (run.player.corruptionBaseMaxHp) { run.player.maxHp = run.player.corruptionBaseMaxHp; run.player.corruptionBaseMaxHp = 0 } if (run.player.corruptionBaseMaxMana) { run.player.maxMana = run.player.corruptionBaseMaxMana; run.player.corruptionBaseMaxMana = 0 } UI.setCorruption(0) }
   if (run) { run._hourglassSnapshot = null }
   _throwingKnifeTargeting = false
   _rustyNailTargeting     = false
@@ -620,6 +721,7 @@ function _startFloor() {
   _syncMagicChestKeyGlow()
   UI.setFreezingHit(run.player.freezingHitStacks ?? 0)
   UI.setBurnOverlay(run.player.burnStacks ?? 0)
+  UI.setPlayerPoison(run.player.poisonStacks ?? 0)
   UI.setCorruption(run.player.corruptionStacks ?? 0)
   UI.updateXP(run.player.xp, _xpNeeded())
   {
@@ -1082,6 +1184,16 @@ function _tickPoisonArrowDotOnGlobalTurn() {
     UI.updateMana(run.player.mana, run.player.maxMana)
     UI.setCorruption(stacks)
   }
+  // Player Poison debuff tick: 1 HP damage per stack, then 1 stack falls off
+  if ((run.player.poisonStacks ?? 0) > 0) {
+    const dmg = run.player.poisonStacks
+    run.player.hp = Math.max(1, run.player.hp - dmg)
+    UI.updateHP(run.player.hp, run.player.maxHp)
+    if (navigator.vibrate && (_save?.settings?.hapticFeedback ?? true)) navigator.vibrate(20)
+    UI.spawnFloat(document.getElementById('hud-portrait'), `☠️ Poison ${dmg}`, 'damage')
+    run.player.poisonStacks--
+    UI.setPlayerPoison(run.player.poisonStacks)
+  }
   // Burn debuff tick: 1 HP damage per stack, then 1 stack falls off
   if ((run.player.burnStacks ?? 0) > 0) {
     const dmg = run.player.burnStacks
@@ -1120,6 +1232,22 @@ function _tickPoisonArrowDotOnGlobalTurn() {
       }
     }
   }
+  // Shadow Bat harass: each revealed living bat deals its dmg to the player every global turn
+  let totalHarassDmg = 0
+  for (const row of grid) {
+    for (const tile of row) {
+      if (!tile.revealed || !tile.enemyData || tile.enemyData._slain) continue
+      if (!tile.enemyData.harassPlayer) continue
+      const dmg = tile.enemyData.harassDmg ?? 1
+      totalHarassDmg += dmg
+      UI.spawnFloat(tile.element, `🦇 ${dmg}`, 'damage')
+    }
+  }
+  if (totalHarassDmg > 0 && !GameState.is(States.DEATH)) {
+    _applyPlayerDamage(totalHarassDmg, document.getElementById('hud-portrait'))
+    UI.setMessage(`🦇 Shadow Bat${totalHarassDmg > 1 ? 's attack' : ' attacks'} for ${totalHarassDmg} damage!`)
+  }
+
   if (run.player.inventory?.some(e => e.id === 'still-water-amulet')) {
     run.player.turnsWithoutSpell = (run.player.turnsWithoutSpell ?? 0) + 1
   }
@@ -1167,6 +1295,16 @@ async function revealTile(tile) {
   }
   await _maybeBestiaryDiscovery(tile)
   _resolveEffect(tile)
+  // Drowned Hulk aura: if the revealed tile IS the hulk, buff all current visible enemies.
+  // If a hulk is already alive, buff this newly revealed enemy.
+  if (tile.enemyData && !tile.enemyData._slain) {
+    if (tile.enemyData.crewBuffAura) {
+      _applyHulkBuffToAll()
+    } else {
+      const hulk = _findLiveHulk()
+      if (hulk && hulk !== tile) _applyHulkBuffToTile(tile)
+    }
+  }
   // Blockage tiles do not extend reachability — player must path around them
   if (tile.type !== 'blockage') {
     TileEngine.markReachable(tile.row, tile.col, UI.markTileReachable.bind(UI))
@@ -1781,6 +1919,9 @@ function fightAction(tile) {
     return
   }
 
+  // Mushroom Harvester taunt: redirect melee to a random visible Harvester
+  tile = _resolveTauntTarget(tile)
+
   const result = CombatResolver.resolveFight(run.player, tile.enemyData)
 
   let playerDmg = result.playerDmg
@@ -1917,8 +2058,10 @@ function fightAction(tile) {
       if (!isStunned) {
         _setEnemySprite(tile, 'attack')
         if (tile.enemyData?.freezingHit)    _applyFreezingHit()
-        if (tile.enemyData?.burnHit)         _applyBurnHit()
+        if (tile.enemyData?.burnHit)         _applyBurnHit(tile.enemyData.burnHitAmount ?? 2)
+        if (tile.enemyData?.poisonHit)       _applyPlayerPoison(tile.enemyData.poisonHitAmount ?? 2)
         if (tile.enemyData?.corruptionHit)   _applyCorruption()
+        if (tile.enemyData?.demonFlip)        _tryDemonFlip(tile)
         _takeDamage(result.enemyDmg, tile.element, true, tile.enemyData)
         UI.shakeTile(tile.element)
         if (GameState.is(States.DEATH)) { _combatBusy = false; return }
@@ -2620,6 +2763,9 @@ function _castSpell(tile) {
     return
   }
 
+  // Mushroom Harvester taunt: redirect spell to a random visible Harvester
+  tile = _resolveTauntTarget(tile)
+
   if (tile.enemyData?.spellImmune) {
     UI.setMessage(`🛡️ ${tile.enemyData.label} is immune to spells!`, true)
     return
@@ -2686,6 +2832,11 @@ function _castSpell(tile) {
 
 function _endCombatVictory(tile) {
   tile.enemyData._slain = true
+  // Drowned Hulk: remove crew aura from all buffed enemies on death
+  if (tile.enemyData.crewBuffAura) {
+    UI.setMessage('⚓ The Drowned Hulk falls — its crew weakens!')
+    _removeHulkBuffFromAll()
+  }
   TileEngine.unlockAdjacent(tile.row, tile.col, UI.unlockTile.bind(UI))
   if (tile.enemyData?.isBoss) {
     run.bossFloorExitPending = true
@@ -3171,7 +3322,7 @@ function _die(killerData = null) {
   _cancelRicochetMode()
   _cancelArrowBarrageMode()
   _cancelPoisonArrowShotMode()
-  if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0); run.player.freezingHitStacks = 0; UI.setFreezingHit(0); run.player.burnStacks = 0; UI.setBurnOverlay(0); run.player.corruptionStacks = 0; if (run.player.corruptionBaseMaxHp) { run.player.maxHp = run.player.corruptionBaseMaxHp; run.player.corruptionBaseMaxHp = 0 } if (run.player.corruptionBaseMaxMana) { run.player.maxMana = run.player.corruptionBaseMaxMana; run.player.corruptionBaseMaxMana = 0 } UI.setCorruption(0) }
+  if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0); run.player.freezingHitStacks = 0; UI.setFreezingHit(0); run.player.burnStacks = 0; UI.setBurnOverlay(0); run.player.poisonStacks = 0; UI.setPlayerPoison(0); run.player.corruptionStacks = 0; if (run.player.corruptionBaseMaxHp) { run.player.maxHp = run.player.corruptionBaseMaxHp; run.player.corruptionBaseMaxHp = 0 } if (run.player.corruptionBaseMaxMana) { run.player.maxMana = run.player.corruptionBaseMaxMana; run.player.corruptionBaseMaxMana = 0 } UI.setCorruption(0) }
   _clearActiveRun()
   UI.setPortraitAnim('death')
   GameState.transition(States.DEATH)
