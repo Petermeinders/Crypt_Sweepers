@@ -52,6 +52,12 @@
     <!-- Low health blood border overlay -->
     <div id="blood-overlay" class="blood-overlay hidden" aria-hidden="true"></div>
 
+    <!-- Burn screen border overlay -->
+    <div id="burn-overlay" class="burn-overlay hidden" aria-hidden="true"></div>
+
+    <!-- Corruption screen overlay -->
+    <div id="corruption-overlay" class="corruption-overlay hidden" aria-hidden="true"></div>
+
     <div id="grid-container">
       <div id="grid"></div>
       <div id="floor-banner" class="floor-banner hidden" aria-hidden="true">
@@ -84,6 +90,8 @@
         </div>
         <button id="hud-teary-eyes" class="hud-debuff-btn hidden" title="Teary Eyes debuff">💧</button>
         <button id="hud-freezing-hit" class="hud-debuff-btn hidden" title="Freezing Hit — reduces your damage by 20% per stack">🧊</button>
+        <button id="hud-burn" class="hud-debuff-btn hidden" title="Burning — takes 1 HP damage per stack each turn">🔥</button>
+        <button id="hud-corruption" class="hud-debuff-btn hidden" title="Corrupted — reduces damage, HP and Mana">☣️</button>
       </div>
 
       <div id="hud-stats">
@@ -429,6 +437,17 @@
         </div>
         <label class="toggle-switch">
           <input type="checkbox" id="setting-tile-colors">
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+
+      <div class="settings-row">
+        <div class="settings-label">
+          <span class="settings-label-title">Haptic Feedback</span>
+          <span class="settings-label-desc">Subtle vibration when flipping tiles (mobile only)</span>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="setting-haptic" checked>
           <span class="toggle-track"><span class="toggle-thumb"></span></span>
         </label>
       </div>

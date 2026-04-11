@@ -102,7 +102,10 @@ function _playerOutgoingDamageMult() {
 }
 
 function _scaleOutgoingDamageToEnemy(dmg) {
-  return Math.max(1, Math.round(dmg * _playerOutgoingDamageMult()))
+  const scaled = Math.max(1, Math.round(dmg * _playerOutgoingDamageMult()))
+  // Corruption: -1 flat damage per stack (min 1)
+  const corruptionPenalty = run?.player?.corruptionStacks ?? 0
+  return Math.max(1, scaled - corruptionPenalty)
 }
 
 /** Apply two Freezing Hit stacks (max 5). Called when Frost Giant counter-attacks. */
@@ -112,6 +115,52 @@ function _applyFreezingHit() {
   run.player.freezingHitStacks = stacks
   UI.setFreezingHit(stacks)
   UI.spawnFloat(document.getElementById('hud-portrait'), `🧊 Freezing Hit! (${stacks})`, 'damage')
+}
+
+/** Check Ogre shield block (10%). Returns true if the attack was blocked. */
+function _checkShieldBlock(tile) {
+  if (!tile.enemyData?.shieldBlock) return false
+  if (Math.random() >= 0.10) return false
+  UI.spawnFloat(tile.element, '🛡️ Blocked!', 'damage')
+  UI.setMessage(`The Ogre raises its shield — your attack is deflected!`)
+  EventBus.emit('audio:play', { sfx: 'hit2' })
+  return true
+}
+
+/** Apply two Corruption stacks (max 5). Called when Infected Goblin counter-attacks.
+ *  Temporarily reduces maxHp and maxMana by 2% per stack; restored as stacks decay. */
+function _applyCorruption() {
+  if (!run) return
+  const prev   = run.player.corruptionStacks ?? 0
+  const stacks = Math.min(5, prev + 2)
+  if (stacks === prev) return  // already at cap
+  run.player.corruptionStacks = stacks
+
+  // Capture uncorrupted base max values on first application
+  if (!run.player.corruptionBaseMaxHp)   run.player.corruptionBaseMaxHp   = run.player.maxHp
+  if (!run.player.corruptionBaseMaxMana) run.player.corruptionBaseMaxMana = run.player.maxMana
+
+  // Reduce max values based on total stacks (2% per stack of base max)
+  run.player.maxHp   = Math.max(1, Math.round(run.player.corruptionBaseMaxHp   * (1 - stacks * 0.02)))
+  run.player.maxMana = Math.max(1, Math.round(run.player.corruptionBaseMaxMana * (1 - stacks * 0.02)))
+
+  // Clamp current values to the new lower ceiling
+  run.player.hp   = Math.min(run.player.hp,   run.player.maxHp)
+  run.player.mana = Math.min(run.player.mana, run.player.maxMana)
+
+  UI.updateHP(run.player.hp, run.player.maxHp)
+  UI.updateMana(run.player.mana, run.player.maxMana)
+  UI.setCorruption(stacks)
+  UI.spawnFloat(document.getElementById('hud-portrait'), `☣️ Corrupted! (${stacks})`, 'damage')
+}
+
+/** Apply two Burn stacks (max 3). Called when Fire Goblin counter-attacks. */
+function _applyBurnHit() {
+  if (!run) return
+  const stacks = Math.min(3, (run.player.burnStacks ?? 0) + 2)
+  run.player.burnStacks = stacks
+  UI.setBurnOverlay(stacks)
+  UI.spawnFloat(document.getElementById('hud-portrait'), `🔥 Burning! (${stacks})`, 'damage')
 }
 
 /** Still Water Amulet: after 10 turns without spending mana on spells/abilities, next mana cost is 35% less. */
@@ -231,6 +280,9 @@ function _restoreHourglassSnapshot(snap) {
   UI.updateGold(run.player.gold)
   UI.updateGoldenKeys(run.player.goldenKeys ?? 0)
   _syncMagicChestKeyGlow()
+  UI.setFreezingHit(run.player.freezingHitStacks ?? 0)
+  UI.setBurnOverlay(run.player.burnStacks ?? 0)
+  UI.setCorruption(run.player.corruptionStacks ?? 0)
   UI.updateXP(run.player.xp, _xpNeeded())
   {
     const [d0, d1] = _playerDamageRange(run.player)
@@ -361,6 +413,10 @@ function buildRunState() {
     eagleEyeFreeFlip:   false, // Eagle Eye: next flip ignores adjacency
     soulboundBonus:     0,    // Soulbound Blade: accumulated kill bonus (float)
     resurrectionUsed:   false, // Resurrection Stone: one-time death prevention
+    burnStacks:         0,    // Fire Goblin: burning DoT stacks (max 3)
+    corruptionStacks:      0, // Infected Goblin: corruption stacks (max 5)
+    corruptionBaseMaxHp:   0, // Uncorrupted maxHp — restored when stacks clear
+    corruptionBaseMaxMana: 0, // Uncorrupted maxMana — restored when stacks clear
   }
 
   MetaProgression.applyToPlayer(p, _save)
@@ -481,7 +537,7 @@ function _startFloor() {
   _poisonArrowShotSelecting = false
   UI.setPoisonArrowShotActive(false)
   UI.setGridPoisonArrowShotMode(false)
-  if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0); run.player.freezingHitStacks = 0; UI.setFreezingHit(0) }
+  if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0); run.player.freezingHitStacks = 0; UI.setFreezingHit(0); run.player.burnStacks = 0; UI.setBurnOverlay(0); run.player.corruptionStacks = 0; if (run.player.corruptionBaseMaxHp) { run.player.maxHp = run.player.corruptionBaseMaxHp; run.player.corruptionBaseMaxHp = 0 } if (run.player.corruptionBaseMaxMana) { run.player.maxMana = run.player.corruptionBaseMaxMana; run.player.corruptionBaseMaxMana = 0 } UI.setCorruption(0) }
   if (run) { run._hourglassSnapshot = null }
   _throwingKnifeTargeting = false
   _rustyNailTargeting     = false
@@ -562,6 +618,9 @@ function _startFloor() {
   UI.updateGold(run.player.gold)
   UI.updateGoldenKeys(run.player.goldenKeys ?? 0)
   _syncMagicChestKeyGlow()
+  UI.setFreezingHit(run.player.freezingHitStacks ?? 0)
+  UI.setBurnOverlay(run.player.burnStacks ?? 0)
+  UI.setCorruption(run.player.corruptionStacks ?? 0)
   UI.updateXP(run.player.xp, _xpNeeded())
   {
     const [d0, d1] = _playerDamageRange(run.player)
@@ -903,6 +962,10 @@ function onTileTap(row, col) {
       return
     }
     if (!tile.revealed && !tile.locked && tile.reachable) {
+      // Haptic feedback on tile flip (if supported and enabled)
+      if (navigator.vibrate && (_save?.settings?.hapticFeedback ?? true)) {
+        navigator.vibrate(15)
+      }
       revealTile(tile)
     } else if (tile.revealed && tile.type === 'chest' && tile.chestReady && !tile.chestLooted) {
       _openChest(tile)
@@ -999,6 +1062,38 @@ function _tickPoisonArrowDotOnGlobalTurn() {
   if ((run.player.freezingHitStacks ?? 0) > 0) {
     run.player.freezingHitStacks--
     UI.setFreezingHit(run.player.freezingHitStacks)
+  }
+  // Corruption debuff tick: 1 stack falls off per global turn, restoring max HP/Mana proportionally
+  if ((run.player.corruptionStacks ?? 0) > 0) {
+    run.player.corruptionStacks--
+    const stacks = run.player.corruptionStacks
+    if (stacks === 0) {
+      // Fully restore base max values
+      if (run.player.corruptionBaseMaxHp)   run.player.maxHp   = run.player.corruptionBaseMaxHp
+      if (run.player.corruptionBaseMaxMana) run.player.maxMana = run.player.corruptionBaseMaxMana
+      run.player.corruptionBaseMaxHp   = 0
+      run.player.corruptionBaseMaxMana = 0
+    } else {
+      // Partial restore — recompute from base
+      run.player.maxHp   = Math.max(1, Math.round(run.player.corruptionBaseMaxHp   * (1 - stacks * 0.02)))
+      run.player.maxMana = Math.max(1, Math.round(run.player.corruptionBaseMaxMana * (1 - stacks * 0.02)))
+    }
+    UI.updateHP(run.player.hp, run.player.maxHp)
+    UI.updateMana(run.player.mana, run.player.maxMana)
+    UI.setCorruption(stacks)
+  }
+  // Burn debuff tick: 1 HP damage per stack, then 1 stack falls off
+  if ((run.player.burnStacks ?? 0) > 0) {
+    const dmg = run.player.burnStacks
+    run.player.hp = Math.max(1, run.player.hp - dmg)
+    UI.updateHP(run.player.hp, run.player.maxHp)
+    if (navigator.vibrate && (_save?.settings?.hapticFeedback ?? true)) navigator.vibrate(20)
+    UI.spawnFloat(document.getElementById('hud-portrait'), `🔥 Burn ${dmg}`, 'damage')
+    run.player.burnStacks--
+    UI.setBurnOverlay(run.player.burnStacks)
+    if (run.player.hp <= 1 && !GameState.is(States.DEATH)) {
+      // Don't kill from burn — leave at 1 HP minimum
+    }
   }
   const grid = TileEngine.getGrid()
   if (!grid) return
@@ -1707,6 +1802,9 @@ function fightAction(tile) {
   if (run.player.inventory.some(e => e.id === 'mirror-of-vanity')) {
     playerDmg += Math.max(1, Math.floor(run.player.hp * 0.2))
   }
+  // Ogre: 10% shield block — cancels entire melee attack
+  if (_checkShieldBlock(tile)) { _combatBusy = false; return }
+
   playerDmg = _scaleOutgoingDamageToEnemy(playerDmg)
 
   run.player.meleeHitCount = (run.player.meleeHitCount ?? 0) + 1
@@ -1818,7 +1916,9 @@ function fightAction(tile) {
       // Enemy counter-attack (skipped if stunned)
       if (!isStunned) {
         _setEnemySprite(tile, 'attack')
-        if (tile.enemyData?.freezingHit) _applyFreezingHit()
+        if (tile.enemyData?.freezingHit)    _applyFreezingHit()
+        if (tile.enemyData?.burnHit)         _applyBurnHit()
+        if (tile.enemyData?.corruptionHit)   _applyCorruption()
         _takeDamage(result.enemyDmg, tile.element, true, tile.enemyData)
         UI.shakeTile(tile.element)
         if (GameState.is(States.DEATH)) { _combatBusy = false; return }
@@ -2525,6 +2625,9 @@ function _castSpell(tile) {
     return
   }
 
+  // Ogre: 10% shield block — cancels spell entirely
+  if (_checkShieldBlock(tile)) return
+
   const result = CombatResolver.resolveSpell(run.player, tile.enemyData)
 
   let spellDmg = result.damage
@@ -2786,6 +2889,9 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
     UI.spawnFloat(tileEl, `-${effective} HP`, 'damage')
   }
   UI.updateHP(run.player.hp, run.player.maxHp)
+  if (navigator.vibrate && (_save?.settings?.hapticFeedback ?? true)) {
+    navigator.vibrate([30, 50, 30])
+  }
   EventBus.emit('player:hpChange', { amount: -effective, newHP: run.player.hp })
   // Resurrection Stone: prevent death once, restore half max HP
   if (run.player.hp <= 0 && !run.player.resurrectionUsed &&
@@ -3065,7 +3171,7 @@ function _die(killerData = null) {
   _cancelRicochetMode()
   _cancelArrowBarrageMode()
   _cancelPoisonArrowShotMode()
-  if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0); run.player.freezingHitStacks = 0; UI.setFreezingHit(0) }
+  if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0); run.player.freezingHitStacks = 0; UI.setFreezingHit(0); run.player.burnStacks = 0; UI.setBurnOverlay(0); run.player.corruptionStacks = 0; if (run.player.corruptionBaseMaxHp) { run.player.maxHp = run.player.corruptionBaseMaxHp; run.player.corruptionBaseMaxHp = 0 } if (run.player.corruptionBaseMaxMana) { run.player.maxMana = run.player.corruptionBaseMaxMana; run.player.corruptionBaseMaxMana = 0 } UI.setCorruption(0) }
   _clearActiveRun()
   UI.setPortraitAnim('death')
   GameState.transition(States.DEATH)
@@ -3727,6 +3833,7 @@ export default {
   getLevelUpLog,
   getTearyEyesTurns()    { return run?.player?.tearyEyesTurns ?? 0 },
   getFreezingHitStacks() { return run?.player?.freezingHitStacks ?? 0 },
+  getBurnStacks()        { return run?.player?.burnStacks ?? 0 },
   hasActiveRun()      { return !!_save?.activeRun },
   getActiveRunInfo()  { return _save?.activeRun ?? null },
   resumeRun,

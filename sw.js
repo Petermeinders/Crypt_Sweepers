@@ -2,7 +2,7 @@
 // Strategy: Cache-first for assets, network-first for HTML.
 // Version bump CACHE_NAME to force cache refresh on deploy.
 
-const CACHE_NAME = 'crypt-sweepers-v127'
+const CACHE_NAME = 'crypt-sweepers-v134'
 
 const PRECACHE_ASSETS = [
   './',
@@ -143,6 +143,14 @@ const PRECACHE_ASSETS = [
   './assets/sprites/monsters/slime/slime-idle.gif',
   './assets/sprites/monsters/goblin/goblin-creature.gif',
   './assets/sprites/monsters/frost_giant/frost-giant-idle.gif',
+  './assets/sprites/monsters/fire_goblin/fire-goblin-creature.gif',
+  './assets/sprites/monsters/crystal_spider/crystal-spider-creature.gif',
+  './assets/sprites/monsters/rock_golem/rock-golem-creature.gif',
+  './assets/sprites/monsters/ogre/ogre-creature.gif',
+  './assets/sprites/monsters/infected_goblin/infected-goblin-creature.gif',
+  './assets/sprites/monsters/corrupted_cyclops/corrupted-cyclops.gif',
+  './assets/sprites/monsters/corrupted_goblin/corrupted-goblin-creature.gif',
+  './assets/sprites/monsters/corrupted_pirate/corrupted-pirate-creature.gif',
   './assets/sprites/monsters/vine_witch/vine-witch-idle.gif',
   './assets/sprites/monsters/ogre/ogre-idle.gif',
   './assets/sprites/Heroes/Ranger/__Idle.gif',

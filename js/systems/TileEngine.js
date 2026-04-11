@@ -148,10 +148,13 @@ function _pickEnemyType(floor, tileType) {
   })
 
   if (tileType === 'enemy_fast') {
-    const fastPool = allIds.filter(e => ENEMY_DEFS[e]?.behaviour === 'fast')
-    return fastPool.length ? fastPool[Math.floor(Math.random() * fastPool.length)] : 'goblin_fast'
+    const fastPool = allIds.filter(e => {
+      const def = ENEMY_DEFS[e]
+      return def.behaviour === 'fast' || def.attributes?.includes('fast')
+    })
+    return fastPool.length ? fastPool[Math.floor(Math.random() * fastPool.length)] : 'goblin'
   }
-  // Standard enemy — prefer non-fast types
+  // Standard enemy tile — exclude behaviour-fast only (e.g. spider stays on fast tiles); attribute-fast goblins still spawn here
   const stdPool = allIds.filter(e => ENEMY_DEFS[e]?.behaviour !== 'fast')
   return stdPool.length
     ? stdPool[Math.floor(Math.random() * stdPool.length)]

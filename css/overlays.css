@@ -2656,6 +2656,8 @@
 .accordion-body {
   display: none;
   border-top: 1px solid rgba(180, 40, 40, 0.2);
+  max-height: 320px;
+  overflow-y: auto;
 }
 
 .settings-accordion.open .accordion-body {

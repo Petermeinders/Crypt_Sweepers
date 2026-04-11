@@ -603,6 +603,34 @@ const UI = {
     }
   },
 
+  setCorruption(stacks) {
+    const btn     = document.getElementById('hud-corruption')
+    const overlay = document.getElementById('corruption-overlay')
+    const v = Math.max(0, Math.floor(Number(stacks) || 0))
+    if (btn) {
+      if (v < 1) { btn.classList.add('hidden'); btn.textContent = '☣️' }
+      else        { btn.classList.remove('hidden'); btn.textContent = `☣️${v}` }
+    }
+    if (overlay) {
+      if (v < 1) { overlay.className = 'corruption-overlay hidden' }
+      else        { overlay.className = `corruption-overlay stacks-${Math.min(v, 5)}` }
+    }
+  },
+
+  setBurnOverlay(stacks) {
+    const btn     = document.getElementById('hud-burn')
+    const overlay = document.getElementById('burn-overlay')
+    const v = Math.max(0, Math.floor(Number(stacks) || 0))
+    if (btn) {
+      if (v < 1) { btn.classList.add('hidden'); btn.textContent = '🔥' }
+      else        { btn.classList.remove('hidden'); btn.textContent = `🔥${v}` }
+    }
+    if (overlay) {
+      if (v < 1) { overlay.className = 'burn-overlay hidden' }
+      else        { overlay.className = `burn-overlay stacks-${Math.min(v, 3)}` }
+    }
+  },
+
   setBloodOverlay(active) {
     const el = document.getElementById('blood-overlay')
     if (!el) return

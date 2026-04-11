@@ -407,6 +407,7 @@ async function boot() {
     document.getElementById('setting-music').checked        = s.settings.musicOn    ?? true
     document.getElementById('setting-sfx').checked          = s.settings.sfxOn      ?? true
     document.getElementById('setting-tile-colors').checked  = s.settings.tileColors ?? false
+    document.getElementById('setting-haptic').checked       = s.settings.hapticFeedback ?? true
     document.getElementById('cheat-god-mode').checked       = c.godMode      ?? false
     document.getElementById('cheat-instant-kill').checked   = c.instantKill  ?? false
     document.getElementById('cheat-999-gold').checked       = c.gold999      ?? false
@@ -436,6 +437,12 @@ async function boot() {
     const s = GameController.getSave()
     s.settings.tileColors = tileColorsCb.checked
     document.body.classList.toggle('tile-colors', tileColorsCb.checked)
+    SaveManager.save(s)
+  })
+
+  document.getElementById('setting-haptic').addEventListener('change', e => {
+    const s = GameController.getSave()
+    s.settings.hapticFeedback = e.target.checked
     SaveManager.save(s)
   })
 

@@ -328,10 +328,73 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
   50%       { opacity: 1.00; }
 }
 
+/* ── Burn screen border overlay ── */
+.burn-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 53;
+  pointer-events: none;
+  /* Fiery vignette using radial gradient — no extra asset needed */
+  background:
+    radial-gradient(ellipse at top left,    rgba(255, 80,  0, 0.55) 0%, transparent 55%),
+    radial-gradient(ellipse at top right,   rgba(255, 120, 0, 0.45) 0%, transparent 55%),
+    radial-gradient(ellipse at bottom left, rgba(255, 60,  0, 0.50) 0%, transparent 55%),
+    radial-gradient(ellipse at bottom right,rgba(255, 100, 0, 0.45) 0%, transparent 55%);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  animation: burn-flicker 1.2s ease-in-out infinite;
+}
+.burn-overlay.hidden { display: none; }
+.burn-overlay.stacks-1 { opacity: 0.55; }
+.burn-overlay.stacks-2 { opacity: 0.75; }
+.burn-overlay.stacks-3 { opacity: 1.00; }
+
+@keyframes burn-flicker {
+  0%, 100% { opacity: var(--burn-base, 0.75); filter: brightness(1.0); }
+  30%       { opacity: calc(var(--burn-base, 0.75) * 0.85); filter: brightness(1.1); }
+  65%       { opacity: calc(var(--burn-base, 0.75) * 1.10); filter: brightness(0.95); }
+}
+
+/* ── Corruption screen overlay ── */
+.corruption-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 52;
+  pointer-events: none;
+  /* Sickly purple-green vignette */
+  background:
+    radial-gradient(ellipse at top left,    rgba(100, 0, 180, 0.50) 0%, transparent 55%),
+    radial-gradient(ellipse at top right,   rgba(60,  120, 0, 0.45) 0%, transparent 55%),
+    radial-gradient(ellipse at bottom left, rgba(80,  0,  160, 0.45) 0%, transparent 55%),
+    radial-gradient(ellipse at bottom right,rgba(40,  100, 0, 0.50) 0%, transparent 55%);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  animation: corruption-pulse 2.4s ease-in-out infinite;
+}
+.corruption-overlay.hidden  { display: none; }
+.corruption-overlay.stacks-1 { opacity: 0.40; }
+.corruption-overlay.stacks-2 { opacity: 0.55; }
+.corruption-overlay.stacks-3 { opacity: 0.68; }
+.corruption-overlay.stacks-4 { opacity: 0.82; }
+.corruption-overlay.stacks-5 { opacity: 1.00; }
+
+@keyframes corruption-pulse {
+  0%, 100% { filter: hue-rotate(0deg)   brightness(1.0); }
+  50%       { filter: hue-rotate(20deg)  brightness(0.9); }
+}
+
 /* Teary Eyes debuff badge — sits top-right of the portrait */
 /* No global `.hidden` in this project — must be explicit (see main.css comment). */
 #hud-teary-eyes.hidden,
-#hud-freezing-hit.hidden {
+#hud-freezing-hit.hidden,
+#hud-burn.hidden,
+#hud-corruption.hidden {
   display: none !important;
 }
 
