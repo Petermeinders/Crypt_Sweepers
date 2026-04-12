@@ -1,5 +1,6 @@
 import { WARRIOR_UPGRADES, SHOP_ITEMS } from '../data/upgrades.js'
 import { RANGER_UPGRADES }             from '../data/ranger.js'
+import { ENGINEER_UPGRADES }           from '../data/engineer.js'
 import { GLOBAL_PASSIVE_UPGRADES }     from '../data/passives.js'
 import { CONFIG }                       from '../config.js'
 import Logger                           from '../core/Logger.js'
@@ -23,6 +24,10 @@ export function defaultSave() {
       unlocked:  false,
       totalXP:   0,
       upgrades:  [],
+    },
+    engineer: {
+      totalXP:  0,
+      upgrades: [],
     },
     selectedCharacter: 'warrior',
     settings: {
@@ -105,8 +110,10 @@ function applyToPlayer(player, save) {
   const char = save.selectedCharacter ?? 'warrior'
   const upgradeIds = char === 'ranger'
     ? (save.ranger?.upgrades ?? [])
-    : (save.warrior?.upgrades ?? [])
-  const upgradeMap = char === 'ranger' ? RANGER_UPGRADES : WARRIOR_UPGRADES
+    : char === 'engineer'
+      ? (save.engineer?.upgrades ?? [])
+      : (save.warrior?.upgrades ?? [])
+  const upgradeMap = char === 'ranger' ? RANGER_UPGRADES : char === 'engineer' ? ENGINEER_UPGRADES : WARRIOR_UPGRADES
 
   for (const id of upgradeIds) {
     const def = upgradeMap[id]
@@ -212,6 +219,24 @@ function buyRangerUpgrade(save, id) {
   return true
 }
 
+// ── Engineer XP tree ──────────────────────────────────────────
+
+function canBuyEngineerUpgrade(save, id) {
+  const def = ENGINEER_UPGRADES[id]
+  if (!def) return false
+  if (save.engineer.upgrades.includes(id)) return false
+  if (def.requires && !save.engineer.upgrades.includes(def.requires)) return false
+  return save.engineer.totalXP >= def.xpCost
+}
+
+function buyEngineerUpgrade(save, id) {
+  if (!canBuyEngineerUpgrade(save, id)) return false
+  save.engineer.totalXP -= ENGINEER_UPGRADES[id].xpCost
+  save.engineer.upgrades.push(id)
+  Logger.debug(`[MetaProgression] Engineer upgrade: ${id}`)
+  return true
+}
+
 // ── Run XP calculation ────────────────────────────────────────
 
 function calcRunXP(runStats) {
@@ -232,6 +257,8 @@ function endRun(save, runStats, outcome) {
   const char = save.selectedCharacter ?? 'warrior'
   if (char === 'ranger') {
     save.ranger.totalXP += xpEarned
+  } else if (char === 'engineer') {
+    save.engineer.totalXP += xpEarned
   } else {
     save.warrior.totalXP += xpEarned
   }
@@ -266,10 +293,13 @@ export default {
   unlockRanger,
   canBuyRangerUpgrade,
   buyRangerUpgrade,
+  canBuyEngineerUpgrade,
+  buyEngineerUpgrade,
   applyToPlayer,
   calcRunXP,
   endRun,
   WARRIOR_UPGRADES,
   SHOP_ITEMS,
   RANGER_UPGRADES,
+  ENGINEER_UPGRADES,
 }

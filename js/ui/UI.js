@@ -165,6 +165,13 @@ const PORTRAIT_ANIM = {
     run:    'assets/sprites/Heroes/Ranger/__Idle.gif',
     death:  'assets/sprites/Heroes/Ranger/__Idle.gif',
   },
+  engineer: {
+    idle:   'assets/sprites/Heroes/Engineer/engineer-hero-idle.gif',
+    attack: 'assets/sprites/Heroes/Engineer/engineer-hero-strike.gif',
+    hit:    'assets/sprites/Heroes/Engineer/engineer-hero-idle.gif',
+    run:    'assets/sprites/Heroes/Engineer/engineer-hero-idle.gif',
+    death:  'assets/sprites/Heroes/Engineer/engineer-hero-idle.gif',
+  },
 }
 
 const UI = {
@@ -539,6 +546,69 @@ const UI = {
     el.hudSlotB?.classList.toggle('is-blinding-light-active', active)
   },
 
+  /** Slot A — Engineer construct / relocate / upgrade */
+  setEngineerConstructBtn(visible, manaCost = 10) {
+    if (!el.hudSlotA) return
+    el.hudSlotA.classList.remove('is-slam', 'is-slam-active', 'is-ricochet', 'is-ricochet-active')
+    if (visible) {
+      el.hudSlotA.innerHTML = `
+        <span class="ability-btn-wrap ability-btn-wrap--mana-corner">
+          <span class="ability-btn-emoji" aria-hidden="true">🏗️</span>
+          <span class="ability-btn-cost">${manaCost}</span>
+        </span>`
+      el.hudSlotA.title    = `Construct / upgrade turret (${manaCost} mana)`
+      el.hudSlotA.disabled = false
+      el.hudSlotA.classList.remove('is-placeholder')
+      el.hudSlotA.classList.add('is-engineer-construct')
+    } else if (el.hudSlotA.classList.contains('is-engineer-construct')) {
+      el.hudSlotA.textContent = '···'
+      el.hudSlotA.title       = 'Reserved'
+      el.hudSlotA.disabled    = true
+      el.hudSlotA.classList.add('is-placeholder')
+      el.hudSlotA.classList.remove('is-engineer-construct')
+    }
+  },
+
+  /** Slot B — Engineer Tesla (optional upgrade) */
+  setEngineerTeslaBtn(visible, manaCost = 10, alreadyTesla = false) {
+    if (!el.hudSlotB) return
+    if (!visible) {
+      if (el.hudSlotB.classList.contains('is-engineer-tesla')) {
+        el.hudSlotB.textContent = '···'
+        el.hudSlotB.title       = 'Reserved'
+        el.hudSlotB.disabled    = true
+        el.hudSlotB.classList.add('is-placeholder')
+        el.hudSlotB.classList.remove('is-engineer-tesla')
+      }
+      return
+    }
+    if (alreadyTesla) {
+      el.hudSlotB.innerHTML = `
+        <span class="ability-btn-wrap ability-btn-wrap--mana-corner">
+          <span class="ability-btn-emoji" aria-hidden="true">⚡</span>
+          <span class="ability-btn-cost">✓</span>
+        </span>`
+      el.hudSlotB.title    = 'Tesla Tower active'
+      el.hudSlotB.disabled = true
+      el.hudSlotB.classList.remove('is-placeholder', 'is-poison-arrow-shot', 'is-blinding-light')
+      el.hudSlotB.classList.add('is-engineer-tesla')
+      return
+    }
+    el.hudSlotB.innerHTML = `
+      <span class="ability-btn-wrap ability-btn-wrap--mana-corner">
+        <span class="ability-btn-emoji" aria-hidden="true">⚡</span>
+        <span class="ability-btn-cost">${manaCost}</span>
+      </span>`
+    el.hudSlotB.title    = `Tesla Tower (${manaCost} mana)`
+    el.hudSlotB.disabled = false
+    el.hudSlotB.classList.remove('is-placeholder', 'is-poison-arrow-shot', 'is-blinding-light')
+    el.hudSlotB.classList.add('is-engineer-tesla')
+  },
+
+  setEngineerPlaceMode(active) {
+    document.getElementById('grid-container')?.classList.toggle('engineer-place-mode', active)
+  },
+
   setDivineLightBtn(visible, manaCost = 10) {
     if (!el.hudSlotC) return
     el.hudSlotC.classList.remove('is-divine-light', 'is-divine-light-active')
@@ -707,10 +777,11 @@ const UI = {
 
   setHudCharacter(characterId) {
     if (!el.hudPortraitWrap) return
-    const id = characterId === 'ranger' ? 'ranger' : 'warrior'
+    const id = characterId === 'ranger' ? 'ranger' : characterId === 'engineer' ? 'engineer' : 'warrior'
     el.hudCharacterId = id
     const isRanger = id === 'ranger'
     el.hudPortraitWrap.classList.toggle('is-ranger', isRanger)
+    el.hudPortraitWrap.classList.toggle('is-engineer', id === 'engineer')
     if (el.hudPortraitImg) {
       el.hudPortraitImg.src = PORTRAIT_ANIM[id].idle
     }
@@ -719,7 +790,7 @@ const UI = {
   // State: 'idle' | 'attack' | 'hit' | 'run' | 'death'
   setPortraitAnim(state) {
     if (!el.hudPortraitImg) return
-    const id  = el.hudCharacterId === 'ranger' ? 'ranger' : 'warrior'
+    const id  = el.hudCharacterId === 'ranger' ? 'ranger' : el.hudCharacterId === 'engineer' ? 'engineer' : 'warrior'
     const MAP = PORTRAIT_ANIM[id]
     if (MAP && MAP[state]) el.hudPortraitImg.src = MAP[state]
   },
@@ -1037,6 +1108,56 @@ const UI = {
       overlay.classList.add('fading')
       setTimeout(() => overlay.classList.add('hidden'), 380)
     }, 2500)
+  },
+
+  spawnCannonShot(fromTileEl, toTileEl) {
+    const grid = document.getElementById('grid-container')
+    if (!grid || !fromTileEl || !toTileEl) return
+    const gRect = grid.getBoundingClientRect()
+    const aRect = fromTileEl.getBoundingClientRect()
+    const bRect = toTileEl.getBoundingClientRect()
+    const ax = aRect.left + aRect.width  / 2 - gRect.left
+    const ay = aRect.top  + aRect.height / 2 - gRect.top
+    const bx = bRect.left + bRect.width  / 2 - gRect.left
+    const by = bRect.top  + bRect.height / 2 - gRect.top
+
+    const ball = document.createElement('div')
+    ball.className = 'cannon-ball'
+    ball.style.cssText = `left:${ax}px;top:${ay}px;`
+    grid.appendChild(ball)
+
+    // Animate via Web Animations API
+    const duration = Math.min(300, 80 + Math.sqrt((bx-ax)**2 + (by-ay)**2) * 0.6)
+    ball.animate(
+      [
+        { transform: 'translate(-50%,-50%) scale(1)',   offset: 0 },
+        { transform: 'translate(-50%,-50%) scale(1.2)', offset: 0.3 },
+        { transform: `translate(calc(${bx-ax}px - 50%), calc(${by-ay}px - 50%)) scale(0.7)`, offset: 1 },
+      ],
+      { duration, easing: 'ease-in', fill: 'forwards' }
+    ).finished.then(() => ball.remove())
+  },
+
+  spawnTeslaArc(fromTileEl, toTileEl) {
+    const grid = document.getElementById('grid-container')
+    if (!grid || !fromTileEl || !toTileEl) return
+    const gRect = grid.getBoundingClientRect()
+    const aRect = fromTileEl.getBoundingClientRect()
+    const bRect = toTileEl.getBoundingClientRect()
+    const ax = aRect.left + aRect.width  / 2 - gRect.left
+    const ay = aRect.top  + aRect.height / 2 - gRect.top
+    const bx = bRect.left + bRect.width  / 2 - gRect.left
+    const by = bRect.top  + bRect.height / 2 - gRect.top
+    const dx = bx - ax
+    const dy = by - ay
+    const len = Math.sqrt(dx * dx + dy * dy)
+    const angle = Math.atan2(dy, dx) * (180 / Math.PI)
+
+    const arc = document.createElement('div')
+    arc.className = 'tesla-arc'
+    arc.style.cssText = `width:${len}px;left:${ax}px;top:${ay}px;transform:rotate(${angle}deg);`
+    grid.appendChild(arc)
+    setTimeout(() => arc.remove(), 400)
   },
 
   spawnSlash(tileEl) {

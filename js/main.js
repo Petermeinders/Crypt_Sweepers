@@ -9,7 +9,14 @@ import { CONFIG }                           from './config.js'
 import { WARRIOR_UPGRADES, SHOP_ITEMS }     from './data/upgrades.js'
 import { ITEMS }                            from './data/items.js'
 import { RANGER_UPGRADES }                  from './data/ranger.js'
+import { ENGINEER_UPGRADES }                from './data/engineer.js'
 import { GLOBAL_PASSIVE_UPGRADES, GLOBAL_PASSIVE_IDS } from './data/passives.js'
+
+function _metaCharSave(save, charId) {
+  if (charId === 'ranger') return save.ranger
+  if (charId === 'engineer') return save.engineer
+  return save.warrior
+}
 
 // ── Character roster ──────────────────────────────────────────
 
@@ -80,12 +87,12 @@ const CHARACTERS = [
     attackGif:   'assets/sprites/Heroes/Engineer/engineer-hero-strike.gif',
     attackMs:    600,
     emoji:       '⚙️',
-    upgrades:    {},
+    upgrades:    ENGINEER_UPGRADES,
     unlockCost:  null,
     baseHP:      40,
     baseMana:    40,
     baseDmg:     '1',
-    comingSoon:  true,
+    comingSoon:  false,
   },
   {
     id:          'necromancer',
@@ -166,6 +173,10 @@ async function boot() {
     save.ranger = { unlocked: false, totalXP: 0, upgrades: [] }
     await SaveManager.save(save)
   }
+  if (!save.engineer) {
+    save.engineer = { totalXP: 0, upgrades: [] }
+    await SaveManager.save(save)
+  }
   if (!save.selectedCharacter) {
     save.selectedCharacter = 'warrior'
   }
@@ -241,7 +252,23 @@ async function boot() {
     () => GameController.abilitySlotAAction(),
     () => {
       const s = GameController.getSave()
-      if ((s.selectedCharacter ?? 'warrior') === 'ranger') {
+      const ch = s.selectedCharacter ?? 'warrior'
+      if (ch === 'engineer') {
+        if (!(s.engineer?.upgrades ?? []).includes('construct-turret')) return
+        const def = ENGINEER_UPGRADES['construct-turret']
+        UI.showInfoCard({
+          spriteSrc: '',
+          name:   def.name,
+          type:   'Engineer Ability',
+          blurb:  def.desc,
+          details: [
+            { icon: '🔵', label: 'Mana Cost', desc: `${def.manaCost} mana per build, relocate, or upgrade` },
+            { icon: '🎯', label: 'Targeting', desc: 'Tap empty tile twice to place or move (resets to level 1). Tap your turret once to upgrade.' },
+          ],
+        })
+        return
+      }
+      if (ch === 'ranger') {
         const arc = (s.ranger?.upgrades ?? []).includes('ricochet-arc-mastery')
         const rr  = GameController.getRicochetBreakdown()
         const pattern = arc ? '4 : 3 : 2' : '3 : 2 : 1'
@@ -294,12 +321,29 @@ async function boot() {
     document.getElementById('hud-btn-slot-b'),
     () => {
       const s = GameController.getSave()
-      if ((s.selectedCharacter ?? 'warrior') === 'ranger') GameController.poisonArrowShotAction()
+      const ch = s.selectedCharacter ?? 'warrior'
+      if (ch === 'ranger') GameController.poisonArrowShotAction()
+      else if (ch === 'engineer') GameController.teslaTowerAction()
       else GameController.blindingLightAction()
     },
     () => {
       const s = GameController.getSave()
-      if ((s.selectedCharacter ?? 'warrior') === 'ranger') {
+      const ch = s.selectedCharacter ?? 'warrior'
+      if (ch === 'engineer') {
+        if (!(s.engineer?.upgrades ?? []).includes('tesla-tower')) return
+        const def = ENGINEER_UPGRADES['tesla-tower']
+        UI.showInfoCard({
+          spriteSrc: '',
+          name:   def.name,
+          type:   'Engineer Ability',
+          blurb:  def.desc,
+          details: [
+            { icon: '🔵', label: 'Mana Cost', desc: `${def.manaCost} mana to convert an existing turret (one-way)` },
+          ],
+        })
+        return
+      }
+      if (ch === 'ranger') {
         if (!GameController.isRangerActiveUnlocked('poison-arrow-shot')) return
         const pb = GameController.getPoisonArrowShotBreakdown()
         const dmgLine = pb
@@ -454,7 +498,7 @@ async function boot() {
       const s        = GameController.getSave()
       const char     = CHARACTERS[_heroIdx]
       const charSave = char.comingSoon ? { totalXP: 0, upgrades: [] }
-        : char.id === 'ranger' ? s.ranger : s.warrior
+        : _metaCharSave(s, char.id)
       const grid     = _heroSlideGrid(_heroIdx)
       _renderHeroUpgradeGrid(grid, char, charSave.upgrades ?? [], charSave.totalXP ?? 0, !char.comingSoon && char.id === 'ranger' && !s.ranger.unlocked)
     }
@@ -752,7 +796,7 @@ function _renderHeroSelect(opts = {}) {
     const slide = scroll?.children[i]
     if (!slide) return
     const charSave  = char.comingSoon ? { totalXP: 0, upgrades: [] }
-      : char.id === 'ranger' ? s.ranger : s.warrior
+      : _metaCharSave(s, char.id)
     const isLocked  = !char.comingSoon && char.id === 'ranger' && !s.ranger.unlocked
     const xp        = charSave.totalXP ?? 0
     const owned     = charSave.upgrades ?? []
@@ -858,7 +902,7 @@ function _renderHeroUpgradeSimpleSlot(grid, char, id, def, ownedList, xp, isLock
   btn.addEventListener('click', () => {
     _selectedUpgradeId = isSelected ? null : id
     const s        = GameController.getSave()
-    const charSave = char.id === 'ranger' ? s.ranger : s.warrior
+    const charSave = _metaCharSave(s, char.id)
     const locked   = char.id === 'ranger' && !s.ranger.unlocked
     const mainGrid = grid.closest('.hero-select-slide')?.querySelector('.hero-upgrades-grid')
     if (mainGrid) {
@@ -938,7 +982,7 @@ function _renderHeroUpgradeGrid(grid, char, ownedList, xp, isLocked) {
 
       const refresh = () => {
         const s = GameController.getSave()
-        const charSave = char.id === 'ranger' ? s.ranger : s.warrior
+        const charSave = _metaCharSave(s, char.id)
         const locked = char.id === 'ranger' && !s.ranger.unlocked
         _renderHeroUpgradeGrid(grid, char, charSave.upgrades ?? [], charSave.totalXP ?? 0, locked)
       }
@@ -1009,9 +1053,9 @@ function _renderUpgradeDetail(id, def, isOwned, canAfford) {
 
   const char     = CHARACTERS[_heroIdx]
   const s        = GameController.getSave()
-  const charSave = char.id === 'ranger' ? s.ranger : s.warrior
+  const charSave = _metaCharSave(s, char.id)
   const owned    = charSave.upgrades ?? []
-  const map      = char.id === 'ranger' ? RANGER_UPGRADES : WARRIOR_UPGRADES
+  const map      = char.id === 'ranger' ? RANGER_UPGRADES : char.id === 'engineer' ? ENGINEER_UPGRADES : WARRIOR_UPGRADES
   const missingPrereq = def.requires && !owned.includes(def.requires)
   if (hintEl) {
     if (missingPrereq && !isOwned) {
@@ -1035,7 +1079,9 @@ function _renderUpgradeDetail(id, def, isOwned, canAfford) {
       const char   = CHARACTERS[_heroIdx]
       const bought = char.id === 'ranger'
         ? MetaProgression.buyRangerUpgrade(s, id)
-        : MetaProgression.buyUpgrade(s, id)
+        : char.id === 'engineer'
+          ? MetaProgression.buyEngineerUpgrade(s, id)
+          : MetaProgression.buyUpgrade(s, id)
       if (bought) {
         SaveManager.save(s)
         _selectedUpgradeId = null
@@ -1048,7 +1094,7 @@ function _renderUpgradeDetail(id, def, isOwned, canAfford) {
 function _showResumePrompt() {
   const info = GameController.getActiveRunInfo()
   if (!info) return
-  const heroName = info.player.isRanger ? 'Ranger' : 'Palladin'
+  const heroName = info.player.isRanger ? 'Ranger' : info.player.isEngineer ? 'Engineer' : 'Palladin'
   const floorLabel = info.atRest ? `Floor ${info.floor} — Sanctuary` : `Floor ${info.floor}`
   document.getElementById('resume-hero-name').textContent = heroName
   document.getElementById('resume-floor').textContent    = `🗺 ${floorLabel}`
@@ -1060,7 +1106,7 @@ function _showResumePrompt() {
 function _updateMenuHeroPreview() {
   const s    = GameController.getSave()
   const char = CHARACTERS.find(c => c.id === (s.selectedCharacter ?? 'warrior')) ?? CHARACTERS[0]
-  const xp   = s.selectedCharacter === 'ranger' ? s.ranger.totalXP : s.warrior.totalXP
+  const xp   = _metaCharSave(s, s.selectedCharacter ?? 'warrior').totalXP
 
   const thumb    = document.getElementById('menu-hero-thumb')
   const emojiEl  = document.getElementById('menu-hero-emoji')

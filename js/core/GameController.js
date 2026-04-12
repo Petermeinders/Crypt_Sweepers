@@ -9,6 +9,7 @@ import MetaProgression       from '../systems/MetaProgression.js'
 import SaveManager           from '../save/SaveManager.js'
 import UI                    from '../ui/UI.js'
 import { RANGER_BASE, RANGER_UPGRADES } from '../data/ranger.js'
+import { ENGINEER_BASE, ENGINEER_UPGRADES, ENGINEER_TURRET } from '../data/engineer.js'
 import { WARRIOR_UPGRADES }  from '../data/upgrades.js'
 import { ENEMY_SPRITES, MONSTER_ICONS_BASE, ITEM_ICONS_BASE, TILE_TYPE_ICON_FILES, MAGIC_CHEST_OPEN_GIF, MAGIC_CHEST_GIF_DURATION_MS } from '../data/tileIcons.js'
 import { TILE_BLURBS }       from '../data/tileBlurbs.js'
@@ -517,9 +518,10 @@ const WARRIOR_FIGHT_ATTACK_PORTRAIT_MS = 2000
 const RANGER_PASSIVE_SKIP_ADJ_LOCK = 0.1
 
 function buildRunState() {
-  const isRanger = _charKey() === 'ranger'
-  const baseHP   = isRanger ? RANGER_BASE.hp   : CONFIG.player.baseHP
-  const baseMana = isRanger ? RANGER_BASE.mana : CONFIG.player.baseMana
+  const isRanger   = _charKey() === 'ranger'
+  const isEngineer = _charKey() === 'engineer'
+  const baseHP     = isRanger ? RANGER_BASE.hp : isEngineer ? ENGINEER_BASE.hp : CONFIG.player.baseHP
+  const baseMana   = isRanger ? RANGER_BASE.mana : isEngineer ? ENGINEER_BASE.mana : CONFIG.player.baseMana
 
   const p = {
     hp:      baseHP,
@@ -553,6 +555,7 @@ function buildRunState() {
     extraAbilityChoice: false,
     damageTakenMult:    1,
     isRanger,
+    isEngineer,
     inventory:          [],   // [{ id, qty }]
     goldenKeys:         0,
     meleeHitCount:      0,    // Stormcaller's Fist tracker
@@ -587,12 +590,260 @@ function buildRunState() {
     /** Chronological level-up picks this run: { level, abilityId, name, icon } */
     levelUpLog:       [],
     floorKeyAwarded:  false,
+    /** @type {{ row: number, col: number, level: number, mode: 'ballistic'|'tesla', hp: number, maxHp: number } | null} */
+    turret:           null,
   }
 }
 
 // ── Accessors ────────────────────────────────────────────────
 
 function getActiveCombatTile() { return run?.activeCombatTile ?? null }
+
+// ── Engineer turret ───────────────────────────────────────────
+
+function _isEngineerUpgradeUnlocked(id) {
+  return (_save.engineer?.upgrades ?? []).includes(id)
+}
+
+function _engineerTurretMaxHp(level) {
+  return ENGINEER_TURRET.maxHpByLevel[Math.max(1, Math.min(3, level)) - 1]
+}
+
+function _engineerTurretDamage(level) {
+  return ENGINEER_TURRET.damageByLevel[Math.max(1, Math.min(3, level)) - 1]
+}
+
+function _teslaManhattanRadius(level) {
+  return ENGINEER_TURRET.teslaRadiusByLevel[Math.max(1, Math.min(3, level)) - 1]
+}
+
+function _inTeslaPerimeter(tr, tile) {
+  if (!tr || tile == null) return false
+  const d = Math.abs(tr.row - tile.row) + Math.abs(tr.col - tile.col)
+  return d <= _teslaManhattanRadius(tr.level)
+}
+
+function _syncTurretVisual() {
+  const grid = TileEngine.getGrid()
+  if (!grid) return
+  // Clear turret classes, perimeter, and injected content from all tiles
+  for (const row of grid) {
+    for (const t of row) {
+      if (t.element) {
+        t.element.classList.remove('engineer-turret', 'engineer-turret-tesla', 'turret-perimeter')
+        const old = t.element.querySelector('.turret-overlay')
+        if (old) old.remove()
+      }
+    }
+  }
+  const tr = run.turret
+  if (!tr) return
+  const tile = TileEngine.getTile(tr.row, tr.col)
+  if (!tile?.element) return
+
+  tile.element.classList.add('engineer-turret')
+  if (tr.mode === 'tesla') {
+    tile.element.classList.add('engineer-turret-tesla')
+    // Always show perimeter in Tesla mode
+    const radius = _teslaManhattanRadius(tr.level)
+    for (const row of grid) {
+      for (const t of row) {
+        if (!t.element) continue
+        const d = Math.abs(tr.row - t.row) + Math.abs(tr.col - t.col)
+        if (d > 0 && d <= radius) t.element.classList.add('turret-perimeter')
+      }
+    }
+  }
+
+  // Inject turret sprite + HP/DMG stats into the tile front
+  const dmg = _engineerTurretDamage(tr.level)
+  const overlay = document.createElement('div')
+  overlay.className = 'turret-overlay'
+  const spriteSrc = tr.mode === 'tesla'
+    ? 'assets/sprites/Heroes/Engineer/turret-tesla.gif'
+    : 'assets/sprites/Heroes/Engineer/turret-t1.gif'
+  overlay.innerHTML = `
+    <span class="turret-level-badge">T${tr.level}</span>
+    <img class="turret-sprite" src="${spriteSrc}" alt="Turret">
+    <div class="tile-enemy-stats">
+      <span class="stat-hp">❤️ ${tr.hp}</span>
+      <span class="stat-dmg">⚔️ ${dmg}</span>
+    </div>`
+  tile.element.appendChild(overlay)
+}
+
+function _destroyTurret() {
+  run.turret = null
+  _syncTurretVisual()
+}
+
+function _damageTurretFromEnemyHit(rawAmount, floatEl) {
+  if (!run.turret || run.turret.hp <= 0) return
+  const eff = _computeEffectiveDamageTaken(rawAmount)
+  run.turret.hp -= eff
+  UI.spawnFloat(floatEl ?? document.getElementById('hud-portrait'), `🛡️ Turret −${eff}`, 'damage')
+  if (run.turret.hp <= 0) {
+    UI.setMessage('Your turret is destroyed!')
+    _destroyTurret()
+  } else {
+    _syncTurretVisual()
+  }
+}
+
+function _engineerTurretAfterReveal(tile) {
+  if (_charKey() !== 'engineer' || !run.turret?.hp) return
+  if (!tile?.enemyData || tile.enemyData._slain) return
+  const tr = run.turret
+  if (tr.mode === 'tesla' && !_inTeslaPerimeter(tr, tile)) return
+  const dmg = _engineerTurretDamage(tr.level)
+  const td = tile.enemyData
+  td.currentHP = Math.max(0, td.currentHP - dmg)
+  UI.spawnFloat(tile.element, `🛡️ ${dmg}`, 'damage')
+  const turretTileEl = TileEngine.getTile(tr.row, tr.col)?.element
+  if (tr.mode === 'tesla') {
+    UI.spawnTeslaArc(turretTileEl, tile.element)
+  } else {
+    UI.spawnCannonShot(turretTileEl, tile.element)
+  }
+  EventBus.emit('audio:play', { sfx: 'hit' })
+  if (td.currentHP <= 0) {
+    _gainGold(td.goldDrop ? _rand(...td.goldDrop) : 1, tile.element, true)
+    _gainXP(td.xpDrop ?? 0, tile.element)
+    _endCombatVictory(tile)
+    return
+  }
+  UI.updateEnemyHP(tile.element, td.currentHP)
+  const [dmgMin, dmgMax] = td.dmg ?? CONFIG.enemy.damage
+  const enemyCounter = typeof td.hitDamage === 'number'
+    ? td.hitDamage
+    : dmgMin + Math.floor(Math.random() * (dmgMax - dmgMin + 1))
+  _damageTurretFromEnemyHit(enemyCounter, tile.element)
+}
+
+function _handleEngineerConstructTileTap(tile) {
+  const cost = ENGINEER_UPGRADES['construct-turret'].manaCost
+  const tr = run.turret
+  if (tr && tr.row === tile.row && tr.col === tile.col) {
+    if (tr.level >= 3) {
+      UI.setMessage('Turret is already max level.', true)
+      return true
+    }
+    if (run.player.mana < cost) {
+      UI.setMessage('Not enough mana.', true)
+      return true
+    }
+    run.player.mana -= cost
+    UI.updateMana(run.player.mana, run.player.maxMana)
+    tr.level++
+    tr.maxHp = _engineerTurretMaxHp(tr.level)
+    tr.hp = tr.maxHp
+    _syncTurretVisual()
+    _engineerConstructSelecting = false
+    _engineerPendingTile = null
+    UI.setEngineerPlaceMode(false)
+    UI.setMessage(`Turret upgraded to level ${tr.level}!`)
+    _saveActiveRun()
+    return true
+  }
+  // Do not require tile.reachable: the start tile is revealed but never gets reachable=true
+  // (markReachable only tags unrevealed neighbors). Any revealed empty is a valid build site.
+  const canPlace = tile.revealed && tile.type === 'empty' && !tile.locked
+  if (!canPlace) {
+    UI.setMessage('Choose a revealed empty tile (not locked).', true)
+    return true
+  }
+  const pending = _engineerPendingTile
+  if (pending && (pending.row !== tile.row || pending.col !== tile.col)) {
+    _engineerPendingTile = { row: tile.row, col: tile.col }
+    UI.flashTile(tile.element)
+    UI.setMessage('Tap again to confirm placement.')
+    return true
+  }
+  if (pending && pending.row === tile.row && pending.col === tile.col) {
+    if (run.player.mana < cost) {
+      UI.setMessage('Not enough mana.', true)
+      return true
+    }
+    run.player.mana -= cost
+    UI.updateMana(run.player.mana, run.player.maxMana)
+    run.turret = {
+      row: tile.row,
+      col: tile.col,
+      level: 1,
+      mode: 'ballistic',
+      hp: _engineerTurretMaxHp(1),
+      maxHp: _engineerTurretMaxHp(1),
+    }
+    _engineerPendingTile = null
+    _engineerConstructSelecting = false
+    UI.setEngineerPlaceMode(false)
+    _syncTurretVisual()
+    UI.setMessage('Turret constructed!')
+    _saveActiveRun()
+    return true
+  }
+  _engineerPendingTile = { row: tile.row, col: tile.col }
+  UI.flashTile(tile.element)
+  UI.setMessage('Tap again to confirm placement.')
+  return true
+}
+
+function constructTurretAction() {
+  if (!_isEngineerUpgradeUnlocked('construct-turret')) return
+  if (_combatBusy) return
+  if (!GameState.is(States.FLOOR_EXPLORE)) return
+  if (_engineerConstructSelecting) {
+    _cancelEngineerConstructMode()
+    UI.setMessage('Placement cancelled.')
+    return
+  }
+  _cancelSpellLanternBlindingForRicochet()
+  _cancelArrowBarrageMode()
+  _cancelPoisonArrowShotMode()
+  _cancelRicochetMode()
+  _engineerConstructSelecting = true
+  _engineerPendingTile = null
+  UI.setEngineerPlaceMode(true)
+  UI.setMessage('🛠️ Tap your turret to upgrade, or tap an empty tile twice to build or relocate.')
+}
+
+function teslaTowerAction() {
+  if (!_isEngineerUpgradeUnlocked('tesla-tower')) return
+  if (_combatBusy) return
+  if (!GameState.is(States.FLOOR_EXPLORE)) return
+  if (!run.turret?.hp) {
+    UI.setMessage('Build a turret first.', true)
+    return
+  }
+  if (run.turret.mode === 'tesla') {
+    UI.setMessage('Already a Tesla tower.', true)
+    return
+  }
+  const cost = ENGINEER_UPGRADES['tesla-tower'].manaCost
+  if (run.player.mana < cost) {
+    UI.setMessage('Not enough mana for Tesla.', true)
+    return
+  }
+  run.player.mana -= cost
+  UI.updateMana(run.player.mana, run.player.maxMana)
+  run.turret.mode = 'tesla'
+  _syncTurretVisual()
+  UI.setMessage('⚡ Tesla Tower online!')
+  _saveActiveRun()
+}
+
+function _refreshEngineerHud() {
+  const c = ENGINEER_UPGRADES['construct-turret'].manaCost
+  const t = ENGINEER_UPGRADES['tesla-tower'].manaCost
+  UI.setSlamBtn(false)
+  UI.setRicochetBtn(false)
+  UI.setArrowBarrageBtn(false)
+  UI.setPoisonArrowShotBtn(false)
+  UI.setBlindingLightBtn(false)
+  UI.setDivineLightBtn(false)
+  UI.setEngineerConstructBtn(_isEngineerUpgradeUnlocked('construct-turret'), c)
+  UI.setEngineerTeslaBtn(_isEngineerUpgradeUnlocked('tesla-tower'), t, run.turret?.mode === 'tesla')
+}
 
 // ── Init ─────────────────────────────────────────────────────
 
@@ -619,6 +870,7 @@ function _saveActiveRun() {
     atRest:          run.atRest,
     levelUpLog:      run.levelUpLog.slice(),
     floorKeyAwarded: !!run.floorKeyAwarded,
+    turret:          run.turret ? JSON.parse(JSON.stringify(run.turret)) : null,
   }
   SaveManager.save(_save).catch(() => {})
 }
@@ -642,7 +894,11 @@ function resumeRun() {
     activeCombatTile:     null,
     eventTile:            null,
     bossFloorExitPending: false,
+    turret:               saved.turret ?? null,
   }
+  const ch = _save.selectedCharacter ?? 'warrior'
+  run.player.isEngineer = ch === 'engineer'
+  run.player.isRanger   = ch === 'ranger'
   UI.hideMainMenu()
   const track = CONFIG.bossFloors.includes(run.floor) ? 'boss' : 'dungeon'
   EventBus.emit('audio:crossfade', { track, duration: 1500 })
@@ -661,7 +917,7 @@ function returnToMenu(autoSave = false) {
   _clearActiveRun()
   if (autoSave) SaveManager.save(_save)
   const char = _charKey()
-  const xp   = char === 'ranger' ? _save.ranger.totalXP : _save.warrior.totalXP
+  const xp   = char === 'ranger' ? _save.ranger.totalXP : char === 'engineer' ? _save.engineer.totalXP : _save.warrior.totalXP
   UI.updateMenuStats(_save.persistentGold, xp, char, _save)
   UI.setActiveDifficulty(_save.settings.difficulty)
   UI.showMainMenu()
@@ -690,6 +946,7 @@ function _startFloor() {
   _poisonArrowShotSelecting = false
   UI.setPoisonArrowShotActive(false)
   UI.setGridPoisonArrowShotMode(false)
+  _cancelEngineerConstructMode()
   if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0); run.player.freezingHitStacks = 0; UI.setFreezingHit(0); run.player.burnStacks = 0; UI.setBurnOverlay(0); run.player.poisonStacks = 0; UI.setPlayerPoison(0); run.player.corruptionStacks = 0; if (run.player.corruptionBaseMaxHp) { run.player.maxHp = run.player.corruptionBaseMaxHp; run.player.corruptionBaseMaxHp = 0 } if (run.player.corruptionBaseMaxMana) { run.player.maxMana = run.player.corruptionBaseMaxMana; run.player.corruptionBaseMaxMana = 0 } UI.setCorruption(0) }
   if (run) { run._hourglassSnapshot = null }
   _throwingKnifeTargeting  = false
@@ -704,6 +961,7 @@ function _startFloor() {
   _saveActiveRun()
   TileEngine.generateGrid(run.floor, { rest: run.atRest })
   TileEngine.renderGrid(UI.getGridEl(), onTileTap, onTileHold)
+  if (run.turret) _syncTurretVisual()
   _revealStartTile()
   // Cracked Compass: reveal exit tile from the start (skip rest floors)
   if (!run.atRest && run.player.inventory.some(e => e.id === 'cracked-compass')) {
@@ -788,6 +1046,8 @@ function _startFloor() {
   const slamUnlocked    = _charKey() === 'warrior' && warriorUpgrades.includes('slam')
   if (_charKey() === 'ranger') {
     _refreshRangerActiveHud()
+  } else if (_charKey() === 'engineer') {
+    _refreshEngineerHud()
   } else {
     UI.setSlamBtn(slamUnlocked, WARRIOR_UPGRADES.slam.manaCost)
     UI.setArrowBarrageBtn(false)
@@ -848,6 +1108,15 @@ function _revealStartTile() {
   // Mark neighbours reachable immediately so they're clickable before the flip finishes
   TileEngine.markReachable(tile.row, tile.col, UI.markTileReachable.bind(UI))
   TileEngine.flipTile(tile)
+
+  // Turret carries over — deploy it on the starting tile of the new floor
+  if (run.turret?.hp > 0 && !run.atRest) {
+    run.turret.row = tile.row
+    run.turret.col = tile.col
+    _syncTurretVisual()
+    UI.setMessage(`🛡️ Your turret followed you to floor ${run.floor}.`)
+  }
+
   _tickPoisonArrowDotOnGlobalTurn()
 }
 
@@ -865,6 +1134,9 @@ let _arrowBarrageSelecting = false
 /** Triple Volley: { row, col } center after first tap; second tap same tile fires. */
 let _tripleVolleyCenter = null
 let _poisonArrowShotSelecting = false
+let _engineerConstructSelecting = false
+/** First tile pick for double-tap place / relocate — { row, col } */
+let _engineerPendingTile = null
 let _throwingKnifeTargeting  = false
 let _rustyNailTargeting      = false
 let _twinBladesTargeting     = false
@@ -936,6 +1208,12 @@ function _cancelPoisonArrowShotMode() {
   UI.setGridPoisonArrowShotMode(false)
 }
 
+function _cancelEngineerConstructMode() {
+  _engineerConstructSelecting = false
+  _engineerPendingTile = null
+  UI.setEngineerPlaceMode(false)
+}
+
 function _cancelSpellLanternBlindingForRicochet() {
   if (_spellTargeting) {
     _spellTargeting = false
@@ -966,6 +1244,10 @@ function onTileTap(row, col) {
   if (!tile) return
 
   if (state === States.NPC_INTERACT) return
+
+  if (state === States.FLOOR_EXPLORE && _engineerConstructSelecting && _charKey() === 'engineer') {
+    if (_handleEngineerConstructTileTap(tile)) return
+  }
 
   // Spell targeting mode: only enemy taps fire; everything else ignored
   if (_spellTargeting) {
@@ -1166,9 +1448,67 @@ function onTileTap(row, col) {
 
 // ── Tile hold (info card) ────────────────────────────────────
 
+function _showTurretPerimeter(tr) {
+  const grid = TileEngine.getGrid()
+  if (!grid || !tr) return
+  const radius = tr.mode === 'tesla' ? _teslaManhattanRadius(tr.level) : null
+  for (const row of grid) {
+    for (const t of row) {
+      if (!t.element) continue
+      if (radius !== null) {
+        const d = Math.abs(tr.row - t.row) + Math.abs(tr.col - t.col)
+        t.element.classList.toggle('turret-perimeter', d > 0 && d <= radius)
+      }
+    }
+  }
+}
+
+function _clearTurretPerimeter() {
+  const grid = TileEngine.getGrid()
+  if (!grid) return
+  for (const row of grid) {
+    for (const t of row) {
+      t.element?.classList.remove('turret-perimeter')
+    }
+  }
+}
+
 function onTileHold(row, col) {
   const tile = TileEngine.getTile(row, col)
   if (!tile) return
+
+  // Turret hold — check before empty guard since turret sits on empty tiles
+  const tr = run?.turret
+  if (tile.revealed && tr && tr.row === row && tr.col === col) {
+    const dmg    = _engineerTurretDamage(tr.level)
+    const radius = tr.mode === 'tesla' ? _teslaManhattanRadius(tr.level) : null
+    const details = [
+      { icon: '🛡️', label: 'Mode',   desc: tr.mode === 'tesla' ? 'Tesla — zaps enemies in perimeter' : 'Ballistic — fires at all revealed enemies' },
+      { icon: '⬆️', label: 'Level',  desc: `T${tr.level}` },
+      { icon: '❤️', label: 'HP',     desc: `${tr.hp} / ${tr.maxHp}` },
+      { icon: '⚔️', label: 'Damage', desc: `${dmg} per hit` },
+      ...(radius !== null ? [{ icon: '📡', label: 'Radius', desc: `${radius} tile${radius !== 1 ? 's' : ''} (Manhattan)` }] : []),
+    ]
+    _showTurretPerimeter(tr)
+    const overlay = document.getElementById('info-card-overlay')
+    const onClose = () => {
+      _clearTurretPerimeter()
+      overlay?.removeEventListener('click', onClose)
+    }
+    overlay?.addEventListener('click', onClose)
+    UI.showInfoCard({
+      name:      `Turret (T${tr.level})`,
+      spriteSrc: tr.mode === 'tesla'
+        ? 'assets/sprites/Heroes/Engineer/turret-tesla.gif'
+        : 'assets/sprites/Heroes/Engineer/turret-t1.gif',
+      blurb:     tr.mode === 'tesla'
+        ? `⚡ Tesla Tower — zaps any enemy you attack within its ${radius}-tile perimeter.`
+        : '🛡️ Ballistic Turret — fires at every enemy tile you reveal.',
+      details,
+      attributes: [],
+    })
+    return
+  }
 
   if (tile.type === 'empty') return   // nothing interesting to show
 
@@ -1383,6 +1723,7 @@ async function revealTile(tile) {
       const hulk = _findLiveHulk()
       if (hulk && hulk !== tile) _applyHulkBuffToTile(tile)
     }
+    _engineerTurretAfterReveal(tile)
   }
   // Blockage tiles do not extend reachability — player must path around them
   if (tile.type !== 'blockage') {
@@ -1666,7 +2007,7 @@ function _resolveEffect(tile) {
       if (!wardensBlock && !reflexDodge) {
         const baseDmg = dmg + (p.inventory.some(e => e.id === 'abyssal-lens') ? 1 : 0)
         const r = _applyRangerTrapfinderMitigation(baseDmg, p)
-        _takeDamage(r.dmg, tile.element)
+        _takeDamage(r.dmg, tile.element, false, null, { enemyAttack: true })
       }
       UI.shakeTile(tile.element)
       const rangerSkipLock = p.isRanger && Math.random() < RANGER_PASSIVE_SKIP_ADJ_LOCK
@@ -1722,13 +2063,13 @@ function _resolveEffect(tile) {
         } else {
           const finalDmg = ambushDmg + (hasLens ? 1 : 0)
           const r = _applyRangerTrapfinderMitigation(finalDmg, p)
-          _takeDamage(r.dmg, tile.element, false, tile.enemyData)
+          _takeDamage(r.dmg, tile.element, false, tile.enemyData, { enemyAttack: true })
           const tf = r.proc ? ' Trapfinder!' : ''
           UI.setMessage(`⚡ The ${tile.enemyData.label} strikes first for ${r.dmg}!${tf} Tap to fight back.`)
         }
       } else if (hasLens) {
         // Abyssal Lens: normal enemies also deal 1 ambush damage
-        _takeDamage(1, tile.element, false, tile.enemyData)
+        _takeDamage(1, tile.element, false, tile.enemyData, { enemyAttack: true })
         if (!GameState.is(States.DEATH)) UI.setMessage(`👁️ The ${tile.enemyData?.label ?? 'enemy'} senses your sight and strikes! Tap to fight.`)
       } else {
         UI.setMessage(`A ${tile.enemyData?.label ?? 'enemy'} lurks. Tap it to fight.`)
@@ -2024,6 +2365,19 @@ function fightAction(tile) {
   const result = CombatResolver.resolveFight(run.player, tile.enemyData)
 
   let playerDmg = result.playerDmg
+  if (_charKey() === 'engineer' && run.turret?.hp > 0) {
+    const tr = run.turret
+    const useTurret = tr.mode === 'ballistic' || (tr.mode === 'tesla' && _inTeslaPerimeter(tr, tile))
+    if (useTurret) {
+      playerDmg += _engineerTurretDamage(tr.level)
+      const turretTileEl = TileEngine.getTile(tr.row, tr.col)?.element
+      if (tr.mode === 'tesla') {
+        setTimeout(() => UI.spawnTeslaArc(turretTileEl, tile.element), 80)
+      } else {
+        setTimeout(() => UI.spawnCannonShot(turretTileEl, tile.element), 80)
+      }
+    }
+  }
   const isUndead = tile.enemyData?.type === 'undead'
   const isBeast  = tile.enemyData?.type === 'beast'
   if (run.player.undeadBonus && isUndead) playerDmg = Math.round(playerDmg * 2)
@@ -2166,7 +2520,7 @@ function fightAction(tile) {
         if (tile.enemyData?.poisonHit)       _applyPlayerPoison(tile.enemyData.poisonHitAmount ?? 2)
         if (tile.enemyData?.corruptionHit)   _applyCorruption()
         if (tile.enemyData?.demonFlip)        _tryDemonFlip(tile)
-        _takeDamage(result.enemyDmg, tile.element, true, tile.enemyData)
+        _takeDamage(result.enemyDmg, tile.element, true, tile.enemyData, { enemyAttack: true })
         UI.shakeTile(tile.element)
         if (GameState.is(States.DEATH)) { _combatBusy = false; return }
       }
@@ -2268,6 +2622,7 @@ function slamAction() {
 
 function abilitySlotAAction() {
   if (_charKey() === 'ranger') ricochetAction()
+  else if (_charKey() === 'engineer') constructTurretAction()
   else slamAction()
 }
 
@@ -3144,7 +3499,12 @@ function _computeEffectiveDamageTaken(rawAmount) {
   return Math.max(1, scaled - (run.player.damageReduction ?? 0) - maskReduction - bladeReduction)
 }
 
-function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null) {
+function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null, opts = {}) {
+  const enemyAttack = opts.enemyAttack === true
+  if (enemyAttack && _charKey() === 'engineer' && run.turret?.hp > 0) {
+    _damageTurretFromEnemyHit(amount, tileEl)
+    return
+  }
   if (_save.settings.cheats?.godMode) return
   // Shield Shard: absorb next hit entirely
   if (run?.player?.shieldShard) {
@@ -3277,9 +3637,9 @@ function _gainXP(amount, tileEl) {
 
 function _metaUnlockedForLevelUp() {
   const c = _charKey()
-  return c === 'ranger'
-    ? (_save.ranger?.upgrades ?? [])
-    : (_save.warrior?.upgrades ?? [])
+  if (c === 'ranger') return _save.ranger?.upgrades ?? []
+  if (c === 'engineer') return _save.engineer?.upgrades ?? []
+  return _save.warrior?.upgrades ?? []
 }
 
 function _triggerLevelUp() {
@@ -3325,6 +3685,7 @@ function _triggerLevelUp() {
     }
     UI.setMessage(`${def?.name ?? abilityId} acquired! Level ${run.player.level}.`)
     if (char === 'ranger') _refreshRangerActiveHud()
+    else if (char === 'engineer') _refreshEngineerHud()
     GameState.transition(States.FLOOR_EXPLORE)
   })
 }
@@ -4234,6 +4595,8 @@ export default {
   spellAction,
   slamAction,
   abilitySlotAAction,
+  constructTurretAction,
+  teslaTowerAction,
   ricochetAction,
   arrowBarrageAction,
   poisonArrowShotAction,

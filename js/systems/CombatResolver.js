@@ -1,5 +1,6 @@
 import { CONFIG } from '../config.js'
 import { RANGER_BASE } from '../data/ranger.js'
+import { ENGINEER_BASE } from '../data/engineer.js'
 import Logger    from '../core/Logger.js'
 
 // Resolves combat actions. Pure logic — no DOM, no state transitions.
@@ -22,6 +23,10 @@ function resolveFight(player, enemyData) {
   if (player.isRanger) {
     const [lo, hi] = RANGER_BASE.damage
     playerDmg = rand(lo + bonus, hi + bonus)
+  } else if (player.isEngineer) {
+    const bd = ENGINEER_BASE.damage
+    const base = Array.isArray(bd) ? rand(...bd) : bd
+    playerDmg = base + bonus
   } else {
     const bd = CONFIG.player.baseDamage
     const base = Array.isArray(bd) ? rand(...bd) : bd

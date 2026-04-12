@@ -6,7 +6,7 @@ const CHOICES_PER_LEVEL = 3
 
 // ── Choice generation ────────────────────────────────────────
 // Returns ability IDs to present to the player.
-// charKey: 'warrior' | 'ranger'
+// charKey: 'warrior' | 'ranger' | 'engineer'
 // metaUnlockedIds: IDs from save.warrior.upgrades / save.ranger.upgrades — gates mastery / actives-tied picks.
 
 function getChoices(acquiredAbilities, charKey = 'warrior', metaUnlockedIds = []) {
