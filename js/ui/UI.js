@@ -1973,6 +1973,24 @@ const UI = {
     const rollBtn = ov.querySelector('#gambler-roll-btn')
     const hint    = ov.querySelector('#gambler-roll-hint')
 
+    // In headless/bot mode, skip Matter.js physics (rAF doesn't run) and resolve instantly
+    const isHeadlessBot = !!(window.__balanceBotRunning || window.__testBotOngoing || navigator.webdriver)
+
+    if (isHeadlessBot) {
+      let rolled = false
+      const doRoll = () => {
+        if (rolled) return
+        rolled = true
+        rollBtn.disabled = true
+        if (hint) hint.textContent = 'Dice are rolling…'
+        const r1 = Math.ceil(Math.random() * 6)
+        const r2 = Math.ceil(Math.random() * 6)
+        setTimeout(() => onRollComplete(r1, r2), 200)
+      }
+      rollBtn.addEventListener('click', doRoll, { once: true })
+      return
+    }
+
     // Lazy-import so Matter.js stays out of the critical path
     import('./DiceRoller.js').then(({ createDiceRoller }) => {
       const roller = createDiceRoller(canvas)

@@ -13,7 +13,8 @@
     "balance-bot": "node scripts/balance-bot-batch.mjs",
     "balance-bot:once": "node scripts/balance-bot-batch.mjs 1",
     "balance-bot:beginner": "node scripts/balance-bot-batch.mjs 20 beginner",
-    "balance-bot:end": "node scripts/balance-bot-batch.mjs 20 end"
+    "balance-bot:end": "node scripts/balance-bot-batch.mjs 20 end",
+    "test-bot-ongoing": "node -r ./scripts/set-ongoing-env.cjs scripts/balance-bot-batch.mjs"
   },
   "keywords": [],
   "author": "",

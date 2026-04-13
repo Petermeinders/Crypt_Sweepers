@@ -15,6 +15,7 @@ import GameController from '../core/GameController.js'
 import GameState, { States } from '../core/GameState.js'
 import TileEngine from '../systems/TileEngine.js'
 import UI from '../ui/UI.js'
+import { applyTestBotOngoingMetaPurchases } from './testBotOngoingMeta.js'
 
 let intervalId = null
 let runsTarget = 1
@@ -28,6 +29,12 @@ let stuckNoTapTicks = 0
 let reachabilityRepaired = false
 /** Run-summary visible but telemetry not finalized (stale overlay) — recover instead of spinning forever. */
 let invalidSummaryTicks = 0
+/** Consecutive ticks stuck in modal_wait — force-nuke all overlays after threshold. */
+let modalWaitTicks = 0
+/** Consecutive ticks where combatBusy=true with no candidates — force-clear after threshold. */
+let combatBusyTicks = 0
+/** While run-summary is visible after we already clicked try-once — retry if the menu did not open (headless flake). */
+let summaryStuckTicks = 0
 /** Tracks the last floor we logged a floor-enter for (avoids duplicate logs). */
 let _loggedFloor = -1
 /**
@@ -36,7 +43,7 @@ let _loggedFloor = -1
  */
 let _botRetreatPending = false
 
-/** @type {{ policy?: string, preset?: string, levelUpWeights?: Record<string, number>, abilityWeights?: Record<string, number> }} */
+/** @type {{ policy?: string, preset?: string, levelUpWeights?: Record<string, number>, abilityWeights?: Record<string, number>, testBotOngoing?: boolean }} */
 let autopilotOpts = {}
 
 function _tryClickRetreatConfirm() {
@@ -163,6 +170,62 @@ function _tryDismissFloorExploreBlockingUi() {
   // Story / merchant / etc.: prefer real clicks when possible
   if (_tryStoryEventBot()) return true
 
+  // Merchant: just leave
+  const merchant = document.getElementById('merchant-shop-overlay')
+  if (merchant && !merchant.classList.contains('hidden')) {
+    document.getElementById('merchant-shop-leave')?.click()
+    return true
+  }
+
+  // Gambler: walk away / roll / continue depending on phase
+  const gambler = document.getElementById('gambler-overlay')
+  if (gambler && !gambler.classList.contains('hidden')) {
+    const outcomeOk = document.getElementById('gambler-outcome-ok')
+    if (outcomeOk && !outcomeOk.closest('.gambler-phase')?.classList.contains('hidden')) {
+      outcomeOk.click(); return true
+    }
+    const rollBtn = document.getElementById('gambler-roll-btn')
+    if (rollBtn && !rollBtn.closest('.gambler-phase')?.classList.contains('hidden')) {
+      rollBtn.click(); return true
+    }
+    document.getElementById('gambler-walk-away')?.click()
+    return true
+  }
+
+  // Triple chest / trinket trader: leave
+  const tripleChest = document.getElementById('triple-chest-overlay')
+  if (tripleChest && !tripleChest.classList.contains('hidden')) {
+    document.getElementById('triple-chest-leave')?.click()
+    return true
+  }
+  const trinketTrader = document.getElementById('trinket-trader-overlay')
+  if (trinketTrader && !trinketTrader.classList.contains('hidden')) {
+    trinketTrader.querySelector('.menu-btn.secondary')?.click()
+    return true
+  }
+
+  // Backpack full — item pending replace/trash: always trash so the bot doesn't stall
+  const pendingBar = document.getElementById('backpack-pending-bar')
+  if (pendingBar && !pendingBar.classList.contains('hidden')) {
+    console.log('[bot:dismiss] trashing pending backpack item')
+    document.getElementById('backpack-pending-trash')?.click()
+    return true
+  }
+
+  // Bestiary / trinket detail overlays (tapped from codex): close them
+  const bestiaryDetail = document.getElementById('bestiary-detail-overlay')
+  if (bestiaryDetail && !bestiaryDetail.classList.contains('hidden')) {
+    bestiaryDetail.querySelector('.close-btn, .overlay-close, [data-close]')?.click()
+    bestiaryDetail.classList.add('hidden')
+    return true
+  }
+  const trinketDetail = document.getElementById('trinket-detail-overlay')
+  if (trinketDetail && !trinketDetail.classList.contains('hidden')) {
+    trinketDetail.querySelector('.close-btn, .overlay-close, [data-close]')?.click()
+    trinketDetail.classList.add('hidden')
+    return true
+  }
+
   // Remaining menus / forge / NPC panels (headless can leave DOM up without matching GameState)
   for (const el of document.querySelectorAll('.panel-overlay:not(.hidden)')) {
     el.classList.add('hidden')
@@ -239,6 +302,23 @@ function _finalizeAggregateReport() {
         : null,
     },
     runsDetail: runRecords,
+  }
+  if (autopilotOpts.testBotOngoing) {
+    const s = GameController.getSave()
+    if (s) {
+      report.metaAfterRuns = {
+        persistentGold: s.persistentGold,
+        selectedCharacter: s.selectedCharacter,
+        globalPassives: [...(s.globalPassives ?? [])],
+        warrior: { totalXP: s.warrior?.totalXP ?? 0, upgrades: [...(s.warrior?.upgrades ?? [])] },
+        ranger: {
+          unlocked: !!s.ranger?.unlocked,
+          totalXP: s.ranger?.totalXP ?? 0,
+          upgrades: [...(s.ranger?.upgrades ?? [])],
+        },
+        engineer: { totalXP: s.engineer?.totalXP ?? 0, upgrades: [...(s.engineer?.upgrades ?? [])] },
+      }
+    }
   }
   window.__balanceBotReport = report
   console.log('[bot:run] ALL RUNS COMPLETE', report.byOutcome, report.aggregate)
@@ -426,13 +506,20 @@ function tick() {
           intervalId = null
           _finalizeAggregateReport()
         }
+        summaryStuckTicks = 0
       } else {
         lastBranch = 'summary_waiting'
+        summaryStuckTicks++
+        if (summaryStuckTicks >= 40) {
+          summaryStuckTicks = 0
+          document.getElementById('try-again-btn')?.click()
+        }
       }
       return
     }
     handledSummary = false
     invalidSummaryTicks = 0
+    summaryStuckTicks = 0
 
     // NPC (Storyteller, etc.): must run before _blockingModalOpen — story overlay is .panel-overlay.
     if (state === States.NPC_INTERACT) {
@@ -444,6 +531,11 @@ function tick() {
         lastBranch = 'npc_dismiss'
         return
       }
+      // Neither handler succeeded — force-dismiss any open overlays and return without tapping.
+      // Without this fallback the bot falls through to tap, re-opens the event, and loops forever.
+      _tryDismissFloorExploreBlockingUi()
+      lastBranch = 'npc_force_dismiss'
+      return
     }
 
     if (_tryDismissFloorExploreBlockingUi()) {
@@ -453,13 +545,47 @@ function tick() {
 
     // Discovery / trap / info card / menu panels / backpack — don't advance until dismissed.
     if (_blockingModalOpen()) {
+      modalWaitTicks++
       lastBranch = 'modal_wait'
+      // After 10 ticks (~800ms) force-nuke every overlay and keep going
+      if (modalWaitTicks >= 10) {
+        console.warn(`[bot:modal] stuck in modal_wait for ${modalWaitTicks} ticks — force-closing all overlays`)
+        document.querySelectorAll('.panel-overlay:not(.hidden)').forEach(el => { el.classList.add('hidden'); console.warn(`[bot:modal] force-hid panel-overlay #${el.id}`) })
+        document.querySelectorAll('.event-overlay:not(.hidden)').forEach(el => { el.classList.add('hidden'); console.warn(`[bot:modal] force-hid event-overlay #${el.id}`) })
+        // Trash pending backpack item if blocking
+        const pb = document.getElementById('backpack-pending-bar')
+        if (pb && !pb.classList.contains('hidden')) { document.getElementById('backpack-pending-trash')?.click(); console.warn('[bot:modal] force-trashed pending backpack item') }
+        UI.hideInfoCard()
+        modalWaitTicks = 0
+      }
       return
+    }
+    modalWaitTicks = 0
+
+    if (autopilotOpts.testBotOngoing) {
+      const ratio = GameController.getPlayerHpRatio?.()
+      if (
+        ratio != null &&
+        ratio > 0 &&
+        ratio < 0.1 &&
+        (state === States.FLOOR_EXPLORE || state === States.COMBAT)
+      ) {
+        const diag = GameController.getBalanceBotDiagnostics()
+        if (diag.runActive) {
+          console.log('[test-bot-ongoing] low HP retreat', { ratio, state: GameState.current() })
+          GameController.doRetreat('test-bot-ongoing-low-hp')
+          lastBranch = 'test_bot_low_hp_retreat'
+          return
+        }
+      }
     }
 
     const menu = document.getElementById('main-menu')
     if (menu && !menu.classList.contains('hidden') && runsCompleted < runsTarget) {
       lastBranch = 'main_menu'
+      if (autopilotOpts.testBotOngoing) {
+        applyTestBotOngoingMetaPurchases(GameController.getSave())
+      }
       document.getElementById('new-run-btn')?.click()
       return
     }
@@ -530,9 +656,21 @@ function tick() {
     if (d.combatBusy || !d.runActive) {
       stuckNoTapTicks = 0
       reachabilityRepaired = false
-      lastBranch = d.combatBusy ? 'stuck_combat_busy' : 'stuck_no_run'
+      if (d.combatBusy) {
+        combatBusyTicks++
+        if (combatBusyTicks >= 30) {
+          console.warn(`[bot:stuck] combatBusy for ${combatBusyTicks} ticks — force-clearing _combatBusy`)
+          GameController.balanceBotClearCombatBusy()
+          combatBusyTicks = 0
+        }
+        lastBranch = 'stuck_combat_busy'
+      } else {
+        combatBusyTicks = 0
+        lastBranch = 'stuck_no_run'
+      }
       return
     }
+    combatBusyTicks = 0
 
     stuckNoTapTicks++
 
@@ -616,6 +754,7 @@ function tick() {
       runsTarget,
       policy: autopilotOpts.policy ?? 'random',
       preset: autopilotOpts.preset ?? null,
+      testBotOngoing: !!autopilotOpts.testBotOngoing,
       lastBranch,
       stuckNoTapTicks,
     }
@@ -630,7 +769,9 @@ export function startBalanceBotAutopilot(opts = {}) {
   handledSummary = false
   stuckNoTapTicks = 0
   reachabilityRepaired = false
+  combatBusyTicks = 0
   _botRetreatPending = false
+  summaryStuckTicks = 0
   _loggedFloor = -1
   if (intervalId) clearInterval(intervalId)
   intervalId = setInterval(tick, 80)

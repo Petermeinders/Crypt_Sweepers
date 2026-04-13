@@ -182,11 +182,13 @@ async function boot() {
   }
 
   const urlParams = new URLSearchParams(typeof location !== 'undefined' ? location.search : '')
-  const hasBalanceBot = urlParams.has('balanceBot')
+  const hasTestBotOngoing = urlParams.has('testBotOngoing')
+  const hasBalanceBot = urlParams.has('balanceBot') && !hasTestBotOngoing
   const balanceBotPreset =
     urlParams.get('balanceBotPreset') ||
     (urlParams.has('balanceBotBeginner') ? 'beginner' : null) ||
-    (urlParams.has('balanceBotEnd') ? 'end' : null)
+    (urlParams.has('balanceBotEnd') ? 'end' : null) ||
+    (hasBalanceBot ? 'beginner' : null)  // default: fresh save, no meta-progression unlocks
 
   if (hasBalanceBot && (balanceBotPreset === 'beginner' || balanceBotPreset === 'end')) {
     const { applyBalanceBotSavePreset } = await import('./dev/balanceBotSavePresets.js')
@@ -661,7 +663,7 @@ async function boot() {
   UI.setActiveDifficulty(save.settings.difficulty)
   EventBus.emit('audio:music', { track: 'menu' })
   if (GameController.hasActiveRun()) {
-    if (hasBalanceBot) {
+    if (hasBalanceBot || hasTestBotOngoing) {
       GameController.abandonRun()
       UI.showMainMenu()
     } else {
@@ -671,7 +673,38 @@ async function boot() {
     UI.showMainMenu()
   }
 
-  if (hasBalanceBot) {
+  if (hasTestBotOngoing) {
+    const policy = urlParams.get('policy') || 'abilities'
+    let levelUpWeights = null
+    const lw = urlParams.get('levelUpWeights')
+    if (lw) {
+      try {
+        levelUpWeights = JSON.parse(decodeURIComponent(lw))
+      } catch (_) {
+        levelUpWeights = null
+      }
+    }
+    let abilityWeights = null
+    const aw = urlParams.get('abilityWeights')
+    if (aw) {
+      try {
+        abilityWeights = JSON.parse(decodeURIComponent(aw))
+      } catch (_) {
+        abilityWeights = null
+      }
+    }
+    const runsQ = urlParams.get('runs')
+    const runsParsed = runsQ != null && runsQ !== '' ? parseInt(runsQ, 10) : NaN
+    const runs = Number.isFinite(runsParsed) ? runsParsed : undefined
+    import('./dev/testBotOngoing.js').then(m => {
+      m.startTestBotOngoing({
+        policy,
+        runs,
+        levelUpWeights: levelUpWeights ?? undefined,
+        abilityWeights: abilityWeights ?? undefined,
+      })
+    })
+  } else if (hasBalanceBot) {
     const policy = urlParams.get('policy') || 'random'
     let levelUpWeights = null
     const lw = urlParams.get('levelUpWeights')

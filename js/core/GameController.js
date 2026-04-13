@@ -1036,6 +1036,8 @@ function _startFloor() {
           run.tilesRevealed++
           TileEngine.markReachable(t.row, t.col, UI.markTileReachable.bind(UI))
           if (t.element) TileEngine.flipTile(t, UI)
+          if (t.enemyData) TileEngine.rollEnemyHitDamage(t.enemyData)
+          _resolveEffect(t)
         }
       }
     }
@@ -1175,6 +1177,7 @@ function _revealStartTile() {
 
 let _spellTargeting         = false
 let _combatBusy             = false
+let _combatBusySetAt        = 0   // timestamp when _combatBusy last became true
 let _lanternTargeting       = false
 let _spyglassTargeting      = false
 let _blindingLightTargeting = false
@@ -1508,6 +1511,11 @@ function onTileTap(row, col) {
     } else if (tile.revealed && tile.type === 'event' && !tile.eventResolved) {
       _openEvent(tile)
     } else if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      // Safety net: if _combatBusy has been stuck for >3s with no resolution, clear it
+      if (_combatBusy && Date.now() - _combatBusySetAt > 3000) {
+        console.warn('[GameController] _combatBusy stuck >3s — force-clearing')
+        _combatBusy = false
+      }
       if (!_combatBusy) fightAction(tile)
     }
   }
@@ -1763,6 +1771,7 @@ async function revealTile(tile) {
   UI.setPortraitAnim('run')
   EventBus.emit('audio:play', { sfx: 'flip' })
   await TileEngine.flipTile(tile)
+  if (!run) return  // run ended (retreat/death) during the flip animation
   if (tile.enemyData) {
     TileEngine.rollEnemyHitDamage(tile.enemyData)
     TileEngine.refreshEnemyDamageOnTile(tile)
@@ -2437,7 +2446,7 @@ function _setEnemySprite(tile, state) {
 // ── Combat ───────────────────────────────────────────────────
 
 function fightAction(tile) {
-  _combatBusy = true
+  _combatBusy = true; _combatBusySetAt = Date.now()
 
   _tickPoisonArrowDotOnGlobalTurn()
   if (!tile?.enemyData || tile.enemyData._slain) {
@@ -2577,6 +2586,7 @@ function fightAction(tile) {
     }, 400)
   } else {
     setTimeout(() => {
+      if (!run) { _combatBusy = false; return }
       if (run.telemetry) {
         const dealt = hpBeforeStrike - newEnemyHP
         run.telemetry.totalDamageDealtToEnemies += dealt
@@ -2638,6 +2648,7 @@ function fightAction(tile) {
       }
 
       setTimeout(() => {
+        if (!run || !tile.enemyData) { _combatBusy = false; return }
         _setEnemySprite(tile, 'idle')
         UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp')
         EventBus.emit('combat:damage', { amount: playerDmg, target: 'enemy' })
@@ -2703,7 +2714,7 @@ function slamAction() {
   _markStillWaterAbilityUsed()
   UI.updateMana(run.player.mana, run.player.maxMana)
 
-  _combatBusy = true
+  _combatBusy = true; _combatBusySetAt = Date.now()
   UI.setPortraitAnim('attack')
   const slamDmg = _scaleOutgoingDamageToEnemy(_slamDamagePerTarget())
   const immuneNote = immuneSkipped ? ` (${immuneSkipped} immune)` : ''
@@ -2790,7 +2801,7 @@ function _executeRicochet() {
   _markStillWaterAbilityUsed()
   UI.updateMana(run.player.mana, run.player.maxMana)
 
-  _combatBusy = true
+  _combatBusy = true; _combatBusySetAt = Date.now()
   UI.setPortraitAnim('attack')
   const dmgSeq = _ricochetDamageSequence(targets.length, 'ricochet')
   UI.setMessage(`🏹 Ricochet — ${targets.length} shot${targets.length > 1 ? 's' : ''}! (${dmgSeq.join(' → ')})`)
@@ -2893,7 +2904,7 @@ function _executeTripleVolley(center) {
   UI.updateMana(run.player.mana, run.player.maxMana)
 
   const dmg = _scaleOutgoingDamageToEnemy(_tripleVolleyDamagePerEnemy())
-  _combatBusy = true
+  _combatBusy = true; _combatBusySetAt = Date.now()
   UI.setPortraitAnim('attack')
   UI.setMessage(`🏹 Triple Volley! ${targets.length} enem${targets.length > 1 ? 'ies' : 'y'} for ${dmg} each.`)
 
@@ -2981,7 +2992,7 @@ function _executePoisonArrowShot(tile) {
   UI.updateMana(run.player.mana, run.player.maxMana)
 
   const initial = _scaleOutgoingDamageToEnemy(_poisonArrowUnitDamage())
-  _combatBusy = true
+  _combatBusy = true; _combatBusySetAt = Date.now()
   UI.setPortraitAnim('attack')
 
   const t0 = TileEngine.getTile(row, col)
@@ -3513,6 +3524,8 @@ function _endCombatVictory(tile) {
 // ── Hasty Retreat ────────────────────────────────────────────
 
 function doRetreat(reason = 'player') {
+  if (!run) return
+
   if (GameState.is(States.NPC_INTERACT) && run.eventTile) {
     _closeEventSession(run.eventTile)
   }
@@ -3537,6 +3550,11 @@ function doRetreat(reason = 'player') {
     goldBeforeRetreat,
   })
   const { xpEarned, goldBanked } = MetaProgression.endRun(_save, stats, 'retreat')
+
+  // End run immediately so UI/bots do not see an active run while waiting for the summary overlay.
+  _clearActiveRun()
+  run = null
+  GameState.set(States.BETWEEN_RUNS)
 
   setTimeout(() => {
     UI.showRunSummary('retreat', { ...stats, xpEarned, goldBanked })
@@ -3567,6 +3585,7 @@ function _handleExit() {
     UI.setMessage('Stone gives way to still air — a sanctuary between the depths.')
     EventBus.emit('run:floorAdvance', { newFloor: run.floor })
     UI.runFloorTransition(3000, () => {
+      if (!run) return
       GameState.set(States.BOOT)
       _startFloor()
     }, null)
@@ -3615,6 +3634,7 @@ function _nextFloor() {
 // ── Player stat helpers ──────────────────────────────────────
 
 function _computeEffectiveDamageTaken(rawAmount) {
+  if (!run) return rawAmount
   const scaled = Math.round(rawAmount * (run.player.damageTakenMult ?? 1))
   const maskReduction   = run.player.inventory.some(e => e.id === 'plague-mask')    ? 1 : 0
   const bladeReduction  = run.player.inventory.some(e => e.id === 'infected-blade') ? 1 : 0
@@ -3622,6 +3642,7 @@ function _computeEffectiveDamageTaken(rawAmount) {
 }
 
 function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null, opts = {}) {
+  if (!run) return
   const enemyAttack = opts.enemyAttack === true
   if (enemyAttack && _charKey() === 'engineer' && run.turret?.hp > 0) {
     _damageTurretFromEnemyHit(amount, tileEl)
@@ -3710,6 +3731,7 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
 }
 
 function _gainGold(amount, tileEl, fromEnemy = false) {
+  if (!run) return
   let actual = amount
   if (fromEnemy) {
     if (run.player.inventory.some(e => e.id === 'misers-pouch')) actual += 1
@@ -3739,6 +3761,7 @@ function _gainGold(amount, tileEl, fromEnemy = false) {
 }
 
 function _gainXP(amount, tileEl) {
+  if (!run) return
   const regen = CONFIG.player.manaRegenPerTile
   if (regen > 0 && run.player.mana < run.player.maxMana) {
     const hasManaRing = run.player.inventory.some(e => e.id === 'mana-ring')
@@ -4972,6 +4995,12 @@ function getRunTelemetry() {
 }
 
 /** Live snapshot for balance-bot / Playwright — not persisted as run telemetry until the run ends. */
+/** Current HP fraction (0–1) for test-bot-ongoing low-HP retreat; null if no run. */
+function getPlayerHpRatio() {
+  if (!run?.player?.maxHp) return null
+  return run.player.hp / run.player.maxHp
+}
+
 function getBalanceBotDiagnostics() {
   const tap = getBalanceBotTapCandidates()
   const use = getBalanceBotUseItemCandidates()
@@ -4998,6 +5027,9 @@ function getBalanceBotDiagnostics() {
     tapCandidates: tap.length,
     useItemCandidates: use.length,
     targeting: targeting.length ? targeting.join('+') : null,
+    hp: run?.player?.hp ?? null,
+    maxHp: run?.player?.maxHp ?? null,
+    meleeDmg: run?.player ? _playerDamageRange(run.player)[0] : null,
   }
 }
 
@@ -5370,6 +5402,7 @@ export default {
   getInventory,
   openForge: _openForge,
   getLevelUpLog,
+  getPlayerHpRatio,
   getBalanceBotTapCandidates,
   balanceBotTryOpenRevealTool,
   getBalanceBotUseItemCandidates,
@@ -5377,6 +5410,7 @@ export default {
   getBalanceBotDeadlockDiagnostics,
   balanceBotRepairReachability,
   balanceBotForceUnlockAll,
+  balanceBotClearCombatBusy() { _combatBusy = false },
   balanceBotTryWarriorAbilities,
   balanceBotTryAbilitiesPolicy,
   balanceBotDismissNpcEvent,
