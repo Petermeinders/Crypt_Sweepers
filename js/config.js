@@ -26,7 +26,9 @@ export const CONFIG = {
     startGold:       0,
     baseDamage:      1,
     baseDefense:     [0, 0],
-    manaRegenPerTile: 1,
+    /** Legacy: XP/tile reveal no longer restores mana — use manaPerMeleeHit in combat. */
+    manaRegenPerTile: 0,
+    manaPerMeleeHit:  1,
   },
 
   enemy: {
@@ -39,7 +41,7 @@ export const CONFIG = {
   },
 
   spell: {
-    manaCost: 3,
+    manaCost: 4,
     damage:   [3, 5],
   },
 

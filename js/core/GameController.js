@@ -50,6 +50,8 @@ const LEGENDARY_TRINKET_IDS = [
   'resurrection-stone', 'wardens-brand',
 ]
 
+const MSG_COMBAT_ACTION_BLOCKED = 'Cannot perform action when in combat with enemy'
+
 /** Browsers block vibrate until the user has interacted with the page (avoids console intervention spam). */
 let _hapticUserGestureOk = false
 if (typeof document !== 'undefined') {
@@ -69,17 +71,17 @@ function _hapticVibrate(pattern) {
 function _pickRandom(pool) { return pool[Math.floor(Math.random() * pool.length)] }
 
 function _rollCommonLoot() {
-  // Weighted: potions more likely than lantern/tools/spyglass
+  // Weighted: potions more likely than lantern/spyglass (smiths-tools removed — ~1% via dedicated band in chest rolls)
   const r = Math.random()
   if (r < 0.32) return { type: 'potion-red' }
   if (r < 0.58) return { type: 'potion-blue' }
   if (r < 0.74) return { type: 'lantern' }
-  if (r < 0.87) return { type: 'smiths-tools' }
-  if (r < 0.95) return { type: 'spyglass' }
+  if (r < 0.87) return { type: 'spyglass' }
+  if (r < 0.95) return { type: 'scavengers-bag' }
   return { type: 'gold', amount: _rand(...CONFIG.chest.goldDrop) }
 }
 
-/** Normal chest: 97% common, 2% rare, 1% legendary */
+/** Normal chest: 1% legendary, 2% rare, 1% Smith's Tools, 96% common (no smiths in common pool). */
 function _rollChestLoot() {
   if (run?.player?.inventory?.some(e => e.id === 'misers-pouch')) {
     return { type: 'gold', amount: _rand(...CONFIG.chest.goldDrop) }
@@ -91,12 +93,13 @@ function _rollChestLoot() {
   }
   if (r < 0.01) return { type: _pickRandom(LEGENDARY_TRINKET_IDS) }
   if (r < 0.03) return { type: _pickRandom(RARE_TRINKET_IDS) }
+  if (r < 0.04) return { type: 'smiths-tools' }
   return _rollCommonLoot()
 }
 
 const BACKPACK_MAX_SLOTS = 9
 
-/** Magic chest: 93% common, 5% rare (all rares + exclusives), 2% legendary */
+/** Magic chest: 2% legendary, 5% rare (all rares + exclusives), 1% Smith's Tools, 92% common. */
 function _rollMagicChestLoot() {
   const r = Math.random()
   if (r < 0.02) return { type: _pickRandom(LEGENDARY_TRINKET_IDS) }
@@ -104,6 +107,7 @@ function _rollMagicChestLoot() {
     const pool = [...RARE_TRINKET_IDS, ...MAGIC_CHEST_EXCLUSIVE_IDS]
     return { type: _pickRandom(pool) }
   }
+  if (r < 0.08) return { type: 'smiths-tools' }
   return _rollCommonLoot()
 }
 
@@ -378,6 +382,7 @@ function _serializeHourglassSnapshot() {
       exitResolved: t.exitResolved,
       eventResolved: t.eventResolved,
       ropeResolved: t.ropeResolved,
+      forgeUsed: t.forgeUsed,
       echoHintCategory: t.echoHintCategory ?? null,
     })),
   )
@@ -419,6 +424,7 @@ function _restoreHourglassSnapshot(snap) {
       t.exitResolved = st.exitResolved
       t.eventResolved = st.eventResolved
       t.ropeResolved = st.ropeResolved
+      t.forgeUsed = st.forgeUsed
       t.echoHintCategory = st.echoHintCategory ?? null
       t.element = el
       if (el) {
@@ -824,6 +830,10 @@ function _handleEngineerConstructTileTap(tile) {
 function constructTurretAction() {
   if (!_isEngineerUpgradeUnlocked('construct-turret')) return
   if (_combatBusy) return
+  if (_isCombatCommitmentLocked()) {
+    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
+    return
+  }
   if (!GameState.is(States.FLOOR_EXPLORE)) return
   if (_engineerConstructSelecting) {
     _cancelEngineerConstructMode()
@@ -843,6 +853,10 @@ function constructTurretAction() {
 function teslaTowerAction() {
   if (!_isEngineerUpgradeUnlocked('tesla-tower')) return
   if (_combatBusy) return
+  if (_isCombatCommitmentLocked()) {
+    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
+    return
+  }
   if (!GameState.is(States.FLOOR_EXPLORE)) return
   if (!run.turret?.hp) {
     UI.setMessage('Build a turret first.', true)
@@ -888,6 +902,7 @@ function init(saveData) {
 
 function newGame() {
   UI.hideRunSummary()
+  _clearActiveRun()
   run = buildRunState()
   UI.hideMainMenu()
   EventBus.emit('audio:crossfade', { track: 'dungeon', duration: 1500 })
@@ -895,6 +910,31 @@ function newGame() {
 }
 
 // ── Run persistence ──────────────────────────────────────────
+
+function _serializeGridSnapshot() {
+  const grid = TileEngine.getGrid()
+  if (!grid?.length) return null
+  return grid.map(row =>
+    row.map(t => ({
+      type: t.type,
+      revealed: t.revealed,
+      locked: t.locked,
+      reachable: t.reachable,
+      enemyData: t.enemyData ? JSON.parse(JSON.stringify(t.enemyData)) : null,
+      itemData: t.itemData ? JSON.parse(JSON.stringify(t.itemData)) : null,
+      chestLoot: t.chestLoot ? JSON.parse(JSON.stringify(t.chestLoot)) : null,
+      chestReady: t.chestReady,
+      chestLooted: t.chestLooted,
+      magicChestReady: t.magicChestReady,
+      pendingLoot: t.pendingLoot ? JSON.parse(JSON.stringify(t.pendingLoot)) : null,
+      exitResolved: t.exitResolved,
+      eventResolved: t.eventResolved,
+      ropeResolved: t.ropeResolved,
+      forgeUsed: t.forgeUsed,
+      echoHintCategory: t.echoHintCategory ?? null,
+    })),
+  )
+}
 
 function _saveActiveRun() {
   if (!run || !_save) return
@@ -906,6 +946,11 @@ function _saveActiveRun() {
     floorKeyAwarded: !!run.floorKeyAwarded,
     turret:          run.turret ? JSON.parse(JSON.stringify(run.turret)) : null,
     telemetry:       run.telemetry ? JSON.parse(JSON.stringify(run.telemetry)) : undefined,
+    tilesRevealed:   run.tilesRevealed,
+    bossFloorExitPending: !!run.bossFloorExitPending,
+    eventTile:       run.eventTile ? { row: run.eventTile.row, col: run.eventTile.col } : null,
+    gridSnapshot:    _serializeGridSnapshot(),
+    combatEngagement: _combatEngagementTile ? { ..._combatEngagementTile } : null,
   }
   SaveManager.save(_save).catch(() => {})
 }
@@ -925,11 +970,14 @@ function resumeRun() {
     atRest:               saved.atRest ?? false,
     levelUpLog:           saved.levelUpLog ?? [],
     floorKeyAwarded:      saved.floorKeyAwarded ?? false,
-    tilesRevealed:        0,
+    tilesRevealed:        saved.tilesRevealed ?? 0,
     activeCombatTile:     null,
     eventTile:            null,
-    bossFloorExitPending: false,
+    bossFloorExitPending: !!saved.bossFloorExitPending,
     turret:               saved.turret ?? null,
+    _resumeGridSnapshot:  saved.gridSnapshot ?? null,
+    _resumeEventTile:     saved.eventTile ?? null,
+    _resumeCombatEngagement: saved.combatEngagement ?? null,
     telemetry:            (() => {
       if (!saved.telemetry) return createInitialTelemetry()
       const t = JSON.parse(JSON.stringify(saved.telemetry))
@@ -973,6 +1021,7 @@ function returnToMenu(autoSave = false) {
 function _startFloor() {
   _spellTargeting         = false
   _combatBusy             = false
+  _clearAllCombatEngagement()
   _lanternTargeting       = false
   _spyglassTargeting      = false
   _blindingLightTargeting = false
@@ -998,18 +1047,36 @@ function _startFloor() {
   _rustyNailTargeting      = false
   _twinBladesTargeting     = false
   if (run?.player) run.player.navigatorsChartUsed = false
+  const resumeSnapshot = !!(run?._resumeGridSnapshot)
   // Hunger Stone: costs 2 HP and grants +1 max damage each floor (skip sanctuary)
-  if (!run.atRest && run.floor > 1 && run.player.inventory.some(e => e.id === 'hunger-stone')) {
+  if (!resumeSnapshot && !run.atRest && run.floor > 1 && run.player.inventory.some(e => e.id === 'hunger-stone')) {
     run.player.damageBonus = (run.player.damageBonus ?? 0) + 1
     run.player.hp = Math.max(1, run.player.hp - 2)
   }
-  _saveActiveRun()
-  TileEngine.generateGrid(run.floor, { rest: run.atRest })
+  let gridRestored = false
+  if (run?._resumeGridSnapshot) {
+    gridRestored = TileEngine.importGridFromSnapshot(run._resumeGridSnapshot, run.floor, { rest: run.atRest })
+    run._resumeGridSnapshot = null
+  }
+  if (!gridRestored) {
+    TileEngine.generateGrid(run.floor, { rest: run.atRest })
+  }
   TileEngine.renderGrid(UI.getGridEl(), onTileTap, onTileHold)
   if (run.turret) _syncTurretVisual()
-  _revealStartTile()
+  if (run._resumeEventTile) {
+    run.eventTile = TileEngine.getTile(run._resumeEventTile.row, run._resumeEventTile.col)
+    run._resumeEventTile = null
+  }
+  if (gridRestored) {
+    TileEngine.recomputeReachabilityFromRevealed(UI.markTileReachable.bind(UI))
+    TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
+    _syncGridDomClassesFromModel()
+    _tickPoisonArrowDotOnGlobalTurn()
+  } else {
+    _revealStartTile()
+  }
   // Cracked Compass: reveal exit tile from the start (skip rest floors)
-  if (!run.atRest && run.player.inventory.some(e => e.id === 'cracked-compass')) {
+  if (!gridRestored && !run.atRest && run.player.inventory.some(e => e.id === 'cracked-compass')) {
     const grid = TileEngine.getGrid()
     for (const row of grid) {
       for (const t of row) {
@@ -1027,7 +1094,7 @@ function _startFloor() {
     }
   }
   // Forsaken Idol: reveal all unrevealed enemy tiles from floor start
-  if (!run.atRest && run.player.inventory.some(e => e.id === 'forsaken-idol')) {
+  if (!gridRestored && !run.atRest && run.player.inventory.some(e => e.id === 'forsaken-idol')) {
     const grid = TileEngine.getGrid()
     for (const row of grid) {
       for (const t of row) {
@@ -1043,11 +1110,11 @@ function _startFloor() {
     }
   }
   // Mending Moss: restore 3 HP at start of each new floor (skip floor 1 and sanctuary)
-  if (!run.atRest && run.floor > 1 && run.player.inventory.some(e => e.id === 'mending-moss')) {
+  if (!gridRestored && !run.atRest && run.floor > 1 && run.player.inventory.some(e => e.id === 'mending-moss')) {
     run.player.hp = Math.min(run.player.maxHp, run.player.hp + 3)
   }
   // Twin Fates: coin flip each floor (skip floor 1 and sanctuary)
-  if (!run.atRest && run.floor > 1 && run.player.inventory.some(e => e.id === 'twin-fates')) {
+  if (!gridRestored && !run.atRest && run.floor > 1 && run.player.inventory.some(e => e.id === 'twin-fates')) {
     if (Math.random() < 0.5) {
       run.player.maxHp += 4
       run.player.hp    += 4
@@ -1057,7 +1124,7 @@ function _startFloor() {
     }
   }
   // Abyssal Lens: hint all tile categories on the back of unrevealed tiles
-  if (!run.atRest && run.player.inventory.some(e => e.id === 'abyssal-lens')) {
+  if (!gridRestored && !run.atRest && run.player.inventory.some(e => e.id === 'abyssal-lens')) {
     const grid = TileEngine.getGrid()
     for (const row of grid) {
       for (const t of row) {
@@ -1131,6 +1198,56 @@ function _startFloor() {
 
   Logger.debug(`[GameController] Floor ${run.floor} started`)
   UI.refreshSkipFloorButton(_save)
+  if (run._resumeCombatEngagement) {
+    const raw = run._resumeCombatEngagement
+    const pos = Array.isArray(raw) ? raw[0] : raw
+    if (pos && typeof pos.row === 'number' && typeof pos.col === 'number') {
+      const t = TileEngine.getTile(pos.row, pos.col)
+      if (t?.enemyData && !t.enemyData._slain) {
+        _combatEngagementTile = { row: pos.row, col: pos.col }
+        _syncCombatEngagementDom()
+      }
+    }
+    run._resumeCombatEngagement = null
+  }
+  _saveActiveRun()
+}
+
+/** After loading a floor from snapshot, sync tile CSS classes to match model (no flip animation). */
+function _syncGridDomClassesFromModel() {
+  const grid = TileEngine.getGrid()
+  if (!grid) return
+  for (const row of grid) {
+    for (const t of row) {
+      if (!t.element) continue
+      const el = t.element
+      el.classList.toggle('revealed', !!t.revealed)
+      el.classList.toggle('locked', !!t.locked)
+      el.classList.toggle('reachable', !!t.reachable && !t.revealed)
+      if (t.type === 'event') {
+        el.classList.toggle('event-pending', !t.eventResolved)
+      }
+      if (t.type === 'chest') {
+        el.classList.toggle('chest-ready', !!(t.chestReady && !t.chestLooted))
+      }
+      if (t.type === 'magic_chest') {
+        el.classList.toggle('chest-ready', !!t.magicChestReady)
+      }
+      if (t.type === 'forge') {
+        el.classList.toggle('forge-used', !!t.forgeUsed)
+      }
+      if (t.type === 'exit') {
+        el.classList.toggle('exit-pending', !t.exitResolved)
+      }
+      if (t.type === 'rope') {
+        el.classList.toggle('rope-pending', !t.ropeResolved)
+      }
+      if (t.echoHintCategory) {
+        el.classList.add('echo-hint')
+        el.dataset.echoHint = t.echoHintCategory
+      }
+    }
+  }
 }
 
 // ── Starting tile ────────────────────────────────────────────
@@ -1194,6 +1311,108 @@ let _engineerPendingTile = null
 let _throwingKnifeTargeting  = false
 let _rustyNailTargeting      = false
 let _twinBladesTargeting     = false
+
+/** Single focused enemy for current combat — no swapping until this one is slain (ambush uses `force`). */
+let _combatEngagementTile = null
+
+/** Sync red border highlight on the engaged enemy tile (at most one). */
+function _syncCombatEngagementDom() {
+  const grid = TileEngine.getGrid()
+  if (!grid) return
+  for (const row of grid) {
+    for (const t of row) {
+      if (!t.element) continue
+      const engaged =
+        !!_combatEngagementTile
+        && t.row === _combatEngagementTile.row
+        && t.col === _combatEngagementTile.col
+        && t.enemyData
+        && !t.enemyData._slain
+      UI.setTileCombatEngaged(t.element, engaged)
+    }
+  }
+}
+
+/**
+ * @param {{ force?: boolean }} [opts] — `force: true` for ambush reveal (replaces prior focus).
+ * @returns {boolean} whether this tile is now the engagement target
+ */
+function _setCombatEngagement(tile, { force = false } = {}) {
+  if (!tile?.enemyData || tile.enemyData._slain) return false
+  if (!_combatEngagementTile) {
+    _combatEngagementTile = { row: tile.row, col: tile.col }
+    _syncCombatEngagementDom()
+    return true
+  }
+  if (_combatEngagementTile.row === tile.row && _combatEngagementTile.col === tile.col) return true
+  const cur = TileEngine.getTile(_combatEngagementTile.row, _combatEngagementTile.col)
+  if (!cur?.enemyData || cur.enemyData._slain) {
+    _combatEngagementTile = { row: tile.row, col: tile.col }
+    _syncCombatEngagementDom()
+    return true
+  }
+  if (force) {
+    _combatEngagementTile = { row: tile.row, col: tile.col }
+    _syncCombatEngagementDom()
+    return true
+  }
+  return false
+}
+
+function _clearCombatEngagementForTile(tile) {
+  if (
+    _combatEngagementTile
+    && tile.row === _combatEngagementTile.row
+    && tile.col === _combatEngagementTile.col
+  ) {
+    _combatEngagementTile = null
+    _syncCombatEngagementDom()
+  }
+}
+
+function _clearAllCombatEngagement() {
+  _combatEngagementTile = null
+  _syncCombatEngagementDom()
+}
+
+/** True while the focused enemy is still alive (clears stale refs). */
+function _isCombatCommitmentLocked() {
+  if (!_combatEngagementTile) return false
+  const t = TileEngine.getTile(_combatEngagementTile.row, _combatEngagementTile.col)
+  if (t?.enemyData && !t.enemyData._slain) return true
+  _combatEngagementTile = null
+  _syncCombatEngagementDom()
+  return false
+}
+
+/** Melee / single-target attacks: only the engaged enemy, unless engagement is stale/cleared. */
+function _canAttackEnemy(tile) {
+  if (!_combatEngagementTile) return true
+  const cur = TileEngine.getTile(_combatEngagementTile.row, _combatEngagementTile.col)
+  if (!cur?.enemyData || cur.enemyData._slain) {
+    _combatEngagementTile = null
+    _syncCombatEngagementDom()
+    return true
+  }
+  return tile.row === _combatEngagementTile.row && tile.col === _combatEngagementTile.col
+}
+
+/** Temporarily clear focus so Slam / Ricochet / Triple Volley can hit any targets; pair with restore after the ability finishes. */
+function _suspendCombatEngagementForMultiTargetAbility() {
+  const saved = _combatEngagementTile ? { ..._combatEngagementTile } : null
+  _combatEngagementTile = null
+  _syncCombatEngagementDom()
+  return saved
+}
+
+function _restoreCombatEngagementAfterMultiTargetAbility(saved) {
+  if (!saved) return
+  const t = TileEngine.getTile(saved.row, saved.col)
+  if (t?.enemyData && !t.enemyData._slain) {
+    _combatEngagementTile = { row: saved.row, col: saved.col }
+    _syncCombatEngagementDom()
+  }
+}
 
 // ── Angry Onion helpers ───────────────────────────────────────
 
@@ -1319,7 +1538,19 @@ function onTileTap(row, col) {
   _syncAllUnrevealedLockedDom()
 
   if (state === States.FLOOR_EXPLORE && _engineerConstructSelecting && _charKey() === 'engineer') {
-    if (_handleEngineerConstructTileTap(tile)) return
+    const isLivingEnemyTap = tile.revealed && tile.enemyData && !tile.enemyData._slain
+    if (!isLivingEnemyTap) {
+      if (_isCombatCommitmentLocked()) {
+        const tr = run.turret
+        const onTurret = tr && tile.row === tr.row && tile.col === tr.col
+        const emptyBuild = tile.revealed && tile.type === 'empty' && !tile.locked
+        if (!onTurret && !emptyBuild) {
+          UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
+          return
+        }
+      }
+      if (_handleEngineerConstructTileTap(tile)) return
+    }
   }
 
   // Spell targeting mode: only enemy taps fire; everything else ignored
@@ -1335,6 +1566,11 @@ function onTileTap(row, col) {
     _throwingKnifeTargeting = false
     UI.setMessage('')
     if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      if (!_canAttackEnemy(tile)) {
+        UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
+        return
+      }
+      _setCombatEngagement(tile)
       const dmg = 3
       tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - dmg)
       UI.spawnFloat(tile.element, `🗡️ ${dmg}`, 'damage')
@@ -1357,6 +1593,11 @@ function onTileTap(row, col) {
     _twinBladesTargeting = false
     UI.setMessage('')
     if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      if (!_canAttackEnemy(tile)) {
+        UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
+        return
+      }
+      _setCombatEngagement(tile)
       const dmg = 5
       tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - dmg)
       UI.spawnFloat(tile.element, `⚔️ ${dmg}`, 'damage')
@@ -1379,6 +1620,11 @@ function onTileTap(row, col) {
     _rustyNailTargeting = false
     UI.setMessage('')
     if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      if (!_canAttackEnemy(tile)) {
+        UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
+        return
+      }
+      _setCombatEngagement(tile)
       tile.enemyData.poisonTurns = (tile.enemyData.poisonTurns ?? 0) + 5
       tile.enemyData.nailPoison  = true
       UI.spawnFloat(tile.element, '📌 Poisoned!', 'damage')
@@ -1391,16 +1637,38 @@ function onTileTap(row, col) {
   // Lantern targeting: any unrevealed tile (ignores reachable restriction)
   if (_lanternTargeting) {
     if (!tile.revealed) {
+      if (_isCombatCommitmentLocked()) {
+        UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
+        return
+      }
       _useLanternOn(tile)
+      return
     }
-    return
+    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      _lanternTargeting = false
+      UI.setLanternTargeting(false)
+      // Fall through — melee the enemy
+    } else {
+      return
+    }
   }
 
   if (_spyglassTargeting) {
     if (!tile.revealed) {
+      if (_isCombatCommitmentLocked()) {
+        UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
+        return
+      }
       _useSpyglassOn(tile)
+      return
     }
-    return
+    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      _spyglassTargeting = false
+      UI.setLanternTargeting(false)
+      // Fall through — melee the enemy
+    } else {
+      return
+    }
   }
 
   // Blinding Light targeting: revealed living enemy
@@ -1489,13 +1757,28 @@ function onTileTap(row, col) {
   }
 
   if (state === States.FLOOR_EXPLORE) {
+    const floorCombatLocked = _isCombatCommitmentLocked()
+    const tileIsLivingEnemy = tile.revealed && tile.enemyData && !tile.enemyData._slain
+
+    if (floorCombatLocked && !tileIsLivingEnemy) {
+      if (!tile.revealed && !tile.locked && tile.reachable) {
+        UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
+        return
+      }
+      if (tile.revealed) {
+        UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
+        return
+      }
+      return
+    }
+
     // Eagle Eye: one free flip to any unrevealed unlocked tile after a kill
-    if (!tile.revealed && !tile.locked && run.player.eagleEyeFreeFlip) {
+    if (!_combatBusy && !tile.revealed && !tile.locked && run.player.eagleEyeFreeFlip) {
       run.player.eagleEyeFreeFlip = false
       revealTile(tile)
       return
     }
-    if (!tile.revealed && !tile.locked && tile.reachable) {
+    if (!_combatBusy && !tile.revealed && !tile.locked && tile.reachable) {
       _hapticVibrate(15)
       revealTile(tile)
     } else if (tile.revealed && tile.type === 'chest' && tile.chestReady && !tile.chestLooted) {
@@ -2101,6 +2384,7 @@ function _resolveEffect(tile) {
         UI.showRetreat()
         EventBus.emit('tile:locked', {})
         if (reflexDodge) UI.spawnFloat(tile.element, '⚡ Dodged!', 'heal')
+        _setCombatEngagement(tile, { force: true })
       }
       break
     }
@@ -2148,10 +2432,14 @@ function _resolveEffect(tile) {
           const tf = r.proc ? ' Trapfinder!' : ''
           UI.setMessage(`⚡ The ${tile.enemyData.label} strikes first for ${r.dmg}!${tf} Tap to fight back.`)
         }
+        if (!GameState.is(States.DEATH)) _setCombatEngagement(tile, { force: true })
       } else if (hasLens) {
         // Abyssal Lens: normal enemies also deal 1 ambush damage
         _takeDamage(1, tile.element, false, tile.enemyData, { enemyAttack: true })
-        if (!GameState.is(States.DEATH)) UI.setMessage(`👁️ The ${tile.enemyData?.label ?? 'enemy'} senses your sight and strikes! Tap to fight.`)
+        if (!GameState.is(States.DEATH)) {
+          UI.setMessage(`👁️ The ${tile.enemyData?.label ?? 'enemy'} senses your sight and strikes! Tap to fight.`)
+          _setCombatEngagement(tile, { force: true })
+        }
       } else {
         UI.setMessage(`A ${tile.enemyData?.label ?? 'enemy'} lurks. Tap it to fight.`)
       }
@@ -2456,6 +2744,16 @@ function fightAction(tile) {
 
   // Mushroom Harvester taunt: redirect melee to a random visible Harvester
   tile = _resolveTauntTarget(tile)
+  if (!tile?.enemyData || tile.enemyData._slain) {
+    _combatBusy = false
+    return
+  }
+  if (!_canAttackEnemy(tile)) {
+    _combatBusy = false
+    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
+    return
+  }
+  _setCombatEngagement(tile)
 
   const result = CombatResolver.resolveFight(run.player, tile.enemyData)
 
@@ -2495,6 +2793,7 @@ function fightAction(tile) {
   if (_checkShieldBlock(tile)) { _combatBusy = false; return }
 
   playerDmg = _scaleOutgoingDamageToEnemy(playerDmg)
+  _gainManaFromMeleeHit(tile.element)
 
   run.player.meleeHitCount = (run.player.meleeHitCount ?? 0) + 1
   const _stormProc = run.player.inventory.some(e => e.id === 'stormcallers-fist') && run.player.meleeHitCount % 5 === 0
@@ -2709,6 +3008,8 @@ function slamAction() {
     return
   }
 
+  const savedEngagement = _suspendCombatEngagementForMultiTargetAbility()
+
   // Spend mana
   run.player.mana = Math.max(0, run.player.mana - cost)
   _markStillWaterAbilityUsed()
@@ -2740,6 +3041,7 @@ function slamAction() {
   setTimeout(() => {
     UI.setPortraitAnim('idle')
     _combatBusy = false
+    _restoreCombatEngagementAfterMultiTargetAbility(savedEngagement)
   }, targets.length * 120 + 400)
 }
 
@@ -2788,14 +3090,17 @@ function ricochetAction() {
 function _executeRicochet() {
   const cost    = _stillWaterManaCost(RANGER_UPGRADES.ricochet.manaCost + _tearyExtraCost())
   const ordered = _ricochetTiles.slice()
-  _cancelRicochetMode()
 
   const targets = ordered.filter(t => t.enemyData && !t.enemyData._slain && !t.enemyData.spellImmune)
   const immuneCount = ordered.filter(t => t.enemyData && !t.enemyData._slain && t.enemyData.spellImmune).length
   if (targets.length === 0) {
+    _cancelRicochetMode()
     UI.setMessage(immuneCount > 0 ? '🛡️ All selected enemies are immune to Ricochet!' : 'Ricochet — no valid targets left.', true)
     return
   }
+
+  const savedEngagement = _suspendCombatEngagementForMultiTargetAbility()
+  _cancelRicochetMode()
 
   run.player.mana = Math.max(0, run.player.mana - cost)
   _markStillWaterAbilityUsed()
@@ -2832,6 +3137,7 @@ function _executeRicochet() {
   setTimeout(() => {
     UI.setPortraitAnim('idle')
     _combatBusy = false
+    _restoreCombatEngagementAfterMultiTargetAbility(savedEngagement)
   }, doneMs)
 }
 
@@ -2897,6 +3203,8 @@ function _executeTripleVolley(center) {
     return
   }
 
+  const savedEngagement = _suspendCombatEngagementForMultiTargetAbility()
+
   _cancelArrowBarrageMode()
 
   run.player.mana = Math.max(0, run.player.mana - cost)
@@ -2943,6 +3251,7 @@ function _executeTripleVolley(center) {
   setTimeout(() => {
     UI.setPortraitAnim('idle')
     _combatBusy = false
+    _restoreCombatEngagementAfterMultiTargetAbility(savedEngagement)
   }, doneMs)
 }
 
@@ -2983,6 +3292,12 @@ function _executePoisonArrowShot(tile) {
     return
   }
 
+  if (!_canAttackEnemy(tile)) {
+    _cancelPoisonArrowShotMode()
+    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
+    return
+  }
+
   const row = tile.row
   const col = tile.col
   _cancelPoisonArrowShotMode()
@@ -3001,6 +3316,8 @@ function _executePoisonArrowShot(tile) {
     _combatBusy = false
     return
   }
+
+  _setCombatEngagement(t0)
 
   UI.spawnArrow(t0.element)
   EventBus.emit('audio:play', { sfx: 'arrowShot' })
@@ -3056,6 +3373,10 @@ function lanternAction() {
   const entry = inv.find(e => e.id === 'lantern')
   if (!entry) return
   if (_combatBusy) return
+  if (_isCombatCommitmentLocked()) {
+    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
+    return
+  }
 
   _spyglassTargeting = false
   _lanternTargeting = !_lanternTargeting
@@ -3075,6 +3396,10 @@ function spyglassAction() {
   const entry = inv.find(e => e.id === 'spyglass')
   if (!entry) return
   if (_combatBusy) return
+  if (_isCombatCommitmentLocked()) {
+    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
+    return
+  }
 
   if (_spellTargeting) {
     _spellTargeting = false
@@ -3113,6 +3438,10 @@ function hourglassAction() {
   }
   if (_combatBusy) {
     UI.setMessage('Not while combat is resolving.', true)
+    return
+  }
+  if (_isCombatCommitmentLocked()) {
+    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
     return
   }
   if (GameState.is(States.LEVEL_UP)) {
@@ -3216,6 +3545,12 @@ function _castBlindingLight(tile) {
     return
   }
 
+  if (!_canAttackEnemy(tile)) {
+    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
+    return
+  }
+  _setCombatEngagement(tile)
+
   let stun = _blindingLightStunTurns()
   const isUndead = tile.enemyData?.type === 'undead'
   const isBeast  = tile.enemyData?.type === 'beast'
@@ -3310,6 +3645,12 @@ function _castDivineLightSmite(tile) {
     return
   }
 
+  if (!_canAttackEnemy(tile)) {
+    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
+    return
+  }
+  _setCombatEngagement(tile)
+
   const dmg = _scaleOutgoingDamageToEnemy(Math.max(1, Math.round(_avgMeleeDamage())))
   run.player.mana = Math.max(0, run.player.mana - cost)
   _markStillWaterAbilityUsed()
@@ -3355,6 +3696,12 @@ function _castSpell(tile) {
 
   // Ogre: 10% shield block — cancels spell entirely
   if (_checkShieldBlock(tile)) return
+
+  if (!_canAttackEnemy(tile)) {
+    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
+    return
+  }
+  _setCombatEngagement(tile)
 
   const result = CombatResolver.resolveSpell(run.player, tile.enemyData)
 
@@ -3422,6 +3769,7 @@ function _castSpell(tile) {
 
 function _endCombatVictory(tile) {
   tile.enemyData._slain = true
+  _clearCombatEngagementForTile(tile)
   // Drowned Hulk: remove crew aura from all buffed enemies on death
   if (tile.enemyData.crewBuffAura) {
     UI.setMessage('⚓ The Drowned Hulk falls — its crew weakens!')
@@ -3760,19 +4108,22 @@ function _gainGold(amount, tileEl, fromEnemy = false) {
   EventBus.emit('player:goldChange', { amount: actual, newTotal: run.player.gold })
 }
 
+/** +mana on successful melee strike (not on shield block — see fightAction). Mana ring: 10% double. */
+function _gainManaFromMeleeHit(tileEl) {
+  if (!run?.player) return
+  const add = CONFIG.player.manaPerMeleeHit ?? 0
+  if (add <= 0 || run.player.mana >= run.player.maxMana) return
+  const hasManaRing = run.player.inventory.some(e => e.id === 'mana-ring')
+  const gain = (hasManaRing && Math.random() < 0.10) ? add * 2 : add
+  run.player.mana = Math.min(run.player.maxMana, run.player.mana + gain)
+  if (hasManaRing && gain > add) {
+    UI.spawnFloat(tileEl, `+${gain}🔵`, 'mana')
+  }
+  UI.updateMana(run.player.mana, run.player.maxMana)
+}
+
 function _gainXP(amount, tileEl) {
   if (!run) return
-  const regen = CONFIG.player.manaRegenPerTile
-  if (regen > 0 && run.player.mana < run.player.maxMana) {
-    const hasManaRing = run.player.inventory.some(e => e.id === 'mana-ring')
-    const manaGain = (hasManaRing && Math.random() < 0.10) ? regen * 2 : regen
-    run.player.mana = Math.min(run.player.maxMana, run.player.mana + manaGain)
-    if (hasManaRing && manaGain > regen) {
-      UI.spawnFloat(tileEl, `+${manaGain}🔵`, 'mana')
-    }
-    UI.updateMana(run.player.mana, run.player.maxMana)
-  }
-
   run.player.xp += amount
   const needed = _xpNeeded()
   if (run.player.xp >= needed) {
@@ -4025,6 +4376,7 @@ function _die(killerData = null, opts = {}) {
 
   _spellTargeting         = false
   _combatBusy             = false
+  _clearAllCombatEngagement()
   _lanternTargeting       = false
   _spyglassTargeting      = false
   _blindingLightTargeting = false
@@ -4219,8 +4571,9 @@ async function _addToBackpack(id) {
     return
   }
   if (item.stackable) {
-    const existing = inv.find(e => e.id === id)
-    if (existing && (!item.maxStack || existing.qty < item.maxStack)) {
+    const maxS = item.maxStack ?? Number.POSITIVE_INFINITY
+    const existing = inv.find(e => e.id === id && e.qty < maxS)
+    if (existing) {
       existing.qty++
       return
     }
@@ -4292,8 +4645,8 @@ function _canAddToBackpack(id) {
   const item = ITEMS[id]
   if (!item) return false
   if (item.stackable) {
-    const existing = inv.find(e => e.id === id)
-    if (existing && (!item.maxStack || existing.qty < item.maxStack)) return true
+    const maxS = item.maxStack ?? Number.POSITIVE_INFINITY
+    if (inv.some(e => e.id === id && e.qty < maxS)) return true
   }
   return inv.length < BACKPACK_MAX_SLOTS
 }
@@ -4475,6 +4828,7 @@ function useItem(id) {
   if (effect.type === 'temporal-wick') {
     if (!run._hourglassSnapshot) { UI.setMessage('Nothing to rewind yet.', true); return }
     if (_combatBusy) { UI.setMessage('Not while combat is resolving.', true); return }
+    if (_isCombatCommitmentLocked()) { UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true); return }
     if (GameState.is(States.LEVEL_UP)) { UI.setMessage('Cannot rewind during level-up.', true); return }
     const p = run.player
     if (p.gold < 1) { UI.setMessage('You need 1 gold to use Temporal Wick.', true); return }
@@ -4493,6 +4847,10 @@ function useItem(id) {
     return
   }
   if (effect.type === 'navigators-chart') {
+    if (_isCombatCommitmentLocked()) {
+      UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
+      return
+    }
     if (run.player.navigatorsChartUsed) {
       UI.setMessage("🗺️ Navigator's Chart — already used this floor. Renews on the next floor.", true); return
     }
@@ -5410,7 +5768,10 @@ export default {
   getBalanceBotDeadlockDiagnostics,
   balanceBotRepairReachability,
   balanceBotForceUnlockAll,
-  balanceBotClearCombatBusy() { _combatBusy = false },
+  balanceBotClearCombatBusy() {
+    _combatBusy = false
+    _clearAllCombatEngagement()
+  },
   balanceBotTryWarriorAbilities,
   balanceBotTryAbilitiesPolicy,
   balanceBotDismissNpcEvent,
@@ -5422,4 +5783,5 @@ export default {
   getActiveRunInfo()  { return _save?.activeRun ?? null },
   resumeRun,
   abandonRun,
+  persistActiveRun()  { _saveActiveRun() },
 }

@@ -255,6 +255,51 @@ function generateGrid(floor = 1, opts = {}) {
   Logger.debug(`[TileEngine] Floor ${floor} grid generated (${cols}x${rows})${isBossFloor ? ' [BOSS]' : ''}`)
 }
 
+/**
+ * Replace the current grid from a saved snapshot (same dimensions as CONFIG.gridSize).
+ * Used when resuming an active run so the floor is not re-rolled.
+ */
+function importGridFromSnapshot(snapshot, floor, opts = {}) {
+  _currentFloor = floor
+  _gridMode = opts.rest ? 'rest' : 'dungeon'
+  const { cols, rows } = CONFIG.gridSize(floor, { rest: opts.rest })
+  if (!snapshot || snapshot.length !== rows || !snapshot[0] || snapshot[0].length !== cols) {
+    Logger.warn('[TileEngine] importGridFromSnapshot: dimension mismatch')
+    return false
+  }
+  _grid = []
+  for (let r = 0; r < rows; r++) {
+    _grid[r] = []
+    for (let c = 0; c < cols; c++) {
+      const st = snapshot[r][c]
+      const tile = {
+        row: r,
+        col: c,
+        type: st.type,
+        revealed: !!st.revealed,
+        locked: !!st.locked,
+        reachable: !!st.reachable,
+        enemyData: st.enemyData ? JSON.parse(JSON.stringify(st.enemyData)) : null,
+        itemData: st.itemData ? JSON.parse(JSON.stringify(st.itemData)) : null,
+        chestLoot: st.chestLoot ? JSON.parse(JSON.stringify(st.chestLoot)) : null,
+        chestReady: st.chestReady,
+        chestLooted: st.chestLooted,
+        magicChestReady: st.magicChestReady,
+        pendingLoot: st.pendingLoot ? JSON.parse(JSON.stringify(st.pendingLoot)) : null,
+        exitResolved: st.exitResolved,
+        eventResolved: st.eventResolved,
+        ropeResolved: st.ropeResolved,
+        forgeUsed: st.forgeUsed,
+        echoHintCategory: st.echoHintCategory ?? null,
+        element: null,
+      }
+      _grid[r][c] = tile
+    }
+  }
+  Logger.debug(`[TileEngine] Grid imported from snapshot (${cols}x${rows})`)
+  return true
+}
+
 function _createTileWithEnemy(type, row, col, floor) {
   const def = TILE_DEFS[type]
   if (!def) return createTile('empty', row, col, floor)
@@ -547,6 +592,7 @@ function getCurrentFloor() { return _currentFloor }
 
 export default {
   generateGrid,
+  importGridFromSnapshot,
   renderGrid,
   flipTile,
   lockAdjacent,

@@ -199,6 +199,15 @@ async function boot() {
   GameController.init(save)
   UI.refreshSkipFloorButton(save)
 
+  document.addEventListener('pagehide', () => {
+    try { GameController.persistActiveRun() } catch (_) { /* ignore */ }
+  })
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      try { GameController.persistActiveRun() } catch (_) { /* ignore */ }
+    }
+  })
+
   EventBus.on('inventory:changed', () => {
     const ov = document.getElementById('backpack-overlay')
     if (ov?.classList.contains('is-open')) _renderBackpack()

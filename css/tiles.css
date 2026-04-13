@@ -733,6 +733,24 @@ body.tile-colors .tile-front.type-rope {
   box-shadow: inset 0 0 10px rgba(160,0,0,0.3), 0 0 6px rgba(140,0,0,0.2);
 }
 
+/* Combat commitment — player is locked in with this enemy (melee / ambush / ability) */
+.tile.combat-engaged {
+  position: relative;
+  z-index: 3;
+  outline: 3px solid #e02020;
+  outline-offset: -2px;
+  border-radius: inherit;
+  box-shadow:
+    0 0 0 1px rgba(40, 0, 0, 0.5),
+    0 0 14px rgba(220, 40, 40, 0.75);
+}
+
+.tile.combat-engaged .tile-front {
+  box-shadow:
+    inset 0 0 14px rgba(200, 30, 30, 0.45),
+    0 0 10px rgba(200, 40, 40, 0.5);
+}
+
 /* Active combat — enemy tile tappable (tap = fight action) */
 .tile.active-combat {
   pointer-events: all !important;

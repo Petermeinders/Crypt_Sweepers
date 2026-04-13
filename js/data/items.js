@@ -41,7 +41,7 @@ export const ITEMS = {
     blurb:     'Crossed hammer and wrench — just enough kit to tune an edge before the next fight.',
     details: [
       { icon: '⚔️', label: 'Effect',  desc: '+1 attack damage for the rest of this run' },
-      { icon: '📦', label: 'Chest',   desc: '~5% chance from chests; consumed on find; stacks each find' },
+      { icon: '📦', label: 'Chest',   desc: '~1% chance from normal or magic chests; consumed on find' },
     ],
     effect: { type: 'instant-damage-up', amount: 1 },
   },
@@ -85,8 +85,8 @@ export const ITEMS = {
     stackable: false,
     blurb:     'An ornate silver band threaded with arcane wire. The inscription reads: "to the attentive, twice the power."',
     details: [
-      { icon: '💍', label: 'Passive', desc: '10% chance to gain double mana when a tile is flipped' },
-      { icon: '🔵', label: 'Effect',  desc: 'Normally +1 mana per tile; ring procs give +2 instead' },
+      { icon: '💍', label: 'Passive', desc: '10% chance to gain double mana on each melee hit in combat' },
+      { icon: '🔵', label: 'Effect',  desc: 'Each melee hit restores mana; ring procs restore twice as much' },
       { icon: '🎲', label: 'Rare',    desc: '2% chance to appear in chests' },
     ],
     effect: { type: 'passive-mana-ring' },

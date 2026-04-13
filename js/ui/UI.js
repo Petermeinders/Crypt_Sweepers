@@ -1016,7 +1016,7 @@ const UI = {
 
   /** Boss defeated — stairs replace tile (no ashes / spirit). */
   markBossTileAsExit(tileEl) {
-    tileEl.classList.remove('active-combat', 'enemy-alive', 'is-enemy')
+    tileEl.classList.remove('active-combat', 'combat-engaged', 'enemy-alive', 'is-enemy')
     tileEl.classList.remove('tile-type-boss')
     tileEl.classList.add('tile-type-exit')
     tileEl.style.pointerEvents = ''
@@ -1041,7 +1041,7 @@ const UI = {
   },
 
   markTileSlain(tileEl) {
-    tileEl.classList.remove('active-combat', 'enemy-alive')
+    tileEl.classList.remove('active-combat', 'combat-engaged', 'enemy-alive')
     tileEl.style.pointerEvents = ''
     const front = tileEl.querySelector('.tile-front')
     front.className = 'tile-front type-slain'
@@ -1085,6 +1085,11 @@ const UI = {
 
   setTileActiveCombat(tileEl, isActive) {
     tileEl.classList.toggle('active-combat', isActive)
+  },
+
+  /** Red border — player is in combat commitment with this living enemy. */
+  setTileCombatEngaged(tileEl, isEngaged) {
+    tileEl.classList.toggle('combat-engaged', !!isEngaged)
   },
 
   /**

@@ -93,9 +93,16 @@ function onTileTap(row, col) {
 ---
 
 ### 3. Tap the enemy tile to fight (no Fight button)
-The revealed enemy tile IS the fight action. In `COMBAT` state, tapping the enemy tile
-again triggers the fight action. The action panel shows **Spell** and **Flee** only.
-**Why:** Core UX — "Interaction Fidelity First" design pillar.
+The revealed enemy tile IS the fight action. **Combat commitment** (no exploration/chests/etc.)
+applies only after you **melee or ability-attack** an enemy, or after an **ambush** on reveal
+(fast enemy / lens strike / etc.) — see `_combatEngagementTile` and `_isCombatCommitmentLocked()` in `GameController.js`; only one focused enemy (no swapping until it dies; ambush uses `force`).
+**Slam / Ricochet / Triple Volley** temporarily suspend focus so they can hit all targets, then restore the prior focus if that enemy still lives (`_suspendCombatEngagementForMultiTargetAbility` / `_restoreCombatEngagementAfterMultiTargetAbility`).
+Merely revealing a normal enemy (no ambush) does not lock the floor.
+Separately, `_combatBusy` is true only during short combat animations so inputs do not double-fire.
+There is **no** per-encounter Flee; the run-level **Retreat** (dungeon exit) is separate. **Mana**
+refills from successful **melee** hits on enemies, not from flipping tiles (see
+`CONFIG.player.manaPerMeleeHit` / `manaRegenPerTile`).
+**Why:** Core UX — "Interaction Fidelity First" design pillar and GDD combat commitment.
 
 ---
 
