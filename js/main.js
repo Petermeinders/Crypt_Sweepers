@@ -181,6 +181,19 @@ async function boot() {
     save.selectedCharacter = 'warrior'
   }
 
+  const urlParams = new URLSearchParams(typeof location !== 'undefined' ? location.search : '')
+  const hasBalanceBot = urlParams.has('balanceBot')
+  const balanceBotPreset =
+    urlParams.get('balanceBotPreset') ||
+    (urlParams.has('balanceBotBeginner') ? 'beginner' : null) ||
+    (urlParams.has('balanceBotEnd') ? 'end' : null)
+
+  if (hasBalanceBot && (balanceBotPreset === 'beginner' || balanceBotPreset === 'end')) {
+    const { applyBalanceBotSavePreset } = await import('./dev/balanceBotSavePresets.js')
+    applyBalanceBotSavePreset(save, balanceBotPreset)
+    await SaveManager.save(save)
+  }
+
   GameController.init(save)
   UI.refreshSkipFloorButton(save)
 
@@ -443,7 +456,9 @@ async function boot() {
   })
   document.getElementById('retreat-confirm-yes').addEventListener('click', () => {
     document.getElementById('retreat-confirm').classList.add('hidden')
-    GameController.doRetreat()
+    const reason = window.__balanceBotRetreatReason || 'player'
+    window.__balanceBotRetreatReason = undefined
+    GameController.doRetreat(reason)
   })
   document.getElementById('retreat-confirm-no').addEventListener('click', () => {
     document.getElementById('retreat-confirm').classList.add('hidden')
@@ -646,9 +661,48 @@ async function boot() {
   UI.setActiveDifficulty(save.settings.difficulty)
   EventBus.emit('audio:music', { track: 'menu' })
   if (GameController.hasActiveRun()) {
-    GameController.resumeRun()
+    if (hasBalanceBot) {
+      GameController.abandonRun()
+      UI.showMainMenu()
+    } else {
+      GameController.resumeRun()
+    }
   } else {
     UI.showMainMenu()
+  }
+
+  if (hasBalanceBot) {
+    const policy = urlParams.get('policy') || 'random'
+    let levelUpWeights = null
+    const lw = urlParams.get('levelUpWeights')
+    if (lw) {
+      try {
+        levelUpWeights = JSON.parse(decodeURIComponent(lw))
+      } catch (_) {
+        levelUpWeights = null
+      }
+    }
+    if (balanceBotPreset === 'end' && levelUpWeights == null) {
+      levelUpWeights = { vitality: 1000 }
+    }
+    let abilityWeights = null
+    const aw = urlParams.get('abilityWeights')
+    if (aw) {
+      try {
+        abilityWeights = JSON.parse(decodeURIComponent(aw))
+      } catch (_) {
+        abilityWeights = null
+      }
+    }
+    import('./dev/balanceBotAutopilot.js').then(m => {
+      m.startBalanceBotAutopilot({
+        runs: parseInt(urlParams.get('runs') ?? '10', 10) || 1,
+        policy,
+        preset: balanceBotPreset ?? undefined,
+        levelUpWeights: levelUpWeights ?? undefined,
+        abilityWeights: abilityWeights ?? undefined,
+      })
+    })
   }
 
   Logger.debug('[main] boot complete')

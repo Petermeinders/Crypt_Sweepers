@@ -73,10 +73,10 @@ export const GLOBAL_PASSIVE_UPGRADES = {
   },
   'endurance': {
     name:   'Endurance',
-    desc:   'Start each run with +6 fight damage.',
+    desc:   'Start each run with +2 fight damage.',
     icon:   '⚔️',
     goldCost: 70,
-    effect: { type: 'bonus-damage', amount: 6 },
+    effect: { type: 'bonus-damage', amount: 2 },
   },
   'mana-reservoir': {
     name:   'Mana Reservoir',

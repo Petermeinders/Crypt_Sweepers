@@ -199,18 +199,46 @@
   box-shadow: 0 0 3px 3px rgba(0, 0, 0, 0.75);
 }
 
-/* Locked by monster + not reachable: dark + X */
+/* Locked by monster: dark + X — pure CSS (no extra HTTP; old PNG confused “stuck at last GET” in server logs) */
 .tile.locked .tile-back::after {
   background:
-    url('../assets/sprites/Items/x.png') center/52% no-repeat,
-    rgba(0,0,0,0.62);
+    linear-gradient(
+      45deg,
+      transparent 44%,
+      rgba(210, 55, 55, 0.92) 46%,
+      rgba(210, 55, 55, 0.92) 54%,
+      transparent 56%
+    ),
+    linear-gradient(
+      -45deg,
+      transparent 44%,
+      rgba(210, 55, 55, 0.92) 46%,
+      rgba(210, 55, 55, 0.92) 54%,
+      transparent 56%
+    ),
+    rgba(0, 0, 0, 0.62);
+  background-size: 100% 100%, 100% 100%, 100% 100%;
 }
 
 /* Locked by monster + reachable: lit + X */
 .tile.reachable.locked .tile-back::after {
   background:
-    url('../assets/sprites/Items/x.png') center/52% no-repeat,
-    rgba(0,0,0,0.08);
+    linear-gradient(
+      45deg,
+      transparent 44%,
+      rgba(210, 55, 55, 0.92) 46%,
+      rgba(210, 55, 55, 0.92) 54%,
+      transparent 56%
+    ),
+    linear-gradient(
+      -45deg,
+      transparent 44%,
+      rgba(210, 55, 55, 0.92) 46%,
+      rgba(210, 55, 55, 0.92) 54%,
+      transparent 56%
+    ),
+    rgba(0, 0, 0, 0.08);
+  background-size: 100% 100%, 100% 100%, 100% 100%;
 }
 
 /* Front face — revealed content (floor art + type tint) */

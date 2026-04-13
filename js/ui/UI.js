@@ -1087,9 +1087,32 @@ const UI = {
     tileEl.classList.toggle('active-combat', isActive)
   },
 
+  /**
+   * Live enemy HP on the tile. Central place to fix NaN/undefined drift for every enemy type
+   * (boss, normal, summons) — callers may pass bad values; we sync `tile.enemyData.currentHP`.
+   */
   updateEnemyHP(tileEl, newHP) {
     const hpEl = tileEl?.querySelector('.stat-hp')
-    if (hpEl) hpEl.textContent = `❤️ ${newHP}`
+    if (!hpEl) return
+    const row = tileEl?.dataset?.row
+    const col = tileEl?.dataset?.col
+    const tile =
+      row != null && col != null ? TileEngine.getTile(Number(row), Number(col)) : null
+    const e = tile?.enemyData
+    let n = Number(newHP)
+    if (e && !Number.isFinite(n)) {
+      const maxHp = Number(e.hp)
+      const cur = Number(e.currentHP)
+      n = Number.isFinite(cur)
+        ? Math.max(0, Math.floor(cur))
+        : (Number.isFinite(maxHp) ? maxHp : 1)
+    } else if (!Number.isFinite(n)) {
+      n = 0
+    } else {
+      n = Math.max(0, Math.floor(n))
+    }
+    if (e) e.currentHP = n
+    hpEl.textContent = `❤️ ${n}`
   },
 
   shakeTile(tileEl) {
@@ -1428,6 +1451,7 @@ const UI = {
     for (const choice of choices) {
       const card = document.createElement('div')
       card.className = 'ability-card'
+      if (choice.id != null) card.dataset.abilityId = String(choice.id)
       const hasSprite = choice.iconSrc && choice.iconBgSrc
       const iconHtml = hasSprite
         ? `<div class="levelup-ability-icon-wrap">
@@ -1864,6 +1888,12 @@ const UI = {
   hideEventOverlays() {
     ;[el.merchantShopOverlay, el.gamblerOverlay, el.tripleChestOverlay, el.storyEventOverlay, el.trinketTraderOverlay]
       .forEach(o => o?.classList.add('hidden'))
+    // Story: outcome "Continue" can outlive the overlay if dismissed without clicking (e.g. bot / session close).
+    const storyContinue = el.storyEventOverlay?.querySelector('#story-event-continue')
+    if (storyContinue) {
+      storyContinue.classList.add('hidden')
+      storyContinue.onclick = null
+    }
   },
 
   // Merchant shop
@@ -2028,6 +2058,11 @@ const UI = {
   showStoryEvent(scenario, onChoice) {
     const ov = el.storyEventOverlay
     if (!ov) return
+    const continueEl = ov.querySelector('#story-event-continue')
+    if (continueEl) {
+      continueEl.classList.add('hidden')
+      continueEl.onclick = null
+    }
     const titleEl = ov.querySelector('#story-event-title')
     const textEl  = ov.querySelector('#story-event-text')
     const choicesEl = ov.querySelector('#story-event-choices')

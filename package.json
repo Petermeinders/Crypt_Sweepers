@@ -8,13 +8,19 @@
   },
   "scripts": {
     "start": "npx --yes serve@14 . -p 3456",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test tests/**/*.test.mjs",
+    "balance-report": "node scripts/balance-report.mjs",
+    "balance-bot": "node scripts/balance-bot-batch.mjs",
+    "balance-bot:once": "node scripts/balance-bot-batch.mjs 1",
+    "balance-bot:beginner": "node scripts/balance-bot-batch.mjs 20 beginner",
+    "balance-bot:end": "node scripts/balance-bot-batch.mjs 20 end"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "devDependencies": {
+    "playwright": "^1.49.1",
     "sharp": "^0.34.5"
   },
   "dependencies": {

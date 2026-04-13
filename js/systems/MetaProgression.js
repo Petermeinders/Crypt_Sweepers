@@ -135,10 +135,12 @@ function applyToPlayer(player, save) {
     const { effect } = def
     switch (effect.type) {
       case 'bonus-hp-this-run':
-        player.hp = Math.min(player.maxHp, player.hp + effect.amount)
+        player.maxHp += effect.amount
+        player.hp    += effect.amount
         break
       case 'bonus-mana-this-run':
-        player.mana = Math.min(player.maxMana, player.mana + effect.amount)
+        player.maxMana += effect.amount
+        player.mana   += effect.amount
         break
       case 'bonus-starting-gold-run':
         player.gold += effect.amount

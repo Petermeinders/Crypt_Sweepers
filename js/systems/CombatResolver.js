@@ -7,14 +7,24 @@ import Logger    from '../core/Logger.js'
 // GameController calls these and handles state changes + UI updates.
 
 function rand(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min
+  const lo = Number(min)
+  const hi = Number(max)
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return 1
+  const a = Math.min(lo, hi)
+  const b = Math.max(lo, hi)
+  return Math.floor(Math.random() * (b - a + 1)) + a
 }
 
 // Returns { enemyDmg, playerDmg, goldDrop, xpDrop, message }
 function resolveFight(player, enemyData) {
   // Enemy per-hit damage: fixed when tile was revealed (hitDamage); else roll from range (defensive fallback)
-  const [dmgMin, dmgMax] = enemyData?.dmg ?? CONFIG.enemy.damage
-  const enemyDmg = typeof enemyData?.hitDamage === 'number'
+  const rawDmg = enemyData?.dmg ?? CONFIG.enemy.damage
+  const [lo0, hi0] = Array.isArray(rawDmg) && rawDmg.length >= 2
+    ? rawDmg
+    : (Array.isArray(rawDmg) && rawDmg.length === 1 ? [rawDmg[0], rawDmg[0]] : CONFIG.enemy.damage)
+  const dmgMin = Number(lo0)
+  const dmgMax = Number(hi0)
+  const enemyDmg = typeof enemyData?.hitDamage === 'number' && Number.isFinite(enemyData.hitDamage)
     ? enemyData.hitDamage
     : rand(dmgMin, dmgMax)
   const bonus = player.damageBonus ?? 0
@@ -36,10 +46,13 @@ function resolveFight(player, enemyData) {
   const goldDrop = 1
   const xpDrop   = enemyData?.xpDrop ?? 5
 
-  Logger.debug(`[CombatResolver] fight — enemy:${enemyDmg}, player:${playerDmg}, gold:${goldDrop}`)
+  const safePlayerDmg = Number.isFinite(playerDmg) ? Math.max(0, Math.floor(playerDmg)) : 1
+  const safeEnemyDmg = Number.isFinite(enemyDmg) ? Math.max(0, Math.floor(enemyDmg)) : 1
 
-  return { enemyDmg, playerDmg, goldDrop, xpDrop,
-    message: `You strike for ${playerDmg}! Enemy slain. +${goldDrop} gold.` }
+  Logger.debug(`[CombatResolver] fight — enemy:${safeEnemyDmg}, player:${safePlayerDmg}, gold:${goldDrop}`)
+
+  return { enemyDmg: safeEnemyDmg, playerDmg: safePlayerDmg, goldDrop, xpDrop,
+    message: `You strike for ${safePlayerDmg}! Enemy slain. +${goldDrop} gold.` }
 }
 
 // Returns { manaCost, damage, goldDrop, xpDrop } or { error }
@@ -70,12 +83,16 @@ function resolveFlee() {
 
 // Fast enemy: hits on reveal before combat starts. Returns { dmg }
 function resolveFastReveal(enemyData) {
-  const [dmgMin, dmgMax] = enemyData?.dmg ?? CONFIG.enemy.fastDamage
-  const dmg = typeof enemyData?.hitDamage === 'number'
+  const rawDmg = enemyData?.dmg ?? CONFIG.enemy.fastDamage
+  const [lo0, hi0] = Array.isArray(rawDmg) && rawDmg.length >= 2
+    ? rawDmg
+    : (Array.isArray(rawDmg) && rawDmg.length === 1 ? [rawDmg[0], rawDmg[0]] : CONFIG.enemy.fastDamage)
+  const dmg = typeof enemyData?.hitDamage === 'number' && Number.isFinite(enemyData.hitDamage)
     ? enemyData.hitDamage
-    : rand(dmgMin, dmgMax)
-  Logger.debug(`[CombatResolver] fast reveal hit — dmg:${dmg}`)
-  return { dmg }
+    : rand(Number(lo0), Number(hi0))
+  const safeDmg = Number.isFinite(dmg) ? Math.max(0, Math.floor(dmg)) : 1
+  Logger.debug(`[CombatResolver] fast reveal hit — dmg:${safeDmg}`)
+  return { dmg: safeDmg }
 }
 
 // Goblin Merchant dice roll. Returns the outcome entry.

@@ -21,6 +21,7 @@ npm-debug.log*
 
 # Generated / build output
 _bmad-output/
+artifacts/
 
 # Local scripts / one-off tools
 convert-audio.ps1

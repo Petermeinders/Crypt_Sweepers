@@ -9,6 +9,7 @@ import {
   ENEMY_SPRITES,
 } from '../data/tileIcons.js'
 import Logger         from '../core/Logger.js'
+import { scaleEnemyDef } from './EnemyScaling.js'
 
 // ── Grid state ───────────────────────────────────────────────
 let _grid = []
@@ -52,19 +53,10 @@ function refreshEnemyDamageOnTile(tile) {
   el.textContent = `⚔️ ${str}`
 }
 
-function _scaleEnemy(def, floor) {
-  // Scale HP and damage per floor depth
-  const hpMult  = 1 + CONFIG.enemy.floorScaleHP  * (floor - 1)
-  const dmgMult = 1 + CONFIG.enemy.floorScaleDmg * (floor - 1)
-  const hp = Math.round(def.hp * hpMult)
-  const dmg = def.dmg.map(v => Math.round(v * dmgMult))
-  return { ...def, hp, dmg, currentHP: hp }
-}
-
 function createEnemy(type, floor = 1) {
   const def = ENEMY_DEFS[type]
   if (!def) { Logger.error(`[TileEngine] Unknown enemy type: ${type}`); return null }
-  return { ..._scaleEnemy(def, floor), enemyId: type }
+  return { ...scaleEnemyDef(def, floor), enemyId: type }
 }
 
 function createTile(type, row, col, floor = 1) {
@@ -356,7 +348,8 @@ function renderGrid(gridEl, onTap, onHold) {
 
       let enemyStatsHTML = ''
       if (def.isEnemy && tile.enemyData) {
-        const hp  = tile.enemyData.currentHP ?? tile.enemyData.hp
+        const rawHp = tile.enemyData.currentHP ?? tile.enemyData.hp
+        const hp = Number.isFinite(Number(rawHp)) ? rawHp : (tile.enemyData.hp ?? '—')
         const dmg = tile.enemyData.dmg
         const dmgStr = formatEnemyDamageDisplay(dmg, tile.enemyData.hitDamage)
         enemyStatsHTML = `<div class="tile-enemy-stats">
@@ -477,7 +470,11 @@ function recomputeReachabilityFromRevealed(uiMark) {
     for (const t of row) {
       if (!t.revealed) {
         t.reachable = false
-        if (t.element) t.element.classList.remove('reachable')
+        if (t.element) {
+          t.element.classList.remove('reachable')
+          // Keep DOM in sync with model — otherwise stale `.locked` (red X) survives after unlock/repair.
+          t.element.classList.toggle('locked', !!t.locked)
+        }
       }
     }
   }
@@ -506,6 +503,42 @@ function unlockAdjacent(row, col, uiUnlock) {
   Logger.debug(`[TileEngine] Unlocked adjacent to [${row},${col}]`)
 }
 
+/**
+ * Rebuild monster-lock state for the whole grid. Use after an enemy dies: a tile can be in the
+ * ambush zone of multiple enemies — naive unlockAdjacent() would clear locks still required by
+ * another living enemy (wrong X's on the map).
+ */
+function recomputeAllEnemyLocks(uiLock, uiUnlock) {
+  for (const row of _grid) {
+    for (const t of row) {
+      if (!t.revealed && t.locked) {
+        t.locked = false
+        if (t.element) uiUnlock(t.element)
+      }
+    }
+  }
+  for (const row of _grid) {
+    for (const t of row) {
+      // Ranger passive can skip locking on reveal — must not re-lock here or X's come back wrong.
+      if (t.revealed && t.enemyData && !t.enemyData._slain && !t.enemyData.rangerSkipAdjacentLock) {
+        lockAdjacent(t.row, t.col, uiLock)
+      }
+    }
+  }
+  // Model is source of truth — force DOM to match (covers stale .locked if unlock missed an element).
+  for (const row of _grid) {
+    for (const t of row) {
+      if (!t.element) continue
+      if (t.revealed) {
+        t.locked = false
+        t.element.classList.remove('locked')
+      } else {
+        t.element.classList.toggle('locked', !!t.locked)
+      }
+    }
+  }
+}
+
 // ── Getters ──────────────────────────────────────────────────
 
 function getGrid()     { return _grid }
@@ -518,6 +551,7 @@ export default {
   flipTile,
   lockAdjacent,
   unlockAdjacent,
+  recomputeAllEnemyLocks,
   markReachable,
   recomputeReachabilityFromRevealed,
   getGrid,
