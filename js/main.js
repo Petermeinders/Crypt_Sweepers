@@ -160,6 +160,14 @@ async function boot() {
   if (save.settings.sfxOn   === undefined)    save.settings.sfxOn      = true
   if (!save.settings.cheats) save.settings.cheats = {}
   if (!save.globalPassives) save.globalPassives = []
+  {
+    const _validPassive = new Set(GLOBAL_PASSIVE_IDS)
+    const _gp = save.globalPassives.filter((id) => _validPassive.has(id))
+    if (_gp.length !== save.globalPassives.length) {
+      save.globalPassives = _gp
+      await SaveManager.save(save)
+    }
+  }
   if (!Array.isArray(save.bestiarySeen)) save.bestiarySeen = []
   document.body.classList.toggle('cheat-increase-stats', save.settings.cheats?.increaseStats === true)
 

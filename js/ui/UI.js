@@ -483,7 +483,7 @@ const UI = {
   /** Slot B — Ranger Poison Arrow (2nd unlock). Triple Volley uses slot C. */
   setPoisonArrowShotBtn(visible, manaCost = 12) {
     if (!el.hudSlotB) return
-    el.hudSlotB.classList.remove('is-poison-arrow-shot', 'is-poison-arrow-shot-active')
+    el.hudSlotB.classList.remove('is-poison-arrow-shot', 'is-poison-arrow-shot-active', 'is-blinding-light', 'is-blinding-light-active')
     if (visible) {
       el.hudSlotB.innerHTML = `
         <span class="ability-btn-wrap ability-btn-wrap--poison-arrow-shot">

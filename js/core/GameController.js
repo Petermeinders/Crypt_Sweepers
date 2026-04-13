@@ -460,6 +460,11 @@ function _restoreHourglassSnapshot(snap) {
       if (t.type === 'rope') {
         t.element.classList.toggle('rope-pending', !t.ropeResolved)
       }
+      if (t.revealed && t.enemyData && !t.enemyData._slain) {
+        UI.markTileEnemyAlive(t.element)
+      } else {
+        t.element.classList.remove('enemy-alive')
+      }
     }
   }
   UI.updateHP(run.player.hp, run.player.maxHp)
@@ -476,6 +481,7 @@ function _restoreHourglassSnapshot(snap) {
     const [d0, d1] = _playerDamageRange(run.player)
     UI.updateDamageRange(d0, d1)
   }
+  TileEngine.refreshAllThreatClueDisplays()
 }
 
 function _echoCharmCategoryForTileType(type) {
@@ -536,6 +542,12 @@ function _rangerActiveDamageMult(abilityKey) {
 
 function _refreshRangerActiveHud() {
   if (_charKey() !== 'ranger') return
+  // Clear warrior/engineer slot bindings — otherwise Blinding Light (slot B) survives from a prior Warrior run.
+  UI.setSlamBtn(false)
+  UI.setBlindingLightBtn(false)
+  UI.setDivineLightBtn(false)
+  UI.setEngineerConstructBtn(false)
+  UI.setEngineerTeslaBtn(false, 10, false)
   UI.setRicochetBtn(_isRangerActiveUnlocked('ricochet'), RANGER_UPGRADES.ricochet.manaCost)
   UI.setArrowBarrageBtn(
     _isRangerActiveUnlocked('arrow-barrage'),
@@ -1197,6 +1209,7 @@ function _startFloor() {
   _appendFloorSnapshot('floorEnter')
 
   Logger.debug(`[GameController] Floor ${run.floor} started`)
+  TileEngine.refreshAllThreatClueDisplays()
   UI.refreshSkipFloorButton(_save)
   if (run._resumeCombatEngagement) {
     const raw = run._resumeCombatEngagement
@@ -1246,6 +1259,12 @@ function _syncGridDomClassesFromModel() {
         el.classList.add('echo-hint')
         el.dataset.echoHint = t.echoHintCategory
       }
+      // .tile.revealed defaults to pointer-events:none; .enemy-alive restores taps (see tiles.css).
+      if (t.revealed && t.enemyData && !t.enemyData._slain) {
+        UI.markTileEnemyAlive(el)
+      } else {
+        el.classList.remove('enemy-alive')
+      }
     }
   }
 }
@@ -1288,6 +1307,7 @@ function _revealStartTile() {
   }
 
   _tickPoisonArrowDotOnGlobalTurn()
+  TileEngine.refreshAllThreatClueDisplays()
 }
 
 // ── Tile tap router ──────────────────────────────────────────
@@ -2106,6 +2126,7 @@ async function revealTile(tile) {
     }
   }
   _tickPoisonArrowDotOnGlobalTurn()
+  TileEngine.refreshAllThreatClueDisplays()
 }
 
 async function _maybeBestiaryDiscovery(tile) {
@@ -2361,15 +2382,24 @@ function _resolveEffect(tile) {
 
     case 'boss':
     case 'enemy_fast': {
-      const { dmg } = CombatResolver.resolveFastReveal(tile.enemyData)
-      const wardensBlock  = p.inventory.some(e => e.id === 'wardens-brand')
-      const reflexDodge   = !wardensBlock && !tile.enemyData?.isBoss && (p.reflexDodgeChance ?? 0) > 0 && Math.random() < p.reflexDodgeChance
-      if (!wardensBlock && !reflexDodge) {
-        const baseDmg = dmg + (p.inventory.some(e => e.id === 'abyssal-lens') ? 1 : 0)
-        const r = _applyRangerTrapfinderMitigation(baseDmg, p)
-        _takeDamage(r.dmg, tile.element, false, null, { enemyAttack: true })
+      // Boss tiles: no free ambush hit or forced engagement — tap the boss to start the fight.
+      const isBossTile = tile.type === 'boss'
+      let reflexDodge = false
+      if (!isBossTile) {
+        const { dmg } = CombatResolver.resolveFastReveal(tile.enemyData)
+        const wardensBlock = p.inventory.some(e => e.id === 'wardens-brand')
+        reflexDodge =
+          !wardensBlock
+          && !tile.enemyData?.isBoss
+          && (p.reflexDodgeChance ?? 0) > 0
+          && Math.random() < p.reflexDodgeChance
+        if (!wardensBlock && !reflexDodge) {
+          const baseDmg = dmg + (p.inventory.some(e => e.id === 'abyssal-lens') ? 1 : 0)
+          const r = _applyRangerTrapfinderMitigation(baseDmg, p)
+          _takeDamage(r.dmg, tile.element, false, null, { enemyAttack: true })
+        }
+        UI.shakeTile(tile.element)
       }
-      UI.shakeTile(tile.element)
       const rangerSkipLock = p.isRanger && Math.random() < RANGER_PASSIVE_SKIP_ADJ_LOCK
       if (rangerSkipLock) {
         tile.enemyData.rangerSkipAdjacentLock = true
@@ -2378,13 +2408,20 @@ function _resolveEffect(tile) {
       }
       UI.markTileEnemyAlive(tile.element)
       if (!GameState.is(States.DEATH)) {
-        const label = tile.enemyData?.isBoss ? `⚠️ BOSS: ${tile.enemyData.label}` : '⚡ Fast enemy'
-        const dodgeNote = reflexDodge ? ' Your reflexes kick in — ambush dodged!' : ''
-        UI.setMessage(`${label} strikes first!${dodgeNote} Tap it to fight.`, true)
+        if (isBossTile) {
+          UI.setMessage(
+            `⚠️ BOSS: ${tile.enemyData.label} — stands before you. Tap when ready to fight.`,
+            true,
+          )
+        } else {
+          const label = tile.enemyData?.isBoss ? `⚠️ BOSS: ${tile.enemyData.label}` : '⚡ Fast enemy'
+          const dodgeNote = reflexDodge ? ' Your reflexes kick in — ambush dodged!' : ''
+          UI.setMessage(`${label} strikes first!${dodgeNote} Tap it to fight.`, true)
+          if (reflexDodge) UI.spawnFloat(tile.element, '⚡ Dodged!', 'heal')
+          _setCombatEngagement(tile, { force: true })
+        }
         UI.showRetreat()
         EventBus.emit('tile:locked', {})
-        if (reflexDodge) UI.spawnFloat(tile.element, '⚡ Dodged!', 'heal')
-        _setCombatEngagement(tile, { force: true })
       }
       break
     }
@@ -2413,10 +2450,10 @@ function _resolveEffect(tile) {
         }
       }
 
-      // Fast enemies get a free strike the moment they're revealed
+      // Fast enemies get a free strike the moment they're revealed (bosses never ambush)
       const hasWarden = p.inventory.some(e => e.id === 'wardens-brand')
       const hasLens   = p.inventory.some(e => e.id === 'abyssal-lens')
-      if (tile.enemyData?.attributes?.includes('fast')) {
+      if (tile.enemyData?.attributes?.includes('fast') && !tile.enemyData?.isBoss) {
         const d = tile.enemyData.dmg
         const ambushDmg  = tile.enemyData.hitDamage ?? (Array.isArray(d) ? d[0] : d)
         const reflexDodge = !hasWarden && (p.reflexDodgeChance ?? 0) > 0 && Math.random() < p.reflexDodgeChance
@@ -2433,7 +2470,7 @@ function _resolveEffect(tile) {
           UI.setMessage(`⚡ The ${tile.enemyData.label} strikes first for ${r.dmg}!${tf} Tap to fight back.`)
         }
         if (!GameState.is(States.DEATH)) _setCombatEngagement(tile, { force: true })
-      } else if (hasLens) {
+      } else if (hasLens && !tile.enemyData?.isBoss) {
         // Abyssal Lens: normal enemies also deal 1 ambush damage
         _takeDamage(1, tile.element, false, tile.enemyData, { enemyAttack: true })
         if (!GameState.is(States.DEATH)) {
@@ -2846,6 +2883,11 @@ function fightAction(tile) {
   if (killsEnemy && !canSplit) {
     // Fatal blow — enemy never gets to counter
     setTimeout(() => {
+      // Spell / Slam / boss exit can resolve this kill first; boss tile clears enemyData.
+      if (!run || !tile?.enemyData || tile.enemyData._slain) {
+        _combatBusy = false
+        return
+      }
       if (run.telemetry) {
         run.telemetry.totalDamageDealtToEnemies += hpBeforeStrike
         _telemetryBumpDamageDealt(run.floor, hpBeforeStrike)
@@ -2865,6 +2907,10 @@ function fightAction(tile) {
     }, 400)
   } else if (canSplit) {
     setTimeout(() => {
+      if (!run || !tile?.enemyData || tile.enemyData._slain) {
+        _combatBusy = false
+        return
+      }
       const splitHP = Math.max(1, Math.floor(tile.enemyData.hp / 2))
       if (run.telemetry) {
         const dealt = hpBeforeStrike - splitHP
@@ -2886,6 +2932,10 @@ function fightAction(tile) {
   } else {
     setTimeout(() => {
       if (!run) { _combatBusy = false; return }
+      if (!tile?.enemyData || tile.enemyData._slain) {
+        _combatBusy = false
+        return
+      }
       if (run.telemetry) {
         const dealt = hpBeforeStrike - newEnemyHP
         run.telemetry.totalDamageDealtToEnemies += dealt
@@ -2947,7 +2997,10 @@ function fightAction(tile) {
       }
 
       setTimeout(() => {
-        if (!run || !tile.enemyData) { _combatBusy = false; return }
+        if (!run || !tile.enemyData || tile.enemyData._slain) {
+          _combatBusy = false
+          return
+        }
         _setEnemySprite(tile, 'idle')
         UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp')
         EventBus.emit('combat:damage', { amount: playerDmg, target: 'enemy' })
@@ -3866,6 +3919,7 @@ function _endCombatVictory(tile) {
 
   EventBus.emit('audio:play', { sfx: 'gold' })
   EventBus.emit('combat:end', { outcome: 'victory' })
+  TileEngine.refreshAllThreatClueDisplays()
   _checkFloorCleared()
 }
 
@@ -5178,6 +5232,19 @@ function _balanceBotUnstickOrphanTargeting() {
 }
 
 /**
+ * While combat commitment is active, only the focused enemy tile produces progress on tap
+ * (matches onTileTap + _canAttackEnemy). Returns null when not locked.
+ */
+function _balanceBotFocusedEnemyCandidatesIfCombatLocked() {
+  if (!_isCombatCommitmentLocked()) return null
+  const t = _combatEngagementTile && TileEngine.getTile(_combatEngagementTile.row, _combatEngagementTile.col)
+  if (t?.revealed && t.enemyData && !t.enemyData._slain) {
+    return [{ row: t.row, col: t.col }]
+  }
+  return []
+}
+
+/**
  * Balance bot: legal taps — targeting modes, chests, reachable tiles, enemies,
  * and progression tiles (exit / event / rope / forge) so a cleared floor still has candidates.
  * Spell / lantern / spyglass / ricochet / volley / engineer construct are handled here so the bot does not stall.
@@ -5201,10 +5268,13 @@ function getBalanceBotTapCandidates() {
   }
 
   if (_spellTargeting) {
+    const foc = _balanceBotFocusedEnemyCandidatesIfCombatLocked()
+    if (foc !== null) return foc
     return revealedEnemies()
   }
 
   if (_lanternTargeting || _spyglassTargeting) {
+    if (_isCombatCommitmentLocked()) return []
     const out = []
     for (const row of grid) {
       for (const t of row) {
@@ -5216,6 +5286,8 @@ function getBalanceBotTapCandidates() {
 
   if (_throwingKnifeTargeting || _twinBladesTargeting || _rustyNailTargeting ||
       _blindingLightTargeting || _divineLightSelecting || _poisonArrowShotSelecting) {
+    const foc = _balanceBotFocusedEnemyCandidatesIfCombatLocked()
+    if (foc !== null) return foc
     return revealedEnemies()
   }
 
@@ -5242,6 +5314,30 @@ function getBalanceBotTapCandidates() {
       }
     }
     return out
+  }
+
+  if (_isCombatCommitmentLocked()) {
+    const focusedOnly = _balanceBotFocusedEnemyCandidatesIfCombatLocked() ?? []
+    if (_engineerConstructSelecting && _charKey() === 'engineer') {
+      const merged = [...focusedOnly]
+      const seen = new Set(merged.map((c) => `${c.row},${c.col}`))
+      const tr = run.turret
+      for (const row of grid) {
+        for (const tile of row) {
+          const onTurret = tr && tile.row === tr.row && tile.col === tr.col
+          const emptyBuild = tile.revealed && tile.type === 'empty' && !tile.locked
+          if (onTurret || emptyBuild) {
+            const k = `${tile.row},${tile.col}`
+            if (!seen.has(k)) {
+              seen.add(k)
+              merged.push({ row: tile.row, col: tile.col })
+            }
+          }
+        }
+      }
+      if (merged.length) return merged
+    }
+    return focusedOnly
   }
 
   const out = []
@@ -5300,6 +5396,7 @@ function getBalanceBotTapCandidates() {
  */
 function balanceBotTryOpenRevealTool() {
   if (!run || !GameState.is(States.FLOOR_EXPLORE) || _combatBusy) return false
+  if (_isCombatCommitmentLocked()) return false
   if (_spellTargeting || _lanternTargeting || _spyglassTargeting) return false
   if (_ricochetSelecting || _arrowBarrageSelecting || _poisonArrowShotSelecting) return false
   if (_throwingKnifeTargeting || _twinBladesTargeting || _rustyNailTargeting) return false
@@ -5379,6 +5476,8 @@ function getBalanceBotDiagnostics() {
   return {
     gameState: GameState.current(),
     combatBusy: _combatBusy,
+    combatLocked: _isCombatCommitmentLocked(),
+    combatEngagement: _combatEngagementTile ? { ..._combatEngagementTile } : null,
     runActive: !!run,
     floor: run?.floor ?? null,
     tilesRevealed: run?.tilesRevealed ?? null,

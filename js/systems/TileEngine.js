@@ -56,7 +56,11 @@ function refreshEnemyDamageOnTile(tile) {
 function createEnemy(type, floor = 1) {
   const def = ENEMY_DEFS[type]
   if (!def) { Logger.error(`[TileEngine] Unknown enemy type: ${type}`); return null }
-  return { ...scaleEnemyDef(def, floor), enemyId: type }
+  const scaled = scaleEnemyDef(def, floor)
+  const threatLevel = Number.isFinite(def.threatLevel)
+    ? def.threatLevel
+    : Math.max(1, Math.min(12, scaled.xpDrop ?? 2))
+  return { ...scaled, enemyId: type, threatLevel }
 }
 
 function createTile(type, row, col, floor = 1) {
@@ -411,6 +415,7 @@ function renderGrid(gridEl, onTap, onHold) {
             ${def.isEnemy ? '' : `<span class="tile-label">${def.label}</span>`}
             ${enemyStatsHTML}
             ${hpBarHTML}
+            <span class="tile-threat-clue" aria-hidden="true"></span>
           </div>
         </div>`
 
@@ -498,6 +503,66 @@ function getOrthogonalTiles(row, col) {
   return dirs
     .map(([dr, dc]) => _grid[row + dr]?.[col + dc])
     .filter(Boolean)
+}
+
+function _enemyThreatLevelForTile(adj) {
+  if (!adj?.enemyData || adj.enemyData._slain) return 0
+  const tl = adj.enemyData.threatLevel
+  if (Number.isFinite(tl)) return tl
+  const xp = adj.enemyData.xpDrop
+  return Math.max(1, Math.min(12, Number.isFinite(xp) ? xp : 2))
+}
+
+/**
+ * Sum of orthogonal (N/E/S/W) only — adjacent living enemies' threat + trap weight per trap tile.
+ */
+function computeOrthogonalThreatSum(row, col) {
+  let sum = 0
+  const trapW = CONFIG.threatClues?.trapThreat ?? 2
+  for (const adj of getOrthogonalTiles(row, col)) {
+    sum += _enemyThreatLevelForTile(adj)
+    if (adj.type === 'trap') sum += trapW
+  }
+  return sum
+}
+
+function _tileShouldShowThreatClue(tile) {
+  if (!tile?.revealed) return false
+  if (tile.enemyData && !tile.enemyData._slain) return false
+  return true
+}
+
+/** Update clue digits on all tiles (small grids — call after any reveal or enemy death). */
+function refreshAllThreatClueDisplays() {
+  if (!CONFIG.threatClues?.enabled) {
+    for (const row of _grid) {
+      for (const t of row) {
+        const el = t.element?.querySelector('.tile-threat-clue')
+        if (el) {
+          el.textContent = ''
+          el.classList.add('hidden')
+        }
+      }
+    }
+    return
+  }
+  for (const row of _grid) {
+    for (const t of row) {
+      const clueEl = t.element?.querySelector('.tile-threat-clue')
+      if (!clueEl) continue
+      if (!_tileShouldShowThreatClue(t)) {
+        clueEl.textContent = ''
+        clueEl.classList.add('hidden')
+        clueEl.classList.remove('threat-clue-safe', 'threat-clue-risk')
+        continue
+      }
+      const sum = computeOrthogonalThreatSum(t.row, t.col)
+      clueEl.textContent = String(sum)
+      clueEl.classList.remove('hidden')
+      clueEl.classList.toggle('threat-clue-safe', sum === 0)
+      clueEl.classList.toggle('threat-clue-risk', sum > 0)
+    }
+  }
 }
 
 function markReachable(row, col, uiMark) {
@@ -607,4 +672,6 @@ export default {
   rollEnemyHitDamage,
   refreshEnemyDamageOnTile,
   getOrthogonalTiles,
+  refreshAllThreatClueDisplays,
+  computeOrthogonalThreatSum,
 }

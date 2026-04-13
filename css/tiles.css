@@ -299,6 +299,31 @@
 .tile-enemy-stats .stat-hp  { color: #ff5555; text-shadow: 0 0 5px #000, 0 1px 4px rgba(0,0,0,1); }
 .tile-enemy-stats .stat-dmg { color: #ffd040; text-shadow: 0 0 5px #000, 0 1px 4px rgba(0,0,0,1); }
 
+/* Orthogonal threat clue (enemies + trap weight) — Mamono-style, N/E/S/W only */
+.tile-front .tile-threat-clue {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  z-index: 6;
+  min-width: 1.15em;
+  text-align: center;
+  font-weight: 900;
+  font-size: clamp(0.62rem, 3.4vw, 0.92rem);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 6px rgba(0, 0, 0, 0.6);
+}
+.tile-front .tile-threat-clue.threat-clue-safe {
+  color: #8ef4a0;
+}
+.tile-front .tile-threat-clue.threat-clue-risk {
+  color: #ffc266;
+}
+.tile-front .tile-threat-clue.hidden {
+  display: none;
+}
+
 /* ── Slime split ── */
 .tile-icon-wrap.slime-split {
   display: flex;

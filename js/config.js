@@ -70,6 +70,16 @@ export const CONFIG = {
     manaOnLevelUp: 10,
   },
 
+  /**
+   * Orthogonal-adjacent threat clue on revealed non-combat tiles: sum of living enemies'
+   * threatLevel plus trapThreat for each neighboring trap (4 directions only, not diagonals).
+   */
+  threatClues: {
+    enabled: true,
+    /** Integer weight per adjacent trap tile (tuned vs CONFIG.trap.damage band). */
+    trapThreat: 2,
+  },
+
   retreat: {
     goldKeepPercent: 0.20,
   },

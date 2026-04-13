@@ -3,14 +3,12 @@
 
 export const GLOBAL_PASSIVE_IDS = [
   'courage',
-  'weapon-sharpening',
   'holy-grail',
   'trap-training',
   'reflexes',
   'iron-skin',
   'arcane-efficiency',
   'iron-will',
-  'endurance',
   'mana-reservoir',
 ]
 
@@ -21,13 +19,6 @@ export const GLOBAL_PASSIVE_UPGRADES = {
     icon:   '🦁',
     goldCost: 120,
     effect: { type: 'bonus-max-hp', amount: 10 },
-  },
-  'weapon-sharpening': {
-    name:   'Weapon Sharpening',
-    desc:   'Start each run with +1 fight damage.',
-    icon:   '🗡️',
-    goldCost: 105,
-    effect: { type: 'bonus-damage', amount: 1 },
   },
   'holy-grail': {
     name:   'Holy Grail',
@@ -70,13 +61,6 @@ export const GLOBAL_PASSIVE_UPGRADES = {
     icon:   '🔰',
     goldCost: 240,
     effect: { type: 'better-retreat', percent: 0.30 },
-  },
-  'endurance': {
-    name:   'Endurance',
-    desc:   'Start each run with +1 fight damage.',
-    icon:   '⚔️',
-    goldCost: 210,
-    effect: { type: 'bonus-damage', amount: 1 },
   },
   'mana-reservoir': {
     name:   'Mana Reservoir',

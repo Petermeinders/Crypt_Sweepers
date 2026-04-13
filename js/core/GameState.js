@@ -23,7 +23,7 @@ const TRANSITIONS = {
   [States.LEVEL_UP]:         [States.FLOOR_EXPLORE],
   [States.NPC_INTERACT]:     [States.FLOOR_EXPLORE, States.DEATH],
   [States.RETREAT_CONFIRM]:  [States.FLOOR_EXPLORE, States.BETWEEN_RUNS],
-  [States.BETWEEN_RUNS]:     [States.CHARACTER_SELECT, States.FLOOR_EXPLORE],
+  [States.BETWEEN_RUNS]:     [States.MENU, States.CHARACTER_SELECT, States.FLOOR_EXPLORE],
   [States.DEATH]:            [States.MENU, States.FLOOR_EXPLORE],
 }
 
