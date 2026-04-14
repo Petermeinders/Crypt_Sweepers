@@ -157,6 +157,227 @@ function _pickEnemyType(floor, tileType) {
     : allIds[Math.floor(Math.random() * allIds.length)]
 }
 
+// ── Sub-floor generation ─────────────────────────────────────
+
+/**
+ * Generate a standalone sub-floor grid (plain objects, no DOM).
+ * Returns { rows, cols, tiles: tile[][] } — tiles are TileEngine tile objects
+ * without .element (rendered separately by UI.renderSubFloorGrid).
+ */
+function generateSubFloor(type, mainFloor) {
+  const cfg = CONFIG.subFloor
+  switch (type) {
+    case 'mob_den':       return _genMobDen(mainFloor)
+    case 'boss_vault':    return _genBossVault(mainFloor)
+    case 'treasure_vault':return _genTreasureVault(mainFloor)
+    case 'shrine':        return _genShrine(mainFloor)
+    case 'ambush':        return _genAmbush(mainFloor)
+    case 'collapsed_tunnel': return _genCollapsedTunnel(mainFloor)
+    default:              return _genMobDen(mainFloor)
+  }
+}
+
+function _sfTile(type, row, col, floor) {
+  const base = { row, col, type, revealed: false, locked: false, enemyData: null, itemData: null, element: null, reachable: false }
+  if (TILE_DEFS[type]?.isEnemy) {
+    base.enemyData = createEnemy(_pickEnemyType(floor, type), floor)
+  }
+  return base
+}
+
+function _sfBossTile(row, col, floor) {
+  const tile = _sfTile('boss', row, col, floor)
+  return tile
+}
+
+/** Pick one normal (non-fast, non-boss) enemy type and use it for all mob tiles */
+function _pickSingleMobType(floor) {
+  const biomeId = CONFIG.biomeFor(floor)?.id ?? 'dungeon'
+  const pool = Object.keys(ENEMY_DEFS).filter(id => {
+    const d = ENEMY_DEFS[id]
+    return d.behaviour !== 'boss' && d.behaviour !== 'fast' && _enemyAllowedInBiome(id, biomeId)
+  })
+  return pool.length ? pool[Math.floor(Math.random() * pool.length)] : 'skeleton'
+}
+
+function _positivePool() {
+  return ['gold', 'gold', 'gold', 'chest', 'heart', 'empty', 'empty']
+}
+
+function _randomPositive(row, col, floor) {
+  const pool = _positivePool()
+  const type = pool[Math.floor(Math.random() * pool.length)]
+  return _sfTile(type, row, col, floor)
+}
+
+/** 4×4 mob den — one enemy type, many enemies, 1 chest, stairs at (3,3) */
+function _genMobDen(floor) {
+  const rows = 4, cols = 4
+  const mobType = _pickSingleMobType(floor)
+  const tiles = []
+  for (let r = 0; r < rows; r++) {
+    const row = []
+    for (let c = 0; c < cols; c++) {
+      row.push(null) // fill below
+    }
+    tiles.push(row)
+  }
+  // Stairs at top-left (start area) always revealed
+  tiles[0][0] = { ..._sfTile('stairs_up', 0, 0, floor), revealed: true, reachable: false }
+  // Chest guaranteed somewhere in bottom half
+  const chestR = 2 + Math.floor(Math.random() * 2)
+  const chestC = Math.floor(Math.random() * 4)
+  tiles[chestR][chestC] = _sfTile('chest', chestR, chestC, floor)
+  // Fill rest with enemies
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (tiles[r][c]) continue
+      const t = { row: r, col: c, type: 'enemy', revealed: false, locked: false, reachable: false, element: null, itemData: null }
+      t.enemyData = createEnemy(mobType, floor)
+      tiles[r][c] = t
+    }
+  }
+  // Mark reachable from start tile
+  _sfMarkReachable(tiles, rows, cols, 0, 0)
+  return { rows, cols, tiles, mobType }
+}
+
+/** 3×3 boss vault — boss at (1,0), rewards locked until boss slain, stairs at (0,0) */
+function _genBossVault(floor) {
+  const rows = 3, cols = 3
+  const tiles = []
+  for (let r = 0; r < rows; r++) tiles.push([null, null, null])
+  // Stairs top-left (revealed start)
+  tiles[0][0] = { ..._sfTile('stairs_up', 0, 0, floor), revealed: true, reachable: false }
+  // Boss directly below stairs — orthogonally reachable from start
+  tiles[1][0] = _sfBossTile(1, 0, floor)
+  tiles[1][0].isBossVaultBoss = true
+  // Fill rest with positive rewards (locked until boss dies)
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (tiles[r][c]) continue
+      tiles[r][c] = _randomPositive(r, c, floor)
+    }
+  }
+  // Lock all reward tiles; boss and stairs stay unlocked
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const t = tiles[r][c]
+      if (t.type !== 'stairs_up' && t.type !== 'boss') t.locked = true
+    }
+  }
+  _sfMarkReachable(tiles, rows, cols, 0, 0)
+  return { rows, cols, tiles }
+}
+
+/** 3×3 treasure vault — 1 trap center, rest positive, stairs at (0,0) */
+function _genTreasureVault(floor) {
+  const rows = 3, cols = 3
+  const tiles = []
+  for (let r = 0; r < rows; r++) tiles.push([null, null, null])
+  tiles[0][0] = { ..._sfTile('stairs_up', 0, 0, floor), revealed: true, reachable: false }
+  tiles[1][1] = _sfTile('trap', 1, 1, floor) // center trap
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (tiles[r][c]) continue
+      // Guarantee at least 2 chests
+      const chestsPlaced = tiles.flat().filter(t => t?.type === 'chest').length
+      const remaining = (rows * cols) - tiles.flat().filter(Boolean).length
+      const needChest = chestsPlaced < 2 && remaining <= 3
+      tiles[r][c] = needChest ? _sfTile('chest', r, c, floor) : _randomPositive(r, c, floor)
+    }
+  }
+  _sfMarkReachable(tiles, rows, cols, 0, 0)
+  return { rows, cols, tiles }
+}
+
+/** 3×3 shrine — shrine center, all surrounding empty, stairs at (0,0) */
+function _genShrine(floor) {
+  const rows = 3, cols = 3
+  const tiles = []
+  for (let r = 0; r < rows; r++) tiles.push([null, null, null])
+  tiles[0][0] = { ..._sfTile('stairs_up', 0, 0, floor), revealed: true, reachable: false }
+  tiles[1][1] = _sfTile('shrine', 1, 1, floor)
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (tiles[r][c]) continue
+      tiles[r][c] = { ..._sfTile('empty', r, c, floor), revealed: true } // all revealed, no combat
+    }
+  }
+  // Shrine tile is reachable from start
+  _sfMarkReachable(tiles, rows, cols, 0, 0)
+  return { rows, cols, tiles }
+}
+
+/** 4×4 ambush — all enemies, no chest, flavor disguises as treasure */
+function _genAmbush(floor) {
+  const rows = 4, cols = 4
+  const tiles = []
+  for (let r = 0; r < rows; r++) {
+    tiles.push([null, null, null, null])
+  }
+  tiles[0][0] = { ..._sfTile('stairs_up', 0, 0, floor), revealed: true, reachable: false }
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (tiles[r][c]) continue
+      tiles[r][c] = _sfTile('enemy', r, c, floor)
+    }
+  }
+  _sfMarkReachable(tiles, rows, cols, 0, 0)
+  return { rows, cols, tiles }
+}
+
+/** 1×6 collapsed tunnel — stairs at both ends, traps in middle, chest at far end */
+function _genCollapsedTunnel(floor) {
+  const rows = 1, cols = 6
+  const tiles = [[]]
+  // col 0: stairs up (start, revealed)
+  tiles[0][0] = { ..._sfTile('stairs_up', 0, 0, floor), revealed: true, reachable: false }
+  // cols 1–4: traps
+  for (let c = 1; c <= 4; c++) {
+    tiles[0][c] = _sfTile('trap', 0, c, floor)
+  }
+  // col 5: chest then stairs — use chest at 4, stairs at 5
+  tiles[0][4] = _sfTile('chest', 0, 4, floor)
+  tiles[0][5] = _sfTile('stairs_up', 0, 5, floor)
+  _sfMarkReachable(tiles, rows, cols, 0, 0)
+  return { rows, cols, tiles }
+}
+
+/** Orthogonal reachability seeding for sub-floor grids */
+function _sfMarkReachable(tiles, rows, cols, startR, startC) {
+  const dirs = [[-1,0],[1,0],[0,-1],[0,1]]
+  const queue = [[startR, startC]]
+  const visited = new Set([`${startR},${startC}`])
+  while (queue.length) {
+    const [r, c] = queue.shift()
+    for (const [dr, dc] of dirs) {
+      const nr = r + dr, nc = c + dc
+      if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue
+      const key = `${nr},${nc}`
+      if (visited.has(key)) continue
+      visited.add(key)
+      const t = tiles[nr]?.[nc]
+      if (!t || t.locked) continue
+      if (!t.revealed) { t.reachable = true }
+      if (t.revealed) queue.push([nr, nc])
+    }
+  }
+}
+
+/** Roll a weighted sub-floor type */
+function rollSubFloorType() {
+  const weights = CONFIG.subFloor.typeWeights
+  const types = Object.keys(weights)
+  let total = types.reduce((s, k) => s + weights[k], 0)
+  let r = Math.random() * total
+  for (const t of types) {
+    r -= weights[t]
+    if (r <= 0) return t
+  }
+  return types[0]
+}
+
 // ── Grid generation ──────────────────────────────────────────
 
 function _generateRestGrid(floor) {
@@ -674,4 +895,6 @@ export default {
   getOrthogonalTiles,
   refreshAllThreatClueDisplays,
   computeOrthogonalThreatSum,
+  generateSubFloor,
+  rollSubFloorType,
 }

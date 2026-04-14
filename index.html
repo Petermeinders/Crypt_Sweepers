@@ -63,6 +63,22 @@
 
     <div id="grid-container">
       <div id="grid"></div>
+      <!-- Sub-floor overlay lives here so it only covers the grid, not the HUD -->
+      <div id="sub-floor-overlay" class="sub-floor-overlay hidden" aria-hidden="true">
+        <div class="sub-floor-modal">
+          <div class="sub-floor-header">
+            <span class="sub-floor-icon" id="sub-floor-icon">🕳️</span>
+            <div class="sub-floor-header-text">
+              <div class="sub-floor-title" id="sub-floor-title">Hidden Chamber</div>
+              <div class="sub-floor-subtitle" id="sub-floor-subtitle"></div>
+            </div>
+          </div>
+          <div class="sub-floor-grid-wrap">
+            <div class="sub-floor-grid" id="sub-floor-grid"></div>
+          </div>
+          <div class="sub-floor-message-bar" id="sub-floor-message"></div>
+        </div>
+      </div>
       <div id="floor-banner" class="floor-banner hidden" aria-hidden="true">
         <span id="floor-banner-text" class="floor-banner-text">Floor 1</span>
       </div>
@@ -310,6 +326,31 @@
       <p class="event-blurb" id="story-event-text"></p>
       <div id="story-event-choices" class="story-event-choices"></div>
       <button id="story-event-continue" class="menu-btn primary hidden">Continue</button>
+    </div>
+  </div>
+
+
+  <!-- ── Shrine choice overlay ── -->
+  <div id="shrine-overlay" class="panel-overlay hidden" aria-hidden="true">
+    <div class="event-header-img-wrap event-header-placeholder">
+      <div class="event-header-title">🗿 Ancient Shrine</div>
+    </div>
+    <div class="event-body">
+      <p class="event-blurb" id="shrine-blurb">An ancient shrine pulses with otherworldly energy. The air smells of old blood and older gold.</p>
+      <div class="shrine-choices">
+        <button id="shrine-btn-blood" class="menu-btn primary shrine-choice-btn">
+          <span class="shrine-choice-icon">🩸</span>
+          <span class="shrine-choice-label">Offer Blood<br><small>Lose 20% max HP — gain +1 damage</small></span>
+        </button>
+        <button id="shrine-btn-gold" class="menu-btn secondary shrine-choice-btn">
+          <span class="shrine-choice-icon">🪙</span>
+          <span class="shrine-choice-label" id="shrine-gold-label">Offer Gold (50🪙)<br><small>Spend 50 gold — gain +5 max HP</small></span>
+        </button>
+        <button id="shrine-btn-leave" class="menu-btn secondary shrine-choice-btn">
+          <span class="shrine-choice-icon">🚶</span>
+          <span class="shrine-choice-label">Leave the Shrine</span>
+        </button>
+      </div>
     </div>
   </div>
 

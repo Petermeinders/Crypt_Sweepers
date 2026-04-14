@@ -3984,3 +3984,174 @@ body.bestiary-detail-open #app {
 
 /* Forge tile — spent state */
 .tile.forge-used { opacity: 0.45; filter: grayscale(0.7); }
+
+/* ── Sub-floor overlay ────────────────────────────────────── */
+.sub-floor-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 98;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: blur(3px);
+}
+.sub-floor-overlay.hidden { display: none; }
+
+.sub-floor-modal {
+  position: relative;
+  width: min(420px, 96vw);
+  max-height: 92vh;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: url('../assets/ui/subfloor-background.png') center/cover no-repeat;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.8), inset 0 0 0 2px rgba(180,140,80,0.3);
+}
+
+.sub-floor-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px 10px;
+  background: rgba(0,0,0,0.65);
+  border-bottom: 1px solid rgba(180,140,80,0.25);
+}
+
+.sub-floor-icon {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+}
+
+.sub-floor-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #e8d090;
+  letter-spacing: 0.04em;
+}
+
+.sub-floor-subtitle {
+  font-size: 0.72rem;
+  color: #9a8860;
+  margin-top: 2px;
+}
+
+.sub-floor-grid-wrap {
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+.sub-floor-grid {
+  display: grid;
+  gap: 4px;
+}
+/* Columns set dynamically by JS: grid-template-columns */
+
+.sub-floor-message-bar {
+  min-height: 36px;
+  padding: 8px 14px;
+  background: rgba(0,0,0,0.6);
+  border-top: 1px solid rgba(180,140,80,0.18);
+  font-size: 0.75rem;
+  color: #c8b87a;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* ── Sub-floor tile sizing ── */
+.sub-floor-grid .tile {
+  width: 80px;
+  height: 80px;
+  font-size: 0.65rem;
+}
+
+/* Sub-floor tile internals — clip only the faces, not the 3D container */
+.sub-floor-grid .tile-front,
+.sub-floor-grid .tile-back {
+  overflow: hidden;
+}
+
+.sub-floor-grid .tile-icon-wrap {
+  position: absolute;
+  top: 4px;
+  bottom: 22px;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sub-floor-grid .tile-icon-img {
+  width: 72%;
+  max-width: 54px;
+  height: auto;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.sub-floor-grid .tile-icon-fallback .tile-emoji {
+  font-size: 1.5rem;
+}
+
+.sub-floor-grid .tile-enemy-stats {
+  font-size: 0.52rem;
+  position: absolute;
+  bottom: 2px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+/* Enemies in sub-floor must be tappable */
+.sub-floor-grid .tile.revealed.enemy-alive {
+  pointer-events: all;
+  cursor: pointer;
+}
+
+/* ── Shrine overlay ── */
+.shrine-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.shrine-choice-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  text-align: left;
+  line-height: 1.4;
+}
+
+.shrine-choice-icon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+.shrine-choice-label small {
+  font-size: 0.7rem;
+  opacity: 0.75;
+}
+
+/* Sub-floor entry tile on main floor */
+.tile.type-sub-floor-entry .tile-face { background: #1a1210; }
+.tile.type-sub-floor-used { opacity: 0.5; filter: grayscale(0.6); }
+.tile.type-stairs-up .tile-face { background: #12181a; }
+.tile.type-shrine .tile-face { background: #1a1520; }
+
+/* Sub-floor: all revealed tiles stay tappable — handler manages logic */
+.sub-floor-grid .tile.revealed {
+  pointer-events: all;
+}
+.sub-floor-grid .tile.revealed.tile-type-stairs_up,
+.sub-floor-grid .tile.revealed.tile-type-shrine,
+.sub-floor-grid .tile.revealed.tile-type-chest {
+  cursor: pointer;
+}

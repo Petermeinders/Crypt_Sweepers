@@ -212,6 +212,10 @@ const UI = {
     el.shopGoldVal        = document.getElementById('shop-gold-val')
     el.shopCartInfo       = document.getElementById('shop-cart-info')
     el.shopList           = document.getElementById('shop-list')
+    el.subFloorOverlay      = document.getElementById('sub-floor-overlay')
+    el.subFloorGrid         = document.getElementById('sub-floor-grid')
+    el.subFloorMessage      = document.getElementById('sub-floor-message')
+    el.shrineOverlay        = document.getElementById('shrine-overlay')
     el.merchantShopOverlay  = document.getElementById('merchant-shop-overlay')
     el.gamblerOverlay       = document.getElementById('gambler-overlay')
     el.tripleChestOverlay   = document.getElementById('triple-chest-overlay')
@@ -1002,6 +1006,7 @@ const UI = {
   // ── Float text ───────────────────────────────
 
   spawnFloat(tileEl, text, type) {
+    if (!tileEl) return
     const rect = tileEl.getBoundingClientRect()
     const div = document.createElement('div')
     div.className = `float-text ${type}`
@@ -1889,6 +1894,190 @@ const UI = {
   },
 
   // ── Event overlays ────────────────────────────
+
+  // ── Sub-floor ─────────────────────────────────────────────
+
+  showSubFloor(sf, onTileTap, onHold) {
+    const ov = el.subFloorOverlay
+    const gridEl = el.subFloorGrid
+    if (!ov || !gridEl) return
+
+    const META = {
+      mob_den:          { icon: '💀', title: 'Monster Den',       subtitle: 'One type. Many claws.' },
+      boss_vault:       { icon: '☠️', title: 'Boss Vault',        subtitle: 'A single horror guards the treasure.' },
+      treasure_vault:   { icon: '💎', title: 'Treasure Vault',    subtitle: 'Riches — if you can bear the cost.' },
+      shrine:           { icon: '🗿', title: 'Ancient Shrine',    subtitle: 'An offering awaits.' },
+      ambush:           { icon: '⚠️', title: 'Hidden Chamber',    subtitle: 'Something feels wrong…' },
+      collapsed_tunnel: { icon: '🪨', title: 'Collapsed Tunnel',  subtitle: 'Unstable ground. Exit at any time.' },
+    }
+    const meta = META[sf.type] ?? { icon: '🕳️', title: 'Hidden Chamber', subtitle: '' }
+    document.getElementById('sub-floor-icon').textContent  = meta.icon
+    document.getElementById('sub-floor-title').textContent = meta.title
+    document.getElementById('sub-floor-subtitle').textContent = meta.subtitle
+
+    // Build grid
+    gridEl.innerHTML = ''
+    gridEl.style.gridTemplateColumns = `repeat(${sf.cols}, 1fr)`
+
+    for (let r = 0; r < sf.rows; r++) {
+      for (let c = 0; c < sf.cols; c++) {
+        const tile = sf.tiles[r]?.[c]
+        if (!tile) { gridEl.appendChild(document.createElement('div')); continue }
+        const tileEl = this._buildSubFloorTileEl(tile)
+        tile.element = tileEl
+        // Tap + hold detection (mirrors TileEngine.renderGrid)
+        const HOLD_MS = 380, MOVE_THRESHOLD = 8
+        let _holdTimer = null, _didHold = false, _startX = 0, _startY = 0
+        const _cancelHold = () => { if (_holdTimer) { clearTimeout(_holdTimer); _holdTimer = null } }
+        tileEl.addEventListener('pointerdown', e => {
+          _didHold = false; _startX = e.clientX; _startY = e.clientY
+          _holdTimer = setTimeout(() => { _holdTimer = null; _didHold = true; if (onHold) onHold(r, c) }, HOLD_MS)
+        })
+        tileEl.addEventListener('pointermove', e => {
+          if (!_holdTimer) return
+          const dx = e.clientX - _startX, dy = e.clientY - _startY
+          if (dx * dx + dy * dy > MOVE_THRESHOLD * MOVE_THRESHOLD) _cancelHold()
+        })
+        tileEl.addEventListener('pointerup', _cancelHold)
+        tileEl.addEventListener('pointercancel', _cancelHold)
+        tileEl.addEventListener('contextmenu', e => e.preventDefault())
+        tileEl.addEventListener('click', () => { if (!_didHold) onTileTap(r, c) })
+        tileEl.addEventListener('touchend', e => {
+          e.preventDefault(); if (!_didHold) onTileTap(r, c); _didHold = false
+        }, { passive: false })
+        gridEl.appendChild(tileEl)
+      }
+    }
+
+    ov.classList.remove('hidden')
+    ov.removeAttribute('aria-hidden')
+  },
+
+  _sfTileFrontHTML(tile) {
+    if (tile.type === 'empty') return '<span class="tile-icon-wrap"></span>'
+    // Enemy tiles — use GIF sprite
+    if (tile.enemyData) {
+      const emoji = tile.enemyData.emoji ?? '💀'
+      const sprites = ENEMY_SPRITES[tile.enemyData.enemyId]
+      const gifSrc = sprites?.idle ? `${MONSTER_ICONS_BASE}${sprites.idle}?t=${Date.now()}` : null
+      const hp = tile.enemyData.currentHP ?? tile.enemyData.hp
+      const dmg = tile.enemyData.hitDamage ?? (Array.isArray(tile.enemyData.dmg) ? tile.enemyData.dmg[0] : tile.enemyData.dmg) ?? '?'
+      const iconHTML = gifSrc
+        ? `<span class="tile-icon-wrap"><img class="tile-icon-img" src="${gifSrc}" alt="" decoding="async" draggable="false"/></span>`
+        : `<span class="tile-icon-wrap tile-icon-fallback"><span class="tile-emoji">${emoji}</span></span>`
+      return `${iconHTML}<div class="tile-enemy-stats"><span class="stat-hp">❤️ ${hp}</span><span class="stat-dmg">⚔️ ${dmg}</span></div>`
+    }
+    // Non-enemy tiles — use the same icon files as the main grid
+    const iconFile = TILE_TYPE_ICON_FILES[tile.type]
+    if (iconFile) {
+      const src = ITEM_ICONS_BASE + iconFile
+      const FALLBACK_EMOJI = { stairs_up: '🪜', shrine: '🗿', gold: '🪙', heart: '❤️', trap: '🕸️', chest: '📦' }
+      const fallback = FALLBACK_EMOJI[tile.type] ?? '❓'
+      return `<span class="tile-icon-wrap"><img class="tile-icon-img" src="${src}" alt="" decoding="async" draggable="false" onerror="this.parentNode.innerHTML='<span class=\\"tile-emoji\\">${fallback}</span>';this.parentNode.classList.add('tile-icon-fallback')"/></span>`
+    }
+    // Fallback emoji
+    const EMOJI = { stairs_up: '🪜', shrine: '🗿', gold: '🪙', heart: '❤️', trap: '🕸️', chest: '📦' }
+    const emoji = EMOJI[tile.type] ?? '❓'
+    return `<span class="tile-icon-wrap tile-icon-fallback"><span class="tile-emoji">${emoji}</span></span>`
+  },
+
+  _buildSubFloorTileEl(tile) {
+    const el = document.createElement('div')
+    el.className = 'tile'
+    el.dataset.row = tile.row
+    el.dataset.col = tile.col
+    if (tile.revealed) el.classList.add('revealed')
+    if (tile.locked)   el.classList.add('locked')
+    if (tile.reachable && !tile.revealed) el.classList.add('reachable')
+    // Always allow pointer events — sub-floor manages its own tap logic
+    el.style.pointerEvents = 'all'
+
+    // Front face
+    const front = document.createElement('div')
+    front.className = 'tile-front'
+    if (tile.revealed) {
+      if (tile.enemyData?._slain) {
+        front.className = 'tile-front type-slain'
+        front.innerHTML = '<span class="tile-icon-wrap tile-icon-fallback"><span class="tile-emoji">💨</span></span>'
+        el.style.pointerEvents = 'none'
+      } else {
+        front.className += ` tile-type-${tile.type}`
+        front.innerHTML = this._sfTileFrontHTML(tile)
+        if (tile.enemyData && !tile.enemyData._slain) el.classList.add('enemy-alive')
+      }
+    } else {
+      front.className += ' tile-type-unrevealed-sf'
+    }
+
+    // Back face (unflipped)
+    const inner = document.createElement('div')
+    inner.className = 'tile-inner'
+    const back = document.createElement('div')
+    back.className = 'tile-back'
+    inner.appendChild(back)
+    inner.appendChild(front)
+    el.appendChild(inner)
+    return el
+  },
+
+  flipSubFloorTile(tile) {
+    if (!tile.element) return
+    tile.element.classList.add('revealed')
+    tile.element.style.pointerEvents = 'all'
+    const front = tile.element.querySelector('.tile-front')
+    if (!front) return
+    front.className = `tile-front tile-type-${tile.type}`
+    front.innerHTML = this._sfTileFrontHTML(tile)
+    if (tile.enemyData && !tile.enemyData._slain) tile.element.classList.add('enemy-alive')
+  },
+
+  markSubFloorTileReachable(tile) {
+    tile.element?.classList.add('reachable')
+  },
+
+  lockSubFloorTile(tile) {
+    tile.element?.classList.add('locked')
+    tile.element?.classList.remove('reachable')
+  },
+
+  unlockSubFloorTile(tile) {
+    tile.element?.classList.remove('locked')
+  },
+
+  markSubFloorTileSlain(tile) {
+    if (!tile.element) return
+    tile.element.classList.remove('enemy-alive')
+    tile.element.style.pointerEvents = 'none'
+    const front = tile.element.querySelector('.tile-front')
+    if (!front) return
+    front.className = 'tile-front type-slain'
+    const wrap = front.querySelector('.tile-icon-wrap')
+    if (wrap) {
+      wrap.innerHTML = '<span class="tile-emoji">💨</span>'
+      wrap.classList.add('tile-icon-fallback')
+    } else {
+      front.innerHTML = '<span class="tile-icon-wrap tile-icon-fallback"><span class="tile-emoji">💨</span></span>'
+    }
+    const stats = front.querySelector('.tile-enemy-stats')
+    if (stats) stats.remove()
+  },
+
+  updateSubFloorEnemyHP(tile) {
+    if (!tile.element || !tile.enemyData) return
+    const hpEl = tile.element.querySelector('.stat-hp')
+    if (hpEl) hpEl.textContent = `❤️ ${Math.max(0, tile.enemyData.currentHP ?? 0)}`
+  },
+
+  setSubFloorMessage(msg) {
+    if (el.subFloorMessage) el.subFloorMessage.textContent = msg
+  },
+
+  hideSubFloor() {
+    el.subFloorOverlay?.classList.add('hidden')
+    el.subFloorOverlay?.setAttribute('aria-hidden', 'true')
+    if (el.subFloorGrid) el.subFloorGrid.innerHTML = ''
+    el.shrineOverlay?.classList.add('hidden')
+  },
 
   hideEventOverlays() {
     ;[el.merchantShopOverlay, el.gamblerOverlay, el.tripleChestOverlay, el.storyEventOverlay, el.trinketTraderOverlay]

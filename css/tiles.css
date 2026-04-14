@@ -693,6 +693,12 @@ body.tile-colors .tile-front.type-rope {
   z-index: 1;
 }
 
+/* Revealed sub-floor entry — tap to descend */
+.tile.revealed.tile-type-sub_floor_entry {
+  cursor: pointer;
+  pointer-events: all;
+}
+
 /* Revealed exit — second tap to descend / escape */
 .tile.revealed.exit-pending {
   cursor: pointer;
@@ -858,4 +864,22 @@ body.tile-colors .tile-front.type-rope {
   padding: 1px 3px;
   line-height: 1;
   letter-spacing: 0.03em;
+}
+
+/* ── Sub-floor tile types ───────────────────────────────────── */
+.tile-type-sub_floor_entry .tile-front,
+.tile-type-sub_floor_entry .tile-face,
+.tile-front.type-sub-floor-entry {
+  background: url('../assets/ui/subfloor-entry.png') center/cover no-repeat;
+}
+.tile-type-stairs_up .tile-face,
+.tile-type-stairs_up.tile-front {
+  background: url('../assets/ui/subfloor-stairs-up.png') center/cover no-repeat;
+}
+/* Sub-floor unrevealed tile back — alternating variants */
+.sub-floor-grid .tile-back {
+  background: url('../assets/ui/subfloor-tile-back-1.png') center/cover no-repeat;
+}
+.sub-floor-grid .tile:nth-child(2n) .tile-back {
+  background: url('../assets/ui/subfloor-tile-back-2.png') center/cover no-repeat;
 }
