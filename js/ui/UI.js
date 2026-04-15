@@ -1947,8 +1947,10 @@ const UI = {
       boss_vault:       { icon: '☠️', title: 'Boss Vault',        subtitle: 'A single horror guards the treasure.' },
       treasure_vault:   { icon: '💎', title: 'Treasure Vault',    subtitle: 'Riches — if you can bear the cost.' },
       shrine:           { icon: '🗿', title: 'Ancient Shrine',    subtitle: 'An offering awaits.' },
-      ambush:           { icon: '⚠️', title: 'Hidden Chamber',    subtitle: 'Something feels wrong…' },
-      collapsed_tunnel: { icon: '🪨', title: 'Collapsed Tunnel',  subtitle: 'Unstable ground. Exit at any time.' },
+      ambush:              { icon: '⚠️', title: 'Hidden Chamber',       subtitle: 'Something feels wrong…' },
+      collapsed_tunnel:    { icon: '🪨', title: 'Collapsed Tunnel',     subtitle: 'Unstable ground. Exit at any time.' },
+      cartographers_cache: { icon: '📜', title: "Cartographer's Cache", subtitle: 'A map waits in the rubble.' },
+      toxic_gas:           { icon: '☠️', title: 'Toxic Gas Chamber',    subtitle: 'Find the exit before the gas kills you.' },
     }
     const meta = META[sf.type] ?? { icon: '🕳️', title: 'Hidden Chamber', subtitle: '' }
     document.getElementById('sub-floor-icon').textContent  = meta.icon

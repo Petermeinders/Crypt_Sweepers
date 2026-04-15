@@ -152,8 +152,8 @@ function _pickEnemyType(floor, tileType) {
     })
     return fastPool.length ? fastPool[Math.floor(Math.random() * fastPool.length)] : 'goblin'
   }
-  // Standard enemy tile — exclude behaviour-fast only (e.g. spider stays on fast tiles); attribute-fast goblins still spawn here
-  const stdPool = allIds.filter(e => ENEMY_DEFS[e]?.behaviour !== 'fast')
+  // Standard enemy tile — exclude behaviour-fast and behaviour-archer (archer_goblin spawns via _spawnArcherGoblin only)
+  const stdPool = allIds.filter(e => ENEMY_DEFS[e]?.behaviour !== 'fast' && ENEMY_DEFS[e]?.behaviour !== 'archer')
   return stdPool.length
     ? stdPool[Math.floor(Math.random() * stdPool.length)]
     : allIds[Math.floor(Math.random() * allIds.length)]
@@ -167,15 +167,16 @@ function _pickEnemyType(floor, tileType) {
  * without .element (rendered separately by UI.renderSubFloorGrid).
  */
 function generateSubFloor(type, mainFloor) {
-  const cfg = CONFIG.subFloor
   switch (type) {
-    case 'mob_den':       return _genMobDen(mainFloor)
-    case 'boss_vault':    return _genBossVault(mainFloor)
-    case 'treasure_vault':return _genTreasureVault(mainFloor)
-    case 'shrine':        return _genShrine(mainFloor)
-    case 'ambush':        return _genAmbush(mainFloor)
-    case 'collapsed_tunnel': return _genCollapsedTunnel(mainFloor)
-    default:              return _genMobDen(mainFloor)
+    case 'mob_den':            return _genMobDen(mainFloor)
+    case 'boss_vault':         return _genBossVault(mainFloor)
+    case 'treasure_vault':     return _genTreasureVault(mainFloor)
+    case 'shrine':             return _genShrine(mainFloor)
+    case 'ambush':             return _genAmbush(mainFloor)
+    case 'collapsed_tunnel':   return _genCollapsedTunnel(mainFloor)
+    case 'cartographers_cache':return _genCartographersCache(mainFloor)
+    case 'toxic_gas':          return _genToxicGas(mainFloor)
+    default:                   return _genMobDen(mainFloor)
   }
 }
 
@@ -365,6 +366,65 @@ function _sfMarkReachable(tiles, rows, cols, startR, startC) {
       if (t.revealed) queue.push([nr, nc])
     }
   }
+}
+
+/**
+ * 3×3 Cartographer's Cache — no enemies, rubble + one map tile.
+ * Picking up the map reveals the main-floor exit.
+ */
+function _genCartographersCache(floor) {
+  const rows = 3, cols = 3
+  const tiles = []
+  for (let r = 0; r < rows; r++) tiles.push([null, null, null])
+  // Stairs top-left (revealed)
+  tiles[0][0] = { ..._sfTile('stairs_up', 0, 0, floor), revealed: true, reachable: false }
+  // Map tile at a random non-stairs position
+  const positions = []
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (r !== 0 || c !== 0) positions.push([r, c])
+  const [mr, mc] = positions[Math.floor(Math.random() * positions.length)]
+  tiles[mr][mc] = _sfTile('map', mr, mc, floor)
+  // Fill rest with rubble
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (tiles[r][c]) continue
+      tiles[r][c] = _sfTile('rubble', r, c, floor)
+    }
+  }
+  _sfMarkReachable(tiles, rows, cols, 0, 0)
+  return { rows, cols, tiles }
+}
+
+/**
+ * 3×3 Toxic Gas Chamber — no enemies. Player takes damage every flip.
+ * Stairs are hidden; find them to escape.
+ */
+function _genToxicGas(floor) {
+  const rows = 3, cols = 3
+  const tiles = []
+  for (let r = 0; r < rows; r++) tiles.push([null, null, null])
+  // Stairs UP at a random position — NOT pre-revealed; player must find them
+  const positions = []
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) positions.push([r, c])
+  const [sr, sc] = positions[Math.floor(Math.random() * positions.length)]
+  tiles[sr][sc] = _sfTile('stairs_up', sr, sc, floor)
+  // Fill rest with rubble
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (tiles[r][c]) continue
+      tiles[r][c] = _sfTile('rubble', r, c, floor)
+    }
+  }
+  // All tiles reachable from the start — place a revealed entry at a corner that isn't the stairs
+  const corners = [[0,0],[0,2],[2,0],[2,2]].filter(([r,c]) => r !== sr || c !== sc)
+  const [er, ec] = corners[Math.floor(Math.random() * corners.length)]
+  tiles[er][ec] = { ..._sfTile('rubble', er, ec, floor), revealed: true, reachable: false }
+  // Mark all non-revealed tiles reachable (open gas chamber — no locking)
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (!tiles[r][c].revealed) tiles[r][c].reachable = true
+    }
+  }
+  return { rows, cols, tiles, entryRow: er, entryCol: ec }
 }
 
 /** Roll a weighted sub-floor type */
@@ -661,6 +721,15 @@ function _buildTileElement(tile, r, c, onTap, onHold, scrollable = false) {
   if (def.isEnemy && tile.enemyData && !tile.enemyData._slain && tile.revealed) {
     div.classList.add('enemy-alive')
   }
+  // Chest: add chest-ready class only if not looted; if looted wipe the icon so no ghost chest
+  if (tile.type === 'chest' && tile.revealed) {
+    if (tile.chestReady && !tile.chestLooted) {
+      div.classList.add('chest-ready')
+    } else if (tile.chestLooted) {
+      const front = div.querySelector('.tile-front')
+      if (front) { front.innerHTML = '' }
+    }
+  }
 
   // ── Tap / Hold ──
   let _holdTimer = null
@@ -926,7 +995,7 @@ function recomputeAllEnemyLocks(uiLock, uiUnlock) {
   for (const row of _grid) {
     for (const t of row) {
       // Ranger passive can skip locking on reveal — must not re-lock here or X's come back wrong.
-      if (t.revealed && t.enemyData && !t.enemyData._slain && !t.enemyData.rangerSkipAdjacentLock) {
+      if (t.revealed && t.enemyData && !t.enemyData._slain && !t.enemyData.rangerSkipAdjacentLock && t.enemyData.behaviour !== 'archer') {
         lockAdjacent(t.row, t.col, uiLock)
       }
     }
@@ -985,6 +1054,7 @@ function patchMainGridTileAt(r, c, gridEl, onTap, onHold) {
 }
 
 export default {
+  createEnemy,
   generateGrid,
   importGridFromSnapshot,
   replaceTileWithEmptyPreserveState,

@@ -126,13 +126,16 @@ export const CONFIG = {
      * collapsed_tunnel — 1×6, all traps, stairs at both ends, chest at far end
      */
     typeWeights: {
-      mob_den:          35,
-      boss_vault:       25,
-      treasure_vault:   20,
-      shrine:           12,
-      ambush:            5,
-      collapsed_tunnel:  3,
+      mob_den:              30,
+      boss_vault:           22,
+      treasure_vault:       18,
+      shrine:               11,
+      ambush:                5,
+      collapsed_tunnel:      3,
+      cartographers_cache:   7,
+      toxic_gas:             4,
     },
+    toxicGasDamagePerFlip: 2,
     shrine: {
       bloodSacrificeDmgBonus: 1,   // +N damage
       bloodSacrificeHpPct:    0.20, // cost: 20% max HP

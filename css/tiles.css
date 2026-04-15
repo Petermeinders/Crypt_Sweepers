@@ -414,8 +414,9 @@
 }
 
 .tile-icon-img {
-  width: 88%;
-  max-width: 90px;
+  max-width: min(88%, 90px);
+  max-height: 100%;
+  width: auto;
   height: auto;
   object-fit: contain;
   pointer-events: none;

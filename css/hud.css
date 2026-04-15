@@ -324,8 +324,8 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
 .blood-overlay.active { opacity: 1; }
 
 @keyframes blood-pulse {
-  0%, 100% { opacity: 0.75; }
-  50%       { opacity: 1.00; }
+  0%, 100% { opacity: 0; }
+  50%       { opacity: 0.5; }
 }
 
 /* ── Burn screen border overlay ── */

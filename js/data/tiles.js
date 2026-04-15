@@ -35,4 +35,8 @@ export const TILE_DEFS = {
   sub_floor_used: { emoji: '',  label: '',             cssClass: 'type-sub-floor-used', weight: 0, isEnemy: false },
   /** Dungeon only — placed by GameController; buffs all enemies until the tile is cleared */
   war_banner: { emoji: '🚩', label: 'War Banner', cssClass: 'type-war-banner', weight: 0, isEnemy: false },
+  /** Sub-floor only — map that reveals the main-floor exit when picked up */
+  map:    { emoji: '🗺️', label: 'Map',    cssClass: 'type-map',    weight: 0, isEnemy: false },
+  /** Sub-floor only — rubble (inert) in cartographer's cache / toxic gas chamber */
+  rubble: { emoji: '🪨', label: 'Rubble', cssClass: 'type-rubble', weight: 0, isEnemy: false },
 }
