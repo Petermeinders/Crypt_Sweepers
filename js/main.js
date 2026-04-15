@@ -158,6 +158,7 @@ async function boot() {
   if (save.settings.tileColors === undefined) save.settings.tileColors = false
   if (save.settings.musicOn === undefined)    save.settings.musicOn    = true
   if (save.settings.sfxOn   === undefined)    save.settings.sfxOn      = true
+  if (save.settings.subLevelsEnabled === undefined) save.settings.subLevelsEnabled = true
   if (!save.settings.cheats) save.settings.cheats = {}
   if (!save.globalPassives) save.globalPassives = []
   {
@@ -546,6 +547,7 @@ async function boot() {
     document.getElementById('setting-sfx').checked          = s.settings.sfxOn      ?? true
     document.getElementById('setting-tile-colors').checked  = s.settings.tileColors ?? false
     document.getElementById('setting-haptic').checked       = s.settings.hapticFeedback ?? true
+    document.getElementById('setting-sub-levels').checked   = s.settings.subLevelsEnabled ?? true
     document.getElementById('cheat-god-mode').checked       = c.godMode      ?? false
     document.getElementById('cheat-instant-kill').checked   = c.instantKill  ?? false
     document.getElementById('cheat-999-gold').checked       = c.gold999      ?? false
@@ -584,6 +586,12 @@ async function boot() {
     SaveManager.save(s)
   })
 
+  document.getElementById('setting-sub-levels').addEventListener('change', e => {
+    const s = GameController.getSave()
+    s.settings.subLevelsEnabled = e.target.checked
+    SaveManager.save(s)
+  })
+
   // Cheat toggles
   const _cheatMap = [
     { id: 'cheat-god-mode',     key: 'godMode'     },
@@ -598,6 +606,11 @@ async function boot() {
       GameController.applyCheat(key, e.target.checked)
       SaveManager.save(GameController.getSave())
     })
+  })
+
+  // Debug accordion toggle
+  document.getElementById('debug-accordion-toggle').addEventListener('click', () => {
+    document.getElementById('debug-accordion').classList.toggle('open')
   })
 
   // Cheat accordion toggle

@@ -1152,7 +1152,7 @@ function _startFloor() {
   }
 
   // Sub-floor spawn: always on floor 1, otherwise 5% chance on non-boss, non-sanctuary floors
-  if (!gridRestored && !run.atRest && !CONFIG.bossFloors.includes(run.floor)
+  if ((_save.settings.subLevelsEnabled ?? true) && !gridRestored && !run.atRest && !CONFIG.bossFloors.includes(run.floor)
       && (run.floor === 1 || Math.random() < CONFIG.subFloor.spawnChance)) {
     _spawnSubFloorEntry()
   }
