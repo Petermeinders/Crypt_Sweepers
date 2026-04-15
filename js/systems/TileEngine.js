@@ -157,6 +157,227 @@ function _pickEnemyType(floor, tileType) {
     : allIds[Math.floor(Math.random() * allIds.length)]
 }
 
+// ── Sub-floor generation ─────────────────────────────────────
+
+/**
+ * Generate a standalone sub-floor grid (plain objects, no DOM).
+ * Returns { rows, cols, tiles: tile[][] } — tiles are TileEngine tile objects
+ * without .element (rendered separately by UI.renderSubFloorGrid).
+ */
+function generateSubFloor(type, mainFloor) {
+  const cfg = CONFIG.subFloor
+  switch (type) {
+    case 'mob_den':       return _genMobDen(mainFloor)
+    case 'boss_vault':    return _genBossVault(mainFloor)
+    case 'treasure_vault':return _genTreasureVault(mainFloor)
+    case 'shrine':        return _genShrine(mainFloor)
+    case 'ambush':        return _genAmbush(mainFloor)
+    case 'collapsed_tunnel': return _genCollapsedTunnel(mainFloor)
+    default:              return _genMobDen(mainFloor)
+  }
+}
+
+function _sfTile(type, row, col, floor) {
+  const base = { row, col, type, revealed: false, locked: false, enemyData: null, itemData: null, element: null, reachable: false }
+  if (TILE_DEFS[type]?.isEnemy) {
+    base.enemyData = createEnemy(_pickEnemyType(floor, type), floor)
+  }
+  return base
+}
+
+function _sfBossTile(row, col, floor) {
+  const tile = _sfTile('boss', row, col, floor)
+  return tile
+}
+
+/** Pick one normal (non-fast, non-boss) enemy type and use it for all mob tiles */
+function _pickSingleMobType(floor) {
+  const biomeId = CONFIG.biomeFor(floor)?.id ?? 'dungeon'
+  const pool = Object.keys(ENEMY_DEFS).filter(id => {
+    const d = ENEMY_DEFS[id]
+    return d.behaviour !== 'boss' && d.behaviour !== 'fast' && _enemyAllowedInBiome(id, biomeId)
+  })
+  return pool.length ? pool[Math.floor(Math.random() * pool.length)] : 'skeleton'
+}
+
+function _positivePool() {
+  return ['gold', 'gold', 'gold', 'chest', 'heart', 'empty', 'empty']
+}
+
+function _randomPositive(row, col, floor) {
+  const pool = _positivePool()
+  const type = pool[Math.floor(Math.random() * pool.length)]
+  return _sfTile(type, row, col, floor)
+}
+
+/** 4×4 mob den — one enemy type, many enemies, 1 chest, stairs at (3,3) */
+function _genMobDen(floor) {
+  const rows = 4, cols = 4
+  const mobType = _pickSingleMobType(floor)
+  const tiles = []
+  for (let r = 0; r < rows; r++) {
+    const row = []
+    for (let c = 0; c < cols; c++) {
+      row.push(null) // fill below
+    }
+    tiles.push(row)
+  }
+  // Stairs at top-left (start area) always revealed
+  tiles[0][0] = { ..._sfTile('stairs_up', 0, 0, floor), revealed: true, reachable: false }
+  // Chest guaranteed somewhere in bottom half
+  const chestR = 2 + Math.floor(Math.random() * 2)
+  const chestC = Math.floor(Math.random() * 4)
+  tiles[chestR][chestC] = _sfTile('chest', chestR, chestC, floor)
+  // Fill rest with enemies
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (tiles[r][c]) continue
+      const t = { row: r, col: c, type: 'enemy', revealed: false, locked: false, reachable: false, element: null, itemData: null }
+      t.enemyData = createEnemy(mobType, floor)
+      tiles[r][c] = t
+    }
+  }
+  // Mark reachable from start tile
+  _sfMarkReachable(tiles, rows, cols, 0, 0)
+  return { rows, cols, tiles, mobType }
+}
+
+/** 3×3 boss vault — boss at (1,0), rewards locked until boss slain, stairs at (0,0) */
+function _genBossVault(floor) {
+  const rows = 3, cols = 3
+  const tiles = []
+  for (let r = 0; r < rows; r++) tiles.push([null, null, null])
+  // Stairs top-left (revealed start)
+  tiles[0][0] = { ..._sfTile('stairs_up', 0, 0, floor), revealed: true, reachable: false }
+  // Boss directly below stairs — orthogonally reachable from start
+  tiles[1][0] = _sfBossTile(1, 0, floor)
+  tiles[1][0].isBossVaultBoss = true
+  // Fill rest with positive rewards (locked until boss dies)
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (tiles[r][c]) continue
+      tiles[r][c] = _randomPositive(r, c, floor)
+    }
+  }
+  // Lock all reward tiles; boss and stairs stay unlocked
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const t = tiles[r][c]
+      if (t.type !== 'stairs_up' && t.type !== 'boss') t.locked = true
+    }
+  }
+  _sfMarkReachable(tiles, rows, cols, 0, 0)
+  return { rows, cols, tiles }
+}
+
+/** 3×3 treasure vault — 1 trap center, rest positive, stairs at (0,0) */
+function _genTreasureVault(floor) {
+  const rows = 3, cols = 3
+  const tiles = []
+  for (let r = 0; r < rows; r++) tiles.push([null, null, null])
+  tiles[0][0] = { ..._sfTile('stairs_up', 0, 0, floor), revealed: true, reachable: false }
+  tiles[1][1] = _sfTile('trap', 1, 1, floor) // center trap
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (tiles[r][c]) continue
+      // Guarantee at least 2 chests
+      const chestsPlaced = tiles.flat().filter(t => t?.type === 'chest').length
+      const remaining = (rows * cols) - tiles.flat().filter(Boolean).length
+      const needChest = chestsPlaced < 2 && remaining <= 3
+      tiles[r][c] = needChest ? _sfTile('chest', r, c, floor) : _randomPositive(r, c, floor)
+    }
+  }
+  _sfMarkReachable(tiles, rows, cols, 0, 0)
+  return { rows, cols, tiles }
+}
+
+/** 3×3 shrine — shrine center, all surrounding empty, stairs at (0,0) */
+function _genShrine(floor) {
+  const rows = 3, cols = 3
+  const tiles = []
+  for (let r = 0; r < rows; r++) tiles.push([null, null, null])
+  tiles[0][0] = { ..._sfTile('stairs_up', 0, 0, floor), revealed: true, reachable: false }
+  tiles[1][1] = _sfTile('shrine', 1, 1, floor)
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (tiles[r][c]) continue
+      tiles[r][c] = { ..._sfTile('empty', r, c, floor), revealed: true } // all revealed, no combat
+    }
+  }
+  // Shrine tile is reachable from start
+  _sfMarkReachable(tiles, rows, cols, 0, 0)
+  return { rows, cols, tiles }
+}
+
+/** 4×4 ambush — all enemies, no chest, flavor disguises as treasure */
+function _genAmbush(floor) {
+  const rows = 4, cols = 4
+  const tiles = []
+  for (let r = 0; r < rows; r++) {
+    tiles.push([null, null, null, null])
+  }
+  tiles[0][0] = { ..._sfTile('stairs_up', 0, 0, floor), revealed: true, reachable: false }
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (tiles[r][c]) continue
+      tiles[r][c] = _sfTile('enemy', r, c, floor)
+    }
+  }
+  _sfMarkReachable(tiles, rows, cols, 0, 0)
+  return { rows, cols, tiles }
+}
+
+/** 1×6 collapsed tunnel — stairs at both ends, traps in middle, chest at far end */
+function _genCollapsedTunnel(floor) {
+  const rows = 1, cols = 6
+  const tiles = [[]]
+  // col 0: stairs up (start, revealed)
+  tiles[0][0] = { ..._sfTile('stairs_up', 0, 0, floor), revealed: true, reachable: false }
+  // cols 1–4: traps
+  for (let c = 1; c <= 4; c++) {
+    tiles[0][c] = _sfTile('trap', 0, c, floor)
+  }
+  // col 5: chest then stairs — use chest at 4, stairs at 5
+  tiles[0][4] = _sfTile('chest', 0, 4, floor)
+  tiles[0][5] = _sfTile('stairs_up', 0, 5, floor)
+  _sfMarkReachable(tiles, rows, cols, 0, 0)
+  return { rows, cols, tiles }
+}
+
+/** Orthogonal reachability seeding for sub-floor grids */
+function _sfMarkReachable(tiles, rows, cols, startR, startC) {
+  const dirs = [[-1,0],[1,0],[0,-1],[0,1]]
+  const queue = [[startR, startC]]
+  const visited = new Set([`${startR},${startC}`])
+  while (queue.length) {
+    const [r, c] = queue.shift()
+    for (const [dr, dc] of dirs) {
+      const nr = r + dr, nc = c + dc
+      if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue
+      const key = `${nr},${nc}`
+      if (visited.has(key)) continue
+      visited.add(key)
+      const t = tiles[nr]?.[nc]
+      if (!t || t.locked) continue
+      if (!t.revealed) { t.reachable = true }
+      if (t.revealed) queue.push([nr, nc])
+    }
+  }
+}
+
+/** Roll a weighted sub-floor type */
+function rollSubFloorType() {
+  const weights = CONFIG.subFloor.typeWeights
+  const types = Object.keys(weights)
+  let total = types.reduce((s, k) => s + weights[k], 0)
+  let r = Math.random() * total
+  for (const t of types) {
+    r -= weights[t]
+    if (r <= 0) return t
+  }
+  return types[0]
+}
+
 // ── Grid generation ──────────────────────────────────────────
 
 function _generateRestGrid(floor) {
@@ -364,111 +585,161 @@ function _wireTileIconFallback(tileEl, emojiFallback) {
 
 // ── DOM render ───────────────────────────────────────────────
 
+/**
+ * Build a single tile DOM element with identical structure/classes/handlers
+ * to the main grid. Used by both `renderGrid` (main) and `renderTileGridInto`
+ * (sub-floor) so there is one source of truth for tile rendering.
+ *
+ * @param {boolean} [scrollable=false] – When true the touchend listener is
+ *   passive so the parent container can scroll freely. A touchmove guard
+ *   suppresses the synthetic click that fires after a swipe.
+ */
+function _buildTileElement(tile, r, c, onTap, onHold, scrollable = false) {
+  const def = TILE_DEFS[tile.type]
+
+  const div = document.createElement('div')
+  div.className = 'tile tile-type-' + tile.type + (def.isEnemy ? ' is-enemy' : '')
+  div.dataset.row = r
+  div.dataset.col = c
+  div.setAttribute('aria-label', 'hidden tile')
+
+  // Random back-face texture
+  const _backImages = [
+    'assets/sprites/tiles/tile-unflipped2.1.png',
+    'assets/sprites/tiles/tile-unflipped3.png',
+  ]
+  const backSrc = _backImages[Math.floor(Math.random() * _backImages.length)]
+
+  const isBoss = tile.enemyData?.isBoss
+  const emojiFallback = tile.enemyData?.emoji ?? def.emoji
+  const iconHTML = _tileFaceIconHTML(tile, def)
+
+  let enemyStatsHTML = ''
+  if (def.isEnemy && tile.enemyData) {
+    const rawHp = tile.enemyData.currentHP ?? tile.enemyData.hp
+    const hp = Number.isFinite(Number(rawHp)) ? rawHp : (tile.enemyData.hp ?? '—')
+    const dmg = tile.enemyData.dmg
+    const dmgStr = formatEnemyDamageDisplay(dmg, tile.enemyData.hitDamage)
+    enemyStatsHTML = `<div class="tile-enemy-stats">
+      <span class="stat-hp">❤️ ${hp}</span>
+      <span class="stat-dmg">⚔️ ${dmgStr}</span>
+    </div>`
+  }
+
+  div.innerHTML = `
+    <div class="tile-inner">
+      <div class="tile-back"></div>
+      <div class="tile-front ${def.cssClass}${isBoss ? ' is-boss' : ''}">
+        ${iconHTML}
+        ${def.isEnemy ? '' : `<span class="tile-label">${def.label}</span>`}
+        ${enemyStatsHTML}
+        <span class="tile-threat-clue" aria-hidden="true"></span>
+      </div>
+    </div>`
+
+  div.querySelector('.tile-back').style.backgroundImage = `url('${backSrc}')`
+  _wireTileIconFallback(div, emojiFallback)
+
+  // Apply initial state classes (sub-floor tiles may start revealed/locked/reachable)
+  if (tile.revealed)  div.classList.add('revealed')
+  if (tile.locked)    div.classList.add('locked')
+  if (tile.reachable && !tile.revealed) div.classList.add('reachable')
+  if (def.isEnemy && tile.enemyData && !tile.enemyData._slain && tile.revealed) {
+    div.classList.add('enemy-alive')
+  }
+
+  // ── Tap / Hold ──
+  let _holdTimer = null
+  let _didHold   = false
+  let _startX    = 0
+  let _startY    = 0
+  const HOLD_MS  = 380
+  const MOVE_THRESHOLD = 8
+
+  const _cancelHold = () => {
+    if (_holdTimer) { clearTimeout(_holdTimer); _holdTimer = null }
+  }
+
+  div.addEventListener('pointerdown', e => {
+    // In a scrollable container, release implicit pointer capture immediately
+    // so the scroll container can claim horizontal swipes before the hold timer fires.
+    if (scrollable && e.target.releasePointerCapture) {
+      e.target.releasePointerCapture(e.pointerId)
+    }
+    _didHold = false
+    _startX  = e.clientX
+    _startY  = e.clientY
+    _holdTimer = setTimeout(() => {
+      _holdTimer = null
+      _didHold   = true
+      if (onHold) onHold(r, c)
+    }, HOLD_MS)
+  })
+
+  div.addEventListener('pointermove', e => {
+    if (!_holdTimer) return
+    const dx = e.clientX - _startX
+    const dy = e.clientY - _startY
+    if (dx * dx + dy * dy > MOVE_THRESHOLD * MOVE_THRESHOLD) _cancelHold()
+  })
+
+  div.addEventListener('pointerup',     _cancelHold)
+  div.addEventListener('pointercancel', _cancelHold)
+  div.addEventListener('contextmenu', e => e.preventDefault())
+
+  if (scrollable) {
+    // Passive touch listeners so the scroll container can swipe freely.
+    // A touchmove flag suppresses the synthetic click that follows a swipe.
+    let _touchMoved = false
+    div.addEventListener('touchstart', () => { _touchMoved = false }, { passive: true })
+    div.addEventListener('touchmove',  () => { _touchMoved = true  }, { passive: true })
+    div.addEventListener('touchend',   () => {
+      if (!_touchMoved && !_didHold) onTap(r, c)
+      _didHold = false
+    }, { passive: true })
+    div.addEventListener('click', () => { /* handled by touchend */ })
+  } else {
+    div.addEventListener('click', () => { if (!_didHold) onTap(r, c) })
+    div.addEventListener('touchend', e => {
+      e.preventDefault()
+      if (!_didHold) onTap(r, c)
+      _didHold = false
+    }, { passive: false })
+  }
+
+  tile.element = div
+  return div
+}
+
 function renderGrid(gridEl, onTap, onHold) {
   const { cols, rows } = CONFIG.gridSize(_currentFloor, { rest: _gridMode === 'rest' })
   gridEl.innerHTML = ''
-
-  // Set CSS grid columns dynamically
   gridEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      const tile = _grid[r][c]
-      const def  = TILE_DEFS[tile.type]
+      const div = _buildTileElement(_grid[r][c], r, c, onTap, onHold)
+      gridEl.appendChild(div)
+    }
+  }
+}
 
-      const div = document.createElement('div')
-      div.className = 'tile tile-type-' + tile.type + (def.isEnemy ? ' is-enemy' : '')
-      div.dataset.row = r
-      div.dataset.col = c
-      div.setAttribute('aria-label', 'hidden tile')
-
-      // Random back-face texture — picked now, applied after innerHTML is set
-      const _backImages = [
-        'assets/sprites/tiles/tile-unflipped2.1.png',
-        'assets/sprites/tiles/tile-unflipped3.png',
-      ]
-      const backSrc = _backImages[Math.floor(Math.random() * _backImages.length)]
-
-      const isBoss = tile.enemyData?.isBoss
-      const hpBarHTML = ''
-
-      const emojiFallback = tile.enemyData?.emoji ?? def.emoji
-      const iconHTML = _tileFaceIconHTML(tile, def)
-
-      let enemyStatsHTML = ''
-      if (def.isEnemy && tile.enemyData) {
-        const rawHp = tile.enemyData.currentHP ?? tile.enemyData.hp
-        const hp = Number.isFinite(Number(rawHp)) ? rawHp : (tile.enemyData.hp ?? '—')
-        const dmg = tile.enemyData.dmg
-        const dmgStr = formatEnemyDamageDisplay(dmg, tile.enemyData.hitDamage)
-        enemyStatsHTML = `<div class="tile-enemy-stats">
-          <span class="stat-hp">❤️ ${hp}</span>
-          <span class="stat-dmg">⚔️ ${dmgStr}</span>
-        </div>`
-      }
-
-      div.innerHTML = `
-        <div class="tile-inner">
-          <div class="tile-back"></div>
-          <div class="tile-front ${def.cssClass}${isBoss ? ' is-boss' : ''}">
-            ${iconHTML}
-            ${def.isEnemy ? '' : `<span class="tile-label">${def.label}</span>`}
-            ${enemyStatsHTML}
-            ${hpBarHTML}
-            <span class="tile-threat-clue" aria-hidden="true"></span>
-          </div>
-        </div>`
-
-      // Apply random back texture directly to the .tile-back element
-      div.querySelector('.tile-back').style.backgroundImage = `url('${backSrc}')`
-
-      _wireTileIconFallback(div, emojiFallback)
-
-      // ── Tap / Hold ──
-      let _holdTimer = null
-      let _didHold   = false
-      let _startX    = 0
-      let _startY    = 0
-      const HOLD_MS  = 380
-      const MOVE_THRESHOLD = 8   // px — ignore micro-movements from finger settle
-
-      const _cancelHold = () => {
-        if (_holdTimer) { clearTimeout(_holdTimer); _holdTimer = null }
-      }
-
-      div.addEventListener('pointerdown', e => {
-        _didHold = false
-        _startX  = e.clientX
-        _startY  = e.clientY
-        _holdTimer = setTimeout(() => {
-          _holdTimer = null
-          _didHold   = true
-          if (onHold) onHold(r, c)
-        }, HOLD_MS)
-      })
-
-      div.addEventListener('pointermove', e => {
-        if (!_holdTimer) return
-        const dx = e.clientX - _startX
-        const dy = e.clientY - _startY
-        if (dx * dx + dy * dy > MOVE_THRESHOLD * MOVE_THRESHOLD) _cancelHold()
-      })
-
-      div.addEventListener('pointerup',     _cancelHold)
-      div.addEventListener('pointercancel', _cancelHold)
-
-      // Suppress native long-press context menu (Android/iOS)
-      div.addEventListener('contextmenu', e => e.preventDefault())
-
-      div.addEventListener('click', () => { if (!_didHold) onTap(r, c) })
-      div.addEventListener('touchend', e => {
-        e.preventDefault()
-        if (!_didHold) onTap(r, c)
-        // Reset after touchend so next interaction starts clean
-        _didHold = false
-      }, { passive: false })
-
-      tile.element = div
+/**
+ * Render an arbitrary 2D array of tiles into a grid element using the same
+ * DOM construction as the main grid. Used by the sub-floor overlay so icons,
+ * frames, threat clues, and fallbacks all match the main grid.
+ */
+function renderTileGridInto(gridEl, tileRows, onTap, onHold) {
+  gridEl.innerHTML = ''
+  const rows = tileRows.length
+  const cols = tileRows[0]?.length ?? 0
+  gridEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const tile = tileRows[r]?.[c]
+      if (!tile) { gridEl.appendChild(document.createElement('div')); continue }
+      // scrollable=true: passive touch listeners so the grid-wrap can scroll
+      const div = _buildTileElement(tile, r, c, onTap, onHold, true)
       gridEl.appendChild(div)
     }
   }
@@ -659,6 +930,7 @@ export default {
   generateGrid,
   importGridFromSnapshot,
   renderGrid,
+  renderTileGridInto,
   flipTile,
   lockAdjacent,
   unlockAdjacent,
@@ -674,4 +946,6 @@ export default {
   getOrthogonalTiles,
   refreshAllThreatClueDisplays,
   computeOrthogonalThreatSum,
+  generateSubFloor,
+  rollSubFloorType,
 }

@@ -105,6 +105,34 @@ export const CONFIG = {
   // Boss floors cadence — boss appears on these floor numbers
   bossFloors: [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100],
 
+  subFloor: {
+    /** Probability a non-boss, non-sanctuary floor spawns one sub-floor entry tile */
+    spawnChance: 0.05,
+    /**
+     * Type weights (must sum to 100).
+     * mob_den      — 4×4, one enemy type, 1 chest
+     * boss_vault   — 3×3, boss center locked, all-positive tiles on kill
+     * treasure_vault — 3×3, 1 trap center, rest positive
+     * shrine       — 3×3, choice room (no combat)
+     * ambush       — 4×4, looks safe but all enemies
+     * collapsed_tunnel — 1×6, all traps, stairs at both ends, chest at far end
+     */
+    typeWeights: {
+      mob_den:          35,
+      boss_vault:       25,
+      treasure_vault:   20,
+      shrine:           12,
+      ambush:            5,
+      collapsed_tunnel:  3,
+    },
+    shrine: {
+      bloodSacrificeDmgBonus: 1,   // +N damage
+      bloodSacrificeHpPct:    0.20, // cost: 20% max HP
+      goldOfferingCost:       50,
+      goldOfferingHpBonus:    5,
+    },
+  },
+
   /**
    * Biome definitions — one per theme segment.
    * id       : unique key used for CSS classes and asset filenames

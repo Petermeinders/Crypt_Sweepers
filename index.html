@@ -63,6 +63,22 @@
 
     <div id="grid-container">
       <div id="grid"></div>
+      <!-- Sub-floor overlay lives here so it only covers the grid, not the HUD -->
+      <div id="sub-floor-overlay" class="sub-floor-overlay hidden" aria-hidden="true">
+        <div class="sub-floor-modal">
+          <div class="sub-floor-header">
+            <span class="sub-floor-icon" id="sub-floor-icon">🕳️</span>
+            <div class="sub-floor-header-text">
+              <div class="sub-floor-title" id="sub-floor-title">Hidden Chamber</div>
+              <div class="sub-floor-subtitle" id="sub-floor-subtitle"></div>
+            </div>
+          </div>
+          <div class="sub-floor-grid-wrap">
+            <div class="sub-floor-grid" id="sub-floor-grid"></div>
+          </div>
+          <div class="sub-floor-message-bar" id="sub-floor-message"></div>
+        </div>
+      </div>
       <div id="floor-banner" class="floor-banner hidden" aria-hidden="true">
         <span id="floor-banner-text" class="floor-banner-text">Floor 1</span>
       </div>
@@ -313,6 +329,31 @@
     </div>
   </div>
 
+
+  <!-- ── Shrine choice overlay ── -->
+  <div id="shrine-overlay" class="panel-overlay hidden" aria-hidden="true">
+    <div class="event-header-img-wrap event-header-placeholder">
+      <div class="event-header-title">🗿 Ancient Shrine</div>
+    </div>
+    <div class="event-body">
+      <p class="event-blurb" id="shrine-blurb">An ancient shrine pulses with otherworldly energy. The air smells of old blood and older gold.</p>
+      <div class="shrine-choices">
+        <button id="shrine-btn-blood" class="menu-btn primary shrine-choice-btn">
+          <span class="shrine-choice-icon">🩸</span>
+          <span class="shrine-choice-label">Offer Blood<br><small>Lose 20% max HP — gain +1 damage</small></span>
+        </button>
+        <button id="shrine-btn-gold" class="menu-btn secondary shrine-choice-btn">
+          <span class="shrine-choice-icon">🪙</span>
+          <span class="shrine-choice-label" id="shrine-gold-label">Offer Gold (50🪙)<br><small>Spend 50 gold — gain +5 max HP</small></span>
+        </button>
+        <button id="shrine-btn-leave" class="menu-btn secondary shrine-choice-btn">
+          <span class="shrine-choice-icon">🚶</span>
+          <span class="shrine-choice-label">Leave the Shrine</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Run summary overlay ── -->
   <div id="run-summary"></div>
 
@@ -396,6 +437,13 @@
     </div>
     <input type="file" id="import-file-input" accept=".json" style="display:none">
 
+    <div id="menu-qr-block" class="menu-qr-block">
+      <a class="menu-qr-link" href="https://petermeinders.github.io/Crypt_Sweepers/" target="_blank" rel="noopener noreferrer" title="Open Crypt Sweepers in the browser">
+        <img src="assets/ui/play-qr.png" width="132" height="132" alt="QR code linking to Crypt Sweepers">
+      </a>
+      <span class="menu-qr-caption">Scan to play</span>
+    </div>
+
     <!-- PWA install nudge (shown by JS when available) -->
     <div id="install-nudge" class="install-prompt hidden">
       <div class="install-prompt-label">Install the app</div>
@@ -456,6 +504,26 @@
           <input type="checkbox" id="setting-haptic" checked>
           <span class="toggle-track"><span class="toggle-thumb"></span></span>
         </label>
+      </div>
+
+      <!-- ── Debug (feature flags) ── -->
+      <div class="settings-accordion" id="debug-accordion">
+        <button type="button" class="accordion-header" id="debug-accordion-toggle">
+          <span>🐛 Debug</span>
+          <span class="accordion-chevron">▸</span>
+        </button>
+        <div class="accordion-body" id="debug-accordion-body">
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-label-title">Sub-levels</span>
+              <span class="settings-label-desc">Hidden passages and sub-floors can appear on dungeon floors</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="setting-sub-levels" checked>
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+        </div>
       </div>
 
       <!-- ── Delete save ── -->

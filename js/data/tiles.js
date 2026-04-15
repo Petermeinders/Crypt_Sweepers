@@ -25,4 +25,12 @@ export const TILE_DEFS = {
   magic_chest: { emoji: '✨',  label: 'Magic Chest', cssClass: 'type-magic-chest', weight: 0, isEnemy: false },
   /** Rest floor only — combine two trinkets into a merged trinket */
   forge:        { emoji: '⚒️',  label: 'Forge',       cssClass: 'type-forge',       weight: 0, isEnemy: false },
+  /** Main floor only — entry to a hidden sub-floor (5% chance per floor) */
+  sub_floor_entry: { emoji: '🕳️', label: 'Passage',  cssClass: 'type-sub-floor-entry', weight: 0, isEnemy: false },
+  /** Sub-floor only — stairs back up to the main floor */
+  stairs_up:    { emoji: '🪜',  label: 'Exit',        cssClass: 'type-stairs-up',   weight: 0, isEnemy: false },
+  /** Sub-floor only — shrine offering a choice (no combat) */
+  shrine:       { emoji: '🗿',  label: 'Shrine',      cssClass: 'type-shrine',      weight: 0, isEnemy: false },
+  /** Sub-floor only — depleted passage (already visited) */
+  sub_floor_used: { emoji: '',  label: '',             cssClass: 'type-sub-floor-used', weight: 0, isEnemy: false },
 }

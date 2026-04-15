@@ -2,7 +2,7 @@
 // Strategy: Cache-first for assets, network-first for HTML.
 // Version bump CACHE_NAME to force cache refresh on deploy.
 
-const CACHE_NAME = 'crypt-sweepers-v167'
+const CACHE_NAME = 'crypt-sweepers-v206'
 
 const PRECACHE_ASSETS = [
   './',
@@ -67,6 +67,11 @@ const PRECACHE_ASSETS = [
   './assets/DungeonBackgroundShadow.png',
   './assets/DungeonBackgroundInfernal.png',
   './assets/SanctuaryBackground.png',
+  './assets/ui/subfloor-background.png',
+  './assets/ui/subfloor-entry.png',
+  './assets/ui/subfloor-stairs-up.png',
+  './assets/ui/subfloor-tile-back-1.png',
+  './assets/ui/subfloor-tile-back-2.png',
   './assets/ui/bestiary-scroll-bg.png',
   './assets/ui/freeze-effect.png',
   './assets/ui/fire-ice-frame.png',
@@ -78,6 +83,7 @@ const PRECACHE_ASSETS = [
   './assets/ui/common-tile.png',
   './assets/ui/rare-tile.png',
   './assets/ui/legendary-tile.png',
+  './assets/ui/play-qr.png',
   './assets/sprites/tiles/rubble.png',
   './assets/sprites/tiles/tile-unflipped2.1.png',
   './assets/sprites/tiles/tile-unflipped3.png',

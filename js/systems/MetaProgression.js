@@ -33,6 +33,8 @@ export function defaultSave() {
     settings: {
       difficulty:  'normal',
       tileColors:  false,
+      /** Feature flag: hidden passages / sub-floors (default on) */
+      subLevelsEnabled: true,
     },
   }
 }
