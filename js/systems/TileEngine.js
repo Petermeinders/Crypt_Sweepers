@@ -585,111 +585,161 @@ function _wireTileIconFallback(tileEl, emojiFallback) {
 
 // ── DOM render ───────────────────────────────────────────────
 
+/**
+ * Build a single tile DOM element with identical structure/classes/handlers
+ * to the main grid. Used by both `renderGrid` (main) and `renderTileGridInto`
+ * (sub-floor) so there is one source of truth for tile rendering.
+ *
+ * @param {boolean} [scrollable=false] – When true the touchend listener is
+ *   passive so the parent container can scroll freely. A touchmove guard
+ *   suppresses the synthetic click that fires after a swipe.
+ */
+function _buildTileElement(tile, r, c, onTap, onHold, scrollable = false) {
+  const def = TILE_DEFS[tile.type]
+
+  const div = document.createElement('div')
+  div.className = 'tile tile-type-' + tile.type + (def.isEnemy ? ' is-enemy' : '')
+  div.dataset.row = r
+  div.dataset.col = c
+  div.setAttribute('aria-label', 'hidden tile')
+
+  // Random back-face texture
+  const _backImages = [
+    'assets/sprites/tiles/tile-unflipped2.1.png',
+    'assets/sprites/tiles/tile-unflipped3.png',
+  ]
+  const backSrc = _backImages[Math.floor(Math.random() * _backImages.length)]
+
+  const isBoss = tile.enemyData?.isBoss
+  const emojiFallback = tile.enemyData?.emoji ?? def.emoji
+  const iconHTML = _tileFaceIconHTML(tile, def)
+
+  let enemyStatsHTML = ''
+  if (def.isEnemy && tile.enemyData) {
+    const rawHp = tile.enemyData.currentHP ?? tile.enemyData.hp
+    const hp = Number.isFinite(Number(rawHp)) ? rawHp : (tile.enemyData.hp ?? '—')
+    const dmg = tile.enemyData.dmg
+    const dmgStr = formatEnemyDamageDisplay(dmg, tile.enemyData.hitDamage)
+    enemyStatsHTML = `<div class="tile-enemy-stats">
+      <span class="stat-hp">❤️ ${hp}</span>
+      <span class="stat-dmg">⚔️ ${dmgStr}</span>
+    </div>`
+  }
+
+  div.innerHTML = `
+    <div class="tile-inner">
+      <div class="tile-back"></div>
+      <div class="tile-front ${def.cssClass}${isBoss ? ' is-boss' : ''}">
+        ${iconHTML}
+        ${def.isEnemy ? '' : `<span class="tile-label">${def.label}</span>`}
+        ${enemyStatsHTML}
+        <span class="tile-threat-clue" aria-hidden="true"></span>
+      </div>
+    </div>`
+
+  div.querySelector('.tile-back').style.backgroundImage = `url('${backSrc}')`
+  _wireTileIconFallback(div, emojiFallback)
+
+  // Apply initial state classes (sub-floor tiles may start revealed/locked/reachable)
+  if (tile.revealed)  div.classList.add('revealed')
+  if (tile.locked)    div.classList.add('locked')
+  if (tile.reachable && !tile.revealed) div.classList.add('reachable')
+  if (def.isEnemy && tile.enemyData && !tile.enemyData._slain && tile.revealed) {
+    div.classList.add('enemy-alive')
+  }
+
+  // ── Tap / Hold ──
+  let _holdTimer = null
+  let _didHold   = false
+  let _startX    = 0
+  let _startY    = 0
+  const HOLD_MS  = 380
+  const MOVE_THRESHOLD = 8
+
+  const _cancelHold = () => {
+    if (_holdTimer) { clearTimeout(_holdTimer); _holdTimer = null }
+  }
+
+  div.addEventListener('pointerdown', e => {
+    // In a scrollable container, release implicit pointer capture immediately
+    // so the scroll container can claim horizontal swipes before the hold timer fires.
+    if (scrollable && e.target.releasePointerCapture) {
+      e.target.releasePointerCapture(e.pointerId)
+    }
+    _didHold = false
+    _startX  = e.clientX
+    _startY  = e.clientY
+    _holdTimer = setTimeout(() => {
+      _holdTimer = null
+      _didHold   = true
+      if (onHold) onHold(r, c)
+    }, HOLD_MS)
+  })
+
+  div.addEventListener('pointermove', e => {
+    if (!_holdTimer) return
+    const dx = e.clientX - _startX
+    const dy = e.clientY - _startY
+    if (dx * dx + dy * dy > MOVE_THRESHOLD * MOVE_THRESHOLD) _cancelHold()
+  })
+
+  div.addEventListener('pointerup',     _cancelHold)
+  div.addEventListener('pointercancel', _cancelHold)
+  div.addEventListener('contextmenu', e => e.preventDefault())
+
+  if (scrollable) {
+    // Passive touch listeners so the scroll container can swipe freely.
+    // A touchmove flag suppresses the synthetic click that follows a swipe.
+    let _touchMoved = false
+    div.addEventListener('touchstart', () => { _touchMoved = false }, { passive: true })
+    div.addEventListener('touchmove',  () => { _touchMoved = true  }, { passive: true })
+    div.addEventListener('touchend',   () => {
+      if (!_touchMoved && !_didHold) onTap(r, c)
+      _didHold = false
+    }, { passive: true })
+    div.addEventListener('click', () => { /* handled by touchend */ })
+  } else {
+    div.addEventListener('click', () => { if (!_didHold) onTap(r, c) })
+    div.addEventListener('touchend', e => {
+      e.preventDefault()
+      if (!_didHold) onTap(r, c)
+      _didHold = false
+    }, { passive: false })
+  }
+
+  tile.element = div
+  return div
+}
+
 function renderGrid(gridEl, onTap, onHold) {
   const { cols, rows } = CONFIG.gridSize(_currentFloor, { rest: _gridMode === 'rest' })
   gridEl.innerHTML = ''
-
-  // Set CSS grid columns dynamically
   gridEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      const tile = _grid[r][c]
-      const def  = TILE_DEFS[tile.type]
+      const div = _buildTileElement(_grid[r][c], r, c, onTap, onHold)
+      gridEl.appendChild(div)
+    }
+  }
+}
 
-      const div = document.createElement('div')
-      div.className = 'tile tile-type-' + tile.type + (def.isEnemy ? ' is-enemy' : '')
-      div.dataset.row = r
-      div.dataset.col = c
-      div.setAttribute('aria-label', 'hidden tile')
-
-      // Random back-face texture — picked now, applied after innerHTML is set
-      const _backImages = [
-        'assets/sprites/tiles/tile-unflipped2.1.png',
-        'assets/sprites/tiles/tile-unflipped3.png',
-      ]
-      const backSrc = _backImages[Math.floor(Math.random() * _backImages.length)]
-
-      const isBoss = tile.enemyData?.isBoss
-      const hpBarHTML = ''
-
-      const emojiFallback = tile.enemyData?.emoji ?? def.emoji
-      const iconHTML = _tileFaceIconHTML(tile, def)
-
-      let enemyStatsHTML = ''
-      if (def.isEnemy && tile.enemyData) {
-        const rawHp = tile.enemyData.currentHP ?? tile.enemyData.hp
-        const hp = Number.isFinite(Number(rawHp)) ? rawHp : (tile.enemyData.hp ?? '—')
-        const dmg = tile.enemyData.dmg
-        const dmgStr = formatEnemyDamageDisplay(dmg, tile.enemyData.hitDamage)
-        enemyStatsHTML = `<div class="tile-enemy-stats">
-          <span class="stat-hp">❤️ ${hp}</span>
-          <span class="stat-dmg">⚔️ ${dmgStr}</span>
-        </div>`
-      }
-
-      div.innerHTML = `
-        <div class="tile-inner">
-          <div class="tile-back"></div>
-          <div class="tile-front ${def.cssClass}${isBoss ? ' is-boss' : ''}">
-            ${iconHTML}
-            ${def.isEnemy ? '' : `<span class="tile-label">${def.label}</span>`}
-            ${enemyStatsHTML}
-            ${hpBarHTML}
-            <span class="tile-threat-clue" aria-hidden="true"></span>
-          </div>
-        </div>`
-
-      // Apply random back texture directly to the .tile-back element
-      div.querySelector('.tile-back').style.backgroundImage = `url('${backSrc}')`
-
-      _wireTileIconFallback(div, emojiFallback)
-
-      // ── Tap / Hold ──
-      let _holdTimer = null
-      let _didHold   = false
-      let _startX    = 0
-      let _startY    = 0
-      const HOLD_MS  = 380
-      const MOVE_THRESHOLD = 8   // px — ignore micro-movements from finger settle
-
-      const _cancelHold = () => {
-        if (_holdTimer) { clearTimeout(_holdTimer); _holdTimer = null }
-      }
-
-      div.addEventListener('pointerdown', e => {
-        _didHold = false
-        _startX  = e.clientX
-        _startY  = e.clientY
-        _holdTimer = setTimeout(() => {
-          _holdTimer = null
-          _didHold   = true
-          if (onHold) onHold(r, c)
-        }, HOLD_MS)
-      })
-
-      div.addEventListener('pointermove', e => {
-        if (!_holdTimer) return
-        const dx = e.clientX - _startX
-        const dy = e.clientY - _startY
-        if (dx * dx + dy * dy > MOVE_THRESHOLD * MOVE_THRESHOLD) _cancelHold()
-      })
-
-      div.addEventListener('pointerup',     _cancelHold)
-      div.addEventListener('pointercancel', _cancelHold)
-
-      // Suppress native long-press context menu (Android/iOS)
-      div.addEventListener('contextmenu', e => e.preventDefault())
-
-      div.addEventListener('click', () => { if (!_didHold) onTap(r, c) })
-      div.addEventListener('touchend', e => {
-        e.preventDefault()
-        if (!_didHold) onTap(r, c)
-        // Reset after touchend so next interaction starts clean
-        _didHold = false
-      }, { passive: false })
-
-      tile.element = div
+/**
+ * Render an arbitrary 2D array of tiles into a grid element using the same
+ * DOM construction as the main grid. Used by the sub-floor overlay so icons,
+ * frames, threat clues, and fallbacks all match the main grid.
+ */
+function renderTileGridInto(gridEl, tileRows, onTap, onHold) {
+  gridEl.innerHTML = ''
+  const rows = tileRows.length
+  const cols = tileRows[0]?.length ?? 0
+  gridEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const tile = tileRows[r]?.[c]
+      if (!tile) { gridEl.appendChild(document.createElement('div')); continue }
+      // scrollable=true: passive touch listeners so the grid-wrap can scroll
+      const div = _buildTileElement(tile, r, c, onTap, onHold, true)
       gridEl.appendChild(div)
     }
   }
@@ -880,6 +930,7 @@ export default {
   generateGrid,
   importGridFromSnapshot,
   renderGrid,
+  renderTileGridInto,
   flipTile,
   lockAdjacent,
   unlockAdjacent,

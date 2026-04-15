@@ -873,7 +873,8 @@ body.tile-colors .tile-front.type-rope {
   background: url('../assets/ui/subfloor-entry.png') center/cover no-repeat;
 }
 .tile-type-stairs_up .tile-face,
-.tile-type-stairs_up.tile-front {
+.tile-type-stairs_up.tile-front,
+.tile-front.type-stairs-up {
   background: url('../assets/ui/subfloor-stairs-up.png') center/cover no-repeat;
 }
 /* Sub-floor unrevealed tile back — alternating variants */
@@ -882,4 +883,21 @@ body.tile-colors .tile-front.type-rope {
 }
 .sub-floor-grid .tile:nth-child(2n) .tile-back {
   background: url('../assets/ui/subfloor-tile-back-2.png') center/cover no-repeat;
+}
+
+/*
+ * Sub-floor pointer-events override.
+ * The main .tile.revealed rule blocks all taps (main grid handles interactivity
+ * per-type via more-specific selectors). In the sub-floor every revealed tile
+ * must stay tappable — the JS router (_onSubFloorTileTap) decides what each tap
+ * does. Slain tiles (.sf-tile-slain added by markSubFloorTileSlain) are the only
+ * exception: nothing to do on a defeated enemy.
+ */
+.sub-floor-grid .tile.revealed {
+  pointer-events: all;
+  cursor: pointer;
+}
+.sub-floor-grid .tile.sf-tile-slain {
+  pointer-events: none !important;
+  cursor: default;
 }

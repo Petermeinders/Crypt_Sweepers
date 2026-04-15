@@ -4086,15 +4086,25 @@ body.bestiary-detail-open #app {
 
 .sub-floor-grid-wrap {
   padding: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  /* block + text-align:center lets inline-grid children center when they fit,
+     and scroll horizontally when they overflow — flex justify-content:center
+     clips both sides and prevents scrolling. */
+  display: block;
   flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch; /* momentum scroll on iOS */
+  text-align: center;
+  touch-action: pan-x; /* tell browser this container handles horizontal panning */
+  /* hide scrollbar visually */
+  scrollbar-width: none;
 }
+.sub-floor-grid-wrap::-webkit-scrollbar { display: none; }
 
 .sub-floor-grid {
-  display: grid;
+  display: inline-grid; /* inline so text-align:center works for centering */
   gap: 4px;
+  vertical-align: middle;
 }
 /* Columns set dynamically by JS: grid-template-columns */
 
@@ -4114,6 +4124,8 @@ body.bestiary-detail-open #app {
   width: 80px;
   height: 80px;
   font-size: 0.65rem;
+  /* Allow the scroll container to claim horizontal swipes before JS tap handlers do */
+  touch-action: pan-x;
 }
 
 /* Sub-floor tile internals — clip only the faces, not the 3D container */
