@@ -33,4 +33,6 @@ export const TILE_DEFS = {
   shrine:       { emoji: '🗿',  label: 'Shrine',      cssClass: 'type-shrine',      weight: 0, isEnemy: false },
   /** Sub-floor only — depleted passage (already visited) */
   sub_floor_used: { emoji: '',  label: '',             cssClass: 'type-sub-floor-used', weight: 0, isEnemy: false },
+  /** Dungeon only — placed by GameController; buffs all enemies until the tile is cleared */
+  war_banner: { emoji: '🚩', label: 'War Banner', cssClass: 'type-war-banner', weight: 0, isEnemy: false },
 }

@@ -290,6 +290,7 @@
   color: #c8b898;
   font-style: italic;
   text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+  white-space: pre-line;
 }
 
 .card-actions {
@@ -3535,6 +3536,7 @@
   min-height: 0;
   overflow-y: auto;
   text-shadow: 0 0 8px rgba(255, 252, 240, 0.75);
+  white-space: pre-line;
 }
 
 /* Bestiary modal buttons — stretch to fill, inherit base style */
@@ -4124,8 +4126,9 @@ body.bestiary-detail-open #app {
   width: 80px;
   height: 80px;
   font-size: 0.65rem;
-  /* Allow the scroll container to claim horizontal swipes before JS tap handlers do */
-  touch-action: pan-x;
+  /* touch-action lives on .sub-floor-grid-wrap only — pan-x on children can steal
+     scrolling from the overflow-x scroller on some browsers. */
+  touch-action: manipulation;
 }
 
 /* Sub-floor tile internals — clip only the faces, not the 3D container */

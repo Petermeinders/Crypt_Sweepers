@@ -1656,6 +1656,46 @@ const UI = {
     })
   },
 
+  /** First-time war banner tutorial — same shell as creature discovery. */
+  showWarBannerIntro() {
+    return new Promise((resolve) => {
+      const info = TILE_BLURBS.war_banner
+      if (!info || !el.bestiaryDiscoveryOverlay) {
+        resolve()
+        return
+      }
+      if (el.bestiaryDiscoveryGif) {
+        el.bestiaryDiscoveryGif.removeAttribute('src')
+        el.bestiaryDiscoveryGif.classList.add('hidden')
+      }
+      if (el.bestiaryDiscoveryEmoji) {
+        el.bestiaryDiscoveryEmoji.textContent = info.emoji ?? '🚩'
+        el.bestiaryDiscoveryEmoji.classList.remove('hidden')
+      }
+      if (el.bestiaryDiscoveryName) el.bestiaryDiscoveryName.textContent = info.label
+      if (el.bestiaryDiscoveryType) el.bestiaryDiscoveryType.textContent = 'Dungeon hazard'
+      if (el.bestiaryDiscoveryBlurb) {
+        el.bestiaryDiscoveryBlurb.textContent = info.introBlurb ?? info.blurb
+      }
+
+      const close = () => {
+        el.bestiaryDiscoveryOverlay.classList.add('hidden')
+        el.bestiaryDiscoveryOverlay.setAttribute('aria-hidden', 'true')
+        document.body.classList.remove('bestiary-discovery-open')
+        el.bestiaryDiscoveryOk?.removeEventListener('click', close)
+        el.bestiaryDiscoveryBackdrop?.removeEventListener('click', close)
+        resolve()
+      }
+
+      el.bestiaryDiscoveryOverlay.classList.remove('hidden')
+      el.bestiaryDiscoveryOverlay.setAttribute('aria-hidden', 'false')
+      document.body.classList.add('bestiary-discovery-open')
+      el.bestiaryDiscoveryOk?.addEventListener('click', close)
+      el.bestiaryDiscoveryBackdrop?.addEventListener('click', close)
+      EventBus.emit('audio:play', { sfx: 'levelup' })
+    })
+  },
+
   /** Full-size creature card from Bestiary menu (above list). */
   showBestiaryDetail(enemyId) {
     const def = ENEMY_DEFS[enemyId]

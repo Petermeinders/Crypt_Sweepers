@@ -95,6 +95,8 @@ function _adjustedWeights(floor) {
   for (const [t, d] of Object.entries(defs)) {
     // Rest-only tile types never roll on dungeon floors
     if (t === 'well' || t === 'anvil' || t === 'rope') continue
+    // Special tiles placed only by GameController after generation
+    if (t === 'war_banner') continue
     weights[t] = d.weight
   }
   // Boss weight is always 0 (placed explicitly)
@@ -516,7 +518,17 @@ function importGridFromSnapshot(snapshot, floor, opts = {}) {
         ropeResolved: st.ropeResolved,
         forgeUsed: st.forgeUsed,
         echoHintCategory: st.echoHintCategory ?? null,
+        bannerReady: st.bannerReady ?? null,
+        warBannerFlying: st.type === 'war_banner' ? (st.warBannerFlying !== false) : null,
         element: null,
+      }
+      // Older saves may have chest_* on a cell that became war_banner — strip so teardown cannot resurrect chest state.
+      if (st.type === 'war_banner') {
+        tile.chestLoot = null
+        delete tile.chestReady
+        delete tile.chestLooted
+        delete tile.magicChestReady
+        tile.pendingLoot = null
       }
       _grid[r][c] = tile
     }
@@ -595,7 +607,7 @@ function _wireTileIconFallback(tileEl, emojiFallback) {
  *   suppresses the synthetic click that fires after a swipe.
  */
 function _buildTileElement(tile, r, c, onTap, onHold, scrollable = false) {
-  const def = TILE_DEFS[tile.type]
+  const def = TILE_DEFS[tile.type] || TILE_DEFS.empty
 
   const div = document.createElement('div')
   div.className = 'tile tile-type-' + tile.type + (def.isEnemy ? ' is-enemy' : '')
@@ -613,6 +625,8 @@ function _buildTileElement(tile, r, c, onTap, onHold, scrollable = false) {
   const isBoss = tile.enemyData?.isBoss
   const emojiFallback = tile.enemyData?.emoji ?? def.emoji
   const iconHTML = _tileFaceIconHTML(tile, def)
+  const showBannerOnBack = tile.type === 'war_banner' && !tile.revealed && tile.warBannerFlying !== false
+  const backFlag = showBannerOnBack ? '<span class="tile-war-banner-fly" aria-hidden="true">🚩</span>' : ''
 
   let enemyStatsHTML = ''
   if (def.isEnemy && tile.enemyData) {
@@ -628,7 +642,7 @@ function _buildTileElement(tile, r, c, onTap, onHold, scrollable = false) {
 
   div.innerHTML = `
     <div class="tile-inner">
-      <div class="tile-back"></div>
+      <div class="tile-back">${backFlag}</div>
       <div class="tile-front ${def.cssClass}${isBoss ? ' is-boss' : ''}">
         ${iconHTML}
         ${def.isEnemy ? '' : `<span class="tile-label">${def.label}</span>`}
@@ -653,6 +667,8 @@ function _buildTileElement(tile, r, c, onTap, onHold, scrollable = false) {
   let _didHold   = false
   let _startX    = 0
   let _startY    = 0
+  /** Scrollable sub-floor: true after pointer moved past threshold (drag / scroll vs tap). */
+  let _pointerMoved = false
   const HOLD_MS  = 380
   const MOVE_THRESHOLD = 8
 
@@ -667,6 +683,7 @@ function _buildTileElement(tile, r, c, onTap, onHold, scrollable = false) {
       e.target.releasePointerCapture(e.pointerId)
     }
     _didHold = false
+    _pointerMoved = false
     _startX  = e.clientX
     _startY  = e.clientY
     _holdTimer = setTimeout(() => {
@@ -677,19 +694,27 @@ function _buildTileElement(tile, r, c, onTap, onHold, scrollable = false) {
   })
 
   div.addEventListener('pointermove', e => {
-    if (!_holdTimer) return
     const dx = e.clientX - _startX
     const dy = e.clientY - _startY
+    if (scrollable && (dx * dx + dy * dy > MOVE_THRESHOLD * MOVE_THRESHOLD)) {
+      _pointerMoved = true
+    }
+    if (!_holdTimer) return
     if (dx * dx + dy * dy > MOVE_THRESHOLD * MOVE_THRESHOLD) _cancelHold()
   })
 
-  div.addEventListener('pointerup',     _cancelHold)
+  div.addEventListener('pointerup', e => {
+    _cancelHold()
+    // Desktop / trackpad: no touchend — use pointerup for mouse/pen only (touch uses touchend below).
+    if (scrollable && (e.pointerType === 'mouse' || e.pointerType === 'pen')) {
+      if (!_didHold && !_pointerMoved) onTap(r, c)
+    }
+  })
   div.addEventListener('pointercancel', _cancelHold)
   div.addEventListener('contextmenu', e => e.preventDefault())
 
   if (scrollable) {
     // Passive touch listeners so the scroll container can swipe freely.
-    // A touchmove flag suppresses the synthetic click that follows a swipe.
     let _touchMoved = false
     div.addEventListener('touchstart', () => { _touchMoved = false }, { passive: true })
     div.addEventListener('touchmove',  () => { _touchMoved = true  }, { passive: true })
@@ -697,7 +722,7 @@ function _buildTileElement(tile, r, c, onTap, onHold, scrollable = false) {
       if (!_touchMoved && !_didHold) onTap(r, c)
       _didHold = false
     }, { passive: true })
-    div.addEventListener('click', () => { /* handled by touchend */ })
+    // Do not listen for click here — synthetic clicks after touch gestures break horizontal scroll.
   } else {
     div.addEventListener('click', () => { if (!_didHold) onTap(r, c) })
     div.addEventListener('touchend', e => {
@@ -926,9 +951,44 @@ function getGrid()     { return _grid }
 function getTile(r, c) { return _grid[r]?.[c] }
 function getCurrentFloor() { return _currentFloor }
 
+/**
+ * Swap a grid cell for a new empty tile with the same exploration flags.
+ * Used when tearing down the war banner so no stale chest/loot/banner fields
+ * remain on the shared tile object (snapshots + DOM both read the model).
+ */
+function replaceTileWithEmptyPreserveState(r, c) {
+  const old = _grid[r]?.[c]
+  if (!old) return
+  const t = _createTileWithEnemy('empty', r, c, _currentFloor)
+  t.revealed = !!old.revealed
+  t.locked = !!old.locked
+  t.reachable = !!old.reachable
+  _grid[r][c] = t
+}
+
+/**
+ * Replace one main-grid tile's DOM to match `_grid[r][c]` without rebuilding the whole grid.
+ * Use after war-banner teardown so slain-enemy spirit FX / chest pulses are not replayed everywhere.
+ */
+function patchMainGridTileAt(r, c, gridEl, onTap, onHold) {
+  const tile = _grid[r]?.[c]
+  if (!tile || !gridEl) return false
+  const newEl = _buildTileElement(tile, r, c, onTap, onHold, false)
+  const oldEl = gridEl.querySelector(`.tile[data-row="${r}"][data-col="${c}"]`)
+  if (!oldEl?.parentNode) {
+    renderGrid(gridEl, onTap, onHold)
+    return false
+  }
+  oldEl.parentNode.replaceChild(newEl, oldEl)
+  tile.element = newEl
+  return true
+}
+
 export default {
   generateGrid,
   importGridFromSnapshot,
+  replaceTileWithEmptyPreserveState,
+  patchMainGridTileAt,
   renderGrid,
   renderTileGridInto,
   flipTile,

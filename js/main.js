@@ -159,6 +159,7 @@ async function boot() {
   if (save.settings.musicOn === undefined)    save.settings.musicOn    = true
   if (save.settings.sfxOn   === undefined)    save.settings.sfxOn      = true
   if (save.settings.subLevelsEnabled === undefined) save.settings.subLevelsEnabled = true
+  if (save.settings.warBannerIntroSeen === undefined) save.settings.warBannerIntroSeen = false
   if (!save.settings.cheats) save.settings.cheats = {}
   if (!save.globalPassives) save.globalPassives = []
   {

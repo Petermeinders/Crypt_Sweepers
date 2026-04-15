@@ -105,6 +105,14 @@ export const CONFIG = {
   // Boss floors cadence — boss appears on these floor numbers
   bossFloors: [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100],
 
+  /** Enemy war banner — rare tile that buffs all foes on the floor until destroyed */
+  warBanner: {
+    /** Floor 1 always gets a banner; on deeper floors, this chance per non-boss dungeon floor */
+    spawnChance: 0.2,
+    /** Multiplier for enemy HP and damage while the banner stands */
+    statMult: 1.25,
+  },
+
   subFloor: {
     /** Probability a non-boss, non-sanctuary floor spawns one sub-floor entry tile */
     spawnChance: 0.05,
