@@ -949,6 +949,53 @@
   opacity: 0.95;
 }
 
+/* ── QR code (main menu) ── */
+.menu-qr-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 12px 14px 10px;
+  background: rgb(18 21 39 / 88%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+}
+
+.menu-qr-link {
+  display: block;
+  line-height: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4) inset;
+  transition: filter 0.15s, transform 0.1s;
+}
+
+.menu-qr-link:hover {
+  filter: brightness(1.06);
+}
+
+.menu-qr-link:active {
+  transform: scale(0.98);
+}
+
+.menu-qr-link img {
+  display: block;
+  width: 132px;
+  height: 132px;
+  image-rendering: pixelated;
+}
+
+.menu-qr-caption {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(200, 195, 185, 0.92);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+}
+
 .save-link {
   background: none;
   border: none;
