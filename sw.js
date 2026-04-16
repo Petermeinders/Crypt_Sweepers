@@ -175,6 +175,7 @@ const PRECACHE_ASSETS = [
   './assets/sprites/Heroes/Engineer/engineer-hero-strike.gif',
   './assets/sprites/Heroes/Mage/blue-mage-hero-small.gif',
   './assets/sprites/Heroes/Mage/blue-mage-hero-attack-small-speed.gif',
+  './assets/sprites/Heroes/Vampire/vampire-hero-idle.png',
 
   // SFX
   './audio/sfx/flip.ogg',

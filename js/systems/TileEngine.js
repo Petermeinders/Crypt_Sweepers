@@ -295,6 +295,7 @@ function importGridFromSnapshot(snapshot, floor, opts = {}) {
         ropeResolved: st.ropeResolved,
         forgeUsed: st.forgeUsed,
         echoHintCategory: st.echoHintCategory ?? null,
+        darkEyesHint: !!st.darkEyesHint,
         element: null,
       }
       _grid[r][c] = tile

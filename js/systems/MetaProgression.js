@@ -29,6 +29,10 @@ export function defaultSave() {
       totalXP:  0,
       upgrades: [],
     },
+    vampire: {
+      totalXP:  0,
+      upgrades: [],
+    },
     selectedCharacter: 'warrior',
     settings: {
       difficulty:  'normal',
@@ -112,8 +116,16 @@ function applyToPlayer(player, save) {
     ? (save.ranger?.upgrades ?? [])
     : char === 'engineer'
       ? (save.engineer?.upgrades ?? [])
-      : (save.warrior?.upgrades ?? [])
-  const upgradeMap = char === 'ranger' ? RANGER_UPGRADES : char === 'engineer' ? ENGINEER_UPGRADES : WARRIOR_UPGRADES
+      : char === 'vampire'
+        ? (save.vampire?.upgrades ?? [])
+        : (save.warrior?.upgrades ?? [])
+  const upgradeMap = char === 'ranger'
+    ? RANGER_UPGRADES
+    : char === 'engineer'
+      ? ENGINEER_UPGRADES
+      : char === 'vampire'
+        ? {}
+        : WARRIOR_UPGRADES
 
   for (const id of upgradeIds) {
     const def = upgradeMap[id]
@@ -261,6 +273,9 @@ function endRun(save, runStats, outcome) {
     save.ranger.totalXP += xpEarned
   } else if (char === 'engineer') {
     save.engineer.totalXP += xpEarned
+  } else if (char === 'vampire') {
+    if (!save.vampire) save.vampire = { totalXP: 0, upgrades: [] }
+    save.vampire.totalXP += xpEarned
   } else {
     save.warrior.totalXP += xpEarned
   }

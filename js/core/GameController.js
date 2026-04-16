@@ -10,6 +10,7 @@ import SaveManager           from '../save/SaveManager.js'
 import UI                    from '../ui/UI.js'
 import { RANGER_BASE, RANGER_UPGRADES } from '../data/ranger.js'
 import { ENGINEER_BASE, ENGINEER_UPGRADES, ENGINEER_TURRET } from '../data/engineer.js'
+import { VAMPIRE_BASE, VAMPIRE_DARK_EYES_MAX_TILES } from '../data/vampire.js'
 import { WARRIOR_UPGRADES }  from '../data/upgrades.js'
 import { ENEMY_SPRITES, MONSTER_ICONS_BASE, ITEM_ICONS_BASE, TILE_TYPE_ICON_FILES, MAGIC_CHEST_OPEN_GIF, MAGIC_CHEST_GIF_DURATION_MS } from '../data/tileIcons.js'
 import { TILE_BLURBS }       from '../data/tileBlurbs.js'
@@ -384,6 +385,7 @@ function _serializeHourglassSnapshot() {
       ropeResolved: t.ropeResolved,
       forgeUsed: t.forgeUsed,
       echoHintCategory: t.echoHintCategory ?? null,
+      darkEyesHint: !!t.darkEyesHint,
     })),
   )
   return {
@@ -426,6 +428,7 @@ function _restoreHourglassSnapshot(snap) {
       t.ropeResolved = st.ropeResolved
       t.forgeUsed = st.forgeUsed
       t.echoHintCategory = st.echoHintCategory ?? null
+      t.darkEyesHint = !!st.darkEyesHint
       t.element = el
       if (el) {
         el.classList.toggle('revealed', !!t.revealed)
@@ -438,7 +441,7 @@ function _restoreHourglassSnapshot(snap) {
     }
   }
 
-  TileEngine.recomputeReachabilityFromRevealed(UI.markTileReachable.bind(UI))
+  TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
   for (const row of grid) {
     for (const t of row) {
       if (!t.element) continue
@@ -608,12 +611,219 @@ const WARRIOR_FIGHT_ATTACK_PORTRAIT_MS = 2000
 /** Ranger passive: chance per enemy reveal to skip locking adjacent tiles. */
 const RANGER_PASSIVE_SKIP_ADJ_LOCK = 0.1
 
+/** Strip Dark Eyes hints when a tile becomes reachable; then mark DOM reachable. */
+function _markReachableUi(tileEl) {
+  if (!tileEl) return
+  const r = tileEl.dataset?.row
+  const c = tileEl.dataset?.col
+  if (r != null && c != null) {
+    const t = TileEngine.getTile(+r, +c)
+    if (t?.darkEyesHint) {
+      t.darkEyesHint = false
+      t.echoHintCategory = null
+      if (t.element) {
+        t.element.classList.remove('echo-hint')
+        delete t.element.dataset.echoHint
+      }
+    }
+  }
+  UI.markTileReachable(tileEl)
+}
+
+/** Unrevealed enemy tile types (for Dark Eyes hints only). */
+function _isDarkEyesEnemyTileType(type) {
+  return type === 'enemy' || type === 'enemy_fast' || type === 'boss'
+}
+
+function _finalizeVampireDrainKill(t, damageDealt) {
+  if (!run || !t?.enemyData || t.enemyData._slain) return
+  const e = t.enemyData
+  e.currentHP = 0
+  if (e.enemyId === 'onion') _applyTearyEyes()
+  const goldDrop = e.goldDrop ? _rand(...e.goldDrop) : 1
+  const xpDrop = e.xpDrop ?? 0
+  if (run.telemetry && damageDealt > 0) {
+    run.telemetry.totalDamageDealtToEnemies += damageDealt
+    _telemetryBumpDamageDealt(run.floor, damageDealt)
+  }
+  if (t.element) UI.spawnFloat(t.element, '🩸 Drained!', 'xp')
+  _gainGold(goldDrop, t.element, true)
+  _gainXP(xpDrop, t.element)
+  _endCombatVictory(t)
+}
+
+/** Shake / strike VFX, then after 400ms resolve kill — mirrors fightAction’s fatal-blow delay (multi-kill skips long portrait hold so chains stay snappy). */
+function _vampireDrainKillPresentationThenResolve(t, damageDealt, onDone) {
+  const el = t.element
+  if (el) {
+    UI.shakeTile(el)
+    if (_charKey() === 'ranger') UI.spawnArrow(el)
+    else UI.spawnSlash(el)
+  }
+  const attackSfx = _charKey() === 'ranger'
+    ? 'arrowShot'
+    : (Math.random() < 0.5 ? 'hit' : 'hit2')
+  EventBus.emit('audio:play', { sfx: attackSfx })
+  UI.setPortraitAnim('attack')
+  setTimeout(() => {
+    if (run && t?.enemyData && !t.enemyData._slain) {
+      _finalizeVampireDrainKill(t, damageDealt)
+    }
+    UI.setPortraitAnim('idle')
+    onDone?.()
+  }, 400)
+}
+
+/** First “kill” on a splittable slime: same split branch as fightAction (telemetry + UI.splitSlime). */
+function _vampireDrainSlimeSplitPresentation(t, hpBeforeDrain, onDone) {
+  const el = t.element
+  if (el) {
+    UI.shakeTile(el)
+    if (_charKey() === 'ranger') UI.spawnArrow(el)
+    else UI.spawnSlash(el)
+  }
+  const attackSfx = _charKey() === 'ranger'
+    ? 'arrowShot'
+    : (Math.random() < 0.5 ? 'hit' : 'hit2')
+  EventBus.emit('audio:play', { sfx: attackSfx })
+  UI.setPortraitAnim('attack')
+  setTimeout(() => {
+    if (!run || !t?.enemyData || t.enemyData._slain) {
+      UI.setPortraitAnim('idle')
+      onDone?.()
+      return
+    }
+    const splitHP = Math.max(1, Math.floor(t.enemyData.hp / 2))
+    if (run.telemetry) {
+      const dealt = hpBeforeDrain - splitHP
+      run.telemetry.totalDamageDealtToEnemies += dealt
+      _telemetryBumpDamageDealt(run.floor, dealt)
+    }
+    t.enemyData.currentHP = splitHP
+    t.enemyData.hasSplit = true
+    if (t.element) {
+      UI.spawnFloat(t.element, '🩸 1', 'damage')
+      UI.spawnFloat(t.element, '🟢 Split!', 'damage')
+      UI.splitSlime(t.element)
+      UI.updateEnemyHP(t.element, splitHP)
+    }
+    UI.setMessage(`The slime splits in two! Each half still fights. (${splitHP} HP remaining)`)
+    UI.setPortraitAnim('idle')
+    onDone?.()
+  }, 400)
+}
+
+function _runVampireDrainPresentationChain(entries, idx, hintTile) {
+  if (idx >= entries.length) {
+    _vampireDarkEyesRoll(hintTile)
+    return
+  }
+  const e = entries[idx]
+  if (e.type === 'split') {
+    _vampireDrainSlimeSplitPresentation(e.tile, e.hpBeforeDrain, () => {
+      _runVampireDrainPresentationChain(entries, idx + 1, hintTile)
+    })
+  } else {
+    _vampireDrainKillPresentationThenResolve(e.tile, e.damageDealt, () => {
+      _runVampireDrainPresentationChain(entries, idx + 1, hintTile)
+    })
+  }
+}
+
+function _vampireDarkEyesRoll(tile) {
+  if (!run || GameState.is(States.DEATH) || _charKey() !== 'vampire') return
+  if (Math.random() >= 0.5) return
+  const grid = TileEngine.getGrid()
+  const candidates = []
+  for (const row of grid) {
+    for (const t of row) {
+      if (t.revealed || t.reachable || t.locked || t.echoHintCategory) continue
+      if (!_isDarkEyesEnemyTileType(t.type)) continue
+      candidates.push(t)
+    }
+  }
+  for (let i = candidates.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[candidates[i], candidates[j]] = [candidates[j], candidates[i]]
+  }
+  const n = Math.min(VAMPIRE_DARK_EYES_MAX_TILES, candidates.length)
+  for (let i = 0; i < n; i++) {
+    const t = candidates[i]
+    if (!t.element) continue
+    const cat = _echoCharmCategoryForTileType(t.type)
+    t.echoHintCategory = cat
+    t.darkEyesHint = true
+    t.element.classList.add('echo-hint')
+    t.element.dataset.echoHint = cat
+  }
+}
+
+function _vampireCorruptedBloodAndDarkEyes(tile) {
+  if (!run || GameState.is(States.DEATH) || _charKey() !== 'vampire') return
+  const p = run.player
+  const grid = TileEngine.getGrid()
+  const drainTargets = []
+  let monsterCount = 0
+  for (const row of grid) {
+    for (const t of row) {
+      if (!t.revealed || !t.enemyData || t.enemyData._slain) continue
+      monsterCount++
+      drainTargets.push(t)
+    }
+  }
+  // Constant −1 HP per flip; +1 per revealed living monster (net = −1 + M), counted before drain.
+  const netHp = -1 + monsterCount
+  const floatEl = tile.element ?? document.getElementById('hud-portrait')
+  if (netHp > 0) {
+    p.hp = Math.min(p.maxHp, p.hp + netHp)
+    UI.spawnFloat(floatEl, `🩸 +${netHp} HP`, 'heal')
+  } else if (netHp < 0) {
+    p.hp = Math.max(0, p.hp + netHp)
+    UI.spawnFloat(floatEl, `🩸 ${netHp} HP`, 'damage')
+  } else {
+    UI.spawnFloat(floatEl, '🩸 0', 'xp')
+  }
+  UI.updateHP(p.hp, p.maxHp)
+  if (p.hp <= 0) {
+    _die(null)
+    return
+  }
+  const pendingPresentations = []
+  for (const t of drainTargets) {
+    if (!t.enemyData || t.enemyData._slain) continue
+    const e = t.enemyData
+    const baseHp = Number(e.hp)
+    const cur0 = Number(e.currentHP)
+    const cur = Number.isFinite(cur0) ? cur0 : (Number.isFinite(baseHp) ? baseHp : 1)
+    if (!Number.isFinite(e.currentHP)) e.currentHP = cur
+    const hpBeforeDrain = e.currentHP
+    const nextHp = hpBeforeDrain - 1
+    const canSplit = nextHp <= 0
+      && e.attributes?.includes('splits')
+      && !e.hasSplit
+    if (nextHp > 0) {
+      e.currentHP = nextHp
+      if (t.element) UI.updateEnemyHP(t.element, nextHp)
+    } else if (canSplit) {
+      pendingPresentations.push({ type: 'split', tile: t, hpBeforeDrain })
+    } else {
+      pendingPresentations.push({ type: 'kill', tile: t, damageDealt: hpBeforeDrain })
+    }
+  }
+  if (pendingPresentations.length) {
+    _runVampireDrainPresentationChain(pendingPresentations, 0, tile)
+  } else {
+    _vampireDarkEyesRoll(tile)
+  }
+}
+
 function buildRunState() {
   const isRanger   = _charKey() === 'ranger'
   const isEngineer = _charKey() === 'engineer'
   const isMage     = _charKey() === 'mage'
-  const baseHP     = isMage ? 30 : isRanger ? RANGER_BASE.hp : isEngineer ? ENGINEER_BASE.hp : CONFIG.player.baseHP
-  const baseMana   = isMage ? 60 : isRanger ? RANGER_BASE.mana : isEngineer ? ENGINEER_BASE.mana : CONFIG.player.baseMana
+  const isVampire  = _charKey() === 'vampire'
+  const baseHP     = isMage ? 30 : isRanger ? RANGER_BASE.hp : isEngineer ? ENGINEER_BASE.hp : isVampire ? VAMPIRE_BASE.hp : CONFIG.player.baseHP
+  const baseMana   = isMage ? 60 : isRanger ? RANGER_BASE.mana : isEngineer ? ENGINEER_BASE.mana : isVampire ? VAMPIRE_BASE.mana : CONFIG.player.baseMana
 
   const p = {
     hp:      baseHP,
@@ -649,6 +859,7 @@ function buildRunState() {
     isRanger,
     isEngineer,
     isMage,
+    isVampire,
     inventory:          [],   // [{ id, qty }]
     goldenKeys:         0,
     meleeHitCount:      0,    // Stormcaller's Fist tracker
@@ -989,6 +1200,7 @@ function _serializeGridSnapshot() {
       ropeResolved: t.ropeResolved,
       forgeUsed: t.forgeUsed,
       echoHintCategory: t.echoHintCategory ?? null,
+      darkEyesHint: !!t.darkEyesHint,
     })),
   )
 }
@@ -1048,6 +1260,7 @@ function resumeRun() {
   run.player.isEngineer = ch === 'engineer'
   run.player.isRanger   = ch === 'ranger'
   run.player.isMage     = ch === 'mage'
+  run.player.isVampire  = ch === 'vampire'
   TileEngine.setDiagonalMovement(ch === 'mage')
   UI.hideMainMenu()
   const track = CONFIG.bossFloors.includes(run.floor) ? 'boss' : 'dungeon'
@@ -1069,7 +1282,13 @@ function returnToMenu(autoSave = false) {
   if (!GameState.transition(States.MENU)) GameState.set(States.MENU)
   if (autoSave) SaveManager.save(_save)
   const char = _charKey()
-  const xp   = char === 'ranger' ? _save.ranger.totalXP : char === 'engineer' ? _save.engineer.totalXP : _save.warrior.totalXP
+  const xp   = char === 'ranger'
+    ? _save.ranger.totalXP
+    : char === 'engineer'
+      ? _save.engineer.totalXP
+      : char === 'vampire'
+        ? (_save.vampire?.totalXP ?? 0)
+        : _save.warrior.totalXP
   UI.updateMenuStats(_save.persistentGold, xp, char, _save)
   UI.setActiveDifficulty(_save.settings.difficulty)
   UI.showMainMenu()
@@ -1127,7 +1346,7 @@ function _startFloor() {
     run._resumeEventTile = null
   }
   if (gridRestored) {
-    TileEngine.recomputeReachabilityFromRevealed(UI.markTileReachable.bind(UI))
+    TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
     TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
     _syncGridDomClassesFromModel()
     _tickPoisonArrowDotOnGlobalTurn()
@@ -1142,7 +1361,7 @@ function _startFloor() {
         if (t.type === 'exit' && !t.revealed) {
           t.revealed = true
           run.tilesRevealed++
-          TileEngine.markReachable(t.row, t.col, UI.markTileReachable.bind(UI))
+          TileEngine.markReachable(t.row, t.col, _markReachableUi)
           if (t.element) {
             TileEngine.flipTile(t, UI)
             t.element.classList.add('compass-revealed')
@@ -1160,7 +1379,7 @@ function _startFloor() {
         if (!t.revealed && (t.type === 'enemy' || t.type === 'enemy_fast' || t.type === 'boss')) {
           t.revealed = true
           run.tilesRevealed++
-          TileEngine.markReachable(t.row, t.col, UI.markTileReachable.bind(UI))
+          TileEngine.markReachable(t.row, t.col, _markReachableUi)
           if (t.element) TileEngine.flipTile(t, UI)
           if (t.enemyData) TileEngine.rollEnemyHitDamage(t.enemyData)
           _resolveEffect(t)
@@ -1225,7 +1444,7 @@ function _startFloor() {
     _refreshRangerActiveHud()
   } else if (_charKey() === 'engineer') {
     _refreshEngineerHud()
-  } else if (_charKey() === 'mage') {
+  } else if (_charKey() === 'mage' || _charKey() === 'vampire') {
     UI.setSlamBtn(false)
     UI.setArrowBarrageBtn(false)
     UI.setPoisonArrowShotBtn(false)
@@ -1352,7 +1571,7 @@ function _revealStartTile() {
   tile.revealed = true
   run.tilesRevealed++
   // Mark neighbours reachable immediately so they're clickable before the flip finishes
-  TileEngine.markReachable(tile.row, tile.col, UI.markTileReachable.bind(UI))
+  TileEngine.markReachable(tile.row, tile.col, _markReachableUi)
   TileEngine.flipTile(tile)
 
   // Turret carries over — deploy it on the starting tile of the new floor
@@ -2148,7 +2367,7 @@ async function revealTile(tile) {
     _gainGold(tile.enemyData.goldDrop ? _rand(...tile.enemyData.goldDrop) : 1, tile.element, true)
     _gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
     _endCombatVictory(tile)
-    TileEngine.markReachable(tile.row, tile.col, UI.markTileReachable.bind(UI))
+    TileEngine.markReachable(tile.row, tile.col, _markReachableUi)
     return
   }
   await _maybeBestiaryDiscovery(tile)
@@ -2166,7 +2385,7 @@ async function revealTile(tile) {
   }
   // Blockage / hole tiles do not extend reachability — player must path around them
   if (tile.type !== 'blockage' && tile.type !== 'hole') {
-    TileEngine.markReachable(tile.row, tile.col, UI.markTileReachable.bind(UI))
+    TileEngine.markReachable(tile.row, tile.col, _markReachableUi)
   }
   // Ranger unique trait: 50% chance to sense the category of orthogonal neighbors
   if (_charKey() === 'ranger' && Math.random() < 0.5) {
@@ -2178,6 +2397,9 @@ async function revealTile(tile) {
         adj.element.dataset.echoHint = cat
       }
     }
+  }
+  if (_charKey() === 'vampire' && run && !GameState.is(States.DEATH)) {
+    _vampireCorruptedBloodAndDarkEyes(tile)
   }
   // Abyssal Lens: randomly reveal one additional tile per flip (non-recursive)
   if (!tile._lensReveal && run.player.inventory.some(e => e.id === 'abyssal-lens')) {
@@ -2458,8 +2680,10 @@ function _resolveEffect(tile) {
     case 'enemy_fast': {
       // Boss tiles: no free ambush hit or forced engagement — tap the boss to start the fight.
       const isBossTile = tile.type === 'boss'
+      /** Vampire: no fast-tile ambush damage, shake, or forced engagement — reveal plays like a normal foe. */
+      const skipFastAmbushForVampire = p.isVampire && !isBossTile
       let reflexDodge = false
-      if (!isBossTile) {
+      if (!isBossTile && !skipFastAmbushForVampire) {
         const { dmg } = CombatResolver.resolveFastReveal(tile.enemyData)
         const wardensBlock = p.inventory.some(e => e.id === 'wardens-brand')
         reflexDodge =
@@ -2487,6 +2711,8 @@ function _resolveEffect(tile) {
             `⚠️ BOSS: ${tile.enemyData.label} — stands before you. Tap when ready to fight.`,
             true,
           )
+        } else if (skipFastAmbushForVampire) {
+          UI.setMessage(`A ${tile.enemyData?.label ?? 'enemy'} lurks. Tap it to fight.`)
         } else {
           const label = tile.enemyData?.isBoss ? `⚠️ BOSS: ${tile.enemyData.label}` : '⚡ Fast enemy'
           const dodgeNote = reflexDodge ? ' Your reflexes kick in — ambush dodged!' : ''
@@ -2525,13 +2751,14 @@ function _resolveEffect(tile) {
       }
 
       // Fast enemies get a free strike the moment they're revealed (bosses never ambush)
-      const hasWarden = p.inventory.some(e => e.id === 'wardens-brand')
+      const hasWardenBrand = p.inventory.some(e => e.id === 'wardens-brand')
+      const hasWarden = hasWardenBrand
       const hasLens   = p.inventory.some(e => e.id === 'abyssal-lens')
-      if (tile.enemyData?.attributes?.includes('fast') && !tile.enemyData?.isBoss) {
+      if (tile.enemyData?.attributes?.includes('fast') && !tile.enemyData?.isBoss && !p.isVampire) {
         const d = tile.enemyData.dmg
         const ambushDmg  = tile.enemyData.hitDamage ?? (Array.isArray(d) ? d[0] : d)
         const reflexDodge = !hasWarden && (p.reflexDodgeChance ?? 0) > 0 && Math.random() < p.reflexDodgeChance
-        if (hasWarden) {
+        if (hasWardenBrand) {
           UI.setMessage(`The ${tile.enemyData.label} lunges — but your brand holds. Tap to fight.`)
         } else if (reflexDodge) {
           UI.spawnFloat(tile.element, '⚡ Dodged!', 'heal')
@@ -2544,7 +2771,7 @@ function _resolveEffect(tile) {
           UI.setMessage(`⚡ The ${tile.enemyData.label} strikes first for ${r.dmg}!${tf} Tap to fight back.`)
         }
         if (!GameState.is(States.DEATH)) _setCombatEngagement(tile, { force: true })
-      } else if (hasLens && !tile.enemyData?.isBoss) {
+      } else if (hasLens && !tile.enemyData?.isBoss && !p.isVampire) {
         // Abyssal Lens: normal enemies also deal 1 ambush damage
         _takeDamage(1, tile.element, false, tile.enemyData, { enemyAttack: true })
         if (!GameState.is(States.DEATH)) {
@@ -4381,6 +4608,11 @@ function _playerDamageRange(player) {
       ? [max, max]
       : [Math.max(1, lo + bonus + collarBonus + soulBonus - maskPenalty), max]
   }
+  if (player.isVampire) {
+    const b = VAMPIRE_BASE.damage + bonus + collarBonus + soulBonus - maskPenalty
+    const max = Math.max(1, b)
+    return hasRazor ? [max, max] : [max, max]
+  }
   const base = CONFIG.player.baseDamage
   const b = Array.isArray(base) ? base[0] : base
   const max = Math.max(1, b + bonus + collarBonus + soulBonus - maskPenalty)
@@ -5608,7 +5840,7 @@ function getBalanceBotDeadlockDiagnostics() {
 /** Force-recompute tile reachability from all currently-revealed tiles. Fixes stale flags. */
 function balanceBotRepairReachability() {
   if (!run) return false
-  TileEngine.recomputeReachabilityFromRevealed(UI.markTileReachable.bind(UI))
+  TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
   return true
 }
 
@@ -5619,7 +5851,7 @@ function balanceBotRepairReachability() {
 function balanceBotForceUnlockAll() {
   if (!run) return 0
   TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
-  TileEngine.recomputeReachabilityFromRevealed(UI.markTileReachable.bind(UI))
+  TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
   const grid = TileEngine.getGrid()
   let unlocked = 0
   for (const row of grid) {

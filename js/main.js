@@ -15,6 +15,7 @@ import { GLOBAL_PASSIVE_UPGRADES, GLOBAL_PASSIVE_IDS } from './data/passives.js'
 function _metaCharSave(save, charId) {
   if (charId === 'ranger') return save.ranger
   if (charId === 'engineer') return save.engineer
+  if (charId === 'vampire') return save.vampire
   return save.warrior
 }
 
@@ -66,8 +67,8 @@ const CHARACTERS = [
   {
     id:          'vampire',
     name:        'Vampire',
-    tagline:     'A creature of the night who feeds on fallen foes to grow stronger. The deeper the crypt, the more dangerous she becomes.',
-    gif:         null,
+    tagline:     'Corrupted Blood takes 1 HP per flip but pays back +1 per monster in sight; Dark Eyes glimpses distant foes. She never suffers ambush strikes.',
+    gif:         'assets/sprites/Heroes/Vampire/vampire-hero-idle.png',
     attackGif:   null,
     attackMs:    0,
     emoji:       '🧛',
@@ -76,7 +77,7 @@ const CHARACTERS = [
     baseHP:      45,
     baseMana:    25,
     baseDmg:     '2',
-    comingSoon:  true,
+    comingSoon:  false,
   },
   {
     id:          'engineer',
@@ -182,6 +183,10 @@ async function boot() {
   }
   if (!save.engineer) {
     save.engineer = { totalXP: 0, upgrades: [] }
+    await SaveManager.save(save)
+  }
+  if (!save.vampire) {
+    save.vampire = { totalXP: 0, upgrades: [] }
     await SaveManager.save(save)
   }
   if (!save.selectedCharacter) {
@@ -1161,7 +1166,27 @@ function _renderHeroUpgradeGrid(grid, char, ownedList, xp, isLocked) {
           </div>`
         passiveGrid.appendChild(phaseWalkSlot)
       }
-      if (char.id !== 'warrior' && char.id !== 'ranger' && char.id !== 'mage') {
+      if (char.id === 'vampire') {
+        const cbSlot = document.createElement('div')
+        cbSlot.className = 'hero-passive-builtin'
+        cbSlot.innerHTML = `
+          <span class="hero-passive-builtin-icon">🩸</span>
+          <div class="hero-passive-builtin-info">
+            <div class="hero-passive-builtin-name">Corrupted Blood <span class="hero-passive-builtin-badge">✓ Applied</span></div>
+            <div class="hero-passive-builtin-desc">You lose 1 HP on every flip, gain +1 HP per revealed living monster on the board (net = −1 + monsters), and each monster loses 1 HP from its current total — enough damage kills them like a normal defeat (gold/XP, trinkets). Ambush reveals never damage you — tap to fight.</div>
+          </div>`
+        passiveGrid.appendChild(cbSlot)
+        const deSlot = document.createElement('div')
+        deSlot.className = 'hero-passive-builtin'
+        deSlot.innerHTML = `
+          <span class="hero-passive-builtin-icon">🌑</span>
+          <div class="hero-passive-builtin-info">
+            <div class="hero-passive-builtin-name">Dark Eyes <span class="hero-passive-builtin-badge">✓ Applied</span></div>
+            <div class="hero-passive-builtin-desc">50% chance per reveal to sense an enemy hint (⚔️) on unrevealed, unreachable enemy tiles only (capped per flip); hints disappear when those tiles become reachable.</div>
+          </div>`
+        passiveGrid.appendChild(deSlot)
+      }
+      if (char.id !== 'warrior' && char.id !== 'ranger' && char.id !== 'mage' && char.id !== 'vampire') {
         const comingSoon = document.createElement('p')
         comingSoon.className = 'passive-coming-soon'
         comingSoon.textContent = 'Coming Soon…'
@@ -1191,7 +1216,7 @@ function _renderUpgradeDetail(id, def, isOwned, canAfford) {
   const s        = GameController.getSave()
   const charSave = _metaCharSave(s, char.id)
   const owned    = charSave.upgrades ?? []
-  const map      = char.id === 'ranger' ? RANGER_UPGRADES : char.id === 'engineer' ? ENGINEER_UPGRADES : WARRIOR_UPGRADES
+  const map      = char.id === 'ranger' ? RANGER_UPGRADES : char.id === 'engineer' ? ENGINEER_UPGRADES : char.id === 'vampire' ? {} : WARRIOR_UPGRADES
   const missingPrereq = def.requires && !owned.includes(def.requires)
   if (hintEl) {
     if (missingPrereq && !isOwned) {
@@ -1230,7 +1255,7 @@ function _renderUpgradeDetail(id, def, isOwned, canAfford) {
 function _showResumePrompt() {
   const info = GameController.getActiveRunInfo()
   if (!info) return
-  const heroName = info.player.isRanger ? 'Ranger' : info.player.isEngineer ? 'Engineer' : info.player.isMage ? 'Mage' : 'Paladin'
+  const heroName = info.player.isRanger ? 'Ranger' : info.player.isEngineer ? 'Engineer' : info.player.isMage ? 'Mage' : info.player.isVampire ? 'Vampire' : 'Paladin'
   const floorLabel = info.atRest ? `Floor ${info.floor} — Sanctuary` : `Floor ${info.floor}`
   document.getElementById('resume-hero-name').textContent = heroName
   document.getElementById('resume-floor').textContent    = `🗺 ${floorLabel}`

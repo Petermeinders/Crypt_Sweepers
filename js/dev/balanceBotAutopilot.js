@@ -317,6 +317,7 @@ function _finalizeAggregateReport() {
           upgrades: [...(s.ranger?.upgrades ?? [])],
         },
         engineer: { totalXP: s.engineer?.totalXP ?? 0, upgrades: [...(s.engineer?.upgrades ?? [])] },
+        vampire: { totalXP: s.vampire?.totalXP ?? 0, upgrades: [...(s.vampire?.upgrades ?? [])] },
       }
     }
   }

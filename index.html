@@ -611,25 +611,14 @@
     </div>
     <div class="htp-body">
 
-      <!-- OVERVIEW -->
-      <section class="htp-section">
-        <h2 class="htp-heading">⚔️ The Dungeon Awaits</h2>
-        <p class="htp-text">Crypt Sweepers is a <strong>dungeon-crawling tile flipper</strong>. Each floor is a hidden grid — tap tiles to reveal what lurks beneath. Fight monsters, grab loot, and descend deeper before death finds you.</p>
-        <p class="htp-text">This is a <strong>Roguelike</strong> — death is part of the journey. Each run starts fresh, and the dungeon will humble you. Don't be discouraged; every death teaches you something new. <strong>Expect to die. A lot.</strong> The fun is in going a little further each time.</p>
-        <p class="htp-text">Between runs, visit the <strong>main menu</strong> to grow stronger for the next attempt:</p>
-        <div class="htp-meta-list">
-          <div class="htp-meta-row"><span>🗡️</span><div><strong>Heroes</strong> — unlock new characters with unique playstyles and abilities.</div></div>
-          <div class="htp-meta-row"><span>⚡</span><div><strong>Active Abilities</strong> — purchase powerful skills like Slam, Arrow Barrage, and Blinding Light.</div></div>
-          <div class="htp-meta-row"><span>📜</span><div><strong>Passive Upgrades</strong> — permanent bonuses that carry into every run — more HP, better damage, deeper pockets.</div></div>
-          <div class="htp-meta-row"><span>🛒</span><div><strong>Gold Shop</strong> — spend gold earned in runs on upgrades and unlocks that persist forever.</div></div>
-        </div>
-      </section>
+      <p class="htp-lead"><strong>Start here.</strong> The essentials are up top. Open a section below when you want detail — you don’t need it all on your first run.</p>
 
-      <!-- GRID -->
+      <!-- ESSENTIALS: loop -->
       <section class="htp-section">
-        <h2 class="htp-heading">🗺 The Grid</h2>
-        <p class="htp-text">Every floor is a grid of hidden tiles. Tap any reachable tile to flip it. Only tiles <strong>adjacent</strong> to a revealed tile can be flipped.</p>
-        <div class="htp-grid-demo">
+        <h2 class="htp-heading">🗺 Flip the dungeon</h2>
+        <p class="htp-text"><strong>Crypt Sweepers</strong> is a roguelike tile-flipper: each floor is a hidden grid. You start on one revealed tile and expand by flipping <strong>orthogonally adjacent</strong> hidden tiles (north, south, east, west — not diagonals). Only tiles marked as reachable can be flipped.</p>
+        <p class="htp-text"><strong>Threat clues</strong> — small numbers on revealed tiles (where enabled) sum the <strong>threat level</strong> of living enemies and certain hazards in the four orthogonal directions, similar to Minesweeper. Use them to guess where danger is clustered before you commit.</p>
+        <div class="htp-grid-demo" aria-hidden="true">
           <div class="htp-tile htp-tile--revealed">🪙<span>Gold</span></div>
           <div class="htp-tile htp-tile--revealed">💀<span>Enemy</span></div>
           <div class="htp-tile htp-tile--hidden">?</div>
@@ -640,25 +629,13 @@
           <div class="htp-tile htp-tile--hidden">?</div>
           <div class="htp-tile htp-tile--revealed">🏕️<span>Camp</span></div>
         </div>
-        <div class="htp-tile-legend">
-          <div class="htp-legend-row"><span class="htp-legend-icon">💀</span><span>Enemy — fight to gain gold &amp; XP</span></div>
-          <div class="htp-legend-row"><span class="htp-legend-icon">⚡💀</span><span>Fast Enemy — strikes first, no counter if you kill it</span></div>
-          <div class="htp-legend-row"><span class="htp-legend-icon">📦</span><span>Chest — random item loot</span></div>
-          <div class="htp-legend-row"><span class="htp-legend-icon">🪙</span><span>Gold — coin drops</span></div>
-          <div class="htp-legend-row"><span class="htp-legend-icon">🕸️</span><span>Trap — deals damage on reveal</span></div>
-          <div class="htp-legend-row"><span class="htp-legend-icon">❤️</span><span>Heart — restores HP or raises max HP</span></div>
-          <div class="htp-legend-row"><span class="htp-legend-icon">🏕️</span><span>Checkpoint — rest to restore HP &amp; mana</span></div>
-          <div class="htp-legend-row"><span class="htp-legend-icon">❓</span><span>Event — random encounter</span></div>
-          <div class="htp-legend-row"><span class="htp-legend-icon">🪨</span><span>Blockage — impassable rubble</span></div>
-          <div class="htp-legend-row"><span class="htp-legend-icon">☠️</span><span>Boss — powerful enemy every 5 floors</span></div>
-          <div class="htp-legend-row"><span class="htp-legend-icon">🚪</span><span>Exit — descend to the next floor</span></div>
-        </div>
+        <p class="htp-text htp-text--flush">Death ends the run, but meta progress and knowledge carry over. <strong>Expect to die often</strong> — the goal is to go a little deeper each time.</p>
       </section>
 
-      <!-- COMBAT -->
+      <!-- ESSENTIALS: combat -->
       <section class="htp-section">
         <h2 class="htp-heading">⚔️ Combat</h2>
-        <p class="htp-text">Tap a revealed enemy to fight. Combat is a <strong>trade of blows</strong> — you hit, they hit back. Check the enemy's ❤️ HP and ⚔️ damage before engaging.</p>
+        <p class="htp-text">Tap a revealed enemy to fight. Combat is a <strong>trade of blows</strong> — you strike, then they strike. Read ❤️ HP and ⚔️ damage before you commit.</p>
         <div class="htp-combat-diagram">
           <div class="htp-combatant htp-combatant--player">
             <div class="htp-combatant-icon">🛡️</div>
@@ -674,70 +651,104 @@
             <div class="htp-combatant-stat">⚔️ 1</div>
           </div>
         </div>
-        <div class="htp-tip">💡 <strong>Kill in one hit</strong> — the enemy never gets to counter-attack!</div>
-        <div class="htp-tip">⚡ <strong>Fast enemies</strong> are revealed with an ambush — they always strike first.</div>
+        <div class="htp-tip">💡 <strong>Kill in one hit</strong> when you can — the enemy doesn’t get a counter. <strong>Fast enemies</strong> ambush on reveal and strike first.</div>
+        <div class="htp-tip">🔒 <strong>Combat lock</strong> — once you attack a living foe, you’re committed to that fight until it falls (other actions are limited).</div>
       </section>
 
-      <!-- RESOURCES -->
+      <!-- ESSENTIALS: resources -->
       <section class="htp-section">
-        <h2 class="htp-heading">📊 Your Resources</h2>
+        <h2 class="htp-heading">📊 Resources</h2>
         <div class="htp-resource-list">
-          <div class="htp-resource"><span class="htp-res-icon">❤️</span><div><strong>HP</strong> — reach 0 and it's over. Restore with potions, hearts, and camps.</div></div>
-          <div class="htp-resource"><span class="htp-res-icon">🔵</span><div><strong>Mana</strong> — spent on spells and abilities. Regenerates 1 per tile revealed.</div></div>
-          <div class="htp-resource"><span class="htp-res-icon">⚔️</span><div><strong>Damage</strong> — your melee range. Boosted by trinkets, level-ups, and upgrades.</div></div>
-          <div class="htp-resource"><span class="htp-res-icon">🪙</span><div><strong>Gold</strong> — spent at shops and the Gold Shop between runs.</div></div>
-          <div class="htp-resource"><span class="htp-res-icon">✨</span><div><strong>XP</strong> — gained by revealing tiles. Level up to gain mana and damage.</div></div>
+          <div class="htp-resource"><span class="htp-res-icon">❤️</span><div><strong>HP</strong> — at 0, the run ends. Heal with potions, hearts, camps, and effects.</div></div>
+          <div class="htp-resource"><span class="htp-res-icon">🔵</span><div><strong>Mana</strong> — powers spells and actives; regenerates as you reveal tiles.</div></div>
+          <div class="htp-resource"><span class="htp-res-icon">⚔️</span><div><strong>Damage</strong> — your attack band; improves from levels, trinkets, and shop.</div></div>
+          <div class="htp-resource"><span class="htp-res-icon">🪙</span><div><strong>Gold</strong> — in-run shops and main-menu <strong>Gold Shop</strong> unlocks.</div></div>
+          <div class="htp-resource"><span class="htp-res-icon">✨</span><div><strong>XP</strong> — from reveals and kills; level-ups strengthen your hero this run.</div></div>
         </div>
       </section>
 
-      <!-- ITEMS -->
+      <!-- DEPTH: accordions -->
       <section class="htp-section">
-        <h2 class="htp-heading">🎒 Backpack &amp; Items</h2>
-        <p class="htp-text">Your backpack holds up to <strong>9 items</strong>. When it's full and you find something new, you'll be asked to swap or trash the new item.</p>
-        <div class="htp-rarity-list">
-          <div class="htp-rarity htp-rarity--common">⬜ <strong>Common</strong> — potions, tools, utility items</div>
-          <div class="htp-rarity htp-rarity--rare">🔷 <strong>Rare</strong> — powerful passive trinkets</div>
-          <div class="htp-rarity htp-rarity--legendary">🟡 <strong>Legendary</strong> — game-changing relics</div>
-        </div>
-        <div class="htp-tip">💡 Some trinkets trigger on equip — read the description before swapping!</div>
-      </section>
+        <h2 class="htp-heading">📚 More depth</h2>
+        <p class="htp-text htp-more-intro">Optional reading — hazards, terrain, and meta.</p>
 
-      <!-- ABILITIES -->
-      <section class="htp-section">
-        <h2 class="htp-heading">🔮 Abilities &amp; Spells</h2>
-        <p class="htp-text">Each hero has unique abilities unlocked via upgrades. Abilities cost <strong>mana</strong> to use.</p>
-        <div class="htp-ability-list">
-          <div class="htp-ability"><span>🌀</span><div><strong>Spell</strong> — ranged magic attack. Tap an enemy to fire. Costs 3 mana.</div></div>
-          <div class="htp-ability"><span>🔨</span><div><strong>Slam</strong> (Warrior) — hits all revealed enemies for area damage.</div></div>
-          <div class="htp-ability"><span>🏹</span><div><strong>Arrow Barrage</strong> (Ranger) — rains arrows on a 3×3 area.</div></div>
-          <div class="htp-ability"><span>☠️</span><div><strong>Poison Arrow</strong> (Ranger) — applies 3 turns of poison damage.</div></div>
-        </div>
-      </section>
+        <details class="htp-details">
+          <summary>🚩 Pressure on the floor</summary>
+          <div class="htp-details-content">
+            <div class="htp-meta-list">
+              <div class="htp-meta-row"><span>🚩</span><div><strong>War flag</strong> — a tile may spawn that buffs <strong>every living enemy’s HP and damage</strong> until you destroy it. Often worth bee-lining before the floor snowballs.</div></div>
+              <div class="htp-meta-row"><span>🏹</span><div><strong>Goblin Archer</strong> — appears early and sometimes on later floors. It starts revealed and <strong>pesters you each turn</strong> until dealt with — close in, or snipe with spells/actives.</div></div>
+            </div>
+          </div>
+        </details>
 
-      <!-- EVENTS -->
-      <section class="htp-section">
-        <h2 class="htp-heading">❓ Events</h2>
-        <p class="htp-text">Event tiles trigger random encounters. Each run is different.</p>
-        <div class="htp-event-list">
-          <div class="htp-event"><span>🧙</span><div><strong>Goblin Merchant</strong> — spend gold on potions, tools, or a mystery relic.</div></div>
-          <div class="htp-event"><span>🎲</span><div><strong>Gambler</strong> — bet gold and roll dice. Roll 7+ to double your bet.</div></div>
-          <div class="htp-event"><span>📦</span><div><strong>Three Chests</strong> — pick one of three chests (common, rare, or legendary loot).</div></div>
-          <div class="htp-event"><span>🔮</span><div><strong>Trinket Trader</strong> — swap one of your trinkets for a random new one.</div></div>
-          <div class="htp-event"><span>📜</span><div><strong>Storyteller</strong> — narrative choice events with random outcomes.</div></div>
-        </div>
-      </section>
+        <details class="htp-details">
+          <summary>🕳 Sub-floors &amp; terrain</summary>
+          <div class="htp-details-content">
+            <p class="htp-text--flush"><strong>Sub-floors</strong> — special entrances lead to a <em>floor inside the floor</em> (boss vaults, dens, treasure rooms, shrines, tunnels, and more), each with its own small grid.</p>
+            <p class="htp-text--flush"><strong>Holes &amp; rubble</strong> — <strong>open pits</strong> are always visible and impassable; <strong>rubble</strong> blocks paths until revealed. Path around them.</p>
+          </div>
+        </details>
 
-      <!-- TIPS -->
-      <section class="htp-section">
-        <h2 class="htp-heading">💡 Pro Tips</h2>
-        <div class="htp-tips-list">
-          <div class="htp-tip-card">🗺️ <strong>Reveal tiles strategically</strong> — uncover paths before fighting so you have escape routes.</div>
-          <div class="htp-tip-card">⚡ <strong>One-shot fast enemies</strong> — they ambush you, so hit hard enough to kill in one blow.</div>
-          <div class="htp-tip-card">🔑 <strong>Golden Keys</strong> — clear every enemy on a floor to earn a key. Spend them at the Magic Chest in Sanctuaries.</div>
-          <div class="htp-tip-card">🏕️ <strong>Save your mana</strong> — mana regenerates slowly. Use spells on tough enemies, not weak ones.</div>
-          <div class="htp-tip-card">💀 <strong>Boss on floor 5, then every 10 floors</strong> (15, 25, 35…) — use all your abilities and save mana for the fight.</div>
-          <div class="htp-tip-card">🪙 <strong>Retreat wisely</strong> — retreating keeps 20% of your gold. Better than dying with full pockets.</div>
-        </div>
+        <details class="htp-details">
+          <summary>🎯 Tile types (full list)</summary>
+          <div class="htp-details-content">
+            <div class="htp-tile-legend">
+              <div class="htp-legend-row"><span class="htp-legend-icon">💀</span><span>Enemy — fight for gold &amp; XP</span></div>
+              <div class="htp-legend-row"><span class="htp-legend-icon">⚡💀</span><span>Fast enemy — ambushes first; kill in one hit to skip their counter</span></div>
+              <div class="htp-legend-row"><span class="htp-legend-icon">📦</span><span>Chest — loot (items, gear)</span></div>
+              <div class="htp-legend-row"><span class="htp-legend-icon">🪙</span><span>Gold — coin drops</span></div>
+              <div class="htp-legend-row"><span class="htp-legend-icon">🕸️</span><span>Trap — damage on reveal</span></div>
+              <div class="htp-legend-row"><span class="htp-legend-icon">❤️</span><span>Heart — healing / max HP</span></div>
+              <div class="htp-legend-row"><span class="htp-legend-icon">🏕️</span><span>Checkpoint — rest, recover, bank gold</span></div>
+              <div class="htp-legend-row"><span class="htp-legend-icon">❓</span><span>Event — shops, gambles, stories</span></div>
+              <div class="htp-legend-row"><span class="htp-legend-icon">🪨</span><span>Rubble — impassable until you’ve revealed around it</span></div>
+              <div class="htp-legend-row"><span class="htp-legend-icon">🕳️</span><span>Open pit — always visible; impassable</span></div>
+              <div class="htp-legend-row"><span class="htp-legend-icon">☠️</span><span>Boss — major fight on boss floors</span></div>
+              <div class="htp-legend-row"><span class="htp-legend-icon">🚪</span><span>Exit — descend to the next floor</span></div>
+            </div>
+          </div>
+        </details>
+
+        <details class="htp-details">
+          <summary>🎒 Backpack &amp; item rarity</summary>
+          <div class="htp-details-content">
+            <p class="htp-text--flush">The backpack holds up to <strong>9 items</strong>. When full, new finds ask you to swap or drop something.</p>
+            <div class="htp-rarity-list">
+              <div class="htp-rarity htp-rarity--common">⬜ <strong>Common</strong> — potions, tools, consumables</div>
+              <div class="htp-rarity htp-rarity--rare">🔷 <strong>Rare</strong> — strong passive trinkets</div>
+              <div class="htp-rarity htp-rarity--legendary">🟡 <strong>Legendary</strong> — run-defining relics</div>
+            </div>
+            <div class="htp-tip">Read trinket text — many trigger on equip or in specific situations.</div>
+          </div>
+        </details>
+
+        <details class="htp-details">
+          <summary>🏠 Between runs (meta)</summary>
+          <div class="htp-details-content">
+            <div class="htp-meta-list">
+              <div class="htp-meta-row"><span>🗡️</span><div><strong>Heroes</strong> — unlock heroes; each has unique tools and <strong>Hero Passives</strong> (see hero carousel).</div></div>
+              <div class="htp-meta-row"><span>⚡</span><div><strong>Class XP tree</strong> — spend XP on that hero’s upgrades (including active abilities as you unlock tiers).</div></div>
+              <div class="htp-meta-row"><span>📜</span><div><strong>Passive Upgrades</strong> — <em>account-wide</em> bonuses (HP, damage, economy) bought with persistent gold — not the same as per-hero passives.</div></div>
+              <div class="htp-meta-row"><span>🛒</span><div><strong>Gold Shop</strong> — spend run gold on consumables and unlocks for the <em>next</em> run.</div></div>
+            </div>
+          </div>
+        </details>
+
+        <details class="htp-details">
+          <summary>💡 Quick tips</summary>
+          <div class="htp-details-content">
+            <div class="htp-tips-list">
+              <div class="htp-tip-card">📊 Use <strong>threat numbers</strong> before you flip into a cluster of foes.</div>
+              <div class="htp-tip-card">🚩 Don’t ignore a <strong>war flag</strong> for too long if enemies are getting scary.</div>
+              <div class="htp-tip-card">🏹 Prioritize a <strong>Goblin Archer</strong> if it’s shredding you from range.</div>
+              <div class="htp-tip-card">🔑 <strong>Golden keys</strong> — full floor clears can earn keys for magic chests in sanctuaries.</div>
+              <div class="htp-tip-card">🪙 <strong>Retreat</strong> — better to escape with partial gold than die with everything (see in-game rules).</div>
+            </div>
+          </div>
+        </details>
+
+        <p class="htp-disclaimer">Numbers, spawn rates, and unlock flow are under active balance. If something feels off after a patch, check here again — it may have changed.</p>
       </section>
 
     </div>
