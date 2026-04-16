@@ -1,4 +1,7 @@
-// Engineer — XP tree and base stats. Apply logic lives in MetaProgression / GameController.
+// Engineer — XP tree, base stats, and level-up ability pool.
+// Apply logic lives in MetaProgression / GameController.
+
+import { WARRIOR_ABILITIES } from './abilities.js'
 
 export const ENGINEER_BASE = {
   hp:     40,
@@ -15,10 +18,34 @@ export const ENGINEER_TURRET = {
   teslaRadiusByLevel: [1, 2, 3],
 }
 
+/** Engineer level-up pool — stat picks shared with Paladin, plus turret-specific masteries. */
+export const ENGINEER_ABILITIES = {
+  vitality: WARRIOR_ABILITIES.vitality,
+  'arcane-reserve': WARRIOR_ABILITIES['arcane-reserve'],
+  scavenger: WARRIOR_ABILITIES.scavenger,
+  'turret-mastery-1': {
+    name: 'Turret Mastery I',
+    desc: 'Allows your placed turrets to be upgraded to Level 2 (tap your turret, 10 mana).',
+    icon: '🔧',
+    effect: { type: 'turret-max-level', level: 2 },
+    repeatable: false,
+    requiresActive: 'construct-turret',
+  },
+  'turret-mastery-2': {
+    name: 'Turret Mastery II',
+    desc: 'Allows your placed turrets to be upgraded to Level 3 (tap your turret, 10 mana).',
+    icon: '🔩',
+    effect: { type: 'turret-max-level', level: 3 },
+    repeatable: false,
+    requiresActive: 'construct-turret',
+    requiresAbility: 'turret-mastery-1',
+  },
+}
+
 export const ENGINEER_UPGRADES = {
   'construct-turret': {
-    name:     'Construct / Upgrade Turret',
-    desc:     'Active: tap an empty tile twice to build or relocate (level 1). Tap your turret once to upgrade. Absorbs enemy strikes while alive. Costs 10 mana.',
+    name:     'Construct Turret',
+    desc:     'Active: tap an empty tile twice to build (Level 1) or relocate. Absorbs enemy strikes while alive. Costs 10 mana. Turret upgrades require Turret Mastery picks at level-up. Unlocks Construct Turret in your level-up choice pool.',
     icon:     '🏗️',
     xpCost:   50,
     manaCost: 10,
@@ -26,7 +53,7 @@ export const ENGINEER_UPGRADES = {
   },
   'tesla-tower': {
     name:     'Tesla Tower',
-    desc:     'After a turret exists: spend 10 mana to convert it to a Tesla tower (one-way). Strikes enemies revealed or fought within its perimeter; radius grows with turret level.',
+    desc:     'After a turret exists: spend 10 mana to convert it to a Tesla tower (one-way). Strikes enemies revealed or fought within its perimeter; radius grows with turret level. Unlocks Tesla Tower in your level-up choice pool.',
     icon:     '⚡',
     xpCost:   80,
     manaCost: 10,

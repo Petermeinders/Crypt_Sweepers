@@ -11,7 +11,8 @@ export const RANGER_BASE = {
   gold:    0,
 }
 
-/** Level-up pool — same Vitality / Arcane Reserve / Scavenger as Warrior; Trapfinder is Ranger-only. */
+/** Level-up pool — Vitality / Arcane Reserve / Scavenger shared with Paladin; Trapfinder is Ranger-only.
+ * Ricochet / Triple Volley / Poison Arrow live in RANGER_UPGRADES (active-ability picks). */
 export const RANGER_ABILITIES = {
   vitality: WARRIOR_ABILITIES.vitality,
   'arcane-reserve': WARRIOR_ABILITIES['arcane-reserve'],
@@ -23,7 +24,7 @@ export const RANGER_ABILITIES = {
     effect: { type: 'trapfinder-stack', amount: 1 },
     repeatable: true,
   },
-  /** Meta XP tree also unlocks these; each level-up pick stacks +10% damage for that active (run-only). */
+  /** Each pick stacks +10% damage for that active (run-only). Only offered after the active is picked this run. */
   'ricochet-mastery': {
     name:  'Ricochet Practice',
     desc:  'Each pick: +10% Ricochet damage (stacks).',
@@ -32,7 +33,7 @@ export const RANGER_ABILITIES = {
     iconBgSrc: 'assets/sprites/abilities/ricochet-bg.png',
     effect: { type: 'ranger-active-mastery', ability: 'ricochet' },
     repeatable: true,
-    requiresMetaUpgrade: 'ricochet',
+    requiresActive: 'ricochet',
   },
   'poison-arrow-mastery': {
     name:  'Poison Arrow Practice',
@@ -42,7 +43,7 @@ export const RANGER_ABILITIES = {
     iconBgSrc: 'assets/sprites/abilities/poison-arrow-bg.png',
     effect: { type: 'ranger-active-mastery', ability: 'poison-arrow-shot' },
     repeatable: true,
-    requiresMetaUpgrade: 'poison-arrow-shot',
+    requiresActive: 'poison-arrow-shot',
   },
   'arrow-barrage-mastery': {
     name:  'Triple Volley Practice',
@@ -52,7 +53,7 @@ export const RANGER_ABILITIES = {
     iconBgSrc: 'assets/sprites/abilities/arrow-barrage-bg.png',
     effect: { type: 'ranger-active-mastery', ability: 'arrow-barrage' },
     repeatable: true,
-    requiresMetaUpgrade: 'arrow-barrage',
+    requiresActive: 'arrow-barrage',
   },
 }
 
@@ -60,7 +61,7 @@ export const RANGER_ABILITIES = {
 export const RANGER_UPGRADES = {
   'ricochet': {
     name:  'Ricochet',
-    desc:  'Active ability: tap up to 3 enemies in order — the third pick fires, or tap Ricochet again with 1–2 marked (3 / 2 / 1 damage scaling).',
+    desc:  'Active ability: tap up to 3 enemies in order — the third pick fires, or tap Ricochet again with 1–2 marked (3 / 2 / 1 damage scaling). Unlocks Ricochet in your level-up choice pool.',
     icon:  '🔁',
     iconSrc:   'assets/sprites/abilities/ricochet-badge.png',
     iconBgSrc: 'assets/sprites/abilities/ricochet-bg.png',
@@ -82,7 +83,7 @@ export const RANGER_UPGRADES = {
   /** Active ability (HUD) — id must differ from any future passive named `poison-arrow`. */
   'poison-arrow-shot': {
     name:  'Poison Arrow',
-    desc:  'Active ability: tap an enemy for an immediate hit plus poison — each tick deals damage on the next 3 turns (any tile flip or starting melee vs an enemy; min. 1 per tick; scales like Ricochet).',
+    desc:  'Active ability: tap an enemy for an immediate hit plus poison — each tick deals damage on the next 3 turns (any tile flip or starting melee vs an enemy; min. 1 per tick; scales like Ricochet). Unlocks Poison Arrow in your level-up choice pool.',
     icon:  '☠️',
     iconSrc:   'assets/sprites/abilities/poison-arrow-badge.png',
     iconBgSrc: 'assets/sprites/abilities/poison-arrow-bg.png',
@@ -92,7 +93,7 @@ export const RANGER_UPGRADES = {
   },
   'arrow-barrage': {
     name:  'Triple Volley',
-    desc:  'Active ability: 3×3 blast centered on your tile — 50% of your attack damage (min 1) to each revealed enemy in the area. First tap places the zone; tap the same tile again to fire.',
+    desc:  'Active ability: 3×3 blast centered on your tile — 50% of your attack damage (min 1) to each revealed enemy in the area. First tap places the zone; tap the same tile again to fire. Unlocks Triple Volley in your level-up choice pool.',
     icon:  '🎯',
     iconSrc:   'assets/sprites/abilities/arrow-barrage-badge.png',
     iconBgSrc: 'assets/sprites/abilities/arrow-barrage-bg.png',

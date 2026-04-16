@@ -4,7 +4,7 @@
 export const WARRIOR_UPGRADES = {
   'slam': {
     name:     'Slam',
-    desc:     'Bring your weapon down with crushing force. Deals damage to all visible enemies — no counter-attack.',
+    desc:     'Bring your weapon down with crushing force. Deals damage to all visible enemies — no counter-attack. Unlocks Slam in your level-up choice pool.',
     icon:     '💥',
     iconSrc:  'assets/sprites/abilities/slam.png',
     xpCost:   200,
@@ -13,7 +13,7 @@ export const WARRIOR_UPGRADES = {
   },
   'blinding-light': {
     name:     'Blinding Light',
-    desc:     'A flash of searing light adds stun turns from your attack scaling (no damage). Stunned enemies cannot counter-attack.',
+    desc:     'A flash of searing light adds stun turns from your attack scaling (no damage). Stunned enemies cannot counter-attack. Unlocks Blinding Light in your level-up choice pool.',
     icon:     '✨',
     iconSrc:  'assets/sprites/abilities/blinding-light.jpg',
     xpCost:   500,
@@ -22,7 +22,7 @@ export const WARRIOR_UPGRADES = {
   },
   'divine-light': {
     name:     'Divine Light',
-    desc:     'Two uses: tap an enemy to smite it for damage, or tap your hero portrait to restore 10% of your max HP.',
+    desc:     'Two uses: tap an enemy to smite it for damage, or tap your hero portrait to restore 10% of your max HP. Unlocks Divine Light in your level-up choice pool.',
     icon:     '🌟',
     iconSrc:  'assets/sprites/abilities/divine-light-badge.jpg',
     iconBgSrc:'assets/sprites/abilities/ricochet-bg.png',

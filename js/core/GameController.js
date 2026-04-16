@@ -537,11 +537,22 @@ function _charKey() {
   return _save?.selectedCharacter ?? 'warrior'
 }
 
-/** Meta XP unlock or at least one run mastery stack — HUD + actions. */
+/** True iff the active is meta-unlocked AND picked this run via level-up. */
+function _isActiveUnlocked(abilityKey, charKey = _charKey()) {
+  const list = charKey === 'ranger'   ? (_save.ranger?.upgrades   ?? [])
+             : charKey === 'engineer' ? (_save.engineer?.upgrades ?? [])
+             :                          (_save.warrior?.upgrades  ?? [])
+  if (!list.includes(abilityKey)) return false
+  const runUnlocked = run?.player?.unlockedActives ?? []
+  return runUnlocked.includes(abilityKey)
+}
+
+/** Legacy alias used by ranger HUD/actions. Now delegates to the unified active-unlock check. */
 function _isRangerActiveUnlocked(abilityKey) {
-  if ((_save.ranger?.upgrades ?? []).includes(abilityKey)) return true
+  if (_isActiveUnlocked(abilityKey, 'ranger')) return true
+  // Mastery stacks granted before the active was officially unlocked still imply access (defensive — shouldn't happen with the new pool).
   const stacks = run?.player?.rangerActiveStacks?.[abilityKey] ?? 0
-  return stacks > 0
+  return stacks > 0 && (_save.ranger?.upgrades ?? []).includes(abilityKey)
 }
 
 function _rangerActiveDamageMult(abilityKey) {
@@ -799,6 +810,10 @@ function buildRunState() {
     level:   1,
     safeGold: 0,
     abilities:          isRanger ? ['trapfinder'] : [],
+    /** Active-ability IDs unlocked this run via level-up picks (e.g. 'slam', 'ricochet', 'construct-turret'). */
+    unlockedActives:    [],
+    /** Engineer: highest turret level the player can build/upgrade to (Mastery I → 2, Mastery II → 3). */
+    turretMaxLevel:     1,
     damageBonus:        0,
     damageReduction:    0,
     spellCostReduction: 0,
@@ -874,7 +889,7 @@ function getActiveCombatTile() { return run?.activeCombatTile ?? null }
 // ── Engineer turret ───────────────────────────────────────────
 
 function _isEngineerUpgradeUnlocked(id) {
-  return (_save.engineer?.upgrades ?? []).includes(id)
+  return _isActiveUnlocked(id, 'engineer')
 }
 
 function _engineerTurretMaxHp(level) {
@@ -996,6 +1011,13 @@ function _handleEngineerConstructTileTap(tile) {
   const cost = ENGINEER_UPGRADES['construct-turret'].manaCost
   const tr = run.turret
   if (tr && tr.row === tile.row && tr.col === tile.col) {
+    const maxLevel = run.player.turretMaxLevel ?? 1
+    if (tr.level >= maxLevel) {
+      UI.setMessage(maxLevel < 3
+        ? `Pick Turret Mastery ${maxLevel === 1 ? 'I' : 'II'} at level-up to upgrade further.`
+        : 'Turret is already max level.', true)
+      return true
+    }
     if (tr.level >= 3) {
       UI.setMessage('Turret is already max level.', true)
       return true
@@ -1431,9 +1453,7 @@ function _startFloor() {
     UI.updateDamageRange(d0, d1)
   }
   UI.setHudCharacter(_charKey())
-  // Slot A — Warrior Slam or Ranger Ricochet when unlocked in XP tree
-  const warriorUpgrades = _save.warrior?.upgrades ?? []
-  const slamUnlocked    = _charKey() === 'warrior' && warriorUpgrades.includes('slam')
+  // Slot A — actives appear only after the player picks them at level-up (gated by meta unlock + run unlock)
   if (_charKey() === 'ranger') {
     _refreshRangerActiveHud()
   } else if (_charKey() === 'engineer') {
@@ -1445,16 +1465,14 @@ function _startFloor() {
     UI.setDivineLightBtn(false)
     UI.setBlindingLightBtn(false)
   } else {
-    UI.setSlamBtn(slamUnlocked, WARRIOR_UPGRADES.slam.manaCost)
+    UI.setSlamBtn(_isActiveUnlocked('slam', 'warrior'), WARRIOR_UPGRADES.slam.manaCost)
     UI.setArrowBarrageBtn(false)
     UI.setPoisonArrowShotBtn(false)
-    const divineLightUnlocked = warriorUpgrades.includes('divine-light')
-    UI.setDivineLightBtn(divineLightUnlocked, WARRIOR_UPGRADES['divine-light'].manaCost)
+    UI.setDivineLightBtn(_isActiveUnlocked('divine-light', 'warrior'), WARRIOR_UPGRADES['divine-light'].manaCost)
   }
   // Blinding Light — warrior only, slot B (ranger uses B for Poison Arrow, C for Triple Volley)
   if (_charKey() === 'warrior') {
-    const blindingUnlocked = warriorUpgrades.includes('blinding-light')
-    UI.setBlindingLightBtn(blindingUnlocked, WARRIOR_UPGRADES['blinding-light'].manaCost)
+    UI.setBlindingLightBtn(_isActiveUnlocked('blinding-light', 'warrior'), WARRIOR_UPGRADES['blinding-light'].manaCost)
   }
   // Show spell button always — player can target any enemy at any time
   const effectiveCost = _previewSpellManaCostForUi()
@@ -5507,7 +5525,7 @@ function _metaUnlockedForLevelUp() {
 /** Ability-pick level-up uses GameState.LEVEL_UP, which is invalid during NPC events — defer until back on the floor. */
 function _shouldDeferLevelUpDueToNpc() {
   if (!GameState.is(States.NPC_INTERACT)) return false
-  const choices = ProgressionSystem.getChoices(run.player.abilities, _charKey(), _metaUnlockedForLevelUp())
+  const choices = ProgressionSystem.getChoices(run.player, _charKey(), _metaUnlockedForLevelUp())
   return choices.length > 0
 }
 
@@ -5525,7 +5543,7 @@ function _flushDeferredLevelUpXp() {
     UI.spawnFloat(floatEl(), `⬆️ Lv ${run.player.level}!`, 'xp')
     EventBus.emit('player:levelup', { newLevel: run.player.level })
     EventBus.emit('audio:play', { sfx: 'levelup' })
-    const choices = ProgressionSystem.getChoices(run.player.abilities, _charKey(), _metaUnlockedForLevelUp())
+    const choices = ProgressionSystem.getChoices(run.player, _charKey(), _metaUnlockedForLevelUp())
     if (choices.length === 0) {
       _triggerLevelUp()
       continue
@@ -5537,9 +5555,10 @@ function _flushDeferredLevelUpXp() {
 }
 
 function _triggerLevelUp() {
-  const char    = _charKey()
-  const choices = ProgressionSystem.getChoices(run.player.abilities, char, _metaUnlockedForLevelUp())
-  if (choices.length === 0) {
+  const char     = _charKey()
+  const count    = run.player.extraAbilityChoice ? 4 : 3
+  const descs    = ProgressionSystem.getChoices(run.player, char, _metaUnlockedForLevelUp(), count)
+  if (descs.length === 0) {
     run.player.hp = Math.min(run.player.maxHp, run.player.hp + 10)
     UI.updateHP(run.player.hp, run.player.maxHp)
     run.levelUpLog.push({
@@ -5555,14 +5574,26 @@ function _triggerLevelUp() {
 
   GameState.transition(States.LEVEL_UP)
 
-  const count      = run.player.extraAbilityChoice ? 4 : 3
-  const choiceData = choices.slice(0, count).map(id => ({
-    id,
-    ...ProgressionSystem.getAbilityDef(id, char),
-  }))
+  // First-pick mode: every choice is a `kind:'active'` and player.level just hit 2.
+  const isFirstActivePick = run.player.level === 2 && descs.every(d => d.kind === 'active')
+  const subtitle = isFirstActivePick
+    ? 'Choose your first active ability!'
+    : 'Choose an ability'
 
+  const choiceData = descs.map(d => {
+    const def = ProgressionSystem.getAbilityDef(d.id, char) ?? {}
+    const data = { id: d.id, ...def }
+    if (d.kind === 'coins') {
+      data.name = 'Coin Pouch'
+      data.desc = `+${run.floor} gold (filler — pool was empty).`
+    }
+    if (d.kind === 'active') data.tag = 'NEW ACTIVE'
+    return data
+  })
+
+    UI.setLevelUpSubtitle(subtitle)
     UI.showLevelUpOverlay(choiceData, (abilityId) => {
-      ProgressionSystem.applyAbility(abilityId, run.player, char)
+      ProgressionSystem.applyAbility(abilityId, run.player, char, { floor: run.floor })
       const def = ProgressionSystem.getAbilityDef(abilityId, char)
       run.levelUpLog.push({
         level:     run.player.level,
@@ -5580,8 +5611,13 @@ function _triggerLevelUp() {
       UI.updateDamageRange(d0, d1)
     }
     UI.setMessage(`${def?.name ?? abilityId} acquired! Level ${run.player.level}.`)
-    if (char === 'ranger') _refreshRangerActiveHud()
-    else if (char === 'engineer') _refreshEngineerHud()
+    if (char === 'ranger')         _refreshRangerActiveHud()
+    else if (char === 'engineer')  _refreshEngineerHud()
+    else if (char === 'warrior')   {
+      UI.setSlamBtn(_isActiveUnlocked('slam', 'warrior'), WARRIOR_UPGRADES.slam.manaCost)
+      UI.setBlindingLightBtn(_isActiveUnlocked('blinding-light', 'warrior'), WARRIOR_UPGRADES['blinding-light'].manaCost)
+      UI.setDivineLightBtn(_isActiveUnlocked('divine-light', 'warrior'), WARRIOR_UPGRADES['divine-light'].manaCost)
+    }
     GameState.transition(States.FLOOR_EXPLORE)
     _flushDeferredLevelUpXp()
   })

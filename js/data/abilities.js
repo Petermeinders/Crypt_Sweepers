@@ -1,4 +1,4 @@
-// Warrior ability definitions — plain data only, no functions.
+// Paladin level-up ability pool — plain data only, no functions.
 // Apply logic lives in ProgressionSystem.js.
 
 export const WARRIOR_ABILITIES = {
@@ -18,10 +18,11 @@ export const WARRIOR_ABILITIES = {
   },
   'scavenger': {
     name:  'Scavenger',
-    desc:  '+10 gold',
+    desc:  'Coin pouch: gain gold equal to the current floor number.',
     icon:  '🪙',
-    effect: { type: 'buff-gold', amount: 10 },
+    effect: { type: 'buff-gold', perFloor: true },
     repeatable: true,
+    isFiller:   true,
   },
   'slam-mastery': {
     name:  'Slam Mastery',
@@ -29,8 +30,8 @@ export const WARRIOR_ABILITIES = {
     icon:  '🔨',
     effect: { type: 'slam-mult-bonus', amount: 1 },
     repeatable: true,
-    /** Meta XP tree: must have purchased Slam to see this in level-up choices. */
-    requiresMetaUpgrade: 'slam',
+    /** Mastery only appears once Slam has been picked this run. */
+    requiresActive: 'slam',
   },
   'blinding-mastery': {
     name:  'Blinding Mastery',
@@ -38,6 +39,6 @@ export const WARRIOR_ABILITIES = {
     icon:  '✨',
     effect: { type: 'blinding-mult-bonus', amount: 1 },
     repeatable: true,
-    requiresMetaUpgrade: 'blinding-light',
+    requiresActive: 'blinding-light',
   },
 }

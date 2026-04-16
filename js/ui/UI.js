@@ -1486,6 +1486,11 @@ const UI = {
 
   // choices: array of { id, name, desc, icon?, iconSrc?, iconBgSrc? }
   // onPick: callback(abilityId)
+  setLevelUpSubtitle(text) {
+    const sub = document.getElementById('level-up-subtitle')
+    if (sub) sub.textContent = text ?? 'Choose an ability'
+  },
+
   showLevelUpOverlay(choices, onPick) {
     el.abilityChoices.innerHTML = ''
     for (const choice of choices) {
@@ -1500,10 +1505,11 @@ const UI = {
            </div>`
         : (choice.icon ?? '')
       const iconClass = `ability-icon${hasSprite ? ' ability-icon--sprite' : ''}`
+      const tagHtml = choice.tag ? `<span class="ability-tag">${choice.tag}</span>` : ''
       card.innerHTML = `
         <div class="${iconClass}">${iconHtml}</div>
         <div class="ability-info">
-          <div class="ability-name">${choice.name}</div>
+          <div class="ability-name">${tagHtml}${choice.name}</div>
           <div class="ability-desc">${choice.desc}</div>
         </div>`
       card.addEventListener('click', () => onPick(choice.id), { once: true })

@@ -1,39 +1,135 @@
 import { WARRIOR_ABILITIES } from '../data/abilities.js'
-import { RANGER_ABILITIES }  from '../data/ranger.js'
+import { RANGER_ABILITIES, RANGER_UPGRADES }   from '../data/ranger.js'
+import { ENGINEER_ABILITIES, ENGINEER_UPGRADES } from '../data/engineer.js'
+import { WARRIOR_UPGRADES } from '../data/upgrades.js'
 import Logger from '../core/Logger.js'
 
-const CHOICES_PER_LEVEL = 3
-
-// ── Choice generation ────────────────────────────────────────
-// Returns ability IDs to present to the player.
-// charKey: 'warrior' | 'ranger' | 'engineer'
-// metaUnlockedIds: IDs from save.warrior.upgrades / save.ranger.upgrades — gates mastery / actives-tied picks.
-
-function getChoices(acquiredAbilities, charKey = 'warrior', metaUnlockedIds = []) {
-  const ABILITIES = charKey === 'ranger' ? RANGER_ABILITIES : WARRIOR_ABILITIES
-  const unlocked = new Set(metaUnlockedIds)
-  const pool = Object.keys(ABILITIES).filter(id => {
-    const def = ABILITIES[id]
-    const req = def.requiresMetaUpgrade
-    if (req && !unlocked.has(req)) return false
-    if (def.repeatable) return true
-    return !acquiredAbilities.includes(id)
-  })
-
-  if (pool.length === 0) {
-    Logger.debug('[ProgressionSystem] Ability pool exhausted')
-    return []
-  }
-
-  const shuffled = pool.slice().sort(() => Math.random() - 0.5)
-  return shuffled.slice(0, Math.min(CHOICES_PER_LEVEL, shuffled.length))
+const STAT_ABILITIES = {
+  vitality:        WARRIOR_ABILITIES.vitality,
+  'arcane-reserve':WARRIOR_ABILITIES['arcane-reserve'],
+  scavenger:       WARRIOR_ABILITIES.scavenger,
 }
 
-// ── Apply ability to player ──────────────────────────────────
+const ABILITY_MAPS = {
+  warrior:  WARRIOR_ABILITIES,
+  ranger:   RANGER_ABILITIES,
+  engineer: ENGINEER_ABILITIES,
+  mage:     STAT_ABILITIES,
+  vampire:  STAT_ABILITIES,
+}
 
-function applyAbility(abilityId, player, charKey = 'warrior') {
-  const ABILITIES = charKey === 'ranger' ? RANGER_ABILITIES : WARRIOR_ABILITIES
-  const def = ABILITIES[abilityId]
+const UPGRADE_MAPS = {
+  warrior:  WARRIOR_UPGRADES,
+  ranger:   RANGER_UPGRADES,
+  engineer: ENGINEER_UPGRADES,
+  mage:     {},
+  vampire:  {},
+}
+
+const WEIGHTS = {
+  stat:    10,
+  mastery: 10,
+  active:  1,    // locked actives — ~10% relative to a stat pick
+}
+
+function _getActiveUpgradeIds(charKey) {
+  const map = UPGRADE_MAPS[charKey] ?? {}
+  const ids = []
+  for (const [id, def] of Object.entries(map)) {
+    if (def.effect?.type === 'active-ability') ids.push(id)
+  }
+  return ids
+}
+
+function getAbilityDef(abilityId, charKey = 'warrior') {
+  const aMap = ABILITY_MAPS[charKey] ?? WARRIOR_ABILITIES
+  if (aMap[abilityId]) return aMap[abilityId]
+  const uMap = UPGRADE_MAPS[charKey] ?? {}
+  if (uMap[abilityId]) return uMap[abilityId]
+  // Mastery upgrades for actives may live in another hero's map (e.g. ranger-arc-mastery) — search wide
+  for (const map of Object.values(UPGRADE_MAPS)) if (map[abilityId]) return map[abilityId]
+  for (const map of Object.values(ABILITY_MAPS)) if (map[abilityId]) return map[abilityId]
+  return null
+}
+
+/** Returns array of choice descriptors: { id, kind } where kind ∈ 'active'|'mastery'|'stat'|'coins'. */
+function getChoices(player, charKey = 'warrior', metaUnlockedIds = [], choiceCount = 3) {
+  const meta            = new Set(metaUnlockedIds)
+  const acquired        = new Set(player.abilities ?? [])
+  const unlockedActives = new Set(player.unlockedActives ?? [])
+
+  const allActives        = _getActiveUpgradeIds(charKey)
+  const metaUnlockActives = allActives.filter(id => meta.has(id))
+  const lockedActives     = metaUnlockActives.filter(id => !unlockedActives.has(id))
+
+  // First level-up (player.level just bumped to 2): force-pick from up to 3 actives, skip stats entirely.
+  if (player.level === 2 && metaUnlockActives.length > 0) {
+    const shuffled = metaUnlockActives.slice().sort(() => Math.random() - 0.5)
+    return shuffled.slice(0, Math.min(choiceCount, shuffled.length)).map(id => ({ id, kind: 'active' }))
+  }
+
+  const aMap = ABILITY_MAPS[charKey] ?? STAT_ABILITIES
+  const pool = []  // { id, kind, weight }
+
+  // Always: HP / mana
+  if (aMap.vitality)         pool.push({ id: 'vitality',         kind: 'stat',    weight: WEIGHTS.stat })
+  if (aMap['arcane-reserve'])pool.push({ id: 'arcane-reserve',   kind: 'stat',    weight: WEIGHTS.stat })
+
+  // Trapfinder is ranger-only and not gated by an active.
+  if (charKey === 'ranger' && aMap.trapfinder) {
+    pool.push({ id: 'trapfinder', kind: 'mastery', weight: WEIGHTS.mastery })
+  }
+
+  // Mastery picks for actives the player has chosen this run.
+  for (const [id, def] of Object.entries(aMap)) {
+    if (id === 'vitality' || id === 'arcane-reserve' || id === 'scavenger' || id === 'trapfinder') continue
+    const reqActive  = def.requiresActive
+    const reqAbility = def.requiresAbility
+    if (reqActive && !unlockedActives.has(reqActive)) continue
+    if (reqAbility && !acquired.has(reqAbility)) continue
+    if (!def.repeatable && acquired.has(id)) continue
+    pool.push({ id, kind: 'mastery', weight: WEIGHTS.mastery })
+  }
+
+  // Locked actives at low weight.
+  for (const id of lockedActives) {
+    pool.push({ id, kind: 'active', weight: WEIGHTS.active })
+  }
+
+  // Sample without replacement.
+  const picked = _weightedSample(pool, choiceCount)
+
+  // Coins (Scavenger) only as filler when the pool can't fill choiceCount.
+  if (picked.length < choiceCount && aMap.scavenger) {
+    if (!picked.find(p => p.id === 'scavenger')) {
+      picked.push({ id: 'scavenger', kind: 'coins', weight: 0 })
+    }
+  }
+
+  return picked
+}
+
+function _weightedSample(entries, n) {
+  const remaining = entries.slice()
+  const result = []
+  for (let i = 0; i < n && remaining.length > 0; i++) {
+    const total = remaining.reduce((s, e) => s + e.weight, 0)
+    if (total <= 0) break
+    let r = Math.random() * total
+    let idx = 0
+    for (; idx < remaining.length; idx++) {
+      r -= remaining[idx].weight
+      if (r <= 0) break
+    }
+    if (idx >= remaining.length) idx = remaining.length - 1
+    result.push(remaining[idx])
+    remaining.splice(idx, 1)
+  }
+  return result
+}
+
+function applyAbility(abilityId, player, charKey = 'warrior', ctx = {}) {
+  const def = getAbilityDef(abilityId, charKey)
   if (!def) {
     Logger.error(`[ProgressionSystem] Unknown ability: ${abilityId}`)
     return null
@@ -42,6 +138,15 @@ function applyAbility(abilityId, player, charKey = 'warrior') {
   const { effect } = def
 
   switch (effect.type) {
+    case 'active-ability': {
+      if (!Array.isArray(player.unlockedActives)) player.unlockedActives = []
+      const aid = effect.ability
+      if (!player.unlockedActives.includes(aid)) player.unlockedActives.push(aid)
+      break
+    }
+    case 'turret-max-level':
+      player.turretMaxLevel = Math.max(player.turretMaxLevel ?? 1, effect.level)
+      break
     case 'buff-damage':
       player.damageBonus = (player.damageBonus ?? 0) + effect.amount
       break
@@ -53,9 +158,11 @@ function applyAbility(abilityId, player, charKey = 'warrior') {
       player.maxMana += effect.maxMana
       player.mana = Math.min(player.maxMana, player.mana + effect.restoreNow)
       break
-    case 'buff-gold':
-      player.gold = (player.gold ?? 0) + effect.amount
+    case 'buff-gold': {
+      const amt = effect.perFloor ? Math.max(1, ctx.floor ?? 1) : effect.amount
+      player.gold = (player.gold ?? 0) + amt
       break
+    }
     case 'reduce-spell-cost':
       player.spellCostReduction = (player.spellCostReduction ?? 0) + effect.amount
       break
@@ -94,18 +201,11 @@ function applyAbility(abilityId, player, charKey = 'warrior') {
     }
   }
 
-  if (!player.abilities.includes(abilityId)) {
-    player.abilities.push(abilityId)
-  }
+  if (!Array.isArray(player.abilities)) player.abilities = []
+  if (!player.abilities.includes(abilityId)) player.abilities.push(abilityId)
 
   Logger.debug(`[ProgressionSystem] Applied ability: ${abilityId}`)
   return effect.type
 }
 
-// Returns the correct ability definition map for a given ability ID
-function getAbilityDef(abilityId, charKey = 'warrior') {
-  const ABILITIES = charKey === 'ranger' ? RANGER_ABILITIES : WARRIOR_ABILITIES
-  return ABILITIES[abilityId] ?? null
-}
-
-export default { getChoices, applyAbility, getAbilityDef, WARRIOR_ABILITIES, RANGER_ABILITIES }
+export default { getChoices, applyAbility, getAbilityDef, WARRIOR_ABILITIES, RANGER_ABILITIES, ENGINEER_ABILITIES }
