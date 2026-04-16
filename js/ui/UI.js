@@ -165,12 +165,26 @@ const PORTRAIT_ANIM = {
     run:    'assets/sprites/Heroes/Ranger/__Idle.gif',
     death:  'assets/sprites/Heroes/Ranger/__Idle.gif',
   },
+  mage: {
+    idle:   'assets/sprites/Heroes/Mage/blue-mage-hero-small.gif',
+    attack: 'assets/sprites/Heroes/Mage/blue-mage-hero-attack-small-speed.gif',
+    hit:    'assets/sprites/Heroes/Mage/blue-mage-hero-small.gif',
+    run:    'assets/sprites/Heroes/Mage/blue-mage-hero-small.gif',
+    death:  'assets/sprites/Heroes/Mage/blue-mage-hero-small.gif',
+  },
   engineer: {
     idle:   'assets/sprites/Heroes/Engineer/engineer-hero-idle.gif',
     attack: 'assets/sprites/Heroes/Engineer/engineer-hero-strike.gif',
     hit:    'assets/sprites/Heroes/Engineer/engineer-hero-idle.gif',
     run:    'assets/sprites/Heroes/Engineer/engineer-hero-idle.gif',
     death:  'assets/sprites/Heroes/Engineer/engineer-hero-idle.gif',
+  },
+  vampire: {
+    idle:   'assets/sprites/Heroes/Vampire/vampire-hero-idle.png',
+    attack: 'assets/sprites/Heroes/Vampire/vampire-hero-idle.png',
+    hit:    'assets/sprites/Heroes/Vampire/vampire-hero-idle.png',
+    run:    'assets/sprites/Heroes/Vampire/vampire-hero-idle.png',
+    death:  'assets/sprites/Heroes/Vampire/vampire-hero-idle.png',
   },
 }
 
@@ -781,7 +795,15 @@ const UI = {
 
   setHudCharacter(characterId) {
     if (!el.hudPortraitWrap) return
-    const id = characterId === 'ranger' ? 'ranger' : characterId === 'engineer' ? 'engineer' : 'warrior'
+    const id = characterId === 'ranger'
+      ? 'ranger'
+      : characterId === 'engineer'
+        ? 'engineer'
+        : characterId === 'mage'
+          ? 'mage'
+          : characterId === 'vampire'
+            ? 'vampire'
+            : 'warrior'
     el.hudCharacterId = id
     const isRanger = id === 'ranger'
     el.hudPortraitWrap.classList.toggle('is-ranger', isRanger)
@@ -794,7 +816,15 @@ const UI = {
   // State: 'idle' | 'attack' | 'hit' | 'run' | 'death'
   setPortraitAnim(state) {
     if (!el.hudPortraitImg) return
-    const id  = el.hudCharacterId === 'ranger' ? 'ranger' : el.hudCharacterId === 'engineer' ? 'engineer' : 'warrior'
+    const id  = el.hudCharacterId === 'ranger'
+      ? 'ranger'
+      : el.hudCharacterId === 'engineer'
+        ? 'engineer'
+        : el.hudCharacterId === 'mage'
+          ? 'mage'
+          : el.hudCharacterId === 'vampire'
+            ? 'vampire'
+            : 'warrior'
     const MAP = PORTRAIT_ANIM[id]
     if (MAP && MAP[state]) el.hudPortraitImg.src = MAP[state]
   },

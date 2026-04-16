@@ -15,6 +15,7 @@ import { GLOBAL_PASSIVE_UPGRADES, GLOBAL_PASSIVE_IDS } from './data/passives.js'
 function _metaCharSave(save, charId) {
   if (charId === 'ranger') return save.ranger
   if (charId === 'engineer') return save.engineer
+  if (charId === 'vampire') return save.vampire
   return save.warrior
 }
 
@@ -23,8 +24,8 @@ function _metaCharSave(save, charId) {
 const CHARACTERS = [
   {
     id:         'warrior',
-    name:       'Palladin',
-    tagline:    'Battle-hardened fighter. Slow but hits hard.',
+    name:       'Paladin',
+    tagline:    'Battle-hardened holy warrior—slow footwork, heavy blows. Sense Evil (see Hero Passives) marks one random hidden enemy each floor.',
     gif:        'assets/sprites/Heroes/Warrior/warrior-idle.gif',
     attackGif:  'assets/sprites/Heroes/Warrior/warrior-strike.gif',
     attackMs:   2000,
@@ -38,7 +39,7 @@ const CHARACTERS = [
   {
     id:         'ranger',
     name:       'Ranger',
-    tagline:    "Swift and elusive, the Ranger uses his agility to strike quick with his bow while avoiding dangers and traps.",
+    tagline:    'Swift bowman who strikes from range. Keen Eyes (see Hero Passives) often senses hidden tiles next to each reveal; Trapfinder softens traps and ambushes.',
     gif:        'assets/sprites/Heroes/Ranger/__Idle.gif',
     attackGif:  'assets/sprites/Heroes/Ranger/__Attack.gif',
     attackMs:   4000,
@@ -52,23 +53,22 @@ const CHARACTERS = [
   {
     id:          'mage',
     name:        'Mage',
-    tagline:     'A master of the arcane arts who turns the dungeon into a laboratory. Devastating spell power — but dangerously fragile up close.',
-    gif:         null,
-    attackGif:   null,
-    attackMs:    0,
+    tagline:     'A master of the arcane arts who turns the dungeon into a laboratory. Phase Walk lets him reach tiles diagonally — moving like a queen, not a rook.',
+    gif:         'assets/sprites/Heroes/Mage/blue-mage-hero-small.gif',
+    attackGif:   'assets/sprites/Heroes/Mage/blue-mage-hero-attack-small-speed.gif',
+    attackMs:    2000,
     emoji:       '🧙‍♂️',
     upgrades:    {},
     unlockCost:  null,
     baseHP:      30,
     baseMana:    60,
     baseDmg:     '1',
-    comingSoon:  true,
   },
   {
     id:          'vampire',
     name:        'Vampire',
-    tagline:     'A creature of the night who feeds on fallen foes to grow stronger. The deeper the crypt, the more dangerous she becomes.',
-    gif:         null,
+    tagline:     'Corrupted Blood takes 1 HP per flip but pays back +1 per monster in sight; Dark Eyes glimpses distant foes. She never suffers ambush strikes.',
+    gif:         'assets/sprites/Heroes/Vampire/vampire-hero-idle.png',
     attackGif:   null,
     attackMs:    0,
     emoji:       '🧛',
@@ -77,7 +77,7 @@ const CHARACTERS = [
     baseHP:      45,
     baseMana:    25,
     baseDmg:     '2',
-    comingSoon:  true,
+    comingSoon:  false,
   },
   {
     id:          'engineer',
@@ -185,6 +185,10 @@ async function boot() {
   }
   if (!save.engineer) {
     save.engineer = { totalXP: 0, upgrades: [] }
+    await SaveManager.save(save)
+  }
+  if (!save.vampire) {
+    save.vampire = { totalXP: 0, upgrades: [] }
     await SaveManager.save(save)
   }
   if (!save.selectedCharacter) {
@@ -339,7 +343,7 @@ async function boot() {
         UI.showInfoCard({
           spriteSrc: WARRIOR_UPGRADES.slam.iconSrc,
           name:   'Slam',
-          type:   'Palladin Ability',
+          type:   'Paladin Ability',
           blurb:  'Bring your weapon down with crushing force. Strikes every revealed enemy; each takes the same Slam damage (scales with your HUD attack + Slam Mastery).',
           details: [
             { icon: '🔵', label: 'Mana Cost',  desc: `${WARRIOR_UPGRADES.slam.manaCost} mana per use` },
@@ -406,11 +410,11 @@ async function boot() {
               : `${mult.toFixed(1)}`
             return `max(2, round(${avgStr} × ${inner})) = ${stunTurns} stun turn(s) — Undead/Beast Bane can double stun`
           })()
-        : 'Start a palladin run to see stun turns (scales with HUD attack + Blinding Mastery).'
+        : 'Start a paladin run to see stun turns (scales with HUD attack + Blinding Mastery).'
       UI.showInfoCard({
         spriteSrc: WARRIOR_UPGRADES['blinding-light'].iconSrc,
         name:   'Blinding Light',
-        type:   'Palladin Ability',
+        type:   'Paladin Ability',
         blurb:  'A flash of searing light adds stun turns based on your attack scaling (no HP damage). Stunned enemies cannot counter-attack.',
         details: [
           { icon: '🔵', label: 'Mana Cost', desc: `${WARRIOR_UPGRADES['blinding-light'].manaCost} mana per use` },
@@ -441,7 +445,7 @@ async function boot() {
           spriteSrc:   WARRIOR_UPGRADES['divine-light'].iconSrc,
           spriteSrcBg: WARRIOR_UPGRADES['divine-light'].iconBgSrc,
           name:   'Divine Light',
-          type:   'Palladin Ability',
+          type:   'Paladin Ability',
           blurb:  'Channel sacred energy in two ways: smite a revealed enemy with divine force, or touch your portrait to bathe yourself in healing light.',
           details: [
             { icon: '🔵', label: 'Mana Cost',  desc: `${WARRIOR_UPGRADES['divine-light'].manaCost} mana per use` },
@@ -836,7 +840,7 @@ function _ensureHeroSelectSlides() {
       <div class="hero-passive-wrap" hidden>
         <div class="hero-passive-accordion">
           <button type="button" class="hero-passive-accordion-toggle" aria-expanded="false">
-            <span>Passive Upgrades</span>
+            <span>Hero Passives</span>
             <span class="accordion-chevron">▸</span>
           </button>
           <div class="hero-passive-accordion-body">
@@ -1134,7 +1138,27 @@ function _renderHeroUpgradeGrid(grid, char, ownedList, xp, isLocked) {
     passiveWrap.hidden = false
     if (passiveGrid) {
       passiveGrid.innerHTML = ''
+      if (char.id === 'warrior') {
+        const senseEvilSlot = document.createElement('div')
+        senseEvilSlot.className = 'hero-passive-builtin'
+        senseEvilSlot.innerHTML = `
+          <span class="hero-passive-builtin-icon">😈</span>
+          <div class="hero-passive-builtin-info">
+            <div class="hero-passive-builtin-name">Sense Evil <span class="hero-passive-builtin-badge">✓ Applied</span></div>
+            <div class="hero-passive-builtin-desc">At the start of each dungeon floor, picks one random unrevealed enemy and marks its tile with an enemy echo hint. If that foe is slain, a new mark is chosen when possible.</div>
+          </div>`
+        passiveGrid.appendChild(senseEvilSlot)
+      }
       if (char.id === 'ranger') {
+        const keenEyesSlot = document.createElement('div')
+        keenEyesSlot.className = 'hero-passive-builtin'
+        keenEyesSlot.innerHTML = `
+          <span class="hero-passive-builtin-icon">👁️</span>
+          <div class="hero-passive-builtin-info">
+            <div class="hero-passive-builtin-name">Keen Eyes <span class="hero-passive-builtin-badge">✓ Applied</span></div>
+            <div class="hero-passive-builtin-desc">Each time you reveal a tile, 50% chance to sense the category of every orthogonally adjacent hidden tile that does not already have a hint (enemy, trap, treasure, etc.).</div>
+          </div>`
+        passiveGrid.appendChild(keenEyesSlot)
         const trapfinderSlot = document.createElement('div')
         trapfinderSlot.className = 'hero-passive-builtin'
         trapfinderSlot.innerHTML = `
@@ -1145,10 +1169,43 @@ function _renderHeroUpgradeGrid(grid, char, ownedList, xp, isLocked) {
           </div>`
         passiveGrid.appendChild(trapfinderSlot)
       }
-      const comingSoon = document.createElement('p')
-      comingSoon.className = 'passive-coming-soon'
-      comingSoon.textContent = 'Coming Soon…'
-      passiveGrid.appendChild(comingSoon)
+      if (char.id === 'mage') {
+        const phaseWalkSlot = document.createElement('div')
+        phaseWalkSlot.className = 'hero-passive-builtin'
+        phaseWalkSlot.innerHTML = `
+          <span class="hero-passive-builtin-icon">🌀</span>
+          <div class="hero-passive-builtin-info">
+            <div class="hero-passive-builtin-name">Phase Walk <span class="hero-passive-builtin-badge">✓ Applied</span></div>
+            <div class="hero-passive-builtin-desc">Tiles are reachable diagonally as well as orthogonally — move like a queen, not a rook.</div>
+          </div>`
+        passiveGrid.appendChild(phaseWalkSlot)
+      }
+      if (char.id === 'vampire') {
+        const cbSlot = document.createElement('div')
+        cbSlot.className = 'hero-passive-builtin'
+        cbSlot.innerHTML = `
+          <span class="hero-passive-builtin-icon">🩸</span>
+          <div class="hero-passive-builtin-info">
+            <div class="hero-passive-builtin-name">Corrupted Blood <span class="hero-passive-builtin-badge">✓ Applied</span></div>
+            <div class="hero-passive-builtin-desc">You lose 1 HP on every flip, gain +1 HP per revealed living monster on the board (net = −1 + monsters), and each monster loses 1 HP from its current total — enough damage kills them like a normal defeat (gold/XP, trinkets). Ambush reveals never damage you — tap to fight.</div>
+          </div>`
+        passiveGrid.appendChild(cbSlot)
+        const deSlot = document.createElement('div')
+        deSlot.className = 'hero-passive-builtin'
+        deSlot.innerHTML = `
+          <span class="hero-passive-builtin-icon">🌑</span>
+          <div class="hero-passive-builtin-info">
+            <div class="hero-passive-builtin-name">Dark Eyes <span class="hero-passive-builtin-badge">✓ Applied</span></div>
+            <div class="hero-passive-builtin-desc">50% chance per reveal to sense an enemy hint (⚔️) on unrevealed, unreachable enemy tiles only (capped per flip); hints disappear when those tiles become reachable.</div>
+          </div>`
+        passiveGrid.appendChild(deSlot)
+      }
+      if (char.id !== 'warrior' && char.id !== 'ranger' && char.id !== 'mage' && char.id !== 'vampire') {
+        const comingSoon = document.createElement('p')
+        comingSoon.className = 'passive-coming-soon'
+        comingSoon.textContent = 'Coming Soon…'
+        passiveGrid.appendChild(comingSoon)
+      }
     }
   }
 
@@ -1173,7 +1230,7 @@ function _renderUpgradeDetail(id, def, isOwned, canAfford) {
   const s        = GameController.getSave()
   const charSave = _metaCharSave(s, char.id)
   const owned    = charSave.upgrades ?? []
-  const map      = char.id === 'ranger' ? RANGER_UPGRADES : char.id === 'engineer' ? ENGINEER_UPGRADES : WARRIOR_UPGRADES
+  const map      = char.id === 'ranger' ? RANGER_UPGRADES : char.id === 'engineer' ? ENGINEER_UPGRADES : char.id === 'vampire' ? {} : WARRIOR_UPGRADES
   const missingPrereq = def.requires && !owned.includes(def.requires)
   if (hintEl) {
     if (missingPrereq && !isOwned) {
@@ -1212,7 +1269,7 @@ function _renderUpgradeDetail(id, def, isOwned, canAfford) {
 function _showResumePrompt() {
   const info = GameController.getActiveRunInfo()
   if (!info) return
-  const heroName = info.player.isRanger ? 'Ranger' : info.player.isEngineer ? 'Engineer' : 'Palladin'
+  const heroName = info.player.isRanger ? 'Ranger' : info.player.isEngineer ? 'Engineer' : info.player.isMage ? 'Mage' : info.player.isVampire ? 'Vampire' : 'Paladin'
   const floorLabel = info.atRest ? `Floor ${info.floor} — Sanctuary` : `Floor ${info.floor}`
   document.getElementById('resume-hero-name').textContent = heroName
   document.getElementById('resume-floor').textContent    = `🗺 ${floorLabel}`

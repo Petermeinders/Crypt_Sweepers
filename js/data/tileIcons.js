@@ -17,6 +17,7 @@ export const TILE_TYPE_ICON_FILES = {
   shrine:     null,           // removed — kept for safety
   event:      null,           // question mark emoji
   blockage:   '../tiles/rubble.png',
+  hole:       '../tiles/tile-hole.png',
   checkpoint: null,           // no matching sprite — use emoji
   forge:      null,           // emoji ⚒️ fallback
   exit:       'stairs-down.png', // stairs art (tiles.js: no door emoji)

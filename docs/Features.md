@@ -1,36 +1,84 @@
-Here is a summarized list of the features and updates added to the game, organized by category for easier reading:
+Here is a summarized list of features and design direction for the game. Much of this is **live** in builds today; some items are **directional** and subject to heavy rebalance or future iteration.
 
-**Core Gameplay & Mechanics**
-* **Threat Clues:** Added an orthogonal threat clue system to help players deduce nearby enemies and traps.
-* **Combat Engagement:** Implemented "combat lock" mechanics with visual feedback so players know when they are committed to a fight.
-* **Retreat System:** Added a retreat button in the header with a confirmation dialog to allow players to flee the dungeon.
-* **Status Effects & Debuffs:** Introduced several new debuffs including Poison, Burn, Corruption, Teary Eyes (affects mana costs), and Freezing Hit. 
-* **The Forge:** Added a new mechanic and overlay allowing players to combine trinkets into powerful merged items.
-* **Magic Chests & Keys:** Magic Chests now dispense dynamic gold based on floor depth and require newly introduced Golden Keys to open.
-* **Run Resumption:** Implemented grid snapshot functionality so players can resume active, ongoing runs.
-* **War Banner:** Rare floor hazard that strengthens enemies until the banner tile is destroyed; tearing it down removes the stat buff from living enemies on the floor. Banner placement avoids special tiles (chests, hearts, gold, etc.), and loot fields are cleared when the banner replaces a cell. After loading a saved grid, banner coordinates are reconciled with the actual `war_banner` tile so resume state cannot point at the wrong cell. Destroying the banner always clears the **tapped** banner cell (not stale saved coordinates), preventing the wrong tile from turning empty or “coming back” as a chest.
-* **War Banner — teardown visuals:** Tearing down the banner updates only that tile’s DOM instead of rebuilding the entire grid, so slain-enemy spirit effects and chest or coin tile animations do not replay board-wide.
+---
 
-**Characters & Abilities**
-* **Palladin (formerly Warrior):** Renamed the Warrior class to Palladin. Added new abilities including *Divine Light* (smite and healing), *Blinding Light*, and *Slam*.
-* **Ranger:** Introduced a suite of new abilities including *Triple Volley* (a 3x3 blast that replaced Arrow Barrage), *Poison Arrow*, and *Ricochet*. Added a passive/meta upgrade UI specific to the Ranger.
-* **Engineer:** Introduced a brand-new character class with unique turret mechanics, allowing players to construct, upgrade, and activate "Tesla mode" for their turrets.
+## Design pillars (recent direction)
 
-**Content & World Elements**
-* **Bestiary:** Added a discovery and tracking system to view details on encountered enemies.
-* **Trinket Codex & Inventory:** Implemented a Codex for tracking items and a "pending item bar" for better backpack management. Added new loot like the Echo Charm and Spyglass.
-* **New Enemies:** Expanded the roster with the Frost Giant, Drowned Hulk, Mushroom Harvester, and **Archer Goblin** (ranged goblin with idle/attack sprites; spawns by replacing a random unrevealed enemy tile—guaranteed on floor 1, then a chance on later non-boss dungeon floors—not from the normal enemy spawn table).
-* **Interactive Events:** Added a fully-fledged Merchant Shop interface, alongside new overlays for Gambler events, Triple Chests, and Story events. 
+The game has been pushed in three overlapping directions:
 
-**UI, UX, & Polish**
-* **Hero Selection:** Revamped the main menu with a Hero Carousel, featuring character previews and an integrated upgrade interface.
-* **Tutorialization:** Added a comprehensive "How to Play" section explaining resources and mechanics.
-* **Audio Overhaul:** Replaced old sound effects with MP3s, added crossfade transitions for music, and introduced an Audio Settings menu to toggle music and SFX.
-* **Visual Feedback:** Added a floor banner to indicate the current level, blood effects, improved CSS animations for traps/ropes, and floating text for HUD stat increases.
-* **Haptics:** Integrated vibration patterns/haptic feedback for damage events and combat interactions.
-* **Rebranding:** Officially renamed the project from "Dungeon Sweepers" to "Crypt Sweepers".
+1. **Harder** — Encounters, floor pressure, and hazards ask more of positioning and resource use.
+2. **Meaningful choices** — Less autopilot: when to push, when to clear, how to spend mana and picks matters more.
+3. **Unique discovery per hero** — Each hero is meant to *see* the dungeon differently so runs feel distinct, not just different stat sheets.
 
-**Technical & Architecture**
-* **Testing Suite:** Integrated Playwright and added headless testing bots (`test-bot-ongoing`) to automate balance testing for player HP and combat behavior.
-* **PWA Enhancements:** Added mobile web app capabilities, updated the manifest, and continuously refined the Service Worker (network-first HTML, robust asset caching).
-* **Event-Driven UI:** Refactored inventory and audio management to use event emissions rather than direct UI updates for cleaner state handling.
+*All of the below numbers, proc rates, and ability wiring are expected to move as balance and feel are tuned.*
+
+---
+
+## Core gameplay & mechanics
+
+* **Threat clues (Minesweeper-style):** Orthogonal threat totals show on revealed tiles so you can reason about nearby danger (and traps add to the count where configured).
+* **Combat engagement:** Combat lock with clear feedback when you are committed to a fight.
+* **Retreat:** Header retreat with confirmation to leave the dungeon run.
+* **Status effects & debuffs:** Poison, burn, corruption, teary eyes (mana costs), freezing hit, and related systems.
+* **The Forge:** Combine trinkets into merged items.
+* **Magic chests & keys:** Dynamic gold by depth; golden keys to open special chests.
+* **Run resumption:** Grid snapshots so ongoing runs can be resumed.
+
+### Hero-specific discovery (feel unique per class)
+
+* **Paladin — Sense Evil:** At least one unrevealed enemy on the floor can be marked with an echo-style hint. If that enemy is slain, another valid target can be marked when possible so the “lens” on danger keeps renewing.
+* **Ranger — Keen Eyes:** On revealing a tile, a chance to sense the **category** of orthogonally adjacent hidden tiles (enemy / trap / loot-style buckets, etc.), stacking with other hint systems.
+* **Mage — Phase Step (concept / WIP):** Intended direction — when it **activates**, half the time the Mage may **move diagonally** (exact rules and tuning TBD). *Subject to full redesign and rebalance.*
+
+### Floor-wide pressure
+
+* **War flags (War Banner):** A special tile can spawn that **buffs HP and damage of every living enemy** on the floor until the flag is destroyed—encouraging aggressive pathing to tear it down before the floor snowballs. Placement avoids critical specials where possible; teardown uses targeted DOM updates so the rest of the board does not “replay” VFX. Saved runs reconcile flag coordinates with the grid; destroying the banner clears the **tapped** cell (not stale saved coordinates), so resume state cannot point at the wrong cell or resurrect chest state on the wrong tile.
+* **Goblin Archer:** Spawns on **floor 1 always** and with a chance on **later non-boss dungeon floors**, replacing a random unrevealed enemy tile. It is revealed immediately and **harasses the player each turn** until dealt with—pushing fast movement, melee commitment, or spell/ability snipes.
+
+### Spaces within spaces
+
+* **Sub-floors (“floorception”):** Enterable pockets (mob dens, boss vaults, treasure rooms, shrines, ambushes, collapsed tunnels, and other variants) as a **floor inside the floor** with its own small grid and rules.
+
+### Hazards & terrain
+
+* **Open pits (holes):** Impassable like rubble, but **always visible** when placed—no flip required. Path around them like other blockers.
+
+---
+
+## Characters & abilities
+
+* **Paladin (formerly Warrior):** Divine Light, Blinding Light, Slam, and the holy-warrior baseline tuned for melee commitment.
+* **Ranger:** Ricochet, Triple Volley (3×3), Poison Arrow, **Trapfinder** mitigation, and **Keen Eyes** as above.
+* **Engineer:** Turrets, upgrades, Tesla vs ballistic modes.
+
+### Meta / progression direction (not final)
+
+* **Active abilities in the level-up pool:** Directionally, **class actives may move into the pool of level-up choices** instead of being granted upfront, so a run **specializes in one or two** actives with some **RNG** on which upgrades appear—reducing “same loadout every time” and adding build variety. *Implementation and timing TBD.*
+
+---
+
+## Content & world
+
+* **Bestiary:** Track and inspect encountered foes.
+* **Trinket codex & inventory:** Codex tracking, pending item bar, items like Echo Charm and Spyglass.
+* **Enemy roster:** Includes Frost Giant, Drowned Hulk, Mushroom Harvester, **Archer / Goblin Archer**, and others.
+* **Events & shops:** Merchant, gambler-style events, triple chests, story beats.
+
+---
+
+## UI, UX & polish
+
+* Hero carousel, How to Play, audio settings, haptics, floor banners, combat feedback.
+* **Hero Passives** (hero select): Built-in passives such as Paladin **Sense Evil**, Ranger **Keen Eyes** + **Trapfinder**, described in the carousel—not to be confused with account-wide **Passive Upgrades** on the main menu.
+
+---
+
+## Technical & architecture
+
+* Tests (including Playwright / headless bots for balance smoke checks), PWA / service worker caching, event-driven UI patterns where appropriate.
+
+---
+
+## Disclaimer
+
+Balance, proc rates (e.g. 50% on Keen Eyes or Phase Step), spawn rules (archer, flags), and whether actives come from level-ups or defaults **will change**. This document is a snapshot of intent and shipped features, not a contract for final numbers.
