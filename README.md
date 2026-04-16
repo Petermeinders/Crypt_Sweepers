@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <a href="https://petermeinders.github.io/Crypt_Sweepers/">🎮 Play Now in Your Browser</a>
+  <a href="https://Crypt-Sweepers.com">🎮 Play Now in Your Browser</a>
 </p>
 
 <p align="center">
