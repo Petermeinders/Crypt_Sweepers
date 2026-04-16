@@ -531,6 +531,7 @@ function _echoCharmCategoryForTileType(type) {
   if (type === 'event' || type === 'checkpoint') return '✨'
   if (type === 'exit') return '🚪'
   if (type === 'empty') return '·'
+  if (type === 'blockage' || type === 'hole') return '🕳️'
   return '❓'
 }
 
@@ -542,6 +543,7 @@ function _spyglassHintLabel(type) {
   if (type === 'exit') return '🚪 Way'
   if (type === 'empty') return '· Quiet'
   if (type === 'well' || type === 'anvil' || type === 'rope') return '🏕️ Rest'
+  if (type === 'blockage' || type === 'hole') return '🕳️ Hazard'
   return '❓ Unknown'
 }
 
@@ -609,8 +611,9 @@ const RANGER_PASSIVE_SKIP_ADJ_LOCK = 0.1
 function buildRunState() {
   const isRanger   = _charKey() === 'ranger'
   const isEngineer = _charKey() === 'engineer'
-  const baseHP     = isRanger ? RANGER_BASE.hp : isEngineer ? ENGINEER_BASE.hp : CONFIG.player.baseHP
-  const baseMana   = isRanger ? RANGER_BASE.mana : isEngineer ? ENGINEER_BASE.mana : CONFIG.player.baseMana
+  const isMage     = _charKey() === 'mage'
+  const baseHP     = isMage ? 30 : isRanger ? RANGER_BASE.hp : isEngineer ? ENGINEER_BASE.hp : CONFIG.player.baseHP
+  const baseMana   = isMage ? 60 : isRanger ? RANGER_BASE.mana : isEngineer ? ENGINEER_BASE.mana : CONFIG.player.baseMana
 
   const p = {
     hp:      baseHP,
@@ -645,6 +648,7 @@ function buildRunState() {
     damageTakenMult:    1,
     isRanger,
     isEngineer,
+    isMage,
     inventory:          [],   // [{ id, qty }]
     goldenKeys:         0,
     meleeHitCount:      0,    // Stormcaller's Fist tracker
@@ -956,6 +960,7 @@ function newGame() {
   UI.hideRunSummary()
   _clearActiveRun()
   run = buildRunState()
+  TileEngine.setDiagonalMovement((_save.selectedCharacter ?? 'warrior') === 'mage')
   UI.hideMainMenu()
   EventBus.emit('audio:crossfade', { track: 'dungeon', duration: 1500 })
   _startFloor()
@@ -1042,6 +1047,8 @@ function resumeRun() {
   const ch = _save.selectedCharacter ?? 'warrior'
   run.player.isEngineer = ch === 'engineer'
   run.player.isRanger   = ch === 'ranger'
+  run.player.isMage     = ch === 'mage'
+  TileEngine.setDiagonalMovement(ch === 'mage')
   UI.hideMainMenu()
   const track = CONFIG.bossFloors.includes(run.floor) ? 'boss' : 'dungeon'
   EventBus.emit('audio:crossfade', { track, duration: 1500 })
@@ -1218,6 +1225,12 @@ function _startFloor() {
     _refreshRangerActiveHud()
   } else if (_charKey() === 'engineer') {
     _refreshEngineerHud()
+  } else if (_charKey() === 'mage') {
+    UI.setSlamBtn(false)
+    UI.setArrowBarrageBtn(false)
+    UI.setPoisonArrowShotBtn(false)
+    UI.setDivineLightBtn(false)
+    UI.setBlindingLightBtn(false)
   } else {
     UI.setSlamBtn(slamUnlocked, WARRIOR_UPGRADES.slam.manaCost)
     UI.setArrowBarrageBtn(false)
@@ -1857,6 +1870,8 @@ function onTileTap(row, col) {
       _confirmRope(tile)
     } else if (tile.revealed && tile.type === 'event' && !tile.eventResolved) {
       _openEvent(tile)
+    } else if (tile.revealed && tile.type === 'hole') {
+      UI.setMessage('A gaping pit blocks the way. You cannot pass.')
     } else if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
       // Safety net: if _combatBusy has been stuck for >3s with no resolution, clear it
       if (_combatBusy && Date.now() - _combatBusySetAt > 3000) {
@@ -2149,8 +2164,8 @@ async function revealTile(tile) {
     }
     _engineerTurretAfterReveal(tile)
   }
-  // Blockage tiles do not extend reachability — player must path around them
-  if (tile.type !== 'blockage') {
+  // Blockage / hole tiles do not extend reachability — player must path around them
+  if (tile.type !== 'blockage' && tile.type !== 'hole') {
     TileEngine.markReachable(tile.row, tile.col, UI.markTileReachable.bind(UI))
   }
   // Ranger unique trait: 50% chance to sense the category of orthogonal neighbors
@@ -2425,6 +2440,10 @@ function _resolveEffect(tile) {
 
     case 'blockage':
       UI.setMessage('A pile of rubble blocks the way. Find another path.')
+      break
+
+    case 'hole':
+      UI.setMessage('A gaping pit blocks the way. Find another path.')
       break
 
     case 'event':

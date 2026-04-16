@@ -12,6 +12,8 @@ export const TILE_DEFS = {
   heart:      { emoji: '❤️',   label: 'heart',      cssClass: 'type-heart',      weight:  2, isEnemy: false },
   event:      { emoji: '❓',   label: 'event',      cssClass: 'type-event',      weight:  3, isEnemy: false },
   blockage:   { emoji: '🪨',   label: '',           cssClass: 'type-blockage',   weight:  4, isEnemy: false },
+  /** Open pit — impassable like rubble, but always visible (no flip). */
+  hole:       { emoji: '🕳️',  label: '',           cssClass: 'type-hole',       weight:  4, isEnemy: false },
   checkpoint: { emoji: '🏕️',   label: 'camp',       cssClass: 'type-checkpoint', weight:  5, isEnemy: false },
   boss:       { emoji: '☠️',   label: 'BOSS',       cssClass: 'type-boss',       weight:  0, isEnemy: true,  enemyType: 'skeleton_lord' },
   exit:       { emoji: '',     label: '',           cssClass: 'type-exit',       weight:  3, isEnemy: false },

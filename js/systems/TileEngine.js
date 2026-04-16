@@ -318,7 +318,7 @@ function _createTileWithEnemy(type, row, col, floor) {
     row,
     col,
     type,
-    revealed:  false,
+    revealed:  type === 'hole',
     locked:    false,
     reachable: false,
     enemyData,
@@ -380,7 +380,8 @@ function renderGrid(gridEl, onTap, onHold) {
       div.className = 'tile tile-type-' + tile.type + (def.isEnemy ? ' is-enemy' : '')
       div.dataset.row = r
       div.dataset.col = c
-      div.setAttribute('aria-label', 'hidden tile')
+      div.setAttribute('aria-label', tile.revealed ? 'hazard tile' : 'hidden tile')
+      if (tile.revealed) div.classList.add('revealed')
 
       // Random back-face texture — picked now, applied after innerHTML is set
       const _backImages = [
@@ -498,8 +499,18 @@ function getAdjacentTiles(row, col) {
     .filter(Boolean)
 }
 
+let _diagonalMovement = false
+function setDiagonalMovement(enabled) { _diagonalMovement = !!enabled }
+
 function getOrthogonalTiles(row, col) {
   const dirs = [[-1,0],[1,0],[0,-1],[0,1]]
+  return dirs
+    .map(([dr, dc]) => _grid[row + dr]?.[col + dc])
+    .filter(Boolean)
+}
+
+function getDiagonalTiles(row, col) {
+  const dirs = [[-1,-1],[-1,1],[1,-1],[1,1]]
   return dirs
     .map(([dr, dc]) => _grid[row + dr]?.[col + dc])
     .filter(Boolean)
@@ -570,6 +581,14 @@ function markReachable(row, col, uiMark) {
     if (!adj.revealed && !adj.reachable) {
       adj.reachable = true
       if (adj.element) uiMark(adj.element)
+    }
+  }
+  if (_diagonalMovement && Math.random() < 0.5) {
+    for (const adj of getDiagonalTiles(row, col)) {
+      if (!adj.revealed && !adj.reachable) {
+        adj.reachable = true
+        if (adj.element) uiMark(adj.element)
+      }
     }
   }
 }
@@ -672,6 +691,7 @@ export default {
   rollEnemyHitDamage,
   refreshEnemyDamageOnTile,
   getOrthogonalTiles,
+  setDiagonalMovement,
   refreshAllThreatClueDisplays,
   computeOrthogonalThreatSum,
 }

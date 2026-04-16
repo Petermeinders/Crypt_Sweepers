@@ -639,6 +639,29 @@ body.tile-colors .tile-front.type-blockage {
   border-radius: 6px;
 }
 
+/* Open pit — always revealed; same fill treatment as rubble */
+body.tile-colors .tile-front.type-hole {
+  background-image:
+    linear-gradient(145deg, rgba(12,18,40,0.55), rgba(20,28,52,0.65)),
+    var(--tile-art-revealed);
+  border-color: #3a4868;
+  box-shadow: inset 0 3px 7px rgba(0,0,0,0.65);
+}
+
+.tile-type-hole .tile-icon-wrap {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+
+.tile-type-hole .tile-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
 body.tile-colors .tile-front.type-well {
   background-image:
     linear-gradient(145deg, rgba(0,32,48,0.78), rgba(0,56,72,0.86)),
@@ -679,6 +702,12 @@ body.tile-colors .tile-front.type-rope {
 .tile.revealed.tile-type-well,
 .tile.revealed.tile-type-anvil,
 .tile.revealed.tile-type-forge {
+  pointer-events: all;
+  cursor: pointer;
+}
+
+/* Open pit — tap for message / info card */
+.tile.revealed.tile-type-hole {
   pointer-events: all;
   cursor: pointer;
 }

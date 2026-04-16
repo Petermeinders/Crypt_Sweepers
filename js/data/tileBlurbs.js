@@ -27,4 +27,9 @@ export const TILE_BLURBS = {
     blurb: 'A sturdy rope leads up toward daylight — a way out of the dungeon.',
     modalSubtext: 'Climbing out ends this run and banks all gold you are carrying (like escaping through a normal exit). You will not descend further on this run.',
   },
+  hole:       {
+    label: 'Open Pit',
+    emoji: '🕳️',
+    blurb: 'A gaping hole in the floor — far too treacherous to cross. You must path around it.',
+  },
 }

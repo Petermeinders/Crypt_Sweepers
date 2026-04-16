@@ -52,17 +52,16 @@ const CHARACTERS = [
   {
     id:          'mage',
     name:        'Mage',
-    tagline:     'A master of the arcane arts who turns the dungeon into a laboratory. Devastating spell power — but dangerously fragile up close.',
-    gif:         null,
-    attackGif:   null,
-    attackMs:    0,
+    tagline:     'A master of the arcane arts who turns the dungeon into a laboratory. Phase Walk lets him reach tiles diagonally — moving like a queen, not a rook.',
+    gif:         'assets/sprites/Heroes/Mage/blue-mage-hero-small.gif',
+    attackGif:   'assets/sprites/Heroes/Mage/blue-mage-hero-attack-small-speed.gif',
+    attackMs:    2000,
     emoji:       '🧙‍♂️',
     upgrades:    {},
     unlockCost:  null,
     baseHP:      30,
     baseMana:    60,
     baseDmg:     '1',
-    comingSoon:  true,
   },
   {
     id:          'vampire',
@@ -1151,7 +1150,18 @@ function _renderHeroUpgradeGrid(grid, char, ownedList, xp, isLocked) {
           </div>`
         passiveGrid.appendChild(trapfinderSlot)
       }
-      if (char.id !== 'warrior' && char.id !== 'ranger') {
+      if (char.id === 'mage') {
+        const phaseWalkSlot = document.createElement('div')
+        phaseWalkSlot.className = 'hero-passive-builtin'
+        phaseWalkSlot.innerHTML = `
+          <span class="hero-passive-builtin-icon">🌀</span>
+          <div class="hero-passive-builtin-info">
+            <div class="hero-passive-builtin-name">Phase Walk <span class="hero-passive-builtin-badge">✓ Applied</span></div>
+            <div class="hero-passive-builtin-desc">Tiles are reachable diagonally as well as orthogonally — move like a queen, not a rook.</div>
+          </div>`
+        passiveGrid.appendChild(phaseWalkSlot)
+      }
+      if (char.id !== 'warrior' && char.id !== 'ranger' && char.id !== 'mage') {
         const comingSoon = document.createElement('p')
         comingSoon.className = 'passive-coming-soon'
         comingSoon.textContent = 'Coming Soon…'
@@ -1220,7 +1230,7 @@ function _renderUpgradeDetail(id, def, isOwned, canAfford) {
 function _showResumePrompt() {
   const info = GameController.getActiveRunInfo()
   if (!info) return
-  const heroName = info.player.isRanger ? 'Ranger' : info.player.isEngineer ? 'Engineer' : 'Paladin'
+  const heroName = info.player.isRanger ? 'Ranger' : info.player.isEngineer ? 'Engineer' : info.player.isMage ? 'Mage' : 'Paladin'
   const floorLabel = info.atRest ? `Floor ${info.floor} — Sanctuary` : `Floor ${info.floor}`
   document.getElementById('resume-hero-name').textContent = heroName
   document.getElementById('resume-floor').textContent    = `🗺 ${floorLabel}`
