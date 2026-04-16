@@ -32,4 +32,15 @@ export const TILE_BLURBS = {
     emoji: '🕳️',
     blurb: 'A gaping hole in the floor — far too treacherous to cross. You must path around it.',
   },
+  war_banner: {
+    label: 'Enemy War Banner',
+    emoji: '🚩',
+    blurb: 'An enemy standard flies over this floor. While it stands, every foe hits harder and endures more. Reach it and tear it down to break their morale.',
+    /** Full text for the first-time discovery card (bestiary-style) */
+    introBlurb:
+      'A hostile war banner snaps in an unfelt wind. While it flies, every enemy on this floor fights with raised spirits — more health and more damage.\n\n'
+      + 'Path to the banner as fast as you dare, then tap it again to tear it down and strip that power from the whole floor.',
+    /** Appended on long-press info cards */
+    holdHint: 'Tap the banner tile again to destroy it. That removes the bonus from every living enemy on this floor.',
+  },
 }

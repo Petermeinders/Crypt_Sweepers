@@ -28,22 +28,28 @@ function resolveFight(player, enemyData) {
   const enemyDmg = typeof enemyData?.hitDamage === 'number' && Number.isFinite(enemyData.hitDamage)
     ? enemyData.hitDamage
     : rand(dmgMin, dmgMax)
-  const bonus = player.damageBonus ?? 0
+  const bonus       = player.damageBonus ?? 0
+  const maskPenalty = player.inventory?.some(e => e.id === 'plague-mask')   ? 1 : 0
+  const collarBonus = player.inventory?.some(e => e.id === 'spiked-collar') ? 3 : 0
+  const soulBonus   = Math.floor(player.soulboundBonus ?? 0)
+  const totalBonus  = bonus + collarBonus + soulBonus - maskPenalty
 
   let playerDmg
   if (player.isRanger) {
     const [lo, hi] = RANGER_BASE.damage
-    playerDmg = rand(lo + bonus, hi + bonus)
+    const hasRazor = player.inventory?.some(e => e.id === 'razors-edge')
+    const max = Math.max(1, hi + totalBonus)
+    playerDmg = hasRazor ? max : rand(Math.max(1, lo + totalBonus), max)
   } else if (player.isEngineer) {
     const bd = ENGINEER_BASE.damage
     const base = Array.isArray(bd) ? rand(...bd) : bd
-    playerDmg = base + bonus
+    playerDmg = base + totalBonus
   } else if (player.isVampire) {
-    playerDmg = VAMPIRE_BASE.damage + bonus
+    playerDmg = VAMPIRE_BASE.damage + totalBonus
   } else {
     const bd = CONFIG.player.baseDamage
     const base = Array.isArray(bd) ? rand(...bd) : bd
-    playerDmg = base + bonus
+    playerDmg = base + totalBonus
   }
 
   const goldDrop = 1

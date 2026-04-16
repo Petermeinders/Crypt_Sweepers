@@ -50,6 +50,22 @@ export const ENEMY_DEFS = {
   },
 
   // ── Humanoid ────────────────────────────────────────────────
+  archer_goblin: {
+    hp:           3,
+    dmg:          [1, 2],
+    type:         'humanoid',
+    behaviour:    'archer',
+    emoji:        '🏹',
+    label:        'Goblin Archer',
+    goldDrop:     [2, 3],
+    xpDrop:       4,
+    blurb:        'A cunning goblin who keeps its distance. It fires arrows every turn until silenced.',
+    attributes:   ['ranged'],
+    harassPlayer: true,   // fires an arrow each global turn while revealed
+    harassDmg:    1,      // base harass damage (scales with floor)
+    spawn:        'universal',
+  },
+
   goblin: {
     hp:         2,
     dmg:        [1, 1],

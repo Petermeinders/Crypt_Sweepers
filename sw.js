@@ -2,7 +2,7 @@
 // Strategy: Cache-first for assets, network-first for HTML.
 // Version bump CACHE_NAME to force cache refresh on deploy.
 
-const CACHE_NAME = 'crypt-sweepers-v174'
+const CACHE_NAME = 'crypt-sweepers-v220'
 
 const PRECACHE_ASSETS = [
   './',
@@ -67,6 +67,11 @@ const PRECACHE_ASSETS = [
   './assets/DungeonBackgroundShadow.png',
   './assets/DungeonBackgroundInfernal.png',
   './assets/SanctuaryBackground.png',
+  './assets/ui/subfloor-background.png',
+  './assets/ui/subfloor-entry.png',
+  './assets/ui/subfloor-stairs-up.png',
+  './assets/ui/subfloor-tile-back-1.png',
+  './assets/ui/subfloor-tile-back-2.png',
   './assets/ui/bestiary-scroll-bg.png',
   './assets/ui/freeze-effect.png',
   './assets/ui/fire-ice-frame.png',
@@ -78,6 +83,7 @@ const PRECACHE_ASSETS = [
   './assets/ui/common-tile.png',
   './assets/ui/rare-tile.png',
   './assets/ui/legendary-tile.png',
+  './assets/ui/play-qr.png',
   './assets/sprites/tiles/rubble.png',
   './assets/sprites/tiles/tile-hole.png',
   './assets/sprites/tiles/tile-unflipped2.1.png',
@@ -176,6 +182,8 @@ const PRECACHE_ASSETS = [
   './assets/sprites/Heroes/Mage/blue-mage-hero-small.gif',
   './assets/sprites/Heroes/Mage/blue-mage-hero-attack-small-speed.gif',
   './assets/sprites/Heroes/Vampire/vampire-hero-idle.png',
+  './assets/sprites/monsters/archer_goblin/archer-goblin-idle.gif',
+  './assets/sprites/monsters/archer_goblin/archer-goblin-attack.gif',
 
   // SFX
   './audio/sfx/flip.ogg',

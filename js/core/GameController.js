@@ -411,7 +411,6 @@ function _restoreHourglassSnapshot(snap) {
     for (let c = 0; c < grid[r].length; c++) {
       const t = grid[r][c]
       const st = snap.tiles[r][c]
-      const el = t.element
       t.type = st.type
       t.revealed = st.revealed
       t.locked = st.locked
@@ -429,47 +428,11 @@ function _restoreHourglassSnapshot(snap) {
       t.forgeUsed = st.forgeUsed
       t.echoHintCategory = st.echoHintCategory ?? null
       t.darkEyesHint = !!st.darkEyesHint
-      t.element = el
-      if (el) {
-        el.classList.toggle('revealed', !!t.revealed)
-        el.classList.toggle('reachable', !!t.reachable && !t.revealed)
-        el.classList.toggle('locked', !!t.locked)
-        el.classList.toggle('echo-hint', !!t.echoHintCategory)
-        if (t.echoHintCategory) el.dataset.echoHint = t.echoHintCategory
-        else delete el.dataset.echoHint
-      }
+      _normalizeTileFieldsForType(t)
     }
   }
 
-  TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
-  for (const row of grid) {
-    for (const t of row) {
-      if (!t.element) continue
-      if (t.type === 'event') {
-        t.element.classList.toggle('event-pending', !t.eventResolved)
-      }
-      if (t.type === 'chest') {
-        t.element.classList.toggle('chest-ready', !!(t.chestReady && !t.chestLooted))
-      }
-      if (t.type === 'magic_chest') {
-        t.element.classList.toggle('chest-ready', !!t.magicChestReady)
-      }
-      if (t.type === 'forge') {
-        t.element.classList.toggle('forge-used', !!t.forgeUsed)
-      }
-      if (t.type === 'exit') {
-        t.element.classList.toggle('exit-pending', !t.exitResolved)
-      }
-      if (t.type === 'rope') {
-        t.element.classList.toggle('rope-pending', !t.ropeResolved)
-      }
-      if (t.revealed && t.enemyData && !t.enemyData._slain) {
-        UI.markTileEnemyAlive(t.element)
-      } else {
-        t.element.classList.remove('enemy-alive')
-      }
-    }
-  }
+  _refreshMainGridDomFromModel()
   UI.updateHP(run.player.hp, run.player.maxHp)
   UI.updateMana(run.player.mana, run.player.maxMana)
   UI.updateGold(run.player.gold)
@@ -535,6 +498,7 @@ function _echoCharmCategoryForTileType(type) {
   if (type === 'exit') return '🚪'
   if (type === 'empty') return '·'
   if (type === 'blockage' || type === 'hole') return '🕳️'
+  if (type === 'war_banner') return '🚩'
   return '❓'
 }
 
@@ -898,6 +862,8 @@ function buildRunState() {
     turret:           null,
     /** Balance / bot: per-run stats (see js/balance/runTelemetry.js) */
     telemetry:        createInitialTelemetry(),
+    /** While active: { row, col, active, mult } — buffs all enemies until banner tile is cleared */
+    warBanner:        null,
   }
 }
 
@@ -1201,6 +1167,8 @@ function _serializeGridSnapshot() {
       forgeUsed: t.forgeUsed,
       echoHintCategory: t.echoHintCategory ?? null,
       darkEyesHint: !!t.darkEyesHint,
+      bannerReady: t.bannerReady ?? null,
+      warBannerFlying: t.warBannerFlying ?? null,
     })),
   )
 }
@@ -1220,11 +1188,13 @@ function _saveActiveRun() {
     eventTile:       run.eventTile ? { row: run.eventTile.row, col: run.eventTile.col } : null,
     gridSnapshot:    _serializeGridSnapshot(),
     combatEngagement: _combatEngagementTile ? { ..._combatEngagementTile } : null,
+    warBanner:       run.warBanner ? JSON.parse(JSON.stringify(run.warBanner)) : null,
   }
   SaveManager.save(_save).catch(() => {})
 }
 
 function _clearActiveRun() {
+  UI.hideSubFloor()
   if (!_save?.activeRun) return
   delete _save.activeRun
   SaveManager.save(_save).catch(() => {})
@@ -1255,6 +1225,7 @@ function resumeRun() {
       if (!Array.isArray(t.floorSnapshots)) t.floorSnapshots = []
       return t
     })(),
+    warBanner: saved.warBanner ?? null,
   }
   const ch = _save.selectedCharacter ?? 'warrior'
   run.player.isEngineer = ch === 'engineer'
@@ -1335,6 +1306,7 @@ function _startFloor() {
   if (run?._resumeGridSnapshot) {
     gridRestored = TileEngine.importGridFromSnapshot(run._resumeGridSnapshot, run.floor, { rest: run.atRest })
     run._resumeGridSnapshot = null
+    _syncWarBannerCoordsFromGrid()
   }
   if (!gridRestored) {
     TileEngine.generateGrid(run.floor, { rest: run.atRest })
@@ -1371,6 +1343,28 @@ function _startFloor() {
       }
     }
   }
+
+  // Sub-floor spawn: always on floor 1, otherwise 5% chance on non-boss, non-sanctuary floors
+  if ((_save.settings.subLevelsEnabled ?? true) && !gridRestored && !run.atRest && !CONFIG.bossFloors.includes(run.floor)
+      && (run.floor === 1 || Math.random() < CONFIG.subFloor.spawnChance)) {
+    _spawnSubFloorEntry()
+  }
+
+  // War banner: always on floor 1; otherwise 20% per non-boss dungeon floor — buffs all enemies until cleared
+  if (!gridRestored && !run.atRest && !CONFIG.bossFloors.includes(run.floor)
+      && (run.floor === 1 || Math.random() < CONFIG.warBanner.spawnChance)) {
+    _spawnWarBannerEntry()
+  } else if (!gridRestored && !run.atRest) {
+    run.warBanner = null
+  }
+
+  // Archer Goblin: always floor 1, 20% chance on subsequent non-boss dungeon floors.
+  // Immediately revealed; starts firing arrows each turn until killed.
+  if (!gridRestored && !run.atRest && !CONFIG.bossFloors.includes(run.floor)
+      && (run.floor === 1 || Math.random() < 0.20)) {
+    _spawnArcherGoblin()
+  }
+
   // Forsaken Idol: reveal all unrevealed enemy tiles from floor start
   if (!gridRestored && !run.atRest && run.player.inventory.some(e => e.id === 'forsaken-idol')) {
     const grid = TileEngine.getGrid()
@@ -1472,10 +1466,13 @@ function _startFloor() {
   UI.hideEventOverlays()
 
   const isBoss = CONFIG.bossFloors.includes(run.floor) && !run.atRest
+  const hasWarBanner = run.warBanner?.active && !run.atRest
   UI.setMessage(run.atRest
     ? 'A quiet sanctuary. The well restores you; the rope leads out with your gold; the stairs go deeper.'
     : isBoss
       ? `⚠️ Floor ${run.floor} — Boss floor! Tread carefully.`
+      : hasWarBanner
+        ? '🚩 A war banner flies over this floor — enemies hit harder until you tear it down!'
       : 'Tap a tile to reveal what lurks beneath...')
 
   if (run.telemetry && !run.telemetry.runStartSnapshotDone) {
@@ -1500,6 +1497,39 @@ function _startFloor() {
     run._resumeCombatEngagement = null
   }
   _saveActiveRun()
+}
+
+/** Full main-grid rebuild from model — use after hourglass rewind or war banner teardown. */
+function _refreshMainGridDomFromModel() {
+  TileEngine.renderGrid(UI.getGridEl(), onTileTap, onTileHold)
+  TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
+  TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
+  _syncGridDomClassesFromModel()
+}
+
+/**
+ * Hourglass snapshots omit some per-type fields (e.g. bannerReady). Without this, stale props
+ * from a prior object identity can make an empty tile behave or save like a chest.
+ */
+function _normalizeTileFieldsForType(t) {
+  if (t.type !== 'war_banner') {
+    delete t.bannerReady
+    delete t.warBannerFlying
+  } else if (t.revealed) {
+    t.bannerReady = true
+    t.warBannerFlying = false
+  } else {
+    t.bannerReady = false
+    if (t.warBannerFlying === undefined || t.warBannerFlying === null) t.warBannerFlying = true
+  }
+  if (t.type !== 'chest') {
+    delete t.chestLoot
+    delete t.chestReady
+    delete t.chestLooted
+  }
+  if (t.type !== 'magic_chest') {
+    delete t.magicChestReady
+  }
 }
 
 /** After loading a floor from snapshot, sync tile CSS classes to match model (no flip animation). */
@@ -1531,9 +1561,23 @@ function _syncGridDomClassesFromModel() {
       if (t.type === 'rope') {
         el.classList.toggle('rope-pending', !t.ropeResolved)
       }
-      if (t.echoHintCategory) {
+      // Echo hints only apply to unrevealed backs; strip after full grid rebuilds (e.g. banner → empty).
+      if (t.revealed) {
+        el.classList.remove('echo-hint')
+        delete el.dataset.echoHint
+      } else if (t.echoHintCategory) {
         el.classList.add('echo-hint')
         el.dataset.echoHint = t.echoHintCategory
+      } else {
+        el.classList.remove('echo-hint')
+        delete el.dataset.echoHint
+      }
+      // Full grid rebuilds (e.g. war banner torn down) recreate living enemy faces — restore slain art
+      if (t.revealed && t.enemyData?._slain && t.element) {
+        const front = t.element.querySelector('.tile-front')
+        if (front && !front.classList.contains('type-slain')) {
+          UI.markTileSlain(t.element)
+        }
       }
       // .tile.revealed defaults to pointer-events:none; .enemy-alive restores taps (see tiles.css).
       if (t.revealed && t.enemyData && !t.enemyData._slain) {
@@ -1611,20 +1655,79 @@ let _twinBladesTargeting     = false
 /** Single focused enemy for current combat — no swapping until this one is slain (ambush uses `force`). */
 let _combatEngagementTile = null
 
+// ── Active grid helpers (main dungeon OR sub-floor) ──────────
+// When a sub-floor is active, abilities, target iteration, and kill
+// handling should operate on its tiles — not the main dungeon grid.
+
+function _isInSubFloor() {
+  return !!run?.subFloor?.active
+}
+
+/** Flat list of tiles in the currently active grid (sub-floor if active, else main). */
+function _getActiveTiles() {
+  if (_isInSubFloor()) {
+    const out = []
+    for (const row of run.subFloor.tiles) for (const t of row) if (t) out.push(t)
+    return out
+  }
+  const grid = TileEngine.getGrid()
+  if (!grid?.length) return []
+  const out = []
+  for (const row of grid) for (const t of row) if (t) out.push(t)
+  return out
+}
+
+/** 2D array for algorithms that need row/col indexing on the active grid. */
+function _getActiveTileRows() {
+  return _isInSubFloor() ? run.subFloor.tiles : TileEngine.getGrid()
+}
+
+/** Tile at (row, col) on the active grid — sub-floor when a sub-floor is open, else main dungeon. */
+function _getActiveTileAt(row, col) {
+  if (_isInSubFloor()) return run.subFloor.tiles[row]?.[col] ?? null
+  return TileEngine.getTile(row, col)
+}
+
+/** Orthogonal neighbors in the active grid. */
+function _getActiveOrthogonal(row, col) {
+  const rows = _getActiveTileRows()
+  if (!rows?.length) return []
+  const dirs = [[-1,0],[1,0],[0,-1],[0,1]]
+  return dirs
+    .map(([dr, dc]) => rows[row + dr]?.[col + dc])
+    .filter(Boolean)
+}
+
 /** Sync red border highlight on the engaged enemy tile (at most one). */
 function _syncCombatEngagementDom() {
   const grid = TileEngine.getGrid()
-  if (!grid) return
-  for (const row of grid) {
-    for (const t of row) {
-      if (!t.element) continue
-      const engaged =
-        !!_combatEngagementTile
-        && t.row === _combatEngagementTile.row
-        && t.col === _combatEngagementTile.col
-        && t.enemyData
-        && !t.enemyData._slain
-      UI.setTileCombatEngaged(t.element, engaged)
+  if (grid) {
+    for (const row of grid) {
+      for (const t of row) {
+        if (!t.element) continue
+        const engaged =
+          !_isInSubFloor()
+          && !!_combatEngagementTile
+          && t.row === _combatEngagementTile.row
+          && t.col === _combatEngagementTile.col
+          && t.enemyData
+          && !t.enemyData._slain
+        UI.setTileCombatEngaged(t.element, engaged)
+      }
+    }
+  }
+  if (_isInSubFloor() && run.subFloor?.tiles) {
+    for (const row of run.subFloor.tiles) {
+      for (const t of row) {
+        if (!t?.element) continue
+        const engaged =
+          !!_combatEngagementTile
+          && t.row === _combatEngagementTile.row
+          && t.col === _combatEngagementTile.col
+          && t.enemyData
+          && !t.enemyData._slain
+        UI.setTileCombatEngaged(t.element, engaged)
+      }
     }
   }
 }
@@ -1641,7 +1744,7 @@ function _setCombatEngagement(tile, { force = false } = {}) {
     return true
   }
   if (_combatEngagementTile.row === tile.row && _combatEngagementTile.col === tile.col) return true
-  const cur = TileEngine.getTile(_combatEngagementTile.row, _combatEngagementTile.col)
+  const cur = _getActiveTileAt(_combatEngagementTile.row, _combatEngagementTile.col)
   if (!cur?.enemyData || cur.enemyData._slain) {
     _combatEngagementTile = { row: tile.row, col: tile.col }
     _syncCombatEngagementDom()
@@ -1674,7 +1777,7 @@ function _clearAllCombatEngagement() {
 /** True while the focused enemy is still alive (clears stale refs). */
 function _isCombatCommitmentLocked() {
   if (!_combatEngagementTile) return false
-  const t = TileEngine.getTile(_combatEngagementTile.row, _combatEngagementTile.col)
+  const t = _getActiveTileAt(_combatEngagementTile.row, _combatEngagementTile.col)
   if (t?.enemyData && !t.enemyData._slain) return true
   _combatEngagementTile = null
   _syncCombatEngagementDom()
@@ -1684,7 +1787,7 @@ function _isCombatCommitmentLocked() {
 /** Melee / single-target attacks: only the engaged enemy, unless engagement is stale/cleared. */
 function _canAttackEnemy(tile) {
   if (!_combatEngagementTile) return true
-  const cur = TileEngine.getTile(_combatEngagementTile.row, _combatEngagementTile.col)
+  const cur = _getActiveTileAt(_combatEngagementTile.row, _combatEngagementTile.col)
   if (!cur?.enemyData || cur.enemyData._slain) {
     _combatEngagementTile = null
     _syncCombatEngagementDom()
@@ -1703,7 +1806,7 @@ function _suspendCombatEngagementForMultiTargetAbility() {
 
 function _restoreCombatEngagementAfterMultiTargetAbility(saved) {
   if (!saved) return
-  const t = TileEngine.getTile(saved.row, saved.col)
+  const t = _getActiveTileAt(saved.row, saved.col)
   if (t?.enemyData && !t.enemyData._slain) {
     _combatEngagementTile = { row: saved.row, col: saved.col }
     _syncCombatEngagementDom()
@@ -1822,6 +1925,764 @@ function _syncAllUnrevealedLockedDom() {
       }
     }
   }
+}
+
+// ── Sub-floor ────────────────────────────────────────────────
+
+/** Pick a random unrevealed non-start tile and convert it to a sub_floor_entry. */
+function _spawnSubFloorEntry() {
+  const grid = TileEngine.getGrid()
+  const candidates = []
+  for (const row of grid) {
+    for (const t of row) {
+      if (!t.revealed && !t.locked && t.type !== 'exit' && t.type !== 'boss') {
+        candidates.push(t)
+      }
+    }
+  }
+  if (!candidates.length) return
+  const target = candidates[Math.floor(Math.random() * candidates.length)]
+  target.type = 'sub_floor_entry'
+  target.enemyData = null
+  target.subFloorType = TileEngine.rollSubFloorType()
+  // Update the front face so when the player flips it, spiral art shows
+  if (target.element) {
+    for (const cls of [...target.element.classList]) {
+      if (cls.startsWith('tile-type-')) target.element.classList.remove(cls)
+    }
+    target.element.classList.add('tile-type-sub_floor_entry')
+    const front = target.element.querySelector('.tile-front')
+    if (front) {
+      front.className = 'tile-front type-sub-floor-entry'
+      front.innerHTML = ''
+    }
+  }
+}
+
+function _applyWarBannerBuffToEnemyGrid(mult) {
+  const grid = TileEngine.getGrid()
+  if (!grid) return
+  for (const row of grid) {
+    for (const t of row) {
+      if (!t?.enemyData || t.enemyData._slain || t.enemyData._warBannerBuffed) continue
+      const e = t.enemyData
+      e.hp = Math.max(1, Math.round(e.hp * mult))
+      e.currentHP = Math.max(1, Math.round((e.currentHP ?? e.hp) * mult))
+      if (Array.isArray(e.dmg)) e.dmg = e.dmg.map(d => Math.max(1, Math.round(d * mult)))
+      e._warBannerBuffed = true
+      // Unrevealed tiles still render stats on the flip face — refresh DOM for every enemy tile
+      if (t.element) {
+        UI.updateEnemyHP(t.element, e.currentHP)
+        TileEngine.refreshEnemyDamageOnTile(t)
+      }
+    }
+  }
+}
+
+function _stripWarBannerBuff(mult) {
+  const grid = TileEngine.getGrid()
+  if (!grid) return
+  for (const row of grid) {
+    for (const t of row) {
+      if (!t?.enemyData || !t.enemyData._warBannerBuffed) continue
+      const e = t.enemyData
+      // Dead enemies — do not strip stats (Math.max(1,…) would revive); also guard HP≤0 without _slain
+      if (e._slain || (e.currentHP ?? 1) <= 0) {
+        delete e._warBannerBuffed
+        continue
+      }
+      e.hp = Math.max(1, Math.round(e.hp / mult))
+      e.currentHP = Math.max(1, Math.min(e.hp, Math.round(e.currentHP / mult)))
+      if (Array.isArray(e.dmg)) e.dmg = e.dmg.map(d => Math.max(1, Math.round(d / mult)))
+      if (e.hitDamage != null) e.hitDamage = Math.max(1, Math.round(e.hitDamage / mult))
+      delete e._warBannerBuffed
+      if (t.element) {
+        UI.updateEnemyHP(t.element, e.currentHP)
+        TileEngine.refreshEnemyDamageOnTile(t)
+      }
+    }
+  }
+}
+
+/**
+ * After loading grid from snapshot, align run.warBanner row/col with the actual war_banner cell.
+ * Stale saved coords can point at a different tile (e.g. chest at 1,3 while banner is at 1,4).
+ */
+function _syncWarBannerCoordsFromGrid() {
+  if (!run?.warBanner?.active) return
+  const { row, col } = run.warBanner
+  const atSaved = TileEngine.getTile(row, col)
+  if (atSaved?.type === 'war_banner') return
+
+  const grid = TileEngine.getGrid()
+  if (!grid) return
+  for (const r of grid) {
+    for (const cell of r) {
+      if (cell?.type === 'war_banner') {
+        const mult = run.warBanner.mult ?? CONFIG.warBanner.statMult
+        run.warBanner = { row: cell.row, col: cell.col, active: true, mult }
+        Logger.debug(`[GameController] warBanner coords synced to (${cell.row},${cell.col})`)
+        return
+      }
+    }
+  }
+  run.warBanner = null
+  Logger.debug('[GameController] warBanner cleared — no war_banner tile in grid')
+}
+
+/** Pick a random unrevealed tile and place the war banner; buffs all living enemies on the floor. */
+function _spawnWarBannerEntry() {
+  const mult = CONFIG.warBanner.statMult
+  const grid = TileEngine.getGrid()
+  const candidates = []
+  for (const row of grid) {
+    for (const t of row) {
+      if (!t.revealed && !t.locked && t.type !== 'exit' && t.type !== 'boss' && t.type !== 'sub_floor_entry'
+          && t.type !== 'chest' && t.type !== 'magic_chest' && t.type !== 'heart' && t.type !== 'gold') {
+        candidates.push(t)
+      }
+    }
+  }
+  if (!candidates.length) return
+  const target = candidates[Math.floor(Math.random() * candidates.length)]
+  target.type = 'war_banner'
+  target.enemyData = null
+  target.warBannerFlying = true
+  // Replacing whatever was under this tile — drop loot-specific state so it cannot resurface after teardown.
+  delete target.chestLoot
+  delete target.chestReady
+  delete target.chestLooted
+  delete target.magicChestReady
+  delete target.pendingLoot
+  run.warBanner = { row: target.row, col: target.col, active: true, mult }
+  _applyWarBannerBuffToEnemyGrid(mult)
+  if (target.element) {
+    for (const cls of [...target.element.classList]) {
+      if (cls.startsWith('tile-type-')) target.element.classList.remove(cls)
+    }
+    target.element.classList.add('tile-type-war_banner')
+    const back = target.element.querySelector('.tile-back')
+    if (back) {
+      back.innerHTML = '<span class="tile-war-banner-fly" aria-hidden="true">🚩</span>'
+    }
+    const front = target.element.querySelector('.tile-front')
+    if (front) {
+      front.className = 'tile-front type-war-banner'
+      front.innerHTML = '<span class="tile-icon-wrap tile-icon-fallback"><span class="tile-emoji">🚩</span></span><span class="tile-label">War Banner</span><span class="tile-threat-clue" aria-hidden="true"></span>'
+    }
+  }
+}
+
+function _spawnArcherGoblin() {
+  const grid = TileEngine.getGrid()
+  // Pick a random unrevealed enemy tile and replace it with an archer_goblin
+  const candidates = []
+  for (const row of grid) {
+    for (const t of row) {
+      if (!t.revealed && (t.type === 'enemy' || t.type === 'enemy_fast') && t.enemyData) {
+        candidates.push(t)
+      }
+    }
+  }
+  if (!candidates.length) return
+  const target = candidates[Math.floor(Math.random() * candidates.length)]
+  // Replace enemy data with archer_goblin
+  target.enemyData = TileEngine.createEnemy('archer_goblin', run.floor)
+  TileEngine.rollEnemyHitDamage(target.enemyData)
+  target.type = 'enemy'
+  // Immediately reveal — archer is visible from floor start
+  target.revealed = true
+  run.tilesRevealed++
+  // Do NOT markReachable — archer neighbors become reachable naturally as player explores toward them
+  const patched = TileEngine.patchMainGridTileAt(target.row, target.col, UI.getGridEl(), onTileTap, onTileHold)
+  if (!patched) _refreshMainGridDomFromModel()
+  else {
+    TileEngine.refreshAllThreatClueDisplays()
+    _syncGridDomClassesFromModel()
+  }
+}
+
+function _destroyWarBanner(tile) {
+  if (!tile || tile.type !== 'war_banner' || !run.warBanner?.active) return
+  const mult = run.warBanner.mult ?? CONFIG.warBanner.statMult
+  const floatEl = tile.element
+  const tr = tile.row
+  const tc = tile.col
+  if (run.warBanner.row !== tr || run.warBanner.col !== tc) {
+    Logger.warn('[GameController] warBanner row/col !== tapped tile — replacing tapped cell', { warBanner: run.warBanner, tr, tc })
+  }
+  _stripWarBannerBuff(mult)
+  run.warBanner = null
+  // Always replace the tapped tile's cell — it is the war_banner the player destroyed (avoids stale run.warBanner coords).
+  TileEngine.replaceTileWithEmptyPreserveState(tr, tc)
+  EventBus.emit('audio:play', { sfx: 'hit' })
+  if (floatEl) UI.spawnFloat(floatEl, 'Banner torn!', 'heal')
+  UI.setMessage('The war banner falls! Enemies on this floor lose their fighting spirit.')
+  // Do not full renderGrid here — that remounts every tile and replays slain spirit FX, chest/gold pulses, etc.
+  const patched = TileEngine.patchMainGridTileAt(tr, tc, UI.getGridEl(), onTileTap, onTileHold)
+  if (!patched) _refreshMainGridDomFromModel()
+  else {
+    TileEngine.refreshAllThreatClueDisplays()
+    _syncGridDomClassesFromModel()
+  }
+  _saveActiveRun()
+}
+
+function _enterSubFloor(tile) {
+  if (tile.subFloorVisited) return // already depleted
+
+  // ── Debug: type picker ───────────────────────────────────────
+  if (window.__DEBUG_SUBFLOOR) {
+    const types = ['mob_den', 'boss_vault', 'treasure_vault', 'shrine', 'ambush', 'collapsed_tunnel', 'cartographers_cache', 'toxic_gas']
+    const picker = document.createElement('div')
+    picker.style.cssText = [
+      'position:fixed', 'inset:0', 'z-index:9999',
+      'background:rgba(0,0,0,0.82)', 'display:flex', 'flex-direction:column',
+      'align-items:center', 'justify-content:center', 'gap:10px',
+    ].join(';')
+    const heading = document.createElement('div')
+    heading.textContent = '🗺️ DEBUG — Choose sub-floor type'
+    heading.style.cssText = 'color:#e8d8a0;font-size:1rem;font-weight:700;margin-bottom:6px'
+    picker.appendChild(heading)
+    types.forEach(t => {
+      const btn = document.createElement('button')
+      btn.textContent = t.replace(/_/g, ' ')
+      btn.style.cssText = [
+        'padding:8px 28px', 'font-size:0.95rem', 'border-radius:6px',
+        'border:1px solid #7a6040', 'background:#2a1e10', 'color:#e8d8a0',
+        'cursor:pointer', 'min-width:180px',
+      ].join(';')
+      btn.addEventListener('click', () => {
+        document.body.removeChild(picker)
+        _loadSubFloor(tile, t)   // skip debug check — go straight to load
+      })
+      picker.appendChild(btn)
+    })
+    document.body.appendChild(picker)
+    return
+  }
+  // ────────────────────────────────────────────────────────────
+
+  _loadSubFloor(tile, tile.subFloorType ?? 'mob_den')
+}
+
+function _loadSubFloor(tile, type) {
+  const sfData = TileEngine.generateSubFloor(type, run.floor)
+  run.subFloor = {
+    type,
+    tiles: sfData.tiles,
+    rows: sfData.rows,
+    cols: sfData.cols,
+    mobType: sfData.mobType ?? null,
+    entryTile: { row: tile.row, col: tile.col },
+    active: true,
+  }
+  UI.showSubFloor(run.subFloor, _onSubFloorTileTap, _onSubFloorTileHold)
+  const msgs = {
+    mob_den:              'You descend into a cramped warren. Creatures scurry in the dark.',
+    boss_vault:           'A heavy door seals behind you. Something massive stirs in the center.',
+    treasure_vault:       'The glitter of gold catches your eye. But the floor feels... wrong.',
+    shrine:               'Silence. Torchlight flickers over an ancient idol.',
+    ambush:               'The air is still. Too still.',
+    collapsed_tunnel:     'The passage is unstable. Stairs behind you offer escape at any moment.',
+    cartographers_cache:  'Dusty scrolls and crumbled maps. Something useful might be buried here.',
+    toxic_gas:            '☠️ Toxic gas burns your lungs! Find the exit — every step costs you.',
+  }
+  UI.setSubFloorMessage(msgs[type] ?? 'You descend into the dark.')
+}
+
+function _exitSubFloor() {
+  if (!run.subFloor) return
+  const { entryTile } = run.subFloor
+  run.subFloor.active = false
+  // Mark entry tile as depleted on main floor
+  const mainTile = TileEngine.getTile(entryTile.row, entryTile.col)
+  if (mainTile) {
+    mainTile.subFloorVisited = true
+    mainTile.type = 'sub_floor_used'
+    if (mainTile.element) {
+      for (const cls of [...mainTile.element.classList]) {
+        if (cls.startsWith('tile-type-')) mainTile.element.classList.remove(cls)
+      }
+      mainTile.element.classList.add('tile-type-sub_floor_used')
+    }
+  }
+  run.subFloor = null
+  UI.hideSubFloor()
+  UI.setMessage('You climb back to the main floor.')
+}
+
+function _onSubFloorTileHold(row, col) {
+  if (!run?.subFloor) return
+  const tile = run.subFloor.tiles[row]?.[col]
+  if (!tile) return
+  if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+    const e = tile.enemyData
+    const sprites = ENEMY_SPRITES[e.enemyId]
+    UI.showInfoCard({
+      name: e.label, spriteSrc: sprites?.idle ? MONSTER_ICONS_BASE + sprites.idle : null,
+      emoji: e.emoji, hp: e.currentHP ?? e.hp, maxHp: e.hp,
+      dmg: TileEngine.formatEnemyDamageDisplay(e.dmg, e.hitDamage),
+      type: e.type, blurb: e.blurb ?? '', attributes: e.attributes ?? [],
+    })
+  } else if (tile.revealed && tile.type === 'trap') {
+    UI.showTrapModal(() => {})
+  } else if (tile.revealed) {
+    const info = TILE_BLURBS[tile.type]
+    if (info) UI.showInfoCard({ name: info.label, emoji: info.emoji, spriteSrc: null, blurb: info.blurb, attributes: [] })
+  } else {
+    UI.showInfoCard({ name: 'Unknown', emoji: '❓', spriteSrc: null, blurb: 'Darkness conceals what lurks within.', attributes: [] })
+  }
+}
+
+/**
+ * If any ability targeting mode is active, consume the tap on the given tile.
+ * Returns true if the tap was handled (caller should stop).
+ * Works for both main-grid and sub-floor tiles since targeting handlers operate
+ * on `tile.element` / `tile.enemyData`, which both variants expose.
+ */
+function _tryConsumeTargetingTap(tile) {
+  if (!tile) return false
+
+  if (_spellTargeting) {
+    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) _castSpell(tile)
+    return true
+  }
+  if (_blindingLightTargeting) {
+    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) _castBlindingLight(tile)
+    return true
+  }
+  if (_arrowBarrageSelecting) {
+    if (!tile.revealed) {
+      UI.setMessage('Triple Volley — tap a revealed tile to place the 3×3 area.', true)
+      return true
+    }
+    const cost = _stillWaterManaCost(RANGER_UPGRADES['arrow-barrage'].manaCost + _tearyExtraCost())
+    if (!_tripleVolleyCenter) {
+      _tripleVolleyCenter = { row: tile.row, col: tile.col }
+      UI.setTripleVolleyAoePreview(tile.row, tile.col)
+      UI.setMessage('Triple Volley — tap the same tile again to fire.')
+      return true
+    }
+    if (tile.row !== _tripleVolleyCenter.row || tile.col !== _tripleVolleyCenter.col) {
+      _tripleVolleyCenter = { row: tile.row, col: tile.col }
+      UI.setTripleVolleyAoePreview(tile.row, tile.col)
+      UI.setMessage('Triple Volley — area moved. Tap the center tile again to confirm.')
+      return true
+    }
+    if (run.player.mana < cost) {
+      UI.setMessage('Not enough mana for Triple Volley!', true)
+      return true
+    }
+    _executeTripleVolley(_tripleVolleyCenter)
+    return true
+  }
+  if (_poisonArrowShotSelecting) {
+    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      const cost = _stillWaterManaCost(RANGER_UPGRADES['poison-arrow-shot'].manaCost + _tearyExtraCost())
+      if (run.player.mana < cost) UI.setMessage('Not enough mana for Poison Arrow!', true)
+      else _executePoisonArrowShot(tile)
+    }
+    return true
+  }
+  if (_ricochetSelecting) {
+    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      const idx = _ricochetTiles.findIndex(t => t.row === tile.row && t.col === tile.col)
+      if (idx >= 0) {
+        _ricochetTiles.splice(idx, 1)
+        UI.refreshRicochetMarks(_ricochetTiles)
+      } else if (_ricochetTiles.length < 3) {
+        _ricochetTiles.push(tile)
+        UI.refreshRicochetMarks(_ricochetTiles)
+        if (_ricochetTiles.length === 3) {
+          const cost = _stillWaterManaCost(RANGER_UPGRADES.ricochet.manaCost + _tearyExtraCost())
+          if (run.player.mana < cost) {
+            _ricochetTiles.pop()
+            UI.refreshRicochetMarks(_ricochetTiles)
+            UI.setMessage('Not enough mana for Ricochet!', true)
+          } else {
+            _executeRicochet()
+          }
+        }
+      }
+    }
+    return true
+  }
+  return false
+}
+
+function _onSubFloorTileTap(row, col) {
+  if (!run?.subFloor?.active) return
+  const sf = run.subFloor
+  const tile = sf.tiles[row]?.[col]
+  if (!tile) return
+
+  // Ability targeting — shared with main grid
+  if (_tryConsumeTargetingTap(tile)) return
+
+  // Stairs up — exit sub-floor
+  if (tile.revealed && tile.type === 'stairs_up') {
+    _exitSubFloor()
+    return
+  }
+
+  // Shrine — open choice modal
+  if (tile.revealed && tile.type === 'shrine' && !tile.shrineUsed) {
+    _openShrine(tile)
+    return
+  }
+
+  // Chest — open loot
+  if (tile.revealed && tile.type === 'chest' && tile.chestReady && !tile.chestLooted) {
+    _openSubFloorChest(tile)
+    return
+  }
+
+  // Living enemy — fight
+  if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+    if (_combatBusy && Date.now() - _combatBusySetAt > 3000) {
+      _combatBusy = false
+    }
+    if (!_combatBusy) _subFloorFight(tile)
+    return
+  }
+
+  // Reveal unrevealed tile
+  if (!tile.revealed && !tile.locked && tile.reachable) {
+    EventBus.emit('audio:play', { sfx: 'flip' })
+    _subFloorReveal(tile)
+  }
+}
+
+function _openSubFloorChest(tile) {
+  tile.chestReady = false
+  tile.chestLooted = true
+  tile.element?.classList.remove('chest-ready')
+  EventBus.emit('audio:play', { sfx: 'chest' })
+
+  const loot = tile.chestLoot ?? _rollChestLoot()
+  const itemDef = ITEMS[loot.type]
+
+  // Give the loot
+  if (loot.type === 'gold') {
+    _gainGold(loot.amount ?? 1, tile.element)
+    UI.setSubFloorMessage(`You pry it open — +${loot.amount ?? 1} gold!`)
+  } else if (loot.type === 'smiths-tools') {
+    const amt = itemDef?.effect?.amount ?? 1
+    run.player.damageBonus = (run.player.damageBonus ?? 0) + amt
+    const [d0, d1] = _playerDamageRange(run.player)
+    UI.updateDamageRange(d0, d1)
+    UI.setSubFloorMessage(`You pry it open — ${itemDef?.name ?? "Smith's Tools"}! +${amt} attack.`)
+  } else {
+    _addToBackpack(loot.type)
+    UI.setSubFloorMessage(`You pry it open — ${itemDef?.name ?? 'something useful'}!`)
+  }
+
+  // Float the item icon out of the chest — mirrors main _openChest
+  if (itemDef) UI.spawnFloat(tile.element, `${itemDef.icon ?? '📦'} ${itemDef.name}`, 'xp')
+
+  // Play chest-open gif, then fade icon out with collecting animation
+  const chestImg = tile.element?.querySelector('.tile-icon-img')
+  const iconWrap = tile.element?.querySelector('.tile-icon-wrap')
+  const GIF_DURATION = 750
+
+  if (chestImg) _forcePlayChestGif(chestImg, ITEM_ICONS_BASE + 'chest.gif?t=' + Date.now())
+
+  setTimeout(() => {
+    if (chestImg) chestImg.remove()
+    if (iconWrap) {
+      iconWrap.classList.add('collecting')
+      setTimeout(() => {
+        iconWrap.innerHTML = ''
+        iconWrap.classList.remove('collecting')
+      }, 560)
+    }
+  }, GIF_DURATION)
+}
+
+/**
+ * Reveal the exit tile on the main floor (map pickup reward).
+ * Finds any unrevealed exit tile and flips it in place.
+ */
+function _sfRevealMainFloorExit() {
+  const grid = TileEngine.getGrid()
+  if (!grid) return
+  for (const row of grid) {
+    for (const t of row) {
+      if (t.type === 'exit' && !t.revealed) {
+        t.revealed = true
+        t.reachable = true
+        if (t.element) {
+          t.element.classList.add('revealed')
+          t.element.classList.add('exit-pending')
+          UI.spawnFloat(t.element, '🗺️ Exit found!', 'xp')
+        }
+        return
+      }
+    }
+  }
+}
+
+/** Fade out and clear the icon on a collected sub-floor tile (gold, heart). */
+function _sfFadeOutTileIcon(tile) {
+  const wrap = tile.element?.querySelector('.tile-icon-wrap')
+  if (!wrap) return
+  setTimeout(() => {
+    wrap.style.transition = 'opacity 0.4s ease'
+    wrap.style.opacity = '0'
+    setTimeout(() => { wrap.innerHTML = ''; wrap.style.cssText = '' }, 420)
+  }, 500)
+}
+
+function _subFloorReveal(tile) {
+  if (!run?.subFloor) return
+  const sf = run.subFloor
+  tile.revealed = true
+  UI.flipSubFloorTile(tile)
+  // Resolve tile effect
+  switch (tile.type) {
+    case 'enemy':
+    case 'boss': {
+      // Lock orthogonal neighbors in sub-floor
+      _sfLockAdjacent(tile)
+      _gainXP(CONFIG.xp.perTileReveal, null)
+      UI.setSubFloorMessage(`A ${tile.enemyData?.label ?? 'enemy'} lurks. Tap it to fight.`)
+      break
+    }
+    case 'chest': {
+      tile.chestLoot = _rollChestLoot()
+      tile.chestReady = true
+      tile.element?.classList.add('chest-ready')
+      _gainXP(CONFIG.xp.perTileReveal, null)
+      UI.setSubFloorMessage('A chest! Tap it to open.')
+      break
+    }
+    case 'gold': {
+      _gainGold(1, tile.element)
+      _gainXP(CONFIG.xp.perTileReveal, tile.element)
+      UI.setSubFloorMessage('You pocket a coin. +1 gold.')
+      _sfFadeOutTileIcon(tile)
+      break
+    }
+    case 'heart': {
+      const heal = CONFIG.heart.healAmount
+      run.player.hp = Math.min(run.player.maxHp, run.player.hp + heal)
+      UI.updateHP(run.player.hp, run.player.maxHp)
+      UI.spawnFloat(tile.element, `+${heal} HP`, 'heal')
+      _gainXP(CONFIG.xp.perTileReveal, tile.element)
+      UI.setSubFloorMessage(`A healing sigil. +${heal} HP.`)
+      _sfFadeOutTileIcon(tile)
+      break
+    }
+    case 'trap': {
+      const trapDmg = _rand(2, 5)
+      _takeDamage(trapDmg, tile.element)
+      _gainXP(CONFIG.xp.perTileReveal, tile.element)
+      UI.setSubFloorMessage(`A trap! You take ${trapDmg} damage.`)
+      break
+    }
+    case 'empty': {
+      _gainXP(CONFIG.xp.perTileReveal, null)
+      UI.setSubFloorMessage('Nothing here but stone.')
+      break
+    }
+    case 'stairs_up': {
+      UI.setSubFloorMessage('Stairs lead back up. Tap to ascend.')
+      break
+    }
+    case 'shrine': {
+      UI.setSubFloorMessage('An ancient shrine. Tap it to make an offering.')
+      break
+    }
+    case 'map': {
+      _gainXP(CONFIG.xp.perTileReveal, tile.element)
+      // Reveal the main-floor exit tile
+      _sfRevealMainFloorExit()
+      UI.setSubFloorMessage('📜 You found a map! The exit on the main floor is now visible.')
+      _sfFadeOutTileIcon(tile)
+      break
+    }
+    case 'rubble': {
+      // Toxic gas: deal damage each flip
+      if (run.subFloor?.type === 'toxic_gas') {
+        const dmg = CONFIG.subFloor.toxicGasDamagePerFlip
+        _takeDamage(dmg, tile.element)
+        UI.setSubFloorMessage(`☠️ Gas chokes you — ${dmg} damage! Keep searching for the exit.`)
+      } else {
+        UI.setSubFloorMessage('Just rubble and dust.')
+      }
+      _sfFadeOutTileIcon(tile)
+      break
+    }
+  }
+  // Expand reachability from this tile (orthogonal)
+  const { tiles, rows, cols } = sf
+  const dirs = [[-1,0],[1,0],[0,-1],[0,1]]
+  for (const [dr, dc] of dirs) {
+    const nr = tile.row + dr, nc = tile.col + dc
+    const adj = tiles[nr]?.[nc]
+    if (adj && !adj.revealed && !adj.locked && !adj.reachable) {
+      adj.reachable = true
+      UI.markSubFloorTileReachable(adj)
+    }
+  }
+  // Boss vault: on boss death, unlock all tiles
+  if (sf.type === 'boss_vault') {
+    const bossAlive = tiles.flat().some(t => t?.enemyData && !t.enemyData._slain && t.isBossVaultBoss)
+    if (!bossAlive) {
+      for (const row of tiles) for (const t of row) {
+        if (t && t.locked) {
+          t.locked = false
+          t.reachable = true
+          UI.markSubFloorTileReachable(t)
+        }
+      }
+    }
+  }
+}
+
+function _sfLockAdjacent(tile) {
+  if (!run?.subFloor) return
+  const { tiles } = run.subFloor
+  const dirs = [[-1,0],[1,0],[0,-1],[0,1]]
+  for (const [dr, dc] of dirs) {
+    const adj = tiles[tile.row + dr]?.[tile.col + dc]
+    if (adj && !adj.revealed) {
+      adj.locked = true
+      adj.reachable = false
+      UI.lockSubFloorTile(adj)
+    }
+  }
+}
+
+function _sfUnlockAdjacent(tile) {
+  if (!run?.subFloor) return
+  const { tiles, rows, cols } = run.subFloor
+  const dirs = [[-1,0],[1,0],[0,-1],[0,1]]
+  for (const [dr, dc] of dirs) {
+    const adj = tiles[tile.row + dr]?.[tile.col + dc]
+    if (adj && !adj.revealed && adj.locked) {
+      // Only unlock if no other living enemy locks this tile
+      let stillLocked = false
+      for (const [er, ec] of dirs) {
+        const e = tiles[adj.row + er]?.[adj.col + ec]
+        if (e && e.revealed && e.enemyData && !e.enemyData._slain && e !== tile) {
+          stillLocked = true; break
+        }
+      }
+      if (!stillLocked) {
+        adj.locked = false
+        adj.reachable = true
+        UI.unlockSubFloorTile(adj)
+        UI.markSubFloorTileReachable(adj)
+      }
+    }
+  }
+}
+
+function _subFloorFight(tile) {
+  if (_combatBusy) return
+  _combatBusy = true; _combatBusySetAt = Date.now()
+  const result = CombatResolver.resolveFight(run.player, tile.enemyData)
+  const playerDmg = result.playerDmg
+
+  UI.setPortraitAnim('attack')
+  EventBus.emit('audio:play', { sfx: 'hit' })
+  UI.spawnSlash(tile.element)
+  UI.shakeTile(tile.element)
+
+  // Apply player damage to enemy
+  const prevHP = tile.enemyData.currentHP ?? tile.enemyData.hp
+  tile.enemyData.currentHP = Math.max(0, prevHP - playerDmg)
+  const enemySlain = tile.enemyData.currentHP <= 0
+
+  if (enemySlain) {
+    tile.enemyData.currentHP = 0
+    tile.enemyData._slain = true
+    _gainGold(tile.enemyData.goldDrop ? _rand(...tile.enemyData.goldDrop) : 1, tile.element, true)
+    _gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
+    UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'damage')
+    UI.setSubFloorMessage(`You slay the ${tile.enemyData.label} for ${playerDmg} damage!`)
+    UI.markSubFloorTileSlain(tile)
+    _sfUnlockAdjacent(tile)
+    // Boss vault: unlock all rewards on boss death
+    if (tile.isBossVaultBoss) {
+      const sf = run.subFloor
+      for (const row of sf.tiles) for (const t of row) {
+        if (t && t.locked) {
+          t.locked = false; t.reachable = true
+          UI.unlockSubFloorTile(t); UI.markSubFloorTileReachable(t)
+        }
+      }
+      UI.setSubFloorMessage('The boss falls! The vault trembles — riches await.')
+    }
+    setTimeout(() => { UI.setPortraitAnim('idle'); _combatBusy = false }, 400)
+  } else {
+    const taken = _computeEffectiveDamageTaken(result.enemyDmg)
+    UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'damage')
+    _takeDamage(taken, tile.element, false, tile.enemyData, { enemyAttack: true })
+    UI.setSubFloorMessage(`You strike for ${playerDmg}. The ${tile.enemyData.label} hits back for ${taken}.`)
+    UI.updateSubFloorEnemyHP(tile)
+    setTimeout(() => { UI.setPortraitAnim('idle'); _combatBusy = false }, 500)
+  }
+}
+
+function _openShrine(tile) {
+  const cfg = CONFIG.subFloor.shrine
+  const canAffordGold = run.player.gold >= cfg.goldOfferingCost
+  const goldBtn = document.getElementById('shrine-btn-gold')
+  if (goldBtn) goldBtn.disabled = !canAffordGold
+
+  const shrineOverlay = document.getElementById('shrine-overlay')
+  if (!shrineOverlay) return
+  shrineOverlay.classList.remove('hidden')
+  shrineOverlay.removeAttribute('aria-hidden')
+
+  function _closeShrineOverlay() {
+    shrineOverlay.classList.add('hidden')
+    shrineOverlay.setAttribute('aria-hidden', 'true')
+    document.getElementById('shrine-btn-blood')?.removeEventListener('click', onBlood)
+    document.getElementById('shrine-btn-gold')?.removeEventListener('click', onGold)
+    document.getElementById('shrine-btn-leave')?.removeEventListener('click', onLeave)
+  }
+
+  function onBlood() {
+    const hpCost = Math.max(1, Math.floor(run.player.maxHp * cfg.bloodSacrificeHpPct))
+    run.player.maxHp = Math.max(1, run.player.maxHp - hpCost)
+    run.player.hp = Math.min(run.player.hp, run.player.maxHp)
+    run.player.damageBonus = (run.player.damageBonus ?? 0) + cfg.bloodSacrificeDmgBonus
+    UI.updateHP(run.player.hp, run.player.maxHp)
+    const [d0, d1] = _playerDamageRange(run.player)
+    UI.updateDamageRange(d0, d1)
+    tile.shrineUsed = true
+    _closeShrineOverlay()
+    UI.setSubFloorMessage(`You offer your blood. −${hpCost} max HP, +${cfg.bloodSacrificeDmgBonus} damage.`)
+  }
+
+  function onGold() {
+    if (run.player.gold < cfg.goldOfferingCost) return
+    run.player.gold -= cfg.goldOfferingCost
+    run.player.maxHp += cfg.goldOfferingHpBonus
+    run.player.hp = Math.min(run.player.hp + cfg.goldOfferingHpBonus, run.player.maxHp)
+    UI.updateGold(run.player.gold)
+    UI.updateHP(run.player.hp, run.player.maxHp)
+    tile.shrineUsed = true
+    _closeShrineOverlay()
+    UI.setSubFloorMessage(`You lay gold at the shrine. −${cfg.goldOfferingCost}🪙, +${cfg.goldOfferingHpBonus} max HP.`)
+  }
+
+  function onLeave() {
+    _closeShrineOverlay()
+    UI.setSubFloorMessage('You leave the shrine undisturbed.')
+  }
+
+  // Delay wiring by one frame so any ghost click from the shrine-tile tap
+  // has already fired before the button listeners are attached.
+  setTimeout(() => {
+    document.getElementById('shrine-btn-blood')?.addEventListener('click', onBlood, { once: true })
+    document.getElementById('shrine-btn-gold')?.addEventListener('click', onGold, { once: true })
+    document.getElementById('shrine-btn-leave')?.addEventListener('click', onLeave, { once: true })
+  }, 0)
 }
 
 function onTileTap(row, col) {
@@ -2057,6 +2918,24 @@ function onTileTap(row, col) {
     const tileIsLivingEnemy = tile.revealed && tile.enemyData && !tile.enemyData._slain
 
     if (floorCombatLocked && !tileIsLivingEnemy) {
+      // Sub-floor entry is always accessible regardless of combat lock
+      if (tile.revealed && tile.type === 'sub_floor_entry' && tile.entryReady && !tile.subFloorVisited) {
+        _enterSubFloor(tile)
+        return
+      }
+      if (tile.revealed && tile.type === 'war_banner' && tile.bannerReady && run.warBanner?.active) {
+        _destroyWarBanner(tile)
+        return
+      }
+      // Chests are world interactions (like the banner), not new exploration — allow while engaged.
+      if (tile.revealed && tile.type === 'chest' && tile.chestReady && !tile.chestLooted) {
+        _openChest(tile)
+        return
+      }
+      if (tile.revealed && tile.type === 'magic_chest' && tile.magicChestReady) {
+        _openMagicChest(tile)
+        return
+      }
       if (!tile.revealed && !tile.locked && tile.reachable) {
         UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
         return
@@ -2091,7 +2970,19 @@ function onTileTap(row, col) {
       _openEvent(tile)
     } else if (tile.revealed && tile.type === 'hole') {
       UI.setMessage('A gaping pit blocks the way. You cannot pass.')
+    } else if (tile.revealed && tile.type === 'sub_floor_entry' && tile.entryReady && !tile.subFloorVisited) {
+      _enterSubFloor(tile)
+    } else if (tile.revealed && tile.type === 'war_banner' && tile.bannerReady && run.warBanner?.active) {
+      _destroyWarBanner(tile)
     } else if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      // Archer: only fightable once the player has revealed an adjacent tile
+      if (tile.enemyData?.behaviour === 'archer') {
+        const neighbors = TileEngine.getOrthogonalTiles(tile.row, tile.col)
+        if (!neighbors.some(n => n.revealed)) {
+          UI.setMessage('The archer is too far away — advance to engage.', true)
+          return
+        }
+      }
       // Safety net: if _combatBusy has been stuck for >3s with no resolution, clear it
       if (_combatBusy && Date.now() - _combatBusySetAt > 3000) {
         console.warn('[GameController] _combatBusy stuck >3s — force-clearing')
@@ -2167,6 +3058,15 @@ function onTileHold(row, col) {
   }
 
   if (tile.type === 'empty') return   // nothing interesting to show
+
+  if (tile.type === 'war_banner') {
+    const info = TILE_BLURBS.war_banner
+    if (info) {
+      const blurb = `${info.blurb}\n\n${info.holdHint ?? ''}`
+      UI.showInfoCard({ name: info.label, emoji: info.emoji, spriteSrc: null, blurb, attributes: [] })
+    }
+    return
+  }
 
   let cardData
 
@@ -2283,44 +3183,62 @@ function _tickPoisonArrowDotOnGlobalTurn() {
     }
   }
   const grid = TileEngine.getGrid()
-  if (!grid) return
   const plagueBonus = run.player.inventory?.some(e => e.id === 'plague-rat-skull') ? 1 : 0
   const pDmg = _scaleOutgoingDamageToEnemy(_poisonArrowUnitDamage()) + plagueBonus
-  for (const row of grid) {
-    for (const tile of row) {
-      if (!tile.revealed || !tile.enemyData || tile.enemyData._slain) continue
-      if ((tile.enemyData.poisonTurns ?? 0) <= 0) continue
+  for (const tile of _getActiveTiles()) {
+    if (!tile.revealed || !tile.enemyData || tile.enemyData._slain) continue
+    if ((tile.enemyData.poisonTurns ?? 0) <= 0) continue
 
-      tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - pDmg)
-      tile.enemyData.poisonTurns--
-      if (tile.element) {
-        UI.spawnFloat(tile.element, `☠️ ${pDmg}`, 'damage')
-        UI.shakeTile(tile.element)
-      }
-      if (tile.enemyData.currentHP <= 0) {
-        const gold = tile.enemyData.goldDrop ? _rand(...tile.enemyData.goldDrop) : 1
-        _gainGold(gold, tile.element)
-        _gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
-        _endCombatVictory(tile)
-      } else if (tile.element) {
-        UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
-      }
+    tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - pDmg)
+    tile.enemyData.poisonTurns--
+    if (tile.element) {
+      UI.spawnFloat(tile.element, `☠️ ${pDmg}`, 'damage')
+      UI.shakeTile(tile.element)
+    }
+    if (tile.enemyData.currentHP <= 0) {
+      const gold = tile.enemyData.goldDrop ? _rand(...tile.enemyData.goldDrop) : 1
+      _gainGold(gold, tile.element)
+      _gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
+      _endCombatVictory(tile)
+    } else if (tile.element) {
+      UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
     }
   }
-  // Shadow Bat harass: each revealed living bat deals its dmg to the player every global turn
+  if (!grid) return
+  // Harass tick: each revealed living enemy with harassPlayer=true fires at player every global turn
   let totalHarassDmg = 0
+  let archerCount = 0
+  let batCount = 0
   for (const row of grid) {
     for (const tile of row) {
       if (!tile.revealed || !tile.enemyData || tile.enemyData._slain) continue
       if (!tile.enemyData.harassPlayer) continue
-      const dmg = tile.enemyData.harassDmg ?? 1
+      const rawDmg = tile.enemyData.harassDmg ?? 1
+      const dmg = _computeEffectiveDamageTaken(rawDmg)
       totalHarassDmg += dmg
-      UI.spawnFloat(tile.element, `🦇 ${dmg}`, 'damage')
+      if (tile.enemyData.enemyId === 'archer_goblin') {
+        archerCount++
+        // Flash the attack sprite briefly
+        const img = tile.element?.querySelector('.tile-icon-img')
+        if (img) {
+          img.src = MONSTER_ICONS_BASE + 'archer_goblin/archer-goblin-attack.gif?t=' + Date.now()
+          setTimeout(() => {
+            if (img.isConnected) img.src = MONSTER_ICONS_BASE + 'archer_goblin/archer-goblin-idle.gif?t=' + Date.now()
+          }, 4000)
+        }
+        UI.spawnFloat(tile.element, `🏹 ${dmg}`, 'damage')
+      } else {
+        batCount++
+        UI.spawnFloat(tile.element, `🦇 ${dmg}`, 'damage')
+      }
     }
   }
   if (totalHarassDmg > 0 && !GameState.is(States.DEATH)) {
-    _applyPlayerDamage(totalHarassDmg, document.getElementById('hud-portrait'))
-    UI.setMessage(`🦇 Shadow Bat${totalHarassDmg > 1 ? 's attack' : ' attacks'} for ${totalHarassDmg} damage!`)
+    _takeDamage(totalHarassDmg, document.getElementById('hud-portrait'), false, null, { enemyAttack: true })
+    const parts = []
+    if (archerCount > 0) parts.push(`🏹 Goblin Archer${archerCount > 1 ? 's fire' : ' fires'} for ${archerCount} dmg!`)
+    if (batCount > 0) parts.push(`🦇 Shadow Bat${batCount > 1 ? 's attack' : ' attacks'}!`)
+    UI.setMessage(parts.join(' ') + ` (${totalHarassDmg} total)`)
   }
 
   if (run.player.inventory?.some(e => e.id === 'still-water-amulet')) {
@@ -2355,6 +3273,8 @@ async function revealTile(tile) {
   if (!run) return  // run ended (retreat/death) during the flip animation
   if (tile.enemyData) {
     TileEngine.rollEnemyHitDamage(tile.enemyData)
+    // Face text was built at grid render time — sync HP/⚔️ from model (e.g. war banner, auras)
+    UI.updateEnemyHP(tile.element, tile.enemyData.currentHP ?? tile.enemyData.hp)
     TileEngine.refreshEnemyDamageOnTile(tile)
   }
   UI.setPortraitAnim('idle')
@@ -2372,6 +3292,7 @@ async function revealTile(tile) {
   }
   await _maybeBestiaryDiscovery(tile)
   _resolveEffect(tile)
+  if (tile.type === 'war_banner') await _maybeWarBannerIntro()
   // Drowned Hulk aura: if the revealed tile IS the hulk, buff all current visible enemies.
   // If a hulk is already alive, buff this newly revealed enemy.
   if (tile.enemyData && !tile.enemyData._slain) {
@@ -2419,6 +3340,17 @@ async function revealTile(tile) {
   }
   _tickPoisonArrowDotOnGlobalTurn()
   TileEngine.refreshAllThreatClueDisplays()
+}
+
+async function _maybeWarBannerIntro() {
+  if (_save.settings.warBannerIntroSeen) return
+  try {
+    await UI.showWarBannerIntro()
+    _save.settings.warBannerIntroSeen = true
+    await SaveManager.save(_save).catch(() => {})
+  } catch (e) {
+    Logger.debug('[GameController] war banner intro', e)
+  }
 }
 
 async function _maybeBestiaryDiscovery(tile) {
@@ -2701,7 +3633,7 @@ function _resolveEffect(tile) {
       const rangerSkipLock = p.isRanger && Math.random() < RANGER_PASSIVE_SKIP_ADJ_LOCK
       if (rangerSkipLock) {
         tile.enemyData.rangerSkipAdjacentLock = true
-      } else {
+      } else if (tile.enemyData?.behaviour !== 'archer') {
         TileEngine.lockAdjacent(tile.row, tile.col, UI.lockTile.bind(UI))
       }
       UI.markTileEnemyAlive(tile.element)
@@ -2730,7 +3662,7 @@ function _resolveEffect(tile) {
       const rangerSkipLock = p.isRanger && Math.random() < RANGER_PASSIVE_SKIP_ADJ_LOCK
       if (rangerSkipLock) {
         tile.enemyData.rangerSkipAdjacentLock = true
-      } else {
+      } else if (tile.enemyData?.behaviour !== 'archer') {
         TileEngine.lockAdjacent(tile.row, tile.col, UI.lockTile.bind(UI))
       }
       UI.markTileEnemyAlive(tile.element)
@@ -2796,6 +3728,29 @@ function _resolveEffect(tile) {
       }
       UI.showRetreat()
       break
+
+    case 'sub_floor_entry': {
+      const warnings = { ambush: ' Something feels wrong…', collapsed_tunnel: ' Dust falls from above.' }
+      const warn = warnings[tile.subFloorType] ?? ''
+      UI.setMessage(`🕳️ A hidden passage yawns open.${warn} Tap again to descend — or leave it be.`)
+      tile.entryReady = true
+      if (tile.element) tile.element.classList.add('sub-floor-entry-ready')
+      UI.showRetreat()
+      break
+    }
+
+    case 'war_banner': {
+      tile.bannerReady = true
+      tile.warBannerFlying = false
+      if (tile.element) {
+        tile.element.classList.add('war-banner-ready')
+        const fly = tile.element.querySelector('.tile-war-banner-fly')
+        if (fly) fly.remove()
+      }
+      UI.setMessage('🚩 An enemy war banner! Tear it down quickly — your foes fight harder while it flies. Tap again to destroy it.')
+      UI.showRetreat()
+      break
+    }
   }
 }
 
@@ -3344,16 +4299,13 @@ function slamAction() {
   UI.playSlam()
   EventBus.emit('audio:play', { sfx: 'slam' })
 
-  // Collect all revealed living enemies — skip ability-immune (e.g. Gnome)
-  const grid = TileEngine.getGrid()
+  // Collect all revealed living enemies on the ACTIVE grid (main or sub-floor)
   const targets = []
   let immuneSkipped = 0
-  for (const row of grid) {
-    for (const tile of row) {
-      if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-        if (tile.enemyData.spellImmune) { immuneSkipped++; continue }
-        targets.push(tile)
-      }
+  for (const tile of _getActiveTiles()) {
+    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      if (tile.enemyData.spellImmune) { immuneSkipped++; continue }
+      targets.push(tile)
     }
   }
 
@@ -3529,7 +4481,7 @@ function _tripleVolleyDamagePerEnemy() {
 }
 
 function _tilesIn3x3(centerRow, centerCol) {
-  const grid = TileEngine.getGrid()
+  const grid = _getActiveTileRows()
   if (!grid?.length) return []
   const rows = grid.length
   const cols = grid[0].length
@@ -3539,7 +4491,8 @@ function _tilesIn3x3(centerRow, centerCol) {
       const r = centerRow + dr
       const c = centerCol + dc
       if (r < 0 || c < 0 || r >= rows || c >= cols) continue
-      out.push(grid[r][c])
+      const t = grid[r]?.[c]
+      if (t) out.push(t)
     }
   }
   return out
@@ -3584,7 +4537,7 @@ function _executeTripleVolley(center) {
 
   targets.forEach((target, i) => {
     setTimeout(() => {
-      const t = TileEngine.getTile(target.row, target.col)
+      const t = target
       if (!t?.enemyData || t.enemyData._slain) return
       UI.spawnArrow(t.element)
       UI.shakeTile(t.element)
@@ -3664,7 +4617,7 @@ function _executePoisonArrowShot(tile) {
   _combatBusy = true; _combatBusySetAt = Date.now()
   UI.setPortraitAnim('attack')
 
-  const t0 = TileEngine.getTile(row, col)
+  const t0 = _getActiveTileAt(row, col)
   if (!t0?.enemyData || t0.enemyData._slain) {
     UI.setPortraitAnim('idle')
     _combatBusy = false
@@ -4122,6 +5075,43 @@ function _castSpell(tile) {
 }
 
 function _endCombatVictory(tile) {
+  // Sub-floor kill path — bypass main-grid-specific cleanup (boss exit tile,
+  // recompute adjacency locks on _grid, threat clue refresh, floor-cleared
+  // check). Handle sub-floor-appropriate cleanup instead and still apply
+  // on-kill trinket effects below by falling through? No — on-kill trinket
+  // effects reference `TileEngine.getOrthogonalTiles`, which is main-grid.
+  // For sub-floors we use a focused subset.
+  if (_isInSubFloor()) {
+    tile.enemyData._slain = true
+    UI.markSubFloorTileSlain(tile)
+    _sfUnlockAdjacent(tile)
+    // Boss vault: unlock rewards on boss death
+    if (tile.isBossVaultBoss) {
+      const sf = run.subFloor
+      for (const row of sf.tiles) for (const t of row) {
+        if (t && t.locked) {
+          t.locked = false; t.reachable = true
+          UI.unlockSubFloorTile(t); UI.markSubFloorTileReachable(t)
+        }
+      }
+      UI.setSubFloorMessage('The boss falls! The vault trembles — riches await.')
+    }
+    // On-kill heal / vampire-fang trinkets still apply in sub-floor
+    if (run.player.onKillHeal > 0) {
+      run.player.hp = Math.min(run.player.maxHp, run.player.hp + run.player.onKillHeal)
+      UI.spawnFloat(tile.element, `+${run.player.onKillHeal} HP`, 'heal')
+      UI.updateHP(run.player.hp, run.player.maxHp)
+    }
+    if (run.player.inventory.some(e => e.id === 'vampire-fang')) {
+      run.player.hp = Math.min(run.player.maxHp, run.player.hp + 1)
+      UI.spawnFloat(tile.element, '+1 HP', 'heal')
+      UI.updateHP(run.player.hp, run.player.maxHp)
+    }
+    EventBus.emit('audio:play', { sfx: 'gold' })
+    EventBus.emit('combat:end', { outcome: 'victory' })
+    return
+  }
+
   tile.enemyData._slain = true
   _clearCombatEngagementForTile(tile)
   // Drowned Hulk: remove crew aura from all buffed enemies on death
@@ -4134,6 +5124,12 @@ function _endCombatVictory(tile) {
   if (_charKey() === 'warrior' && run.senseEvilTile && run.senseEvilTile.row === tile.row && run.senseEvilTile.col === tile.col) {
     run.senseEvilTile = null
     _paladinSenseEvilPick()
+  }
+  // Archer goblin spawns pre-revealed without markReachable (see _spawnArcherGoblin),
+  // so its neighbors stay unreachable until the player paths adjacent. On defeat,
+  // propagate reachability from the archer tile so surrounding tiles become tappable.
+  if (tile.enemyData?.enemyId === 'archer_goblin') {
+    TileEngine.markReachable(tile.row, tile.col, _markReachableUi)
   }
   if (tile.enemyData?.isBoss) {
     run.bossFloorExitPending = true
@@ -5548,7 +6544,7 @@ function _balanceBotUnstickOrphanTargeting() {
  */
 function _balanceBotFocusedEnemyCandidatesIfCombatLocked() {
   if (!_isCombatCommitmentLocked()) return null
-  const t = _combatEngagementTile && TileEngine.getTile(_combatEngagementTile.row, _combatEngagementTile.col)
+  const t = _combatEngagementTile && _getActiveTileAt(_combatEngagementTile.row, _combatEngagementTile.col)
   if (t?.revealed && t.enemyData && !t.enemyData._slain) {
     return [{ row: t.row, col: t.col }]
   }

@@ -226,6 +226,10 @@ const UI = {
     el.shopGoldVal        = document.getElementById('shop-gold-val')
     el.shopCartInfo       = document.getElementById('shop-cart-info')
     el.shopList           = document.getElementById('shop-list')
+    el.subFloorOverlay      = document.getElementById('sub-floor-overlay')
+    el.subFloorGrid         = document.getElementById('sub-floor-grid')
+    el.subFloorMessage      = document.getElementById('sub-floor-message')
+    el.shrineOverlay        = document.getElementById('shrine-overlay')
     el.merchantShopOverlay  = document.getElementById('merchant-shop-overlay')
     el.gamblerOverlay       = document.getElementById('gambler-overlay')
     el.tripleChestOverlay   = document.getElementById('triple-chest-overlay')
@@ -1032,6 +1036,7 @@ const UI = {
   // ── Float text ───────────────────────────────
 
   spawnFloat(tileEl, text, type) {
+    if (!tileEl) return
     const rect = tileEl.getBoundingClientRect()
     const div = document.createElement('div')
     div.className = `float-text ${type}`
@@ -1681,6 +1686,46 @@ const UI = {
     })
   },
 
+  /** First-time war banner tutorial — same shell as creature discovery. */
+  showWarBannerIntro() {
+    return new Promise((resolve) => {
+      const info = TILE_BLURBS.war_banner
+      if (!info || !el.bestiaryDiscoveryOverlay) {
+        resolve()
+        return
+      }
+      if (el.bestiaryDiscoveryGif) {
+        el.bestiaryDiscoveryGif.removeAttribute('src')
+        el.bestiaryDiscoveryGif.classList.add('hidden')
+      }
+      if (el.bestiaryDiscoveryEmoji) {
+        el.bestiaryDiscoveryEmoji.textContent = info.emoji ?? '🚩'
+        el.bestiaryDiscoveryEmoji.classList.remove('hidden')
+      }
+      if (el.bestiaryDiscoveryName) el.bestiaryDiscoveryName.textContent = info.label
+      if (el.bestiaryDiscoveryType) el.bestiaryDiscoveryType.textContent = 'Dungeon hazard'
+      if (el.bestiaryDiscoveryBlurb) {
+        el.bestiaryDiscoveryBlurb.textContent = info.introBlurb ?? info.blurb
+      }
+
+      const close = () => {
+        el.bestiaryDiscoveryOverlay.classList.add('hidden')
+        el.bestiaryDiscoveryOverlay.setAttribute('aria-hidden', 'true')
+        document.body.classList.remove('bestiary-discovery-open')
+        el.bestiaryDiscoveryOk?.removeEventListener('click', close)
+        el.bestiaryDiscoveryBackdrop?.removeEventListener('click', close)
+        resolve()
+      }
+
+      el.bestiaryDiscoveryOverlay.classList.remove('hidden')
+      el.bestiaryDiscoveryOverlay.setAttribute('aria-hidden', 'false')
+      document.body.classList.add('bestiary-discovery-open')
+      el.bestiaryDiscoveryOk?.addEventListener('click', close)
+      el.bestiaryDiscoveryBackdrop?.addEventListener('click', close)
+      EventBus.emit('audio:play', { sfx: 'levelup' })
+    })
+  },
+
   /** Full-size creature card from Bestiary menu (above list). */
   showBestiaryDetail(enemyId) {
     const def = ENEMY_DEFS[enemyId]
@@ -1919,6 +1964,78 @@ const UI = {
   },
 
   // ── Event overlays ────────────────────────────
+
+  // ── Sub-floor ─────────────────────────────────────────────
+
+  showSubFloor(sf, onTileTap, onHold) {
+    const ov = el.subFloorOverlay
+    const gridEl = el.subFloorGrid
+    if (!ov || !gridEl) return
+
+    const META = {
+      mob_den:          { icon: '💀', title: 'Monster Den',       subtitle: 'One type. Many claws.' },
+      boss_vault:       { icon: '☠️', title: 'Boss Vault',        subtitle: 'A single horror guards the treasure.' },
+      treasure_vault:   { icon: '💎', title: 'Treasure Vault',    subtitle: 'Riches — if you can bear the cost.' },
+      shrine:           { icon: '🗿', title: 'Ancient Shrine',    subtitle: 'An offering awaits.' },
+      ambush:              { icon: '⚠️', title: 'Hidden Chamber',       subtitle: 'Something feels wrong…' },
+      collapsed_tunnel:    { icon: '🪨', title: 'Collapsed Tunnel',     subtitle: 'Unstable ground. Exit at any time.' },
+      cartographers_cache: { icon: '📜', title: "Cartographer's Cache", subtitle: 'A map waits in the rubble.' },
+      toxic_gas:           { icon: '☠️', title: 'Toxic Gas Chamber',    subtitle: 'Find the exit before the gas kills you.' },
+    }
+    const meta = META[sf.type] ?? { icon: '🕳️', title: 'Hidden Chamber', subtitle: '' }
+    document.getElementById('sub-floor-icon').textContent  = meta.icon
+    document.getElementById('sub-floor-title').textContent = meta.title
+    document.getElementById('sub-floor-subtitle').textContent = meta.subtitle
+
+    // Build grid using the unified TileEngine renderer so the sub-floor matches
+    // the main grid's DOM, classes, icons, threat clues, and fallbacks.
+    TileEngine.renderTileGridInto(gridEl, sf.tiles, onTileTap, onHold)
+
+    ov.classList.remove('hidden')
+    ov.removeAttribute('aria-hidden')
+  },
+
+  flipSubFloorTile(tile) {
+    if (!tile.element) return
+    tile.element.classList.add('revealed')
+    if (tile.enemyData && !tile.enemyData._slain) tile.element.classList.add('enemy-alive')
+  },
+
+  markSubFloorTileReachable(tile) {
+    tile.element?.classList.add('reachable')
+  },
+
+  lockSubFloorTile(tile) {
+    tile.element?.classList.add('locked')
+    tile.element?.classList.remove('reachable')
+  },
+
+  unlockSubFloorTile(tile) {
+    tile.element?.classList.remove('locked')
+  },
+
+  markSubFloorTileSlain(tile) {
+    if (!tile.element) return
+    this.markTileSlain(tile.element)
+    tile.element.classList.add('sf-tile-slain')
+  },
+
+  updateSubFloorEnemyHP(tile) {
+    if (!tile.element || !tile.enemyData) return
+    const hpEl = tile.element.querySelector('.stat-hp')
+    if (hpEl) hpEl.textContent = `❤️ ${Math.max(0, tile.enemyData.currentHP ?? 0)}`
+  },
+
+  setSubFloorMessage(msg) {
+    if (el.subFloorMessage) el.subFloorMessage.textContent = msg
+  },
+
+  hideSubFloor() {
+    el.subFloorOverlay?.classList.add('hidden')
+    el.subFloorOverlay?.setAttribute('aria-hidden', 'true')
+    if (el.subFloorGrid) el.subFloorGrid.innerHTML = ''
+    el.shrineOverlay?.classList.add('hidden')
+  },
 
   hideEventOverlays() {
     ;[el.merchantShopOverlay, el.gamblerOverlay, el.tripleChestOverlay, el.storyEventOverlay, el.trinketTraderOverlay]

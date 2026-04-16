@@ -35,6 +35,7 @@ export const ENEMY_SPRITES = {
   skeleton:      { idle: 'skeleton/skeleton-idle.gif', attack: 'skeleton/skeleton-idle.gif' },
   zombie:        null,
   wraith:        null,
+  archer_goblin: { idle: 'archer_goblin/archer-goblin-idle.gif', attack: 'archer_goblin/archer-goblin-attack.gif' },
   goblin:        { idle: 'goblin/goblin-creature.gif', attack: 'goblin/goblin-creature.gif' },
   troll:         { idle: 'ogre/ogre-idle.gif', attack: 'ogre/ogre-idle.gif' },
   vine_witch:    { idle: 'vine_witch/vine-witch-idle.gif', attack: 'vine_witch/vine-witch-idle.gif' },

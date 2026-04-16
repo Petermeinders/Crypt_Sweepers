@@ -32,7 +32,7 @@ The game has been pushed in three overlapping directions:
 
 ### Floor-wide pressure
 
-* **War flags (War Banner):** A special tile can spawn that **buffs HP and damage of every living enemy** on the floor until the flag is destroyed—encouraging aggressive pathing to tear it down before the floor snowballs. Placement avoids critical specials where possible; teardown uses targeted updates so the rest of the board does not “replay” VFX. Saved runs reconcile flag coordinates with the grid.
+* **War flags (War Banner):** A special tile can spawn that **buffs HP and damage of every living enemy** on the floor until the flag is destroyed—encouraging aggressive pathing to tear it down before the floor snowballs. Placement avoids critical specials where possible; teardown uses targeted DOM updates so the rest of the board does not “replay” VFX. Saved runs reconcile flag coordinates with the grid; destroying the banner clears the **tapped** cell (not stale saved coordinates), so resume state cannot point at the wrong cell or resurrect chest state on the wrong tile.
 * **Goblin Archer:** Spawns on **floor 1 always** and with a chance on **later non-boss dungeon floors**, replacing a random unrevealed enemy tile. It is revealed immediately and **harasses the player each turn** until dealt with—pushing fast movement, melee commitment, or spell/ability snipes.
 
 ### Spaces within spaces
@@ -75,7 +75,7 @@ The game has been pushed in three overlapping directions:
 
 ## Technical & architecture
 
-* Tests, PWA / service worker caching, event-driven UI patterns where appropriate.
+* Tests (including Playwright / headless bots for balance smoke checks), PWA / service worker caching, event-driven UI patterns where appropriate.
 
 ---
 
