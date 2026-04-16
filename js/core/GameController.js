@@ -484,6 +484,46 @@ function _restoreHourglassSnapshot(snap) {
   TileEngine.refreshAllThreatClueDisplays()
 }
 
+/** Paladin Sense Evil — pick one random unrevealed enemy tile and mark it with the enemy echo hint.
+ *  Uses a dedicated `senseEvilMarked` flag so re-picks reliably clear only the previous sensed tile,
+ *  never touching marks from trinkets (echo-charm, resonance-core, abyssal-lens). */
+function _paladinSenseEvilPick() {
+  if (_charKey() !== 'warrior') return
+  const grid = TileEngine.getGrid?.()
+  if (!grid) return
+  // Clear any existing sense-evil mark first (only our own — leave trinket marks alone)
+  for (const row of grid) {
+    for (const t of row) {
+      if (t.senseEvilMarked) {
+        t.senseEvilMarked = false
+        t.echoHintCategory = null
+        if (t.element) {
+          t.element.classList.remove('echo-hint')
+          delete t.element.dataset.echoHint
+        }
+      }
+    }
+  }
+  const candidates = []
+  for (const row of grid) {
+    for (const t of row) {
+      if (!t.revealed && t.enemyData && !t.enemyData._slain &&
+          (t.type === 'enemy' || t.type === 'enemy_fast' || t.type === 'boss')) {
+        candidates.push(t)
+      }
+    }
+  }
+  if (!candidates.length) { run.senseEvilTile = null; return }
+  const target = candidates[Math.floor(Math.random() * candidates.length)]
+  target.senseEvilMarked = true
+  target.echoHintCategory = '⚔️'
+  if (target.element) {
+    target.element.classList.add('echo-hint')
+    target.element.dataset.echoHint = '⚔️'
+  }
+  run.senseEvilTile = { row: target.row, col: target.col }
+}
+
 function _echoCharmCategoryForTileType(type) {
   if (type === 'enemy' || type === 'enemy_fast' || type === 'boss') return '⚔️'
   if (type === 'trap') return '🕸️'
@@ -1120,6 +1160,10 @@ function _startFloor() {
         }
       }
     }
+  }
+  // Paladin Sense Evil: mark one random unrevealed enemy at floor start
+  if (!gridRestored && !run.atRest && _charKey() === 'warrior') {
+    _paladinSenseEvilPick()
   }
   // Mending Moss: restore 3 HP at start of each new floor (skip floor 1 and sanctuary)
   if (!gridRestored && !run.atRest && run.floor > 1 && run.player.inventory.some(e => e.id === 'mending-moss')) {
@@ -2108,6 +2152,17 @@ async function revealTile(tile) {
   // Blockage tiles do not extend reachability — player must path around them
   if (tile.type !== 'blockage') {
     TileEngine.markReachable(tile.row, tile.col, UI.markTileReachable.bind(UI))
+  }
+  // Ranger unique trait: 50% chance to sense the category of orthogonal neighbors
+  if (_charKey() === 'ranger' && Math.random() < 0.5) {
+    for (const adj of TileEngine.getOrthogonalTiles(tile.row, tile.col)) {
+      if (!adj.revealed && adj.element && !adj.echoHintCategory) {
+        const cat = _echoCharmCategoryForTileType(adj.type)
+        adj.echoHintCategory = cat
+        adj.element.classList.add('echo-hint')
+        adj.element.dataset.echoHint = cat
+      }
+    }
   }
   // Abyssal Lens: randomly reveal one additional tile per flip (non-recursive)
   if (!tile._lensReveal && run.player.inventory.some(e => e.id === 'abyssal-lens')) {
@@ -3829,6 +3884,11 @@ function _endCombatVictory(tile) {
     _removeHulkBuffFromAll()
   }
   TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
+  // Paladin Sense Evil: if the slain enemy was the sensed tile, pick a new one
+  if (_charKey() === 'warrior' && run.senseEvilTile && run.senseEvilTile.row === tile.row && run.senseEvilTile.col === tile.col) {
+    run.senseEvilTile = null
+    _paladinSenseEvilPick()
+  }
   if (tile.enemyData?.isBoss) {
     run.bossFloorExitPending = true
     tile.type = 'exit'
