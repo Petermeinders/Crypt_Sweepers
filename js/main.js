@@ -11,6 +11,7 @@ import { ITEMS }                            from './data/items.js'
 import { RANGER_UPGRADES }                  from './data/ranger.js'
 import { ENGINEER_UPGRADES }                from './data/engineer.js'
 import { MAGE_UPGRADES }                    from './data/mage.js'
+import { NECROMANCER_UPGRADES }             from './data/necromancer.js'
 import { GLOBAL_PASSIVE_UPGRADES, GLOBAL_PASSIVE_IDS } from './data/passives.js'
 
 function _metaCharSave(save, charId) {
@@ -18,6 +19,7 @@ function _metaCharSave(save, charId) {
   if (charId === 'engineer') return save.engineer
   if (charId === 'mage') return save.mage
   if (charId === 'vampire') return save.vampire
+  if (charId === 'necromancer') return save.necromancer ?? { totalXP: 0, upgrades: [] }
   return save.warrior
 }
 
@@ -99,17 +101,16 @@ const CHARACTERS = [
   {
     id:          'necromancer',
     name:        'Necromancer',
-    tagline:     'A dark scholar who commands the dead. Raises fallen enemies to fight for him and grows his army with every floor.',
+    tagline:     'A dark scholar who commands the dead. Master\'s Sight lets him see through his minions — tap an ash pile to raise a 🧟 minion (10 mana) once per corpse; when it dies, the remains are gone for good.',
     gif:         'assets/sprites/Heroes/Necromancer/necromancer-hero-idle.gif',
     attackGif:   'assets/sprites/Heroes/Necromancer/necromancer-hero-strike.gif',
     attackMs:    600,
     emoji:       '💀',
-    upgrades:    {},
+    upgrades:    NECROMANCER_UPGRADES,
     unlockCost:  null,
     baseHP:      35,
     baseMana:    55,
     baseDmg:     '1',
-    comingSoon:  true,
   },
   {
     id:          'druid',
@@ -195,6 +196,10 @@ async function boot() {
   }
   if (!save.vampire) {
     save.vampire = { totalXP: 0, upgrades: [] }
+    await SaveManager.save(save)
+  }
+  if (!save.necromancer) {
+    save.necromancer = { totalXP: 0, upgrades: [] }
     await SaveManager.save(save)
   }
   if (!save.selectedCharacter) {
@@ -1264,7 +1269,18 @@ function _renderHeroUpgradeGrid(grid, char, ownedList, xp, isLocked) {
           </div>`
         passiveGrid.appendChild(deSlot)
       }
-      if (char.id !== 'warrior' && char.id !== 'ranger' && char.id !== 'mage' && char.id !== 'vampire') {
+      if (char.id === 'necromancer') {
+        const msSlot = document.createElement('div')
+        msSlot.className = 'hero-passive-builtin'
+        msSlot.innerHTML = `
+          <span class="hero-passive-builtin-icon">👁️</span>
+          <div class="hero-passive-builtin-info">
+            <div class="hero-passive-builtin-name">Master's Sight <span class="hero-passive-builtin-badge">✓ Applied</span></div>
+            <div class="hero-passive-builtin-desc">See through your minions. Tap an ash pile (slain enemy) to spend 10 mana — reveals the category of all tiles around it and raises one 🧟 minion on that tile (only one per corpse). Minions strike alongside you in combat and absorb the next enemy hit (closest minion takes damage instead of you); when a minion dies, the ash is gone and cannot be raised again. Level-up Minion Mastery picks upgrade their stats.</div>
+          </div>`
+        passiveGrid.appendChild(msSlot)
+      }
+      if (char.id !== 'warrior' && char.id !== 'ranger' && char.id !== 'mage' && char.id !== 'vampire' && char.id !== 'necromancer') {
         const comingSoon = document.createElement('p')
         comingSoon.className = 'passive-coming-soon'
         comingSoon.textContent = 'Coming Soon…'
@@ -1297,7 +1313,9 @@ function _renderUpgradeDetail(id, def, isOwned, canAfford) {
   const map      = char.id === 'ranger' ? RANGER_UPGRADES
     : char.id === 'engineer' ? ENGINEER_UPGRADES
       : char.id === 'mage' ? MAGE_UPGRADES
-        : char.id === 'vampire' ? {} : WARRIOR_UPGRADES
+        : char.id === 'vampire' ? {}
+          : char.id === 'necromancer' ? NECROMANCER_UPGRADES
+            : WARRIOR_UPGRADES
   const missingPrereq = def.requires && !owned.includes(def.requires)
   if (hintEl) {
     if (missingPrereq && !isOwned) {
@@ -1325,7 +1343,9 @@ function _renderUpgradeDetail(id, def, isOwned, canAfford) {
           ? MetaProgression.buyEngineerUpgrade(s, id)
           : char.id === 'mage'
             ? MetaProgression.buyMageUpgrade(s, id)
-            : MetaProgression.buyUpgrade(s, id)
+            : char.id === 'necromancer'
+              ? MetaProgression.buyNecromancerUpgrade(s, id)
+              : MetaProgression.buyUpgrade(s, id)
       if (bought) {
         SaveManager.save(s)
         _selectedUpgradeId = null
@@ -1338,7 +1358,7 @@ function _renderUpgradeDetail(id, def, isOwned, canAfford) {
 function _showResumePrompt() {
   const info = GameController.getActiveRunInfo()
   if (!info) return
-  const heroName = info.player.isRanger ? 'Ranger' : info.player.isEngineer ? 'Engineer' : info.player.isMage ? 'Mage' : info.player.isVampire ? 'Vampire' : 'Paladin'
+  const heroName = info.player.isRanger ? 'Ranger' : info.player.isEngineer ? 'Engineer' : info.player.isMage ? 'Mage' : info.player.isVampire ? 'Vampire' : info.player.isNecromancer ? 'Necromancer' : 'Paladin'
   const floorLabel = info.atRest ? `Floor ${info.floor} — Sanctuary` : `Floor ${info.floor}`
   document.getElementById('resume-hero-name').textContent = heroName
   document.getElementById('resume-floor').textContent    = `🗺 ${floorLabel}`

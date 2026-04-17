@@ -119,6 +119,12 @@ export const CONFIG = {
     spawnChance: 0.10,
   },
 
+  /** Treasure Goblin — rare pre-revealed 1 HP foe; drops a rare trinket if slain before its timer expires */
+  treasureGoblin: {
+    /** Per non-boss dungeon floor (excluding boss floors) */
+    spawnChance: 0.05,
+  },
+
   subFloor: {
     /** Probability a non-boss, non-sanctuary floor spawns one sub-floor entry tile */
     spawnChance: 0.05,

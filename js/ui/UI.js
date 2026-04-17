@@ -665,11 +665,11 @@ const UI = {
     document.getElementById('grid-container')?.classList.toggle('chain-lightning-mode', active)
   },
 
-  /** Fake lightning bolt: flash-line from fromEl to toEl (viewport coords). */
+  /** Zigzag SVG lightning bolt from fromEl to toEl (viewport coords). */
   spawnZap(fromEl, toEl) {
     if (!toEl) return
     toEl.classList.add('zap-flash')
-    setTimeout(() => toEl.classList.remove('zap-flash'), 420)
+    setTimeout(() => toEl.classList.remove('zap-flash'), 500)
 
     if (!fromEl) return
     const a = fromEl.getBoundingClientRect()
@@ -680,15 +680,61 @@ const UI = {
     const y2 = b.top  + b.height / 2
     const dx = x2 - x1, dy = y2 - y1
     const len = Math.hypot(dx, dy)
-    const angle = Math.atan2(dy, dx) * 180 / Math.PI
-    const bolt = document.createElement('div')
-    bolt.className = 'zap-bolt'
-    bolt.style.left   = `${x1}px`
-    bolt.style.top    = `${y1}px`
-    bolt.style.width  = `${len}px`
-    bolt.style.transform = `rotate(${angle}deg)`
-    document.body.appendChild(bolt)
-    setTimeout(() => bolt.remove(), 420)
+    const perpX = -dy / len, perpY = dx / len
+
+    // Build jagged midpoints
+    const segments = 8
+    const maxOff = Math.min(len * 0.28, 32)
+    const pts = [[x1, y1]]
+    for (let i = 1; i < segments; i++) {
+      const t = i / segments
+      const bx = x1 + dx * t, by = y1 + dy * t
+      const falloff = 1 - Math.abs(t - 0.5) * 1.6
+      const off = (Math.random() * 2 - 1) * maxOff * Math.max(0, falloff)
+      pts.push([bx + perpX * off, by + perpY * off])
+    }
+    pts.push([x2, y2])
+
+    const ptStr = pts.map(([px, py]) => `${px.toFixed(1)},${py.toFixed(1)}`).join(' ')
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    svg.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:10000;overflow:visible'
+    svg.classList.add('zap-bolt-svg')
+
+    // Outer glow
+    const glow = document.createElementNS('http://www.w3.org/2000/svg', 'polyline')
+    glow.setAttribute('points', ptStr)
+    glow.setAttribute('stroke', 'rgba(100,180,255,0.55)')
+    glow.setAttribute('stroke-width', '9')
+    glow.setAttribute('fill', 'none')
+    glow.setAttribute('stroke-linecap', 'round')
+    glow.setAttribute('stroke-linejoin', 'round')
+    glow.style.filter = 'blur(5px)'
+
+    // Mid glow
+    const mid = document.createElementNS('http://www.w3.org/2000/svg', 'polyline')
+    mid.setAttribute('points', ptStr)
+    mid.setAttribute('stroke', 'rgba(180,220,255,0.85)')
+    mid.setAttribute('stroke-width', '4')
+    mid.setAttribute('fill', 'none')
+    mid.setAttribute('stroke-linecap', 'round')
+    mid.setAttribute('stroke-linejoin', 'round')
+
+    // Bright white core
+    const core = document.createElementNS('http://www.w3.org/2000/svg', 'polyline')
+    core.setAttribute('points', ptStr)
+    core.setAttribute('stroke', '#ffffff')
+    core.setAttribute('stroke-width', '1.5')
+    core.setAttribute('fill', 'none')
+    core.setAttribute('stroke-linecap', 'round')
+    core.setAttribute('stroke-linejoin', 'round')
+
+    svg.appendChild(glow)
+    svg.appendChild(mid)
+    svg.appendChild(core)
+    document.body.appendChild(svg)
+    setTimeout(() => svg.remove(), 500)
   },
 
   // ── Mage: Telekinetic Throw ─────────────────────────────────

@@ -103,7 +103,9 @@ async function _loadSfx() {
 }
 
 function playSfx(key) {
-  if (!_sfxOn || !_ready || !_ctx || !_sfxBuffers[key]) return
+  if (!_sfxOn || !_ready || !_ctx) return
+  if (key === 'zap') { _synthesizeElectricalZap(); return }
+  if (!_sfxBuffers[key]) return
   try {
     const source = _ctx.createBufferSource()
     source.buffer = _sfxBuffers[key]
@@ -114,6 +116,79 @@ function playSfx(key) {
     source.start()
   } catch (e) {
     Logger.error('[AudioManager] playSfx error', e)
+  }
+}
+
+/** Synthesize an electrical arc zap using Web Audio nodes — no asset file needed. */
+function _synthesizeElectricalZap() {
+  try {
+    const t  = _ctx.currentTime
+    const sr = _ctx.sampleRate
+
+    // White noise burst (the crackling arc texture)
+    const noiseDur = 0.30
+    const noiseBuf = _ctx.createBuffer(1, Math.floor(sr * noiseDur), sr)
+    const nd = noiseBuf.getChannelData(0)
+    for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1
+    const noise = _ctx.createBufferSource()
+    noise.buffer = noiseBuf
+
+    // Bandpass ~5 kHz — gives the sizzling high-frequency character
+    const bpf = _ctx.createBiquadFilter()
+    bpf.type = 'bandpass'
+    bpf.frequency.value = 5000
+    bpf.Q.value = 0.7
+
+    // High-pass to remove low-frequency rumble
+    const hpf = _ctx.createBiquadFilter()
+    hpf.type = 'highpass'
+    hpf.frequency.value = 1800
+
+    const noiseEnv = _ctx.createGain()
+    noiseEnv.gain.setValueAtTime(_sfxVol * 1.1, t)
+    noiseEnv.gain.exponentialRampToValueAtTime(0.0001, t + noiseDur)
+
+    // Low-frequency buzz (electrical hum of the arc)
+    const buzz = _ctx.createOscillator()
+    buzz.type = 'sawtooth'
+    buzz.frequency.setValueAtTime(110, t)
+    buzz.frequency.exponentialRampToValueAtTime(55, t + 0.14)
+    const buzzEnv = _ctx.createGain()
+    buzzEnv.gain.setValueAtTime(0, t)
+    buzzEnv.gain.linearRampToValueAtTime(_sfxVol * 0.3, t + 0.003)
+    buzzEnv.gain.exponentialRampToValueAtTime(0.0001, t + 0.14)
+
+    // Short transient "crack" impulse at the very start
+    const crackLen = Math.floor(sr * 0.010)
+    const crackBuf = _ctx.createBuffer(1, crackLen, sr)
+    const cd = crackBuf.getChannelData(0)
+    for (let i = 0; i < crackLen; i++) {
+      cd[i] = (Math.random() * 2 - 1) * Math.exp(-i / (crackLen * 0.25))
+    }
+    const crack = _ctx.createBufferSource()
+    crack.buffer = crackBuf
+    const crackGain = _ctx.createGain()
+    crackGain.gain.value = _sfxVol * 1.8
+
+    // Wire up
+    noise.connect(bpf)
+    bpf.connect(hpf)
+    hpf.connect(noiseEnv)
+    noiseEnv.connect(_ctx.destination)
+
+    buzz.connect(buzzEnv)
+    buzzEnv.connect(_ctx.destination)
+
+    crack.connect(crackGain)
+    crackGain.connect(_ctx.destination)
+
+    noise.start(t)
+    noise.stop(t + noiseDur)
+    buzz.start(t)
+    buzz.stop(t + 0.16)
+    crack.start(t)
+  } catch (e) {
+    Logger.error('[AudioManager] _synthesizeElectricalZap error', e)
   }
 }
 

@@ -975,6 +975,57 @@ body.tile-colors .tile-front.type-rope {
   letter-spacing: 0.03em;
 }
 
+/* ── Treasure Goblin countdown (main grid) ─────────────────── */
+.treasure-goblin-timer {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 5;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(180deg, #c44 0%, #911 100%);
+  border-radius: 4px;
+  padding: 2px 6px;
+  line-height: 1;
+  pointer-events: none;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.45);
+}
+.tile.treasure-goblin-escaped {
+  opacity: 0.82;
+  transition: opacity 0.45s ease;
+}
+
+/* ── Necromancer minion overlay ─────────────────────────────── */
+.minion-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.minion-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  filter: drop-shadow(0 0 4px rgba(80,200,80,0.7));
+}
+
+.minion-stats {
+  display: flex;
+  gap: 4px;
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0, 30, 0, 0.75);
+  border-radius: 3px;
+  padding: 1px 3px;
+  margin-bottom: 2px;
+}
+
 /* ── Sub-floor tile types ───────────────────────────────────── */
 .tile-type-sub_floor_entry .tile-front,
 .tile-type-sub_floor_entry .tile-face,

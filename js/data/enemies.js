@@ -66,6 +66,26 @@ export const ENEMY_DEFS = {
     spawn:        'universal',
   },
 
+  /** Special spawn only — never rolled from normal enemy tiles (spawn.biomes: []) */
+  treasure_goblin: {
+    hp:         1,
+    dmg:        [0, 0],
+    type:       'humanoid',
+    behaviour:  'treasure_goblin',
+    emoji:        '💰',
+    label:        'Treasure Goblin',
+    goldDrop:     [1, 1],
+    xpDrop:       3,
+    blurb:
+      'A jittery little thief weighed down with stolen relics. He cannot hurt you — but he will bolt if you dawdle.',
+    holdHint:
+      'A countdown tracks how many global turns (tile reveals and melee exchanges) you have left. '
+      + 'Path from your entry point and strike him before the timer hits zero, or he escapes with the loot. '
+      + 'Slay him to earn a random rare trinket.',
+    attributes: [],
+    spawn:        { biomes: [] },
+  },
+
   goblin: {
     hp:         2,
     dmg:        [1, 1],

@@ -12,6 +12,7 @@ import { RANGER_BASE, RANGER_UPGRADES } from '../data/ranger.js'
 import { ENGINEER_BASE, ENGINEER_UPGRADES, ENGINEER_TURRET } from '../data/engineer.js'
 import { MAGE_BASE, MAGE_UPGRADES } from '../data/mage.js'
 import { VAMPIRE_BASE, VAMPIRE_DARK_EYES_MAX_TILES } from '../data/vampire.js'
+import { NECROMANCER_BASE, NECROMANCER_MINION, RAISE_MINION_COST } from '../data/necromancer.js'
 import { WARRIOR_UPGRADES }  from '../data/upgrades.js'
 import { ENEMY_SPRITES, MONSTER_ICONS_BASE, ITEM_ICONS_BASE, TILE_TYPE_ICON_FILES, MAGIC_CHEST_OPEN_GIF, MAGIC_CHEST_GIF_DURATION_MS } from '../data/tileIcons.js'
 import { TILE_BLURBS }       from '../data/tileBlurbs.js'
@@ -860,12 +861,13 @@ function _vampireCorruptedBloodAndDarkEyes(tile) {
 }
 
 function buildRunState() {
-  const isRanger   = _charKey() === 'ranger'
-  const isEngineer = _charKey() === 'engineer'
-  const isMage     = _charKey() === 'mage'
-  const isVampire  = _charKey() === 'vampire'
-  const baseHP     = isMage ? MAGE_BASE.hp : isRanger ? RANGER_BASE.hp : isEngineer ? ENGINEER_BASE.hp : isVampire ? VAMPIRE_BASE.hp : CONFIG.player.baseHP
-  const baseMana   = isMage ? MAGE_BASE.mana : isRanger ? RANGER_BASE.mana : isEngineer ? ENGINEER_BASE.mana : isVampire ? VAMPIRE_BASE.mana : CONFIG.player.baseMana
+  const isRanger      = _charKey() === 'ranger'
+  const isEngineer    = _charKey() === 'engineer'
+  const isMage        = _charKey() === 'mage'
+  const isVampire     = _charKey() === 'vampire'
+  const isNecromancer = _charKey() === 'necromancer'
+  const baseHP     = isMage ? MAGE_BASE.hp : isRanger ? RANGER_BASE.hp : isEngineer ? ENGINEER_BASE.hp : isVampire ? VAMPIRE_BASE.hp : isNecromancer ? NECROMANCER_BASE.hp : CONFIG.player.baseHP
+  const baseMana   = isMage ? MAGE_BASE.mana : isRanger ? RANGER_BASE.mana : isEngineer ? ENGINEER_BASE.mana : isVampire ? VAMPIRE_BASE.mana : isNecromancer ? NECROMANCER_BASE.mana : CONFIG.player.baseMana
 
   const p = {
     hp:      baseHP,
@@ -910,6 +912,8 @@ function buildRunState() {
     isEngineer,
     isMage,
     isVampire,
+    isNecromancer,
+    minionMasteryLevel: 1,
     inventory:          [],   // [{ id, qty }]
     goldenKeys:         0,
     meleeHitCount:      0,    // Stormcaller's Fist tracker
@@ -946,10 +950,17 @@ function buildRunState() {
     floorKeyAwarded:  false,
     /** @type {{ row: number, col: number, level: number, mode: 'ballistic'|'tesla', hp: number, maxHp: number } | null} */
     turret:           null,
+    /** @type {Array<{ row: number, col: number, hp: number, maxHp: number, dmg: number, id: number }>} */
+    minions:          [],
     /** Balance / bot: per-run stats (see js/balance/runTelemetry.js) */
     telemetry:        createInitialTelemetry(),
     /** While active: { row, col, active, mult } — buffs all enemies until banner tile is cleared */
     warBanner:        null,
+    /** Entry tile for this floor (shortest-path timer for Treasure Goblin) */
+    floorStartRow:    null,
+    floorStartCol:    null,
+    /** While active: { row, col, turnsLeft } — countdown until goblin escapes */
+    treasureGoblin:   null,
   }
 }
 
@@ -1046,6 +1057,156 @@ function _damageTurretFromEnemyHit(rawAmount, floatEl) {
   } else {
     _syncTurretVisual()
   }
+}
+
+// ── Necromancer minions ───────────────────────────────────────
+
+let _nextMinionId = 1
+
+function _getMinionMaxHp() {
+  const lvl = Math.min(3, Math.max(1, run?.player?.minionMasteryLevel ?? 1))
+  return NECROMANCER_MINION.hpByLevel[lvl - 1]
+}
+
+function _getMinionDmg() {
+  const lvl = Math.min(3, Math.max(1, run?.player?.minionMasteryLevel ?? 1))
+  return NECROMANCER_MINION.damageByLevel[lvl - 1]
+}
+
+function _syncMinionVisual(minion) {
+  const tile = TileEngine.getTile(minion.row, minion.col)
+  if (!tile?.element) return
+  const existing = tile.element.querySelector('.minion-overlay')
+  if (existing) existing.remove()
+  if (minion.hp <= 0) return
+  const overlay = document.createElement('div')
+  overlay.className = 'minion-overlay'
+  overlay.innerHTML = `<span class="minion-icon">🧟</span>
+    <div class="minion-stats">
+      <span class="stat-hp">❤️ ${minion.hp}</span>
+      <span class="stat-dmg">⚔️ ${minion.dmg}</span>
+    </div>`
+  tile.element.appendChild(overlay)
+}
+
+function _syncAllMinionVisuals() {
+  if (!run?.minions) return
+  for (const m of run.minions) {
+    _syncMinionVisual(m)
+  }
+}
+
+function _clearMinionVisuals() {
+  if (!run?.minions) return
+  for (const m of run.minions) {
+    const tile = TileEngine.getTile(m.row, m.col)
+    tile?.element?.querySelector('.minion-overlay')?.remove()
+  }
+}
+
+/** After a raised minion dies, remove the corpse tile so it cannot be raised again (1 minion per slain enemy). */
+function _necroClearAshAfterMinionDeath(row, col) {
+  if (!run || _charKey() !== 'necromancer') return
+  const t = TileEngine.getTile(row, col)
+  if (!t?.enemyData?._slain) return
+  TileEngine.replaceTileWithEmptyPreserveState(row, col)
+  const fresh = TileEngine.getTile(row, col)
+  fresh.revealed = true
+  const patched = TileEngine.patchMainGridTileAt(row, col, UI.getGridEl(), onTileTap, onTileHold)
+  if (!patched) _refreshMainGridDomFromModel()
+  else {
+    TileEngine.refreshAllThreatClueDisplays()
+    _syncGridDomClassesFromModel()
+  }
+  _saveActiveRun()
+}
+
+function _necroRaiseMinion(tile) {
+  if (!run || !tile?.enemyData?._slain) return
+  if (_charKey() !== 'necromancer') return
+  if (run.player.mana < RAISE_MINION_COST) {
+    UI.setMessage(`Not enough mana to raise a minion! (need ${RAISE_MINION_COST})`, true)
+    return
+  }
+
+  // Check if a minion already sits on this tile
+  const existing = (run.minions ?? []).findIndex(m => m.row === tile.row && m.col === tile.col)
+  if (existing >= 0) {
+    UI.setMessage('A minion already guards this tile.', true)
+    return
+  }
+
+  run.player.mana -= RAISE_MINION_COST
+  UI.updateMana(run.player.mana, run.player.maxMana)
+
+  // Reveal category hints for all orthogonal neighbors (Master's Sight)
+  for (const adj of TileEngine.getOrthogonalTiles(tile.row, tile.col)) {
+    if (!adj.revealed && adj.element && !adj.echoHintCategory) {
+      const cat = _echoCharmCategoryForTileType(adj.type)
+      adj.echoHintCategory = cat
+      adj.element.classList.add('echo-hint')
+      adj.element.dataset.echoHint = cat
+    }
+  }
+
+  const maxHp = _getMinionMaxHp()
+  const dmg   = _getMinionDmg()
+  const minion = {
+    row:   tile.row,
+    col:   tile.col,
+    hp:    maxHp,
+    maxHp,
+    dmg,
+    id:    _nextMinionId++,
+  }
+  if (!run.minions) run.minions = []
+  run.minions.push(minion)
+  _syncMinionVisual(minion)
+  // Make the tile tappable again so the minion tile is interactive (re-applies pointer events)
+  tile.element.classList.add('enemy-alive')
+  UI.spawnFloat(tile.element, '🧟 Risen!', 'xp')
+  UI.setMessage(`You raise a minion from the ashes! (❤️ ${maxHp}, ⚔️ ${dmg}) Mana: ${run.player.mana}/${run.player.maxMana}`)
+  _saveActiveRun()
+}
+
+/** Returns total minion co-strike damage for the active combat. */
+function _necroMinionTotalDmg() {
+  if (!run?.minions?.length) return 0
+  let total = 0
+  for (const m of run.minions) total += m.dmg
+  return total
+}
+
+/** Absorb damage with the closest minion to the given enemy tile. Returns true if absorbed. */
+function _necroMinionAbsorbDamage(rawAmount, floatEl, enemyTile) {
+  if (!run?.minions?.length) return false
+  let closest = null
+  let closestDist = Infinity
+  for (const m of run.minions) {
+    if (m.hp <= 0) continue
+    const dist = enemyTile
+      ? Math.abs(m.row - enemyTile.row) + Math.abs(m.col - enemyTile.col)
+      : 0
+    if (dist < closestDist) { closest = m; closestDist = dist }
+  }
+  if (!closest) return false
+
+  const eff = _computeEffectiveDamageTaken(rawAmount)
+  closest.hp -= eff
+  const tile = TileEngine.getTile(closest.row, closest.col)
+  const refEl = tile?.element ?? floatEl ?? document.getElementById('hud-portrait')
+  UI.spawnFloat(refEl, `🧟 −${eff}`, 'damage')
+  if (closest.hp <= 0) {
+    closest.hp = 0
+    run.minions = run.minions.filter(m => m.id !== closest.id)
+    if (tile?.element) tile.element.querySelector('.minion-overlay')?.remove()
+    _necroClearAshAfterMinionDeath(closest.row, closest.col)
+    UI.setMessage('Your minion falls protecting you! The ashes scatter — only one minion may rise from each corpse.')
+  } else {
+    _syncMinionVisual(closest)
+    UI.setMessage(`Your minion absorbs the blow! (❤️ ${closest.hp}/${closest.maxHp})`)
+  }
+  return true
 }
 
 function _engineerTurretAfterReveal(tile) {
@@ -1295,6 +1456,7 @@ function _saveActiveRun() {
     levelUpLog:      run.levelUpLog.slice(),
     floorKeyAwarded: !!run.floorKeyAwarded,
     turret:          run.turret ? JSON.parse(JSON.stringify(run.turret)) : null,
+    minions:         run.minions ? JSON.parse(JSON.stringify(run.minions)) : [],
     telemetry:       run.telemetry ? JSON.parse(JSON.stringify(run.telemetry)) : undefined,
     tilesRevealed:   run.tilesRevealed,
     bossFloorExitPending: !!run.bossFloorExitPending,
@@ -1302,6 +1464,9 @@ function _saveActiveRun() {
     gridSnapshot:    _serializeGridSnapshot(),
     combatEngagement: _combatEngagementTile ? { ..._combatEngagementTile } : null,
     warBanner:       run.warBanner ? JSON.parse(JSON.stringify(run.warBanner)) : null,
+    treasureGoblin:  run.treasureGoblin ? JSON.parse(JSON.stringify(run.treasureGoblin)) : null,
+    floorStartRow:   run.floorStartRow ?? null,
+    floorStartCol:   run.floorStartCol ?? null,
   }
   SaveManager.save(_save).catch(() => {})
 }
@@ -1327,6 +1492,7 @@ function resumeRun() {
     eventTile:            null,
     bossFloorExitPending: !!saved.bossFloorExitPending,
     turret:               saved.turret ?? null,
+    minions:              saved.minions ?? [],
     _resumeGridSnapshot:  saved.gridSnapshot ?? null,
     _resumeEventTile:     saved.eventTile ?? null,
     _resumeCombatEngagement: saved.combatEngagement ?? null,
@@ -1339,12 +1505,16 @@ function resumeRun() {
       return t
     })(),
     warBanner: saved.warBanner ?? null,
+    treasureGoblin: saved.treasureGoblin ?? null,
+    floorStartRow: saved.floorStartRow ?? null,
+    floorStartCol: saved.floorStartCol ?? null,
   }
   const ch = _save.selectedCharacter ?? 'warrior'
-  run.player.isEngineer = ch === 'engineer'
-  run.player.isRanger   = ch === 'ranger'
-  run.player.isMage     = ch === 'mage'
-  run.player.isVampire  = ch === 'vampire'
+  run.player.isEngineer    = ch === 'engineer'
+  run.player.isRanger      = ch === 'ranger'
+  run.player.isMage        = ch === 'mage'
+  run.player.isVampire     = ch === 'vampire'
+  run.player.isNecromancer = ch === 'necromancer'
   TileEngine.setDiagonalMovement(ch === 'mage')
   UI.hideMainMenu()
   const track = CONFIG.bossFloors.includes(run.floor) ? 'boss' : 'dungeon'
@@ -1374,7 +1544,9 @@ function returnToMenu(autoSave = false) {
         ? (_save.mage?.totalXP ?? 0)
         : char === 'vampire'
           ? (_save.vampire?.totalXP ?? 0)
-          : _save.warrior.totalXP
+          : char === 'necromancer'
+            ? (_save.necromancer?.totalXP ?? 0)
+            : _save.warrior.totalXP
   UI.updateMenuStats(_save.persistentGold, xp, char, _save)
   UI.setActiveDifficulty(_save.settings.difficulty)
   UI.showMainMenu()
@@ -1427,12 +1599,18 @@ function _startFloor() {
   }
   if (!gridRestored) {
     TileEngine.generateGrid(run.floor, { rest: run.atRest })
+    if (run) {
+      run.treasureGoblin = null
+      run.floorStartRow = null
+      run.floorStartCol = null
+    }
   }
   if (!run.atRest) {
     TileEngine.ensureExitConnectivityFromGrid(run.floor)
   }
   TileEngine.renderGrid(UI.getGridEl(), onTileTap, onTileHold)
   if (run.turret) _syncTurretVisual()
+  if (run.minions?.length) _syncAllMinionVisuals()
   if (run._resumeEventTile) {
     run.eventTile = TileEngine.getTile(run._resumeEventTile.row, run._resumeEventTile.col)
     run._resumeEventTile = null
@@ -1441,6 +1619,9 @@ function _startFloor() {
     TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
     TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
     _syncGridDomClassesFromModel()
+    _restoreTreasureGoblinAfterResume()
+    // Skip one treasure tick so resume-time poison/harass tick does not consume a goblin turn
+    run._resumeTreasureGoblinTickSkip = true
     _tickPoisonArrowDotOnGlobalTurn()
   } else {
     _revealStartTile()
@@ -1478,18 +1659,24 @@ function _startFloor() {
     run.warBanner = null
   }
 
+  const specialSpawnUsed = new Set()
+  // Treasure Goblin — 5% per non-boss dungeon floor; pre-revealed with escape timer (path from entry + 2)
+  if (!gridRestored && !run.atRest && !CONFIG.bossFloors.includes(run.floor)
+      && Math.random() < (CONFIG.treasureGoblin?.spawnChance ?? 0.05)) {
+    _spawnTreasureGoblin(specialSpawnUsed)
+  }
   // Archer Goblin: always floor 1, 20% chance on subsequent non-boss dungeon floors.
   // Immediately revealed; starts firing arrows each turn until killed.
   if (!gridRestored && !run.atRest && !CONFIG.bossFloors.includes(run.floor)
       && (run.floor === 1 || Math.random() < 0.20)) {
-    _spawnArcherGoblin()
+    _spawnArcherGoblin(specialSpawnUsed)
   }
 
   // Dungeon Mouse: always floor 1 (placeholder), otherwise CONFIG.mouse.spawnChance on non-boss dungeon floors.
   // Pre-revealed; each time the player flips a tile, 50% to unflip a random revealed empty tile.
   if (!gridRestored && !run.atRest && !CONFIG.bossFloors.includes(run.floor)
       && (run.floor === 1 || Math.random() < (CONFIG.mouse?.spawnChance ?? 0.10))) {
-    _spawnMouse()
+    _spawnMouse(specialSpawnUsed)
   }
 
   // Forsaken Idol: reveal all unrevealed enemy tiles from floor start
@@ -1571,6 +1758,15 @@ function _startFloor() {
     UI.setPoisonArrowShotBtn(false)
     UI.setDivineLightBtn(false)
     UI.setBlindingLightBtn(false)
+  } else if (_charKey() === 'necromancer') {
+    UI.setSlamBtn(false)
+    UI.setArrowBarrageBtn(false)
+    UI.setPoisonArrowShotBtn(false)
+    UI.setDivineLightBtn(false)
+    UI.setBlindingLightBtn(false)
+    UI.setEngineerConstructBtn(false)
+    UI.setEngineerTeslaBtn(false, 10, false)
+    UI.setRicochetBtn(false, 0)
   } else {
     UI.setSlamBtn(_isActiveUnlocked('slam', 'warrior'), WARRIOR_UPGRADES.slam.manaCost)
     UI.setArrowBarrageBtn(false)
@@ -1707,6 +1903,9 @@ function _syncGridDomClassesFromModel() {
       // .tile.revealed defaults to pointer-events:none; .enemy-alive restores taps (see tiles.css).
       if (t.revealed && t.enemyData && !t.enemyData._slain) {
         UI.markTileEnemyAlive(el)
+      } else if (t.revealed && t.enemyData?._slain && _charKey() === 'necromancer') {
+        // Necromancer can tap ash piles to raise minions
+        UI.markTileEnemyAlive(el)
       } else {
         el.classList.remove('enemy-alive')
       }
@@ -1739,6 +1938,8 @@ function _revealStartTile() {
 
   tile.revealed = true
   run.tilesRevealed++
+  run.floorStartRow = tile.row
+  run.floorStartCol = tile.col
   // Mark neighbours reachable immediately so they're clickable before the flip finishes
   TileEngine.markReachable(tile.row, tile.col, _markReachableUi)
   TileEngine.flipTile(tile)
@@ -1749,6 +1950,10 @@ function _revealStartTile() {
     run.turret.col = tile.col
     _syncTurretVisual()
     UI.setMessage(`🛡️ Your turret followed you to floor ${run.floor}.`)
+  }
+  // Minions do not carry across floors — they fall as you descend
+  if (run.minions?.length > 0) {
+    run.minions = []
   }
 
   _tickPoisonArrowDotOnGlobalTurn()
@@ -2218,19 +2423,172 @@ function _spawnWarBannerEntry() {
   }
 }
 
-function _spawnArcherGoblin() {
+function _pickSpecialSpawnEnemyTile(usedCoords) {
   const grid = TileEngine.getGrid()
-  // Pick a random unrevealed enemy tile and replace it with an archer_goblin
   const candidates = []
   for (const row of grid) {
     for (const t of row) {
       if (!t.revealed && (t.type === 'enemy' || t.type === 'enemy_fast') && t.enemyData) {
+        const k = `${t.row},${t.col}`
+        if (usedCoords?.has(k)) continue
         candidates.push(t)
       }
     }
   }
-  if (!candidates.length) return
-  const target = candidates[Math.floor(Math.random() * candidates.length)]
+  if (!candidates.length) return null
+  return candidates[Math.floor(Math.random() * candidates.length)]
+}
+
+/** BFS shortest-path length (orthogonal steps) between two passable cells; null if unreachable. */
+function _shortestPathStepsMainGrid(sr, sc, tr, tc) {
+  const grid = TileEngine.getGrid()
+  if (!grid?.length) return null
+  const passable = t => t && t.type !== 'hole' && t.type !== 'blockage'
+  const rows = grid.length
+  const cols = grid[0].length
+  const q = [[sr, sc, 0]]
+  const seen = new Set([`${sr},${sc}`])
+  while (q.length) {
+    const [r, c, d] = q.shift()
+    if (r === tr && c === tc) return d
+    for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+      const nr = r + dr
+      const nc = c + dc
+      if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue
+      const k = `${nr},${nc}`
+      if (seen.has(k)) continue
+      const t = grid[nr][nc]
+      if (!passable(t)) continue
+      seen.add(k)
+      q.push([nr, nc, d + 1])
+    }
+  }
+  return null
+}
+
+function _attachTreasureGoblinTimerUi(tile) {
+  if (!tile?.element || !run?.treasureGoblin) return
+  tile.element.querySelector('.treasure-goblin-timer')?.remove()
+  const badge = document.createElement('div')
+  badge.className = 'treasure-goblin-timer'
+  badge.textContent = String(run.treasureGoblin.turnsLeft)
+  tile.element.appendChild(badge)
+}
+
+function _syncTreasureGoblinTimerBadge() {
+  if (!run?.treasureGoblin) return
+  const t = TileEngine.getTile(run.treasureGoblin.row, run.treasureGoblin.col)
+  const badge = t?.element?.querySelector('.treasure-goblin-timer')
+  if (badge) badge.textContent = String(run.treasureGoblin.turnsLeft)
+}
+
+function _restoreTreasureGoblinAfterResume() {
+  if (!run?.treasureGoblin) return
+  const t = TileEngine.getTile(run.treasureGoblin.row, run.treasureGoblin.col)
+  if (t?.enemyData?.enemyId === 'treasure_goblin' && !t.enemyData._slain) {
+    _attachTreasureGoblinTimerUi(t)
+  } else {
+    run.treasureGoblin = null
+  }
+}
+
+function _treasureGoblinEscape() {
+  const g = run?.treasureGoblin
+  if (!g) return
+  const tr = g.row
+  const tc = g.col
+  const tile = TileEngine.getTile(tr, tc)
+  if (!tile?.enemyData || tile.enemyData.enemyId !== 'treasure_goblin' || tile.enemyData._slain) {
+    run.treasureGoblin = null
+    return
+  }
+  tile.element?.querySelector('.treasure-goblin-timer')?.remove()
+  run.treasureGoblin = null
+  TileEngine.replaceTileWithEmptyPreserveState(tr, tc)
+  const fresh = TileEngine.getTile(tr, tc)
+  fresh.revealed = true
+  const patched = TileEngine.patchMainGridTileAt(tr, tc, UI.getGridEl(), onTileTap, onTileHold)
+  if (!patched) _refreshMainGridDomFromModel()
+  else {
+    TileEngine.refreshAllThreatClueDisplays()
+    _syncGridDomClassesFromModel()
+  }
+  const floatEl = TileEngine.getTile(tr, tc)?.element
+  if (floatEl) {
+    floatEl.classList.add('treasure-goblin-escaped')
+    UI.spawnFloat(floatEl, '💨 Escaped!', 'damage')
+    setTimeout(() => floatEl.classList.remove('treasure-goblin-escaped'), 800)
+  }
+  UI.setMessage('💨 The Treasure Goblin escapes with his sack!')
+  _saveActiveRun()
+}
+
+function _tickTreasureGoblinCountdown() {
+  if (run?._resumeTreasureGoblinTickSkip) {
+    run._resumeTreasureGoblinTickSkip = false
+    return
+  }
+  if (!run?.treasureGoblin) return
+  const g = run.treasureGoblin
+  const tile = TileEngine.getTile(g.row, g.col)
+  if (!tile?.enemyData || tile.enemyData.enemyId !== 'treasure_goblin' || tile.enemyData._slain) {
+    run.treasureGoblin = null
+    return
+  }
+  g.turnsLeft--
+  _syncTreasureGoblinTimerBadge()
+  if (g.turnsLeft <= 0) _treasureGoblinEscape()
+}
+
+async function _finishTreasureGoblinReward(tile) {
+  if (tile.enemyData?.enemyId !== 'treasure_goblin' || tile._treasureRewardGranted) return
+  tile._treasureRewardGranted = true
+  run.treasureGoblin = null
+  tile.element?.querySelector('.treasure-goblin-timer')?.remove()
+  const owned = new Set(run.player.inventory.map(e => e.id))
+  let pool = RARE_TRINKET_IDS.filter(id => !owned.has(id))
+  if (pool.length === 0) pool = [...RARE_TRINKET_IDS]
+  const id = _pickRandom(pool)
+  await _addToBackpack(id)
+  const def = ITEMS[id]
+  if (def && tile.element) UI.spawnFloat(tile.element, `${def.icon ?? '✨'} ${def.name}`, 'xp')
+  UI.setMessage(`You bag the Treasure Goblin — ${def?.name ?? 'a rare trinket'}!`)
+  _saveActiveRun()
+}
+
+function _spawnTreasureGoblin(usedCoords) {
+  const sr = run.floorStartRow
+  const sc = run.floorStartCol
+  if (typeof sr !== 'number' || typeof sc !== 'number') return
+  const target = _pickSpecialSpawnEnemyTile(usedCoords)
+  if (!target) return
+  const steps = _shortestPathStepsMainGrid(sr, sc, target.row, target.col)
+  if (steps === null) return
+  const turnsLeft = steps + 2
+  const ed = TileEngine.createEnemy('treasure_goblin', run.floor)
+  ed.hp = 1
+  ed.currentHP = 1
+  ed.dmg = [0, 0]
+  ed.hitDamage = 0
+  target.enemyData = ed
+  target.type = 'enemy'
+  target.revealed = true
+  run.tilesRevealed++
+  usedCoords.add(`${target.row},${target.col}`)
+  run.treasureGoblin = { row: target.row, col: target.col, turnsLeft }
+  const patched = TileEngine.patchMainGridTileAt(target.row, target.col, UI.getGridEl(), onTileTap, onTileHold)
+  if (!patched) _refreshMainGridDomFromModel()
+  else {
+    TileEngine.refreshAllThreatClueDisplays()
+    _syncGridDomClassesFromModel()
+  }
+  _attachTreasureGoblinTimerUi(target)
+  UI.setMessage('💰 A Treasure Goblin appears! Reach him before the timer hits zero.')
+}
+
+function _spawnArcherGoblin(usedCoords) {
+  const target = _pickSpecialSpawnEnemyTile(usedCoords)
+  if (!target) return
   // Replace enemy data with archer_goblin
   target.enemyData = TileEngine.createEnemy('archer_goblin', run.floor)
   TileEngine.rollEnemyHitDamage(target.enemyData)
@@ -2238,6 +2596,7 @@ function _spawnArcherGoblin() {
   // Immediately reveal — archer is visible from floor start
   target.revealed = true
   run.tilesRevealed++
+  usedCoords?.add(`${target.row},${target.col}`)
   // Do NOT markReachable — archer neighbors become reachable naturally as player explores toward them
   const patched = TileEngine.patchMainGridTileAt(target.row, target.col, UI.getGridEl(), onTileTap, onTileHold)
   if (!patched) _refreshMainGridDomFromModel()
@@ -2247,24 +2606,15 @@ function _spawnArcherGoblin() {
   }
 }
 
-function _spawnMouse() {
-  const grid = TileEngine.getGrid()
-  // Same placement pattern as archer: steal a random unrevealed enemy tile
-  const candidates = []
-  for (const row of grid) {
-    for (const t of row) {
-      if (!t.revealed && (t.type === 'enemy' || t.type === 'enemy_fast') && t.enemyData) {
-        candidates.push(t)
-      }
-    }
-  }
-  if (!candidates.length) return
-  const target = candidates[Math.floor(Math.random() * candidates.length)]
+function _spawnMouse(usedCoords) {
+  const target = _pickSpecialSpawnEnemyTile(usedCoords)
+  if (!target) return
   target.enemyData = TileEngine.createEnemy('mouse', run.floor)
   TileEngine.rollEnemyHitDamage(target.enemyData)
   target.type = 'enemy'
   target.revealed = true
   run.tilesRevealed++
+  usedCoords?.add(`${target.row},${target.col}`)
   // Do NOT markReachable — mouse behaves like archer, player must path adjacent
   const patched = TileEngine.patchMainGridTileAt(target.row, target.col, UI.getGridEl(), onTileTap, onTileHold)
   if (!patched) _refreshMainGridDomFromModel()
@@ -3260,6 +3610,9 @@ function onTileTap(row, col) {
       _enterSubFloor(tile)
     } else if (tile.revealed && tile.type === 'war_banner' && tile.bannerReady && run.warBanner?.active) {
       _destroyWarBanner(tile)
+    } else if (tile.revealed && tile.enemyData && tile.enemyData._slain && _charKey() === 'necromancer') {
+      // Necromancer: tap ash pile to raise a minion
+      _necroRaiseMinion(tile)
     } else if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
       // Archer / Mouse: only fightable once the player has revealed an adjacent tile
       if (tile.enemyData?.behaviour === 'archer' || tile.enemyData?.behaviour === 'mouse') {
@@ -3360,6 +3713,8 @@ function onTileHold(row, col) {
   if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
     const e       = tile.enemyData
     const sprites = ENEMY_SPRITES[e.enemyId]
+    const blurbBase = e.blurb ?? ''
+    const blurb     = e.holdHint ? `${blurbBase}\n\n${e.holdHint}` : blurbBase
     cardData = {
       name:       e.label,
       spriteSrc:  sprites?.idle ? MONSTER_ICONS_BASE + sprites.idle : null,
@@ -3368,7 +3723,7 @@ function onTileHold(row, col) {
       maxHp:      e.hp,
       dmg:        TileEngine.formatEnemyDamageDisplay(e.dmg, e.hitDamage),
       type:       e.type,
-      blurb:      e.blurb ?? '',
+      blurb,
       attributes: e.attributes ?? [],
     }
   } else if (tile.revealed && tile.type === 'trap') {
@@ -3417,6 +3772,7 @@ function _applyRangerTrapfinderMitigation(preMitigationDmg, p) {
 /** One global “turn” for DoT / debuff effects: each tile flip/reveal, or starting a melee vs any enemy. */
 function _tickPoisonArrowDotOnGlobalTurn() {
   if (!run || GameState.is(States.DEATH)) return
+  _tickTreasureGoblinCountdown()
   // Teary Eyes debuff tick
   if ((run.player.tearyEyesTurns ?? 0) > 0) {
     run.player.tearyEyesTurns--
@@ -4356,6 +4712,10 @@ function fightAction(tile) {
         setTimeout(() => UI.spawnCannonShot(turretTileEl, tile.element), 80)
       }
     }
+  }
+  if (_charKey() === 'necromancer') {
+    const minionDmg = _necroMinionTotalDmg()
+    if (minionDmg > 0) playerDmg += minionDmg
   }
   const isUndead = tile.enemyData?.type === 'undead'
   const isBeast  = tile.enemyData?.type === 'beast'
@@ -5761,10 +6121,10 @@ function _endCombatVictory(tile) {
     run.senseEvilTile = null
     _paladinSenseEvilPick()
   }
-  // Archer goblin spawns pre-revealed without markReachable (see _spawnArcherGoblin),
-  // so its neighbors stay unreachable until the player paths adjacent. On defeat,
-  // propagate reachability from the archer tile so surrounding tiles become tappable.
-  if (tile.enemyData?.enemyId === 'archer_goblin') {
+  // Archer / Treasure Goblin spawn pre-revealed without markReachable (see _spawnArcherGoblin),
+  // so neighbors stay unreachable until the player paths adjacent. On defeat,
+  // propagate reachability from the tile so surrounding tiles become tappable.
+  if (tile.enemyData?.enemyId === 'archer_goblin' || tile.enemyData?.enemyId === 'treasure_goblin') {
     TileEngine.markReachable(tile.row, tile.col, _markReachableUi)
   }
   if (tile.enemyData?.isBoss) {
@@ -5777,6 +6137,11 @@ function _endCombatVictory(tile) {
     UI.setMessage('🚪 The way forward opens. Tap the stairs when you are ready.')
   } else {
     UI.markTileSlain(tile.element)
+    // Necromancer: slain tiles become ash piles — re-enable pointer events for Raise Minion
+    if (_charKey() === 'necromancer') {
+      tile.element?.classList.add('enemy-alive')
+      UI.setMessage('💀 The enemy falls to ashes. Tap to raise a minion (10 mana).')
+    }
   }
 
   // Tongue Snatch: return stolen gold on kill
@@ -5853,6 +6218,10 @@ function _endCombatVictory(tile) {
       UI.updateDamageRange(d0, d1)
       UI.spawnFloat(tile.element, '⚔️ +1 dmg!', 'xp')
     }
+  }
+
+  if (tile.enemyData?.enemyId === 'treasure_goblin') {
+    void _finishTreasureGoblinReward(tile).catch(() => {})
   }
 
   EventBus.emit('audio:play', { sfx: 'gold' })
@@ -5987,6 +6356,10 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
   const enemyAttack = opts.enemyAttack === true
   if (enemyAttack && _charKey() === 'engineer' && run.turret?.hp > 0) {
     _damageTurretFromEnemyHit(amount, tileEl)
+    return
+  }
+  if (enemyAttack && _charKey() === 'necromancer' && run.minions?.some(m => m.hp > 0)) {
+    _necroMinionAbsorbDamage(amount, tileEl, run.activeCombatTile)
     return
   }
   if (_save.settings.cheats?.godMode) return

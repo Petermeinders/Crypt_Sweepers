@@ -152,9 +152,12 @@ function _pickEnemyType(floor, tileType) {
     })
     return fastPool.length ? fastPool[Math.floor(Math.random() * fastPool.length)] : 'goblin'
   }
-  // Standard enemy tile — exclude behaviour-fast, behaviour-archer, and behaviour-mouse
-  // (archer_goblin spawns via _spawnArcherGoblin only; mouse spawns via _spawnMouse only)
-  const stdPool = allIds.filter(e => ENEMY_DEFS[e]?.behaviour !== 'fast' && ENEMY_DEFS[e]?.behaviour !== 'archer' && ENEMY_DEFS[e]?.behaviour !== 'mouse')
+  // Standard enemy tile — exclude behaviour-fast, behaviour-archer, behaviour-mouse, treasure_goblin
+  // (archer_goblin / treasure_goblin / mouse spawn via GameController only)
+  const stdPool = allIds.filter(e => {
+    const b = ENEMY_DEFS[e]?.behaviour
+    return b !== 'fast' && b !== 'archer' && b !== 'mouse' && b !== 'treasure_goblin'
+  })
   return stdPool.length
     ? stdPool[Math.floor(Math.random() * stdPool.length)]
     : allIds[Math.floor(Math.random() * allIds.length)]

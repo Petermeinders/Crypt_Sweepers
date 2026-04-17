@@ -105,6 +105,17 @@
   100% { opacity: 0.0; filter: brightness(0.9); }
 }
 
+/* SVG zigzag bolt */
+.zap-bolt-svg {
+  animation: zap-svg-fade 0.5s ease-out forwards;
+}
+@keyframes zap-svg-fade {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  60%  { opacity: 0.8; }
+  100% { opacity: 0; }
+}
+
 /* ── Mage: Telekinetic Throw targeting ── */
 /* Step 1 — highlight all revealed living enemies (except bosses/immune — we still highlight all, gameplay blocks the invalid ones). */
 .telekinetic-throw-mode-enemy .tile.enemy-alive {

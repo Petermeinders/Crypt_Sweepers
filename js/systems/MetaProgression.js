@@ -2,6 +2,7 @@ import { WARRIOR_UPGRADES, SHOP_ITEMS } from '../data/upgrades.js'
 import { RANGER_UPGRADES }             from '../data/ranger.js'
 import { ENGINEER_UPGRADES }           from '../data/engineer.js'
 import { MAGE_UPGRADES }               from '../data/mage.js'
+import { NECROMANCER_UPGRADES }        from '../data/necromancer.js'
 import { GLOBAL_PASSIVE_UPGRADES }     from '../data/passives.js'
 import { CONFIG }                       from '../config.js'
 import Logger                           from '../core/Logger.js'
@@ -35,6 +36,10 @@ export function defaultSave() {
       upgrades: [],
     },
     vampire: {
+      totalXP:  0,
+      upgrades: [],
+    },
+    necromancer: {
       totalXP:  0,
       upgrades: [],
     },
@@ -129,7 +134,9 @@ function applyToPlayer(player, save) {
         ? (save.mage?.upgrades ?? [])
         : char === 'vampire'
           ? (save.vampire?.upgrades ?? [])
-          : (save.warrior?.upgrades ?? [])
+          : char === 'necromancer'
+            ? (save.necromancer?.upgrades ?? [])
+            : (save.warrior?.upgrades ?? [])
   const upgradeMap = char === 'ranger'
     ? RANGER_UPGRADES
     : char === 'engineer'
@@ -138,7 +145,9 @@ function applyToPlayer(player, save) {
         ? MAGE_UPGRADES
         : char === 'vampire'
           ? {}
-          : WARRIOR_UPGRADES
+          : char === 'necromancer'
+            ? NECROMANCER_UPGRADES
+            : WARRIOR_UPGRADES
 
   for (const id of upgradeIds) {
     const def = upgradeMap[id]
@@ -283,6 +292,25 @@ function buyMageUpgrade(save, id) {
   return true
 }
 
+// ── Necromancer XP tree ───────────────────────────────────────
+
+function canBuyNecromancerUpgrade(save, id) {
+  const def = NECROMANCER_UPGRADES[id]
+  if (!def) return false
+  if (!save.necromancer) return false
+  if (save.necromancer.upgrades.includes(id)) return false
+  if (def.requires && !save.necromancer.upgrades.includes(def.requires)) return false
+  return save.necromancer.totalXP >= def.xpCost
+}
+
+function buyNecromancerUpgrade(save, id) {
+  if (!canBuyNecromancerUpgrade(save, id)) return false
+  save.necromancer.totalXP -= NECROMANCER_UPGRADES[id].xpCost
+  save.necromancer.upgrades.push(id)
+  Logger.debug(`[MetaProgression] Necromancer upgrade: ${id}`)
+  return true
+}
+
 // ── Run XP calculation ────────────────────────────────────────
 
 function calcRunXP(runStats) {
@@ -311,6 +339,9 @@ function endRun(save, runStats, outcome) {
   } else if (char === 'vampire') {
     if (!save.vampire) save.vampire = { totalXP: 0, upgrades: [] }
     save.vampire.totalXP += xpEarned
+  } else if (char === 'necromancer') {
+    if (!save.necromancer) save.necromancer = { totalXP: 0, upgrades: [] }
+    save.necromancer.totalXP += xpEarned
   } else {
     save.warrior.totalXP += xpEarned
   }
@@ -349,6 +380,8 @@ export default {
   buyEngineerUpgrade,
   canBuyMageUpgrade,
   buyMageUpgrade,
+  canBuyNecromancerUpgrade,
+  buyNecromancerUpgrade,
   applyToPlayer,
   calcRunXP,
   endRun,
@@ -357,4 +390,5 @@ export default {
   RANGER_UPGRADES,
   ENGINEER_UPGRADES,
   MAGE_UPGRADES,
+  NECROMANCER_UPGRADES,
 }

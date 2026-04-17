@@ -2,6 +2,7 @@ import { WARRIOR_ABILITIES } from '../data/abilities.js'
 import { RANGER_ABILITIES, RANGER_UPGRADES }   from '../data/ranger.js'
 import { ENGINEER_ABILITIES, ENGINEER_UPGRADES } from '../data/engineer.js'
 import { MAGE_ABILITIES, MAGE_UPGRADES }       from '../data/mage.js'
+import { NECROMANCER_ABILITIES, NECROMANCER_UPGRADES } from '../data/necromancer.js'
 import { WARRIOR_UPGRADES } from '../data/upgrades.js'
 import Logger from '../core/Logger.js'
 
@@ -12,19 +13,21 @@ const STAT_ABILITIES = {
 }
 
 const ABILITY_MAPS = {
-  warrior:  WARRIOR_ABILITIES,
-  ranger:   RANGER_ABILITIES,
-  engineer: ENGINEER_ABILITIES,
-  mage:     MAGE_ABILITIES,
-  vampire:  STAT_ABILITIES,
+  warrior:     WARRIOR_ABILITIES,
+  ranger:      RANGER_ABILITIES,
+  engineer:    ENGINEER_ABILITIES,
+  mage:        MAGE_ABILITIES,
+  vampire:     STAT_ABILITIES,
+  necromancer: NECROMANCER_ABILITIES,
 }
 
 const UPGRADE_MAPS = {
-  warrior:  WARRIOR_UPGRADES,
-  ranger:   RANGER_UPGRADES,
-  engineer: ENGINEER_UPGRADES,
-  mage:     MAGE_UPGRADES,
-  vampire:  {},
+  warrior:     WARRIOR_UPGRADES,
+  ranger:      RANGER_UPGRADES,
+  engineer:    ENGINEER_UPGRADES,
+  mage:        MAGE_UPGRADES,
+  vampire:     {},
+  necromancer: NECROMANCER_UPGRADES,
 }
 
 const WEIGHTS = {
@@ -206,6 +209,9 @@ function applyAbility(abilityId, player, charKey = 'warrior', ctx = {}) {
       player.mageActiveStacks[key] = (player.mageActiveStacks[key] ?? 0) + 1
       break
     }
+    case 'necro-minion-mastery':
+      player.minionMasteryLevel = Math.max(player.minionMasteryLevel ?? 1, effect.level)
+      break
   }
 
   if (!Array.isArray(player.abilities)) player.abilities = []
@@ -215,4 +221,4 @@ function applyAbility(abilityId, player, charKey = 'warrior', ctx = {}) {
   return effect.type
 }
 
-export default { getChoices, applyAbility, getAbilityDef, WARRIOR_ABILITIES, RANGER_ABILITIES, ENGINEER_ABILITIES }
+export default { getChoices, applyAbility, getAbilityDef, WARRIOR_ABILITIES, RANGER_ABILITIES, ENGINEER_ABILITIES, NECROMANCER_ABILITIES }
