@@ -881,6 +881,52 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
   50%       { box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 0 18px rgba(120, 220, 100, 0.75), 0 2px 6px rgba(0,0,0,0.45); }
 }
 
+/* ── Mage actives ──────────────────────────────────────────── */
+
+.hud-action-slot.is-chain-lightning {
+  border-color: rgba(120, 200, 255, 0.55);
+  padding: 2px;
+  overflow: hidden;
+  width: 44px;
+  height: 44px;
+}
+
+.hud-action-slot.is-chain-lightning-active {
+  border-color: #78c8ff;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.1),
+    0 0 10px rgba(120, 200, 255, 0.55),
+    0 2px 6px rgba(0, 0, 0, 0.45);
+  animation: pulse-chain-lightning 0.9s ease-in-out infinite;
+}
+
+@keyframes pulse-chain-lightning {
+  0%, 100% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 0 8px rgba(100, 180, 240, 0.45), 0 2px 6px rgba(0,0,0,0.45); }
+  50%       { box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 0 18px rgba(180, 230, 255, 0.9), 0 2px 6px rgba(0,0,0,0.45); }
+}
+
+.hud-action-slot.is-telekinetic-throw {
+  border-color: rgba(180, 120, 255, 0.55);
+  padding: 2px;
+  overflow: hidden;
+  width: 44px;
+  height: 44px;
+}
+
+.hud-action-slot.is-telekinetic-throw-active {
+  border-color: #b478ff;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.1),
+    0 0 10px rgba(180, 120, 255, 0.55),
+    0 2px 6px rgba(0, 0, 0, 0.45);
+  animation: pulse-telekinetic-throw 0.9s ease-in-out infinite;
+}
+
+@keyframes pulse-telekinetic-throw {
+  0%, 100% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 0 8px rgba(160, 100, 240, 0.45), 0 2px 6px rgba(0,0,0,0.45); }
+  50%       { box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 0 18px rgba(210, 160, 255, 0.9), 0 2px 6px rgba(0,0,0,0.45); }
+}
+
 .hud-action-slot.is-placeholder {
   font-size: 0.85rem;
   font-weight: 700;

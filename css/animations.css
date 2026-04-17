@@ -57,6 +57,114 @@
   box-shadow: 0 0 8px 1px rgba(255, 180, 80, 0.45);
 }
 
+/* ── Mage: Chain Lightning targeting (living enemies highlighted) ── */
+.chain-lightning-mode .tile.enemy-alive {
+  cursor: crosshair;
+  box-shadow: 0 0 10px 2px rgba(120, 200, 255, 0.65);
+  animation: chain-lightning-pulse 1s ease-in-out infinite;
+}
+
+@keyframes chain-lightning-pulse {
+  0%, 100% { box-shadow: 0 0 8px 1px rgba(120, 200, 255, 0.45); }
+  50%      { box-shadow: 0 0 14px 3px rgba(180, 230, 255, 0.9); }
+}
+
+/* Short white flash on the struck tile. */
+.tile.zap-flash {
+  animation: zap-flash 0.4s ease-out 1;
+}
+@keyframes zap-flash {
+  0%   { filter: brightness(1) drop-shadow(0 0 0 rgba(180, 230, 255, 0)); }
+  20%  { filter: brightness(2.2) drop-shadow(0 0 12px rgba(200, 230, 255, 0.95)); }
+  100% { filter: brightness(1)   drop-shadow(0 0 0 rgba(180, 230, 255, 0)); }
+}
+
+/* Screen-space lightning bolt — a thin rotated line fading quickly. */
+.zap-bolt {
+  position: fixed;
+  height: 3px;
+  transform-origin: 0 50%;
+  background: linear-gradient(
+    90deg,
+    rgba(180, 230, 255, 0) 0%,
+    rgba(200, 240, 255, 0.95) 20%,
+    #ffffff 50%,
+    rgba(200, 240, 255, 0.95) 80%,
+    rgba(180, 230, 255, 0) 100%);
+  box-shadow:
+    0 0 6px 1px rgba(180, 230, 255, 0.9),
+    0 0 14px 4px rgba(120, 180, 255, 0.55);
+  pointer-events: none;
+  z-index: 10000;
+  animation: zap-bolt-fade 0.42s ease-out forwards;
+}
+
+@keyframes zap-bolt-fade {
+  0%   { opacity: 0.0; filter: brightness(1.8); }
+  15%  { opacity: 1.0; }
+  100% { opacity: 0.0; filter: brightness(0.9); }
+}
+
+/* ── Mage: Telekinetic Throw targeting ── */
+/* Step 1 — highlight all revealed living enemies (except bosses/immune — we still highlight all, gameplay blocks the invalid ones). */
+.telekinetic-throw-mode-enemy .tile.enemy-alive {
+  cursor: grab;
+  box-shadow: 0 0 10px 2px rgba(180, 120, 255, 0.6);
+}
+
+/* Step 2 — highlight the origin enemy tile + any revealed empty tile.
+   (Empty tiles already read as `.revealed` + `.tile-empty`; we highlight any revealed tile
+    that isn't locked and isn't an enemy as a candidate landing spot.) */
+#grid-container.telekinetic-throw-mode-dest .tile.revealed:not(.locked):not(.enemy-alive) {
+  pointer-events: all;
+  cursor: crosshair;
+  box-shadow: inset 0 0 0 2px rgba(180, 120, 255, 0.55);
+}
+
+.tile.telekinetic-origin .tile-inner {
+  border-radius: 6px;
+  box-shadow:
+    inset 0 0 0 3px rgba(220, 180, 255, 1),
+    0 0 12px rgba(180, 120, 255, 0.8);
+  animation: telekinetic-origin-blink 0.7s ease-in-out infinite;
+}
+
+@keyframes telekinetic-origin-blink {
+  0%, 100% {
+    box-shadow:
+      inset 0 0 0 2px rgba(220, 180, 255, 0.85),
+      0 0 10px rgba(180, 120, 255, 0.55);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 3px rgba(240, 210, 255, 1),
+      0 0 20px rgba(200, 140, 255, 0.95);
+  }
+}
+
+/* Shockwave ring that plays on the landing tile. */
+.slam-shock {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  margin-top:  -4px;
+  border: 3px solid rgba(255, 230, 180, 0.95);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: slam-shock 0.58s ease-out forwards;
+  z-index: 20;
+  box-shadow: 0 0 18px rgba(255, 200, 120, 0.85);
+}
+
+@keyframes slam-shock {
+  0%   { transform: scale(0.2); opacity: 0.95; border-color: rgba(255, 240, 210, 1); }
+  80%  { transform: scale(2.8); opacity: 0.35; }
+  100% { transform: scale(3.4); opacity: 0.0; }
+}
+
 /* 3×3 AoE preview — blinking outline */
 .tile.triple-volley-aoe-preview {
   position: relative;
@@ -257,3 +365,19 @@
 .float-text.xp     { color: #88aaff; text-shadow: 0 0 8px rgba(100,150,255,0.7); }
 .float-text.heal   { color: #55ff99; text-shadow: 0 0 8px rgba(0,220,100,0.7); }
 .float-text.mana   { color: #55aaff; text-shadow: 0 0 8px rgba(0,150,255,0.7); }
+
+/* ── Tile reveal: soft dust puff (see tiles.css) ── */
+@keyframes tile-reveal-dust {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 7px, 10px) scale(0.84);
+  }
+  22% {
+    opacity: 0.68;
+    transform: translate3d(0, 0, 10px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -11px, 10px) scale(1.22);
+  }
+}

@@ -540,7 +540,92 @@ function generateGrid(floor = 1, opts = {}) {
     }
   }
 
+  ensureExitConnectivityFromGrid(floor)
+
   Logger.debug(`[TileEngine] Floor ${floor} grid generated (${cols}x${rows})${isBossFloor ? ' [BOSS]' : ''}`)
+}
+
+/**
+ * Holes and blockages do not spread reachability; random placement (or mid-run rerolls) can trap
+ * the exit. Ensure every passable tile (non-hole, non-blockage) lies in one connected component
+ * with the exit by replacing boundary hazards with empty floor.
+ * @returns {number} how many tiles were converted (0 if nothing to fix)
+ */
+function ensureExitConnectivityFromGrid(floor) {
+  if (_gridMode !== 'dungeon') return 0
+  const { cols, rows } = CONFIG.gridSize(floor)
+  let exitR = -1
+  let exitC = -1
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (_grid[r][c].type === 'exit') {
+        exitR = r
+        exitC = c
+        break
+      }
+    }
+    if (exitR >= 0) break
+  }
+  if (exitR < 0) return 0
+
+  const passable = t => t && t.type !== 'hole' && t.type !== 'blockage'
+
+  let totalPassable = 0
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (passable(_grid[r][c])) totalPassable++
+    }
+  }
+
+  let replaced = 0
+  for (let iter = 0; iter < 80; iter++) {
+    const visited = new Set()
+    const q = [{ r: exitR, c: exitC }]
+    visited.add(`${exitR},${exitC}`)
+    while (q.length) {
+      const { r, c } = q.shift()
+      for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+        const nr = r + dr
+        const nc = c + dc
+        if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue
+        const key = `${nr},${nc}`
+        if (visited.has(key)) continue
+        const nt = _grid[nr][nc]
+        if (!passable(nt)) continue
+        visited.add(key)
+        q.push({ r: nr, c: nc })
+      }
+    }
+
+    if (visited.size === totalPassable) return replaced
+
+    const candidates = []
+    for (const key of visited) {
+      const [r, c] = key.split(',').map(Number)
+      for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+        const nr = r + dr
+        const nc = c + dc
+        if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue
+        const nk = `${nr},${nc}`
+        if (visited.has(nk)) continue
+        const nt = _grid[nr][nc]
+        if (nt.type === 'hole' || nt.type === 'blockage') {
+          candidates.push({ r: nr, c: nc })
+        }
+      }
+    }
+    if (candidates.length === 0) {
+      Logger.warn('[TileEngine] Could not merge passable regions — no boundary hazards')
+      return replaced
+    }
+    const pick = candidates[Math.floor(Math.random() * candidates.length)]
+    _grid[pick.r][pick.c] = _createTileWithEnemy('empty', pick.r, pick.c, floor)
+    totalPassable++
+    replaced++
+    Logger.debug(`[TileEngine] Connectivity: replaced hazard at [${pick.r},${pick.c}] with empty`)
+  }
+  Logger.warn('[TileEngine] Connectivity merge hit iteration cap')
+  return replaced
 }
 
 /**
@@ -711,7 +796,8 @@ function _buildTileElement(tile, r, c, onTap, onHold, scrollable = false) {
         ${enemyStatsHTML}
         <span class="tile-threat-clue" aria-hidden="true"></span>
       </div>
-    </div>`
+    </div>
+    <div class="tile-dust" aria-hidden="true"></div>`
 
   div.querySelector('.tile-back').style.backgroundImage = `url('${backSrc}')`
   _wireTileIconFallback(div, emojiFallback)
@@ -1040,7 +1126,9 @@ function markReachable(row, col, uiMark) {
       if (adj.element) uiMark(adj.element)
     }
   }
-  if (_diagonalMovement && Math.random() < 0.5) {
+  // Mage Phase Walk: diagonals are always part of the frontier (no random — random rolls here
+  // desynced incremental reveals from recomputeReachabilityFromRevealed, so tiles could “go dark” again).
+  if (_diagonalMovement) {
     for (const adj of getDiagonalTiles(row, col)) {
       if (!adj.revealed && !adj.reachable) {
         adj.reachable = true
@@ -1172,6 +1260,7 @@ function patchMainGridTileAt(r, c, gridEl, onTap, onHold) {
 export default {
   createEnemy,
   generateGrid,
+  ensureExitConnectivityFromGrid,
   importGridFromSnapshot,
   replaceTileWithEmptyPreserveState,
   patchMainGridTileAt,

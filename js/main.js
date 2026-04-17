@@ -10,11 +10,13 @@ import { WARRIOR_UPGRADES, SHOP_ITEMS }     from './data/upgrades.js'
 import { ITEMS }                            from './data/items.js'
 import { RANGER_UPGRADES }                  from './data/ranger.js'
 import { ENGINEER_UPGRADES }                from './data/engineer.js'
+import { MAGE_UPGRADES }                    from './data/mage.js'
 import { GLOBAL_PASSIVE_UPGRADES, GLOBAL_PASSIVE_IDS } from './data/passives.js'
 
 function _metaCharSave(save, charId) {
   if (charId === 'ranger') return save.ranger
   if (charId === 'engineer') return save.engineer
+  if (charId === 'mage') return save.mage
   if (charId === 'vampire') return save.vampire
   return save.warrior
 }
@@ -58,7 +60,7 @@ const CHARACTERS = [
     attackGif:   'assets/sprites/Heroes/Mage/blue-mage-hero-attack-small-speed.gif',
     attackMs:    2000,
     emoji:       '🧙‍♂️',
-    upgrades:    {},
+    upgrades:    MAGE_UPGRADES,
     unlockCost:  null,
     baseHP:      30,
     baseMana:    60,
@@ -187,6 +189,10 @@ async function boot() {
     save.engineer = { totalXP: 0, upgrades: [] }
     await SaveManager.save(save)
   }
+  if (!save.mage) {
+    save.mage = { totalXP: 0, upgrades: [] }
+    await SaveManager.save(save)
+  }
   if (!save.vampire) {
     save.vampire = { totalXP: 0, upgrades: [] }
     await SaveManager.save(save)
@@ -306,6 +312,26 @@ async function boot() {
         })
         return
       }
+      if (ch === 'mage') {
+        if (!(s.mage?.upgrades ?? []).includes('chain-lightning')) return
+        const def = MAGE_UPGRADES['chain-lightning']
+        const br  = GameController.getChainLightningBreakdown?.()
+        const dmgDesc = br
+          ? `Each zap: ${br.perZap} damage (avg melee ${Number.isInteger(br.avgMelee) ? br.avgMelee : br.avgMelee.toFixed(1)}${br.stacks > 0 ? `, +${Math.round((br.mult - 1) * 100)}% mastery` : ''}).`
+          : 'Each zap deals equal damage — scales with your HUD attack.'
+        UI.showInfoCard({
+          spriteSrc: '',
+          name:   def.name,
+          type:   'Mage Ability',
+          blurb:  'Tap a revealed enemy — a lightning bolt strikes, then arcs to up to 2 more random revealed enemies. Each zap deals equal damage. Spell-immune enemies and bosses can still be immune.',
+          details: [
+            { icon: '🔵', label: 'Mana Cost', desc: `${def.manaCost} mana when you fire` },
+            { icon: '🎯', label: 'Targeting', desc: 'Tap a revealed living enemy — jumps pick randomly from the remaining revealed enemies.' },
+            { icon: '⚡', label: 'Damage',   desc: dmgDesc },
+          ],
+        })
+        return
+      }
       if (ch === 'ranger') {
         const arc = (s.ranger?.upgrades ?? []).includes('ricochet-arc-mastery')
         const rr  = GameController.getRicochetBreakdown()
@@ -362,11 +388,32 @@ async function boot() {
       const ch = s.selectedCharacter ?? 'warrior'
       if (ch === 'ranger') GameController.poisonArrowShotAction()
       else if (ch === 'engineer') GameController.teslaTowerAction()
+      else if (ch === 'mage') GameController.telekineticThrowAction()
       else GameController.blindingLightAction()
     },
     () => {
       const s = GameController.getSave()
       const ch = s.selectedCharacter ?? 'warrior'
+      if (ch === 'mage') {
+        if (!(s.mage?.upgrades ?? []).includes('telekinetic-throw')) return
+        const def = MAGE_UPGRADES['telekinetic-throw']
+        const br  = GameController.getTelekineticThrowBreakdown?.()
+        const dmgDesc = br
+          ? `Slam damage: ${br.damage} (avg melee × 3${br.stacks > 0 ? `, +${Math.round((br.mult - 1) * 100)}% mastery` : ''}).`
+          : 'Slam damage = max(1, round(avg melee × 3)).'
+        UI.showInfoCard({
+          spriteSrc: '',
+          name:   def.name,
+          type:   'Mage Ability',
+          blurb:  'Tap a revealed enemy to grab them, then tap a revealed empty tile to slam them down. Locks reset: tiles around the old position unlock, tiles around the new landing re-lock. Bosses and spell-immune enemies are immune.',
+          details: [
+            { icon: '🔵', label: 'Mana Cost', desc: `${def.manaCost} mana when you slam` },
+            { icon: '🎯', label: 'Targeting', desc: 'Step 1: tap enemy. Step 2: tap a revealed empty tile (no loot, chest, stairs, turret, sub-floor entry).' },
+            { icon: '🌀', label: 'Damage',   desc: dmgDesc },
+          ],
+        })
+        return
+      }
       if (ch === 'engineer') {
         if (!(s.engineer?.upgrades ?? []).includes('tesla-tower')) return
         const def = ENGINEER_UPGRADES['tesla-tower']
@@ -1247,7 +1294,10 @@ function _renderUpgradeDetail(id, def, isOwned, canAfford) {
   const s        = GameController.getSave()
   const charSave = _metaCharSave(s, char.id)
   const owned    = charSave.upgrades ?? []
-  const map      = char.id === 'ranger' ? RANGER_UPGRADES : char.id === 'engineer' ? ENGINEER_UPGRADES : char.id === 'vampire' ? {} : WARRIOR_UPGRADES
+  const map      = char.id === 'ranger' ? RANGER_UPGRADES
+    : char.id === 'engineer' ? ENGINEER_UPGRADES
+      : char.id === 'mage' ? MAGE_UPGRADES
+        : char.id === 'vampire' ? {} : WARRIOR_UPGRADES
   const missingPrereq = def.requires && !owned.includes(def.requires)
   if (hintEl) {
     if (missingPrereq && !isOwned) {
@@ -1273,7 +1323,9 @@ function _renderUpgradeDetail(id, def, isOwned, canAfford) {
         ? MetaProgression.buyRangerUpgrade(s, id)
         : char.id === 'engineer'
           ? MetaProgression.buyEngineerUpgrade(s, id)
-          : MetaProgression.buyUpgrade(s, id)
+          : char.id === 'mage'
+            ? MetaProgression.buyMageUpgrade(s, id)
+            : MetaProgression.buyUpgrade(s, id)
       if (bought) {
         SaveManager.save(s)
         _selectedUpgradeId = null

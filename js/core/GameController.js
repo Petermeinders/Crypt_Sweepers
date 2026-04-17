@@ -10,6 +10,7 @@ import SaveManager           from '../save/SaveManager.js'
 import UI                    from '../ui/UI.js'
 import { RANGER_BASE, RANGER_UPGRADES } from '../data/ranger.js'
 import { ENGINEER_BASE, ENGINEER_UPGRADES, ENGINEER_TURRET } from '../data/engineer.js'
+import { MAGE_BASE, MAGE_UPGRADES } from '../data/mage.js'
 import { VAMPIRE_BASE, VAMPIRE_DARK_EYES_MAX_TILES } from '../data/vampire.js'
 import { WARRIOR_UPGRADES }  from '../data/upgrades.js'
 import { ENEMY_SPRITES, MONSTER_ICONS_BASE, ITEM_ICONS_BASE, TILE_TYPE_ICON_FILES, MAGIC_CHEST_OPEN_GIF, MAGIC_CHEST_GIF_DURATION_MS } from '../data/tileIcons.js'
@@ -372,6 +373,9 @@ async function _maybeMouseUnflip(sourceTile) {
     const patched = TileEngine.patchMainGridTileAt(target.row, target.col, UI.getGridEl(), onTileTap, onTileHold)
     if (!patched) _refreshMainGridDomFromModel()
 
+    if (TileEngine.ensureExitConnectivityFromGrid(run.floor) > 0) {
+      _refreshMainGridDomFromModel()
+    }
     TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
     TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
     TileEngine.refreshAllThreatClueDisplays()
@@ -594,10 +598,20 @@ function _charKey() {
 function _isActiveUnlocked(abilityKey, charKey = _charKey()) {
   const list = charKey === 'ranger'   ? (_save.ranger?.upgrades   ?? [])
              : charKey === 'engineer' ? (_save.engineer?.upgrades ?? [])
+             : charKey === 'mage'     ? (_save.mage?.upgrades     ?? [])
              :                          (_save.warrior?.upgrades  ?? [])
   if (!list.includes(abilityKey)) return false
   const runUnlocked = run?.player?.unlockedActives ?? []
   return runUnlocked.includes(abilityKey)
+}
+
+function _isMageActiveUnlocked(abilityKey) {
+  return _isActiveUnlocked(abilityKey, 'mage')
+}
+
+function _mageActiveDamageMult(abilityKey) {
+  const stacks = run?.player?.mageActiveStacks?.[abilityKey] ?? 0
+  return 1 + 0.1 * stacks
 }
 
 /** Legacy alias used by ranger HUD/actions. Now delegates to the unified active-unlock check. */
@@ -850,8 +864,8 @@ function buildRunState() {
   const isEngineer = _charKey() === 'engineer'
   const isMage     = _charKey() === 'mage'
   const isVampire  = _charKey() === 'vampire'
-  const baseHP     = isMage ? 30 : isRanger ? RANGER_BASE.hp : isEngineer ? ENGINEER_BASE.hp : isVampire ? VAMPIRE_BASE.hp : CONFIG.player.baseHP
-  const baseMana   = isMage ? 60 : isRanger ? RANGER_BASE.mana : isEngineer ? ENGINEER_BASE.mana : isVampire ? VAMPIRE_BASE.mana : CONFIG.player.baseMana
+  const baseHP     = isMage ? MAGE_BASE.hp : isRanger ? RANGER_BASE.hp : isEngineer ? ENGINEER_BASE.hp : isVampire ? VAMPIRE_BASE.hp : CONFIG.player.baseHP
+  const baseMana   = isMage ? MAGE_BASE.mana : isRanger ? RANGER_BASE.mana : isEngineer ? ENGINEER_BASE.mana : isVampire ? VAMPIRE_BASE.mana : CONFIG.player.baseMana
 
   const p = {
     hp:      baseHP,
@@ -884,6 +898,10 @@ function buildRunState() {
     /** Ranger: level-up picks for Ricochet / Triple Volley / Poison — +10% damage per stack for that active. */
     rangerActiveStacks: isRanger
       ? { ricochet: 0, 'arrow-barrage': 0, 'poison-arrow-shot': 0 }
+      : undefined,
+    /** Mage: level-up picks for Chain Lightning / Telekinetic Throw — +10% damage per stack for that active. */
+    mageActiveStacks: isMage
+      ? { 'chain-lightning': 0, 'telekinetic-throw': 0 }
       : undefined,
     retreatPercent:     CONFIG.retreat.goldKeepPercent,
     extraAbilityChoice: false,
@@ -1200,6 +1218,26 @@ function _refreshEngineerHud() {
   UI.setEngineerTeslaBtn(_isEngineerUpgradeUnlocked('tesla-tower'), t, run.turret?.mode === 'tesla')
 }
 
+function _refreshMageHud() {
+  if (_charKey() !== 'mage') return
+  UI.setSlamBtn(false)
+  UI.setRicochetBtn(false)
+  UI.setArrowBarrageBtn(false)
+  UI.setPoisonArrowShotBtn(false)
+  UI.setBlindingLightBtn(false)
+  UI.setDivineLightBtn(false)
+  UI.setEngineerConstructBtn(false)
+  UI.setEngineerTeslaBtn(false, 10, false)
+  UI.setChainLightningBtn(
+    _isMageActiveUnlocked('chain-lightning'),
+    MAGE_UPGRADES['chain-lightning'].manaCost,
+  )
+  UI.setTelekineticThrowBtn(
+    _isMageActiveUnlocked('telekinetic-throw'),
+    MAGE_UPGRADES['telekinetic-throw'].manaCost,
+  )
+}
+
 // ── Init ─────────────────────────────────────────────────────
 
 function init(saveData) {
@@ -1332,9 +1370,11 @@ function returnToMenu(autoSave = false) {
     ? _save.ranger.totalXP
     : char === 'engineer'
       ? _save.engineer.totalXP
-      : char === 'vampire'
-        ? (_save.vampire?.totalXP ?? 0)
-        : _save.warrior.totalXP
+      : char === 'mage'
+        ? (_save.mage?.totalXP ?? 0)
+        : char === 'vampire'
+          ? (_save.vampire?.totalXP ?? 0)
+          : _save.warrior.totalXP
   UI.updateMenuStats(_save.persistentGold, xp, char, _save)
   UI.setActiveDifficulty(_save.settings.difficulty)
   UI.showMainMenu()
@@ -1365,6 +1405,8 @@ function _startFloor() {
   UI.setPoisonArrowShotActive(false)
   UI.setGridPoisonArrowShotMode(false)
   _cancelEngineerConstructMode()
+  _cancelChainLightningMode()
+  _cancelTelekineticThrowMode()
   if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0); run.player.freezingHitStacks = 0; UI.setFreezingHit(0); run.player.burnStacks = 0; UI.setBurnOverlay(0); run.player.poisonStacks = 0; UI.setPlayerPoison(0); run.player.corruptionStacks = 0; if (run.player.corruptionBaseMaxHp) { run.player.maxHp = run.player.corruptionBaseMaxHp; run.player.corruptionBaseMaxHp = 0 } if (run.player.corruptionBaseMaxMana) { run.player.maxMana = run.player.corruptionBaseMaxMana; run.player.corruptionBaseMaxMana = 0 } UI.setCorruption(0) }
   if (run) { run._hourglassSnapshot = null }
   _throwingKnifeTargeting  = false
@@ -1385,6 +1427,9 @@ function _startFloor() {
   }
   if (!gridRestored) {
     TileEngine.generateGrid(run.floor, { rest: run.atRest })
+  }
+  if (!run.atRest) {
+    TileEngine.ensureExitConnectivityFromGrid(run.floor)
   }
   TileEngine.renderGrid(UI.getGridEl(), onTileTap, onTileHold)
   if (run.turret) _syncTurretVisual()
@@ -1518,7 +1563,9 @@ function _startFloor() {
     _refreshRangerActiveHud()
   } else if (_charKey() === 'engineer') {
     _refreshEngineerHud()
-  } else if (_charKey() === 'mage' || _charKey() === 'vampire') {
+  } else if (_charKey() === 'mage') {
+    _refreshMageHud()
+  } else if (_charKey() === 'vampire') {
     UI.setSlamBtn(false)
     UI.setArrowBarrageBtn(false)
     UI.setPoisonArrowShotBtn(false)
@@ -1729,6 +1776,12 @@ let _engineerPendingTile = null
 let _throwingKnifeTargeting  = false
 let _rustyNailTargeting      = false
 let _twinBladesTargeting     = false
+/** Mage Chain Lightning — true once the player has tapped the ability. */
+let _chainLightningSelecting = false
+/** Mage Telekinetic Throw step: 0 = idle, 1 = picking enemy, 2 = picking destination. */
+let _telekineticThrowStep   = 0
+/** Enemy tile captured at step 1 — { row, col } in the active grid. */
+let _telekineticEnemyTile   = null
 
 /** Single focused enemy for current combat — no swapping until this one is slain (ambush uses `force`). */
 let _combatEngagementTile = null
@@ -1962,6 +2015,20 @@ function _cancelEngineerConstructMode() {
   _engineerConstructSelecting = false
   _engineerPendingTile = null
   UI.setEngineerPlaceMode(false)
+}
+
+function _cancelChainLightningMode() {
+  _chainLightningSelecting = false
+  UI.setChainLightningActive(false)
+  UI.setGridChainLightningMode(false)
+}
+
+function _cancelTelekineticThrowMode() {
+  _telekineticThrowStep = 0
+  _telekineticEnemyTile = null
+  UI.setTelekineticThrowActive(false)
+  UI.setGridTelekineticThrowMode(null)
+  UI.clearTelekineticMarks()
 }
 
 function _cancelSpellLanternBlindingForRicochet() {
@@ -2412,6 +2479,59 @@ function _tryConsumeTargetingTap(tile) {
       }
     }
     return true
+  }
+  if (_chainLightningSelecting) {
+    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      if (tile.enemyData.spellImmune) {
+        UI.setMessage('🛡️ That enemy is immune to Chain Lightning!', true)
+      } else {
+        _executeChainLightning(tile)
+      }
+    }
+    return true
+  }
+  if (_telekineticThrowStep > 0) {
+    if (_telekineticThrowStep === 1) {
+      if (_isTelekineticThrowEnemyTarget(tile)) {
+        _telekineticEnemyTile = { row: tile.row, col: tile.col }
+        _telekineticThrowStep = 2
+        UI.clearTelekineticMarks()
+        UI.markTelekineticOrigin(tile.element)
+        UI.setGridTelekineticThrowMode('dest')
+        UI.setMessage('🌀 Now tap a revealed empty tile to slam them down.')
+      } else if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+        if (tile.enemyData.behaviour === 'boss' || tile.type === 'boss') {
+          UI.setMessage('🛡️ Bosses cannot be thrown.', true)
+        } else if (tile.enemyData.spellImmune) {
+          UI.setMessage('🛡️ That enemy is immune to Telekinetic Throw!', true)
+        } else {
+          UI.setMessage('Not a valid target.', true)
+        }
+      } else {
+        UI.setMessage('Tap a revealed enemy to grab.', true)
+      }
+      return true
+    }
+    if (_telekineticThrowStep === 2) {
+      const origin = _telekineticEnemyTile
+        ? _getActiveTileAt(_telekineticEnemyTile.row, _telekineticEnemyTile.col)
+        : null
+      if (!origin || !_isTelekineticThrowEnemyTarget(origin)) {
+        _cancelTelekineticThrowMode()
+        UI.setMessage('Telekinetic Throw — target no longer valid.', true)
+        return true
+      }
+      if (tile.row === origin.row && tile.col === origin.col) {
+        UI.setMessage('Pick a different landing tile.', true)
+        return true
+      }
+      if (!_isTelekineticThrowDestination(tile)) {
+        UI.setMessage('Landing tile must be a revealed empty tile (no loot, chest, stairs, turret).', true)
+        return true
+      }
+      _executeTelekineticThrow(origin, tile)
+      return true
+    }
   }
   return false
 }
@@ -3018,6 +3138,63 @@ function onTileTap(row, col) {
     return
   }
 
+  // Chain Lightning: tap a revealed living enemy — bolt zaps, then arcs to up to 2 more at random
+  if (_chainLightningSelecting) {
+    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      if (tile.enemyData.spellImmune) {
+        UI.setMessage('🛡️ That enemy is immune to Chain Lightning!', true)
+      } else {
+        _executeChainLightning(tile)
+      }
+    }
+    return
+  }
+
+  // Telekinetic Throw: tap enemy (step 1), tap empty tile (step 2)
+  if (_telekineticThrowStep > 0) {
+    if (_telekineticThrowStep === 1) {
+      if (_isTelekineticThrowEnemyTarget(tile)) {
+        _telekineticEnemyTile = { row: tile.row, col: tile.col }
+        _telekineticThrowStep = 2
+        UI.clearTelekineticMarks()
+        UI.markTelekineticOrigin(tile.element)
+        UI.setGridTelekineticThrowMode('dest')
+        UI.setMessage('🌀 Now tap a revealed empty tile to slam them down.')
+      } else if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+        if (tile.enemyData.behaviour === 'boss' || tile.type === 'boss') {
+          UI.setMessage('🛡️ Bosses cannot be thrown.', true)
+        } else if (tile.enemyData.spellImmune) {
+          UI.setMessage('🛡️ That enemy is immune to Telekinetic Throw!', true)
+        } else {
+          UI.setMessage('Not a valid target.', true)
+        }
+      } else {
+        UI.setMessage('Tap a revealed enemy to grab.', true)
+      }
+      return
+    }
+    if (_telekineticThrowStep === 2) {
+      const origin = _telekineticEnemyTile
+        ? _getActiveTileAt(_telekineticEnemyTile.row, _telekineticEnemyTile.col)
+        : null
+      if (!origin || !_isTelekineticThrowEnemyTarget(origin)) {
+        _cancelTelekineticThrowMode()
+        UI.setMessage('Telekinetic Throw — target no longer valid.', true)
+        return
+      }
+      if (tile.row === origin.row && tile.col === origin.col) {
+        UI.setMessage('Pick a different landing tile.', true)
+        return
+      }
+      if (!_isTelekineticThrowDestination(tile)) {
+        UI.setMessage('Landing tile must be a revealed empty tile (no loot, chest, stairs, turret).', true)
+        return
+      }
+      _executeTelekineticThrow(origin, tile)
+      return
+    }
+  }
+
   if (state === States.FLOOR_EXPLORE) {
     const floorCombatLocked = _isCombatCommitmentLocked()
     const tileIsLivingEnemy = tile.revealed && tile.enemyData && !tile.enemyData._slain
@@ -3076,6 +3253,9 @@ function onTileTap(row, col) {
     } else if (tile.revealed && tile.type === 'hole') {
       if (tile.deadlockEscape) _climbThroughHazard(tile)
       else UI.setMessage('A gaping pit blocks the way. You cannot pass.')
+    } else if (tile.revealed && tile.type === 'blockage') {
+      if (tile.deadlockEscape) _climbThroughHazard(tile)
+      else UI.setMessage('A pile of rubble blocks the way. Find another path.')
     } else if (tile.revealed && tile.type === 'sub_floor_entry' && tile.entryReady && !tile.subFloorVisited) {
       _enterSubFloor(tile)
     } else if (tile.revealed && tile.type === 'war_banner' && tile.bannerReady && run.warBanner?.active) {
@@ -4467,6 +4647,7 @@ function slamAction() {
 function abilitySlotAAction() {
   if (_charKey() === 'ranger') ricochetAction()
   else if (_charKey() === 'engineer') constructTurretAction()
+  else if (_charKey() === 'mage') chainLightningAction()
   else slamAction()
 }
 
@@ -4558,6 +4739,348 @@ function _executeRicochet() {
     _combatBusy = false
     _restoreCombatEngagementAfterMultiTargetAbility(savedEngagement)
   }, doneMs)
+}
+
+// ── Mage: Chain Lightning ─────────────────────────────────────
+
+/** Per-zap damage for Chain Lightning: equal across bounces, scaled by mage mastery. */
+function _chainLightningDamagePerZap() {
+  const avg  = _avgMeleeDamage()
+  const unit = Math.max(1, Math.round(avg * CONFIG.ability.ricochetUnitMult))
+  const mult = _mageActiveDamageMult('chain-lightning')
+  return Math.max(1, Math.round(unit * 1.5 * mult))
+}
+
+function getChainLightningBreakdown() {
+  if (!run || !run.player?.isMage) return null
+  const avg  = _avgMeleeDamage()
+  const unit = Math.max(1, Math.round(avg * CONFIG.ability.ricochetUnitMult))
+  const mult = _mageActiveDamageMult('chain-lightning')
+  const perZap = Math.max(1, Math.round(unit * 1.5 * mult))
+  const stacks = run.player.mageActiveStacks?.['chain-lightning'] ?? 0
+  return { avgMelee: avg, unit, mult, stacks, perZap, maxZaps: 3 }
+}
+
+function chainLightningAction() {
+  if (!_isMageActiveUnlocked('chain-lightning')) return
+  if (_combatBusy) return
+  const cost = _stillWaterManaCost(MAGE_UPGRADES['chain-lightning'].manaCost + _tearyExtraCost())
+
+  if (!_chainLightningSelecting) {
+    if (run.player.mana < cost) {
+      UI.setMessage('Not enough mana for Chain Lightning!', true)
+      return
+    }
+    _cancelSpellLanternBlindingForRicochet()
+    _cancelTelekineticThrowMode()
+    _chainLightningSelecting = true
+    UI.setChainLightningActive(true)
+    UI.setGridChainLightningMode(true)
+    UI.setMessage('⚡ Chain Lightning — tap a revealed enemy. The bolt arcs to 2 more at random.')
+    return
+  }
+
+  _cancelChainLightningMode()
+  UI.setMessage('Chain Lightning cancelled.')
+}
+
+/** Pick `count` distinct random entries from `pool` (returns a new array). */
+function _pickRandomDistinct(pool, count) {
+  const a = pool.slice()
+  const out = []
+  while (a.length > 0 && out.length < count) {
+    const idx = Math.floor(Math.random() * a.length)
+    out.push(a.splice(idx, 1)[0])
+  }
+  return out
+}
+
+function _executeChainLightning(primary) {
+  if (!primary?.enemyData || primary.enemyData._slain) {
+    UI.setMessage('Chain Lightning — no valid primary target.', true)
+    _cancelChainLightningMode()
+    return
+  }
+  if (primary.enemyData.spellImmune) {
+    UI.setMessage('🛡️ That enemy is immune to Chain Lightning!', true)
+    return
+  }
+  const cost = _stillWaterManaCost(MAGE_UPGRADES['chain-lightning'].manaCost + _tearyExtraCost())
+  if (run.player.mana < cost) {
+    UI.setMessage('Not enough mana for Chain Lightning!', true)
+    return
+  }
+
+  // Gather random jump candidates — revealed living non-immune enemies other than the primary.
+  const candidates = _getActiveTiles().filter(t =>
+    t.revealed &&
+    t.enemyData &&
+    !t.enemyData._slain &&
+    !t.enemyData.spellImmune &&
+    !(t.row === primary.row && t.col === primary.col),
+  )
+  const jumps = _pickRandomDistinct(candidates, 2)
+  const targets = [primary, ...jumps]
+
+  const savedEngagement = _suspendCombatEngagementForMultiTargetAbility()
+  _cancelChainLightningMode()
+
+  run.player.mana = Math.max(0, run.player.mana - cost)
+  _markStillWaterAbilityUsed()
+  UI.updateMana(run.player.mana, run.player.maxMana)
+
+  const perZap = _chainLightningDamagePerZap()
+  _combatBusy = true; _combatBusySetAt = Date.now()
+  UI.setPortraitAnim('attack')
+  UI.setMessage(`⚡ Chain Lightning — ${targets.length} zap${targets.length > 1 ? 's' : ''} for ${perZap} each.`)
+
+  targets.forEach((target, i) => {
+    const dmg = _scaleOutgoingDamageToEnemy(perZap)
+    setTimeout(() => {
+      if (!target.enemyData || target.enemyData._slain) return
+      const fromEl = i === 0
+        ? document.getElementById('hud-portrait')
+        : targets[i - 1]?.element
+      UI.spawnZap(fromEl, target.element)
+      EventBus.emit('audio:play', { sfx: 'zap' })
+      UI.shakeTile(target.element)
+      target.enemyData.currentHP = Math.max(0, target.enemyData.currentHP - dmg)
+      _checkOnionLayer(target)
+      UI.spawnFloat(target.element, `⚡ ${dmg}`, 'xp')
+      if (target.enemyData.currentHP <= 0) {
+        _gainGold(target.enemyData.goldDrop ? _rand(...target.enemyData.goldDrop) : 1, target.element, true)
+        _gainXP(target.enemyData.xpDrop ?? 0, target.element)
+        _endCombatVictory(target)
+      } else {
+        UI.updateEnemyHP(target.element, target.enemyData.currentHP)
+      }
+    }, i * 140)
+  })
+
+  const doneMs = targets.length * 140 + 400
+  setTimeout(() => {
+    UI.setPortraitAnim('idle')
+    _combatBusy = false
+    _restoreCombatEngagementAfterMultiTargetAbility(savedEngagement)
+  }, doneMs)
+}
+
+// ── Mage: Telekinetic Throw ───────────────────────────────────
+
+function _telekineticThrowDamage() {
+  const avg  = _avgMeleeDamage()
+  const mult = _mageActiveDamageMult('telekinetic-throw')
+  return Math.max(1, Math.round(avg * 3 * mult))
+}
+
+function getTelekineticThrowBreakdown() {
+  if (!run || !run.player?.isMage) return null
+  const avg  = _avgMeleeDamage()
+  const mult = _mageActiveDamageMult('telekinetic-throw')
+  const dmg  = Math.max(1, Math.round(avg * 3 * mult))
+  const stacks = run.player.mageActiveStacks?.['telekinetic-throw'] ?? 0
+  return { avgMelee: avg, mult, stacks, damage: dmg }
+}
+
+/** True if `tile` is a safe destination for Telekinetic Throw — revealed empty, no content. */
+function _isTelekineticThrowDestination(tile) {
+  if (!tile) return false
+  if (!tile.revealed) return false
+  if (tile.locked) return false
+  if (tile.type !== 'empty') return false
+  if (tile.enemyData) return false
+  if (tile.itemData) return false
+  if (tile.chestReady || tile.chestLooted) return false
+  // Turret tile: guard via run.turret coordinates on main grid only.
+  if (!_isInSubFloor() && run?.turret && run.turret.hp > 0 &&
+      run.turret.row === tile.row && run.turret.col === tile.col) return false
+  return true
+}
+
+/** True if `tile` holds a valid TK Throw pickup target — revealed living non-boss non-immune. */
+function _isTelekineticThrowEnemyTarget(tile) {
+  if (!tile?.revealed) return false
+  const e = tile.enemyData
+  if (!e || e._slain) return false
+  if (e.spellImmune) return false
+  if (e.behaviour === 'boss' || tile.type === 'boss') return false
+  return true
+}
+
+function telekineticThrowAction() {
+  if (!_isMageActiveUnlocked('telekinetic-throw')) return
+  if (_combatBusy) return
+  const cost = _stillWaterManaCost(MAGE_UPGRADES['telekinetic-throw'].manaCost + _tearyExtraCost())
+
+  if (_telekineticThrowStep === 0) {
+    if (run.player.mana < cost) {
+      UI.setMessage('Not enough mana for Telekinetic Throw!', true)
+      return
+    }
+    _cancelSpellLanternBlindingForRicochet()
+    _cancelChainLightningMode()
+    _telekineticThrowStep = 1
+    _telekineticEnemyTile = null
+    UI.setTelekineticThrowActive(true)
+    UI.setGridTelekineticThrowMode('enemy')
+    UI.setMessage('🌀 Telekinetic Throw — tap an enemy to grab (bosses & spell-immune excluded).')
+    return
+  }
+
+  _cancelTelekineticThrowMode()
+  UI.setMessage('Telekinetic Throw cancelled.')
+}
+
+function _executeTelekineticThrow(originTile, destTile) {
+  if (!_isTelekineticThrowEnemyTarget(originTile)) {
+    UI.setMessage('🛡️ Not a valid target anymore.', true)
+    _cancelTelekineticThrowMode()
+    return
+  }
+  if (!_isTelekineticThrowDestination(destTile)) {
+    UI.setMessage('That tile is no longer a valid landing spot.', true)
+    return
+  }
+  if (originTile === destTile) {
+    UI.setMessage('Pick a different landing tile.', true)
+    return
+  }
+
+  const cost = _stillWaterManaCost(MAGE_UPGRADES['telekinetic-throw'].manaCost + _tearyExtraCost())
+  if (run.player.mana < cost) {
+    UI.setMessage('Not enough mana for Telekinetic Throw!', true)
+    return
+  }
+
+  _cancelTelekineticThrowMode()
+
+  run.player.mana = Math.max(0, run.player.mana - cost)
+  _markStillWaterAbilityUsed()
+  UI.updateMana(run.player.mana, run.player.maxMana)
+
+  // Lift animation on origin, then move + slam on destination.
+  UI.spawnFloat(originTile.element, '🌀 Lifted!', 'mana')
+  UI.shakeTile(originTile.element)
+
+  const lifted = originTile.enemyData
+  const liftedType = originTile.type
+
+  // Clear origin so it renders as a plain revealed empty.
+  originTile.enemyData = null
+  originTile.type = 'empty'
+  originTile.revealed = true
+  originTile.locked = false
+  originTile.chestReady = false
+  originTile.chestLooted = false
+  originTile.itemData = null
+
+  // Put the enemy on the destination tile. Keep destination as revealed so
+  // the next melee / spell interaction works like any revealed enemy tile.
+  destTile.type = liftedType
+  destTile.enemyData = lifted
+  destTile.revealed = true
+  destTile.locked = false
+
+  _patchActiveTileDom(originTile.row, originTile.col)
+  _patchActiveTileDom(destTile.row, destTile.col)
+
+  // Recompute global locks — an adjacent tile may still be locked by another enemy,
+  // so naive unlockAdjacent around the origin would be wrong (leaves stale red X's).
+  if (!_isInSubFloor()) {
+    TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
+  } else {
+    // Sub-floor: clear locks for revealed tiles, then re-lock around living non-archer enemies.
+    _recomputeSubFloorEnemyLocks()
+  }
+
+  TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
+  _syncGridDomClassesFromModel()
+
+  // Slam impact — shockwave + audio, then damage.
+  _combatBusy = true; _combatBusySetAt = Date.now()
+  UI.setPortraitAnim('attack')
+  const dmg = _scaleOutgoingDamageToEnemy(_telekineticThrowDamage())
+  UI.setMessage(`🌀 Telekinetic Throw — slammed for ${dmg} damage!`)
+  setTimeout(() => {
+    if (!destTile.enemyData || destTile.enemyData._slain) return
+    EventBus.emit('audio:play', { sfx: 'telekineticSlam' })
+    UI.spawnSlamRing(destTile.element)
+    UI.shakeTile(destTile.element)
+    destTile.enemyData.currentHP = Math.max(0, destTile.enemyData.currentHP - dmg)
+    _checkOnionLayer(destTile)
+    UI.spawnFloat(destTile.element, `🌀 ${dmg}`, 'damage')
+    if (destTile.enemyData.currentHP <= 0) {
+      _gainGold(destTile.enemyData.goldDrop ? _rand(...destTile.enemyData.goldDrop) : 1, destTile.element, true)
+      _gainXP(destTile.enemyData.xpDrop ?? 0, destTile.element)
+      _endCombatVictory(destTile)
+      if (!_isInSubFloor()) {
+        TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
+      } else {
+        _recomputeSubFloorEnemyLocks()
+      }
+    } else {
+      UI.updateEnemyHP(destTile.element, destTile.enemyData.currentHP)
+    }
+  }, 160)
+
+  setTimeout(() => {
+    UI.setPortraitAnim('idle')
+    _combatBusy = false
+  }, 600)
+  _saveActiveRun()
+}
+
+/** Re-render a single tile's DOM in-place from its model. For sub-floors we re-render the whole grid. */
+function _patchActiveTileDom(row, col) {
+  if (_isInSubFloor()) {
+    const sf = run?.subFloor
+    if (!sf) return
+    // Sub-floor tiles don't support a single-tile patch, so rebuild the whole grid.
+    UI.showSubFloor(sf, _onSubFloorTileTap, _onSubFloorTileHold)
+    return
+  }
+  const gridEl = UI.getGridEl?.() ?? document.getElementById('grid')
+  if (!gridEl) return
+  TileEngine.patchMainGridTileAt(row, col, gridEl, onTileTap, onTileHold)
+}
+
+/** Sub-floor local version of recomputeAllEnemyLocks — mirrors TileEngine behaviour for sf.tiles. */
+function _recomputeSubFloorEnemyLocks() {
+  const sf = run?.subFloor
+  if (!sf?.tiles) return
+  const rows = sf.tiles.length
+  const cols = sf.tiles[0]?.length ?? 0
+  // Clear locks on unrevealed tiles.
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const t = sf.tiles[r][c]
+      if (!t.revealed && t.locked) {
+        t.locked = false
+        t.element?.classList.remove('locked')
+      }
+    }
+  }
+  // Re-lock adjacent to living enemies (skip archers/mice per main-grid rules).
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const t = sf.tiles[r][c]
+      const e = t.enemyData
+      if (!t.revealed || !e || e._slain) continue
+      if (e.behaviour === 'archer' || e.behaviour === 'mouse') continue
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (dr === 0 && dc === 0) continue
+          const nr = r + dr, nc = c + dc
+          if (nr < 0 || nc < 0 || nr >= rows || nc >= cols) continue
+          const adj = sf.tiles[nr][nc]
+          if (!adj.revealed) {
+            adj.locked = true
+            adj.element?.classList.add('locked')
+          }
+        }
+      }
+    }
+  }
 }
 
 function arrowBarrageAction() {
@@ -5615,6 +6138,8 @@ function _metaUnlockedForLevelUp() {
   const c = _charKey()
   if (c === 'ranger') return _save.ranger?.upgrades ?? []
   if (c === 'engineer') return _save.engineer?.upgrades ?? []
+  if (c === 'mage') return _save.mage?.upgrades ?? []
+  if (c === 'vampire') return _save.vampire?.upgrades ?? []
   return _save.warrior?.upgrades ?? []
 }
 
@@ -5709,6 +6234,7 @@ function _triggerLevelUp() {
     UI.setMessage(`${def?.name ?? abilityId} acquired! Level ${run.player.level}.`)
     if (char === 'ranger')         _refreshRangerActiveHud()
     else if (char === 'engineer')  _refreshEngineerHud()
+    else if (char === 'mage')      _refreshMageHud()
     else if (char === 'warrior')   {
       UI.setSlamBtn(_isActiveUnlocked('slam', 'warrior'), WARRIOR_UPGRADES.slam.manaCost)
       UI.setBlindingLightBtn(_isActiveUnlocked('blinding-light', 'warrior'), WARRIOR_UPGRADES['blinding-light'].manaCost)
@@ -6940,6 +7466,9 @@ function _isPlayerDeadlocked() {
   if (_combatBusy) return false
   const grid = TileEngine.getGrid()
   if (!grid) return false
+  // Refresh reachability from revealed tiles — stale .reachable on unrevealed cells (e.g. after
+  // hazards rerolled mid-floor) could otherwise make this return false when the player is stuck.
+  TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
   let hasUnrevealed = false
   for (const row of grid) {
     for (const t of row) {
@@ -6957,8 +7486,8 @@ function _isPlayerDeadlocked() {
 }
 
 /**
- * On deadlock, pick a hole adjacent to a revealed walkable tile and mark it as a one-time
- * climb-down. Player may tap it to lose 25% max HP (min 5) and replace the pit with floor.
+ * On deadlock, pick a revealed pit or rubble tile that touches a revealed passable tile and mark it
+ * as a one-time escape. Player taps it to replace it with empty floor and refresh reachability.
  * Idempotent — running again with an existing escape tile re-asserts the message but won't
  * mark a second tile.
  */
@@ -6970,7 +7499,7 @@ function _maybeOfferDeadlockEscape() {
   for (const row of grid) {
     for (const t of row) {
       if (t.deadlockEscape) {
-        UI.setMessage('No path forward — climb through the highlighted pit to continue.')
+        UI.setMessage('No path forward — tap the highlighted hazard to clear a path.')
         return
       }
     }
@@ -6978,7 +7507,7 @@ function _maybeOfferDeadlockEscape() {
   let pick = null
   for (const row of grid) {
     for (const t of row) {
-      if (!t.revealed || t.type !== 'hole') continue
+      if (!t.revealed || (t.type !== 'hole' && t.type !== 'blockage')) continue
       const adj = TileEngine.getOrthogonalTiles(t.row, t.col)
       const hasWalkable = adj.some(n => n.revealed && n.type !== 'hole' && n.type !== 'blockage')
       if (!hasWalkable) continue
@@ -6988,12 +7517,12 @@ function _maybeOfferDeadlockEscape() {
     if (pick) break
   }
   if (!pick) {
-    UI.setMessage('No path forward and no pit to climb. Use the Retreat button to escape this floor.', true)
+    UI.setMessage('No path forward and no hazard to clear. Use the Retreat button to escape this floor.', true)
     return
   }
   pick.deadlockEscape = true
   if (pick.element) pick.element.classList.add('deadlock-escape')
-  UI.setMessage('No path forward — tap the highlighted pit to climb through.', true)
+  UI.setMessage('No path forward — tap the highlighted tile to clear a path.', true)
 }
 
 function _climbThroughHazard(tile) {
@@ -7005,7 +7534,7 @@ function _climbThroughHazard(tile) {
   fresh.revealed = true
   TileEngine.patchMainGridTileAt(tile.row, tile.col, UI.getGridEl(), onTileTap, onTileHold)
   TileEngine.markReachable(tile.row, tile.col, _markReachableUi)
-  UI.setMessage('You scramble across the pit and find a new path.')
+  UI.setMessage('You clear the hazard and find a new path.')
 }
 
 /** Grid stats when the bot has zero tap candidates (deadlock analysis). */
@@ -7344,12 +7873,15 @@ export default {
   init,
   getSave() { return _save },
   isRangerActiveUnlocked: _isRangerActiveUnlocked,
+  isMageActiveUnlocked:   _isMageActiveUnlocked,
   getSlamDamageBreakdown,
   getBlindingLightBreakdown,
   getDivineLightBreakdown,
   getRicochetBreakdown,
   getArrowBarrageBreakdown,
   getPoisonArrowShotBreakdown,
+  getChainLightningBreakdown,
+  getTelekineticThrowBreakdown,
   newGame,
   returnToMenu,
   onTileTap,
@@ -7361,6 +7893,8 @@ export default {
   ricochetAction,
   arrowBarrageAction,
   poisonArrowShotAction,
+  chainLightningAction,
+  telekineticThrowAction,
   blindingLightAction,
   divineLightAction,
   divineLightHealAction,

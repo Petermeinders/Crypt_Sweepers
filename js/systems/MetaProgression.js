@@ -1,6 +1,7 @@
 import { WARRIOR_UPGRADES, SHOP_ITEMS } from '../data/upgrades.js'
 import { RANGER_UPGRADES }             from '../data/ranger.js'
 import { ENGINEER_UPGRADES }           from '../data/engineer.js'
+import { MAGE_UPGRADES }               from '../data/mage.js'
 import { GLOBAL_PASSIVE_UPGRADES }     from '../data/passives.js'
 import { CONFIG }                       from '../config.js'
 import Logger                           from '../core/Logger.js'
@@ -26,6 +27,10 @@ export function defaultSave() {
       upgrades:  [],
     },
     engineer: {
+      totalXP:  0,
+      upgrades: [],
+    },
+    mage: {
       totalXP:  0,
       upgrades: [],
     },
@@ -120,16 +125,20 @@ function applyToPlayer(player, save) {
     ? (save.ranger?.upgrades ?? [])
     : char === 'engineer'
       ? (save.engineer?.upgrades ?? [])
-      : char === 'vampire'
-        ? (save.vampire?.upgrades ?? [])
-        : (save.warrior?.upgrades ?? [])
+      : char === 'mage'
+        ? (save.mage?.upgrades ?? [])
+        : char === 'vampire'
+          ? (save.vampire?.upgrades ?? [])
+          : (save.warrior?.upgrades ?? [])
   const upgradeMap = char === 'ranger'
     ? RANGER_UPGRADES
     : char === 'engineer'
       ? ENGINEER_UPGRADES
-      : char === 'vampire'
-        ? {}
-        : WARRIOR_UPGRADES
+      : char === 'mage'
+        ? MAGE_UPGRADES
+        : char === 'vampire'
+          ? {}
+          : WARRIOR_UPGRADES
 
   for (const id of upgradeIds) {
     const def = upgradeMap[id]
@@ -255,6 +264,25 @@ function buyEngineerUpgrade(save, id) {
   return true
 }
 
+// ── Mage XP tree ──────────────────────────────────────────────
+
+function canBuyMageUpgrade(save, id) {
+  const def = MAGE_UPGRADES[id]
+  if (!def) return false
+  if (!save.mage) return false
+  if (save.mage.upgrades.includes(id)) return false
+  if (def.requires && !save.mage.upgrades.includes(def.requires)) return false
+  return save.mage.totalXP >= def.xpCost
+}
+
+function buyMageUpgrade(save, id) {
+  if (!canBuyMageUpgrade(save, id)) return false
+  save.mage.totalXP -= MAGE_UPGRADES[id].xpCost
+  save.mage.upgrades.push(id)
+  Logger.debug(`[MetaProgression] Mage upgrade: ${id}`)
+  return true
+}
+
 // ── Run XP calculation ────────────────────────────────────────
 
 function calcRunXP(runStats) {
@@ -277,6 +305,9 @@ function endRun(save, runStats, outcome) {
     save.ranger.totalXP += xpEarned
   } else if (char === 'engineer') {
     save.engineer.totalXP += xpEarned
+  } else if (char === 'mage') {
+    if (!save.mage) save.mage = { totalXP: 0, upgrades: [] }
+    save.mage.totalXP += xpEarned
   } else if (char === 'vampire') {
     if (!save.vampire) save.vampire = { totalXP: 0, upgrades: [] }
     save.vampire.totalXP += xpEarned
@@ -316,6 +347,8 @@ export default {
   buyRangerUpgrade,
   canBuyEngineerUpgrade,
   buyEngineerUpgrade,
+  canBuyMageUpgrade,
+  buyMageUpgrade,
   applyToPlayer,
   calcRunXP,
   endRun,
@@ -323,4 +356,5 @@ export default {
   SHOP_ITEMS,
   RANGER_UPGRADES,
   ENGINEER_UPGRADES,
+  MAGE_UPGRADES,
 }

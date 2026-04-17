@@ -27,6 +27,9 @@ const SFX_FILES = {
   divineLight: 'assets/audio/divine-light.mp3',
   menu:     'audio/sfx/menu.ogg',
   footsteps:'audio/sfx/footsteps.mp3',
+  // Mage actives — reuse existing SFX until dedicated assets are added (avoids 404 in console).
+  zap:             'audio/sfx/spell.ogg',
+  telekineticSlam: 'audio/sfx/slam.mp3',
 }
 
 const MUSIC_FILES = {

@@ -1,6 +1,7 @@
 import { WARRIOR_ABILITIES } from '../data/abilities.js'
 import { RANGER_ABILITIES, RANGER_UPGRADES }   from '../data/ranger.js'
 import { ENGINEER_ABILITIES, ENGINEER_UPGRADES } from '../data/engineer.js'
+import { MAGE_ABILITIES, MAGE_UPGRADES }       from '../data/mage.js'
 import { WARRIOR_UPGRADES } from '../data/upgrades.js'
 import Logger from '../core/Logger.js'
 
@@ -14,7 +15,7 @@ const ABILITY_MAPS = {
   warrior:  WARRIOR_ABILITIES,
   ranger:   RANGER_ABILITIES,
   engineer: ENGINEER_ABILITIES,
-  mage:     STAT_ABILITIES,
+  mage:     MAGE_ABILITIES,
   vampire:  STAT_ABILITIES,
 }
 
@@ -22,7 +23,7 @@ const UPGRADE_MAPS = {
   warrior:  WARRIOR_UPGRADES,
   ranger:   RANGER_UPGRADES,
   engineer: ENGINEER_UPGRADES,
-  mage:     {},
+  mage:     MAGE_UPGRADES,
   vampire:  {},
 }
 
@@ -197,6 +198,12 @@ function applyAbility(abilityId, player, charKey = 'warrior', ctx = {}) {
       const key = effect.ability
       if (!player.rangerActiveStacks) player.rangerActiveStacks = {}
       player.rangerActiveStacks[key] = (player.rangerActiveStacks[key] ?? 0) + 1
+      break
+    }
+    case 'mage-active-mastery': {
+      const key = effect.ability
+      if (!player.mageActiveStacks) player.mageActiveStacks = {}
+      player.mageActiveStacks[key] = (player.mageActiveStacks[key] ?? 0) + 1
       break
     }
   }

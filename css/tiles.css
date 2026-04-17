@@ -154,6 +154,34 @@
   transform: rotateY(180deg);
 }
 
+/* Stone-dust puff: real sibling node (not a pseudo) so it sits above the 3D .tile-inner stack. */
+.tile > .tile-dust {
+  position: absolute;
+  inset: -24%;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 30;
+  background:
+    radial-gradient(ellipse 46% 42% at 34% 38%, rgba(220, 204, 172, 0.72) 0%, transparent 62%),
+    radial-gradient(ellipse 38% 36% at 70% 56%, rgba(175, 160, 136, 0.55) 0%, transparent 58%),
+    radial-gradient(ellipse 32% 28% at 52% 50%, rgba(238, 224, 198, 0.48) 0%, transparent 54%),
+    radial-gradient(ellipse 26% 22% at 74% 36%, rgba(190, 174, 148, 0.4) 0%, transparent 50%);
+  opacity: 0;
+  filter: drop-shadow(0 0 12px rgba(220, 195, 150, 0.55));
+}
+
+.tile.revealed > .tile-dust {
+  animation: tile-reveal-dust 0.52s cubic-bezier(0.28, 0.42, 0.38, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile.revealed > .tile-dust {
+    animation: none;
+    opacity: 0;
+    filter: none;
+  }
+}
+
 .tile-back,
 .tile-front {
   position: absolute;
@@ -718,8 +746,15 @@ body.tile-colors .tile-front.type-rope {
   cursor: pointer;
 }
 
-/* Deadlock escape: pulsing amber outline so the player notices the climbable pit */
-.tile.revealed.tile-type-hole.deadlock-escape {
+/* Rubble — tap for message (deadlock escape uses same pulse as pit) */
+.tile.revealed.tile-type-blockage {
+  pointer-events: all;
+  cursor: pointer;
+}
+
+/* Deadlock escape: pulsing amber outline so the player notices the climbable / clearable hazard */
+.tile.revealed.tile-type-hole.deadlock-escape,
+.tile.revealed.tile-type-blockage.deadlock-escape {
   animation: deadlock-escape-pulse 1.1s ease-in-out infinite;
   box-shadow: 0 0 0 2px rgba(241, 196, 15, 0.9), 0 0 14px 4px rgba(241, 196, 15, 0.55);
   z-index: 6;

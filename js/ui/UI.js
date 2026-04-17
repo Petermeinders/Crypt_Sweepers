@@ -628,6 +628,132 @@ const UI = {
     document.getElementById('grid-container')?.classList.toggle('engineer-place-mode', active)
   },
 
+  // ── Mage: Chain Lightning ───────────────────────────────────
+
+  /** Slot A — Mage Chain Lightning */
+  setChainLightningBtn(visible, manaCost = 10) {
+    if (!el.hudSlotA) return
+    el.hudSlotA.classList.remove(
+      'is-slam', 'is-slam-active',
+      'is-ricochet', 'is-ricochet-active',
+      'is-engineer-construct',
+    )
+    if (visible) {
+      el.hudSlotA.innerHTML = `
+        <span class="ability-btn-wrap ability-btn-wrap--mana-corner">
+          <span class="ability-btn-emoji" aria-hidden="true">⚡</span>
+          <span class="ability-btn-cost">${manaCost}</span>
+        </span>`
+      el.hudSlotA.title    = `Chain Lightning — zap an enemy; arcs to 2 more (${manaCost} mana)`
+      el.hudSlotA.disabled = false
+      el.hudSlotA.classList.remove('is-placeholder')
+      el.hudSlotA.classList.add('is-chain-lightning')
+    } else if (el.hudSlotA.classList.contains('is-chain-lightning')) {
+      el.hudSlotA.textContent = '···'
+      el.hudSlotA.title       = 'Reserved'
+      el.hudSlotA.disabled    = true
+      el.hudSlotA.classList.add('is-placeholder')
+      el.hudSlotA.classList.remove('is-chain-lightning', 'is-chain-lightning-active')
+    }
+  },
+
+  setChainLightningActive(active) {
+    el.hudSlotA?.classList.toggle('is-chain-lightning-active', active)
+  },
+
+  setGridChainLightningMode(active) {
+    document.getElementById('grid-container')?.classList.toggle('chain-lightning-mode', active)
+  },
+
+  /** Fake lightning bolt: flash-line from fromEl to toEl (viewport coords). */
+  spawnZap(fromEl, toEl) {
+    if (!toEl) return
+    toEl.classList.add('zap-flash')
+    setTimeout(() => toEl.classList.remove('zap-flash'), 420)
+
+    if (!fromEl) return
+    const a = fromEl.getBoundingClientRect()
+    const b = toEl.getBoundingClientRect()
+    const x1 = a.left + a.width / 2
+    const y1 = a.top  + a.height / 2
+    const x2 = b.left + b.width / 2
+    const y2 = b.top  + b.height / 2
+    const dx = x2 - x1, dy = y2 - y1
+    const len = Math.hypot(dx, dy)
+    const angle = Math.atan2(dy, dx) * 180 / Math.PI
+    const bolt = document.createElement('div')
+    bolt.className = 'zap-bolt'
+    bolt.style.left   = `${x1}px`
+    bolt.style.top    = `${y1}px`
+    bolt.style.width  = `${len}px`
+    bolt.style.transform = `rotate(${angle}deg)`
+    document.body.appendChild(bolt)
+    setTimeout(() => bolt.remove(), 420)
+  },
+
+  // ── Mage: Telekinetic Throw ─────────────────────────────────
+
+  /** Slot B — Mage Telekinetic Throw */
+  setTelekineticThrowBtn(visible, manaCost = 10) {
+    if (!el.hudSlotB) return
+    el.hudSlotB.classList.remove(
+      'is-poison-arrow-shot', 'is-poison-arrow-shot-active',
+      'is-blinding-light', 'is-blinding-light-active',
+      'is-engineer-tesla',
+    )
+    if (visible) {
+      el.hudSlotB.innerHTML = `
+        <span class="ability-btn-wrap ability-btn-wrap--mana-corner">
+          <span class="ability-btn-emoji" aria-hidden="true">🌀</span>
+          <span class="ability-btn-cost">${manaCost}</span>
+        </span>`
+      el.hudSlotB.title    = `Telekinetic Throw — grab an enemy, slam them onto an empty tile (${manaCost} mana)`
+      el.hudSlotB.disabled = false
+      el.hudSlotB.classList.remove('is-placeholder')
+      el.hudSlotB.classList.add('is-telekinetic-throw')
+    } else if (el.hudSlotB.classList.contains('is-telekinetic-throw')) {
+      el.hudSlotB.textContent = '···'
+      el.hudSlotB.title       = 'Reserved'
+      el.hudSlotB.disabled    = true
+      el.hudSlotB.classList.add('is-placeholder')
+      el.hudSlotB.classList.remove('is-telekinetic-throw', 'is-telekinetic-throw-active')
+    }
+  },
+
+  setTelekineticThrowActive(active) {
+    el.hudSlotB?.classList.toggle('is-telekinetic-throw-active', active)
+  },
+
+  /** mode: 'enemy' | 'dest' | null — drives grid-level highlights. */
+  setGridTelekineticThrowMode(mode) {
+    const gc = document.getElementById('grid-container')
+    if (!gc) return
+    gc.classList.remove('telekinetic-throw-mode', 'telekinetic-throw-mode-enemy', 'telekinetic-throw-mode-dest')
+    if (mode === 'enemy') {
+      gc.classList.add('telekinetic-throw-mode', 'telekinetic-throw-mode-enemy')
+    } else if (mode === 'dest') {
+      gc.classList.add('telekinetic-throw-mode', 'telekinetic-throw-mode-dest')
+    }
+  },
+
+  clearTelekineticMarks() {
+    document.querySelectorAll('.telekinetic-origin').forEach(n => n.classList.remove('telekinetic-origin'))
+  },
+
+  markTelekineticOrigin(tileEl) {
+    if (!tileEl) return
+    tileEl.classList.add('telekinetic-origin')
+  },
+
+  /** Expanding shockwave ring to signal the slam landing on `tileEl`. */
+  spawnSlamRing(tileEl) {
+    if (!tileEl) return
+    const ring = document.createElement('div')
+    ring.className = 'slam-shock'
+    tileEl.appendChild(ring)
+    setTimeout(() => ring.remove(), 600)
+  },
+
   setDivineLightBtn(visible, manaCost = 10) {
     if (!el.hudSlotC) return
     el.hudSlotC.classList.remove('is-divine-light', 'is-divine-light-active')

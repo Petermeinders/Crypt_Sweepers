@@ -13,6 +13,7 @@ import { ENGINEER_UPGRADES } from '../data/engineer.js'
 function _charXp(save, char) {
   if (char === 'ranger') return save.ranger?.totalXP ?? 0
   if (char === 'engineer') return save.engineer?.totalXP ?? 0
+  if (char === 'mage') return save.mage?.totalXP ?? 0
   if (char === 'vampire') return save.vampire?.totalXP ?? 0
   return save.warrior?.totalXP ?? 0
 }
