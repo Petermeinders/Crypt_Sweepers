@@ -137,6 +137,22 @@ export const ENEMY_DEFS = {
   },
 
   // ── Beast ────────────────────────────────────────────────────
+  mouse: {
+    hp:             1,
+    dmg:            [1, 1],
+    type:           'beast',
+    behaviour:      'mouse',
+    emoji:          '🐭',
+    label:          'Dungeon Mouse',
+    goldDrop:       [0, 1],
+    xpDrop:         2,
+    blurb:          "A twitchy little thief. Every time you disturb the dungeon it scurries off and buries a tile you thought was safe — sometimes with something nasty underneath.",
+    attributes:     ['tile-flipper'],
+    tileFlipper:    true,
+    tileFlipChance: 0.50,
+    spawn:          'universal',
+  },
+
   toad_beast: {
     hp:         5,
     dmg:        [2, 3],

@@ -113,6 +113,12 @@ export const CONFIG = {
     statMult: 1.25,
   },
 
+  /** Dungeon Mouse — pre-revealed creature that unflips tiles when the player flips */
+  mouse: {
+    /** Floor 1 always gets a mouse; on deeper floors, this chance per non-boss dungeon floor */
+    spawnChance: 0.10,
+  },
+
   subFloor: {
     /** Probability a non-boss, non-sanctuary floor spawns one sub-floor entry tile */
     spawnChance: 0.05,

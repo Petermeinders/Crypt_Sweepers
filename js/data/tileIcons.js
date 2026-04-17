@@ -44,6 +44,7 @@ export const ENEMY_SPRITES = {
   onion:         { idle: 'onion/onion-idle.gif', attack: 'onion/onion-idle.gif' },
   gnome:         { idle: 'gnome/gnome-idle.gif', attack: 'gnome/gnome-idle.gif' },
   spider:        null,
+  mouse:         { idle: 'mouse/mouse-idle.gif', attack: 'mouse/mouse-idle.gif' },
   frost_giant:   { idle: 'frost_giant/frost-giant-idle.gif', attack: 'frost_giant/frost-giant-idle.gif' },
   fire_goblin:        { idle: 'fire_goblin/fire-goblin-creature.gif',               attack: 'fire_goblin/fire-goblin-creature.gif' },
   molten_spiderling:  { idle: 'molten_spiderling/molten-spiderling-creature.gif',   attack: 'molten_spiderling/molten-spiderling-creature.gif' },

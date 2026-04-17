@@ -152,8 +152,9 @@ function _pickEnemyType(floor, tileType) {
     })
     return fastPool.length ? fastPool[Math.floor(Math.random() * fastPool.length)] : 'goblin'
   }
-  // Standard enemy tile — exclude behaviour-fast and behaviour-archer (archer_goblin spawns via _spawnArcherGoblin only)
-  const stdPool = allIds.filter(e => ENEMY_DEFS[e]?.behaviour !== 'fast' && ENEMY_DEFS[e]?.behaviour !== 'archer')
+  // Standard enemy tile — exclude behaviour-fast, behaviour-archer, and behaviour-mouse
+  // (archer_goblin spawns via _spawnArcherGoblin only; mouse spawns via _spawnMouse only)
+  const stdPool = allIds.filter(e => ENEMY_DEFS[e]?.behaviour !== 'fast' && ENEMY_DEFS[e]?.behaviour !== 'archer' && ENEMY_DEFS[e]?.behaviour !== 'mouse')
   return stdPool.length
     ? stdPool[Math.floor(Math.random() * stdPool.length)]
     : allIds[Math.floor(Math.random() * allIds.length)]
@@ -855,6 +856,97 @@ function flipTile(tile) {
   })
 }
 
+/**
+ * Reverse-flip animation. Mirror of flipTile — removes the 'revealed' class
+ * and resolves on the transform transition end. DOM-only (caller updates model).
+ * Shared primitive for any creature/hero that needs to unflip tiles.
+ */
+function unflipTile(tile) {
+  return new Promise(resolve => {
+    const el = tile.element
+    if (!el) { resolve(); return }
+    const inner = el.querySelector('.tile-inner')
+    if (!inner) { el.classList.remove('revealed'); resolve(); return }
+    let resolved = false
+    const done = () => { if (!resolved) { resolved = true; resolve() } }
+    inner.addEventListener('transitionend', function handler(e) {
+      if (e.propertyName === 'transform') {
+        inner.removeEventListener('transitionend', handler)
+        done()
+      }
+    })
+    el.classList.remove('revealed')
+    // Safety net if transitionend never fires (element detached, anim disabled, etc.)
+    setTimeout(done, 600)
+  })
+}
+
+/** Tile types that must never be rolled as an unflip result (one-off or rest-only placements). */
+const UNFLIP_EXCLUDED_TYPES = new Set([
+  'exit', 'boss', 'checkpoint', 'heart', 'sub_floor_entry', 'war_banner',
+  'stairs_up', 'shrine', 'well', 'anvil', 'rope', 'magic_chest', 'forge',
+  'map', 'rubble', 'sub_floor_used', 'hole',
+])
+
+/**
+ * Reusable unflip + reroll primitive. Animates the tile back to unrevealed,
+ * resets mutable per-tile state, rerolls its type from the current floor's
+ * weighted pool (with unsafe one-off types excluded), and rebuilds enemy
+ * data in place. The caller should re-render the single tile via
+ * patchMainGridTileAt(...) and then recompute reachability/locks/clues.
+ *
+ * @param {object} tile   - grid tile (must be .revealed)
+ * @param {number} floor  - current floor
+ * @param {object} [opts] - { rerollPool?: string[] } override whitelist
+ * @returns {Promise<void>}
+ */
+async function unflipAndRerollTile(tile, floor, opts = {}) {
+  if (!tile || !tile.revealed) return
+  await unflipTile(tile)
+
+  // Reset mutable per-tile state
+  tile.revealed         = false
+  tile.reachable        = false
+  tile.locked           = false
+  tile.enemyData        = null
+  tile.itemData         = null
+  tile.chestLoot        = null
+  tile.chestReady       = undefined
+  tile.chestLooted      = undefined
+  tile.magicChestReady  = undefined
+  tile.pendingLoot      = null
+  tile.echoHintCategory = null
+  tile.darkEyesHint     = false
+  tile.entryReady       = undefined
+  tile.eventResolved    = undefined
+  tile.exitResolved     = undefined
+  tile.ropeResolved     = undefined
+  tile.forgeUsed        = undefined
+  tile.bannerReady      = undefined
+  tile.subFloorVisited  = undefined
+  tile.subFloorType     = undefined
+  tile.warBannerFlying  = undefined
+
+  // Roll a new type from the current floor's weights
+  const weights = _adjustedWeights(floor)
+  const pool = Array.isArray(opts.rerollPool) && opts.rerollPool.length
+    ? opts.rerollPool
+    : Object.keys(weights).filter(t => !UNFLIP_EXCLUDED_TYPES.has(t) && (weights[t] ?? 0) > 0)
+  const poolWeights = pool.map(t => weights[t])
+  const total = poolWeights.reduce((s, w) => s + w, 0)
+  const newType = total > 0 ? weightedRandom(pool, poolWeights, total) : 'empty'
+
+  // Build a fresh tile from the new type, then copy its content into the
+  // existing tile object so external references stay valid.
+  const fresh = _createTileWithEnemy(newType, tile.row, tile.col, floor)
+  tile.type       = fresh.type
+  tile.enemyData  = fresh.enemyData
+  tile.itemData   = fresh.itemData
+  // _createTileWithEnemy sets revealed=true for 'hole' tiles; we excluded hole
+  // from the pool above, but keep this line honest in case of override pools.
+  tile.revealed   = !!fresh.revealed
+}
+
 // ── Adjacency helpers ────────────────────────────────────────
 
 function getAdjacentTiles(row, col) {
@@ -976,9 +1068,9 @@ function recomputeReachabilityFromRevealed(uiMark) {
     for (const t of row) {
       if (!t.revealed) continue
       // Mirror the rules from revealTile: holes/blockages don't spread reachability,
-      // and archer goblins only become reachable once the player paths adjacent.
+      // and archer/mouse only become reachable once the player paths adjacent.
       if (t.type === 'hole' || t.type === 'blockage') continue
-      if (t.enemyData?.behaviour === 'archer' && !t.enemyData._slain) continue
+      if ((t.enemyData?.behaviour === 'archer' || t.enemyData?.behaviour === 'mouse') && !t.enemyData._slain) continue
       markReachable(t.row, t.col, uiMark)
     }
   }
@@ -1019,7 +1111,7 @@ function recomputeAllEnemyLocks(uiLock, uiUnlock) {
   for (const row of _grid) {
     for (const t of row) {
       // Ranger passive can skip locking on reveal — must not re-lock here or X's come back wrong.
-      if (t.revealed && t.enemyData && !t.enemyData._slain && !t.enemyData.rangerSkipAdjacentLock && t.enemyData.behaviour !== 'archer') {
+      if (t.revealed && t.enemyData && !t.enemyData._slain && !t.enemyData.rangerSkipAdjacentLock && t.enemyData.behaviour !== 'archer' && t.enemyData.behaviour !== 'mouse') {
         lockAdjacent(t.row, t.col, uiLock)
       }
     }
@@ -1086,6 +1178,8 @@ export default {
   renderGrid,
   renderTileGridInto,
   flipTile,
+  unflipTile,
+  unflipAndRerollTile,
   lockAdjacent,
   unlockAdjacent,
   recomputeAllEnemyLocks,

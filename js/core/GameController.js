@@ -326,6 +326,59 @@ async function _doForge(tile, recipeId) {
   UI.setMessage(`⚒️ Forged: ${ITEMS[recipe.result]?.name ?? recipe.result}!`)
 }
 
+/**
+ * Dungeon Mouse: every time the player flips a tile, each living mouse rolls to
+ * unflip one random revealed empty tile, rerolling what lies beneath. This uses
+ * the reusable TileEngine.unflipAndRerollTile primitive shared with future creatures.
+ */
+async function _maybeMouseUnflip(sourceTile) {
+  const grid = TileEngine.getGrid()
+  if (!grid) return
+  // Collect all live mice first (so later unflips don't consider mice spawned by another mouse proc)
+  const mice = []
+  for (const row of grid) {
+    for (const t of row) {
+      if (t.revealed && t.enemyData && !t.enemyData._slain && t.enemyData.tileFlipper) {
+        mice.push(t)
+      }
+    }
+  }
+  if (!mice.length) return
+
+  for (const mouseTile of mice) {
+    if (!mouseTile.enemyData || mouseTile.enemyData._slain) continue
+    const chance = mouseTile.enemyData.tileFlipChance ?? 0.5
+    if (Math.random() >= chance) continue
+
+    // Candidates: revealed, plain empty tiles — never the tile just revealed
+    const candidates = []
+    for (const row of grid) {
+      for (const t of row) {
+        if (t === sourceTile) continue
+        if (!t.revealed) continue
+        if (t.type !== 'empty') continue
+        candidates.push(t)
+      }
+    }
+    if (!candidates.length) continue
+
+    const target = candidates[Math.floor(Math.random() * candidates.length)]
+
+    EventBus.emit('audio:play', { sfx: 'flip' })
+    if (mouseTile.element) UI.spawnFloat(mouseTile.element, '🐭 Hidden!', 'damage')
+    UI.setMessage('A mouse scurries across the floor — a tile is hidden again!')
+
+    await TileEngine.unflipAndRerollTile(target, run.floor)
+    const patched = TileEngine.patchMainGridTileAt(target.row, target.col, UI.getGridEl(), onTileTap, onTileHold)
+    if (!patched) _refreshMainGridDomFromModel()
+
+    TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
+    TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
+    TileEngine.refreshAllThreatClueDisplays()
+    _syncGridDomClassesFromModel()
+  }
+}
+
 /** Crystal Bone Demon: 10% chance per counter-attack to flip a random unrevealed enemy tile. */
 function _tryDemonFlip(demonTile) {
   const chance = demonTile.enemyData?.demonFlipChance ?? 0.10
@@ -1387,6 +1440,13 @@ function _startFloor() {
     _spawnArcherGoblin()
   }
 
+  // Dungeon Mouse: always floor 1 (placeholder), otherwise CONFIG.mouse.spawnChance on non-boss dungeon floors.
+  // Pre-revealed; each time the player flips a tile, 50% to unflip a random revealed empty tile.
+  if (!gridRestored && !run.atRest && !CONFIG.bossFloors.includes(run.floor)
+      && (run.floor === 1 || Math.random() < (CONFIG.mouse?.spawnChance ?? 0.10))) {
+    _spawnMouse()
+  }
+
   // Forsaken Idol: reveal all unrevealed enemy tiles from floor start
   if (!gridRestored && !run.atRest && run.player.inventory.some(e => e.id === 'forsaken-idol')) {
     const grid = TileEngine.getGrid()
@@ -2112,6 +2172,33 @@ function _spawnArcherGoblin() {
   target.revealed = true
   run.tilesRevealed++
   // Do NOT markReachable — archer neighbors become reachable naturally as player explores toward them
+  const patched = TileEngine.patchMainGridTileAt(target.row, target.col, UI.getGridEl(), onTileTap, onTileHold)
+  if (!patched) _refreshMainGridDomFromModel()
+  else {
+    TileEngine.refreshAllThreatClueDisplays()
+    _syncGridDomClassesFromModel()
+  }
+}
+
+function _spawnMouse() {
+  const grid = TileEngine.getGrid()
+  // Same placement pattern as archer: steal a random unrevealed enemy tile
+  const candidates = []
+  for (const row of grid) {
+    for (const t of row) {
+      if (!t.revealed && (t.type === 'enemy' || t.type === 'enemy_fast') && t.enemyData) {
+        candidates.push(t)
+      }
+    }
+  }
+  if (!candidates.length) return
+  const target = candidates[Math.floor(Math.random() * candidates.length)]
+  target.enemyData = TileEngine.createEnemy('mouse', run.floor)
+  TileEngine.rollEnemyHitDamage(target.enemyData)
+  target.type = 'enemy'
+  target.revealed = true
+  run.tilesRevealed++
+  // Do NOT markReachable — mouse behaves like archer, player must path adjacent
   const patched = TileEngine.patchMainGridTileAt(target.row, target.col, UI.getGridEl(), onTileTap, onTileHold)
   if (!patched) _refreshMainGridDomFromModel()
   else {
@@ -2994,11 +3081,12 @@ function onTileTap(row, col) {
     } else if (tile.revealed && tile.type === 'war_banner' && tile.bannerReady && run.warBanner?.active) {
       _destroyWarBanner(tile)
     } else if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      // Archer: only fightable once the player has revealed an adjacent tile
-      if (tile.enemyData?.behaviour === 'archer') {
+      // Archer / Mouse: only fightable once the player has revealed an adjacent tile
+      if (tile.enemyData?.behaviour === 'archer' || tile.enemyData?.behaviour === 'mouse') {
         const neighbors = TileEngine.getOrthogonalTiles(tile.row, tile.col)
         if (!neighbors.some(n => n.revealed)) {
-          UI.setMessage('The archer is too far away — advance to engage.', true)
+          const label = tile.enemyData.behaviour === 'mouse' ? 'The mouse scurries away — advance to engage.' : 'The archer is too far away — advance to engage.'
+          UI.setMessage(label, true)
           return
         }
       }
@@ -3359,6 +3447,11 @@ async function revealTile(tile) {
   }
   _tickPoisonArrowDotOnGlobalTurn()
   TileEngine.refreshAllThreatClueDisplays()
+  // Dungeon Mouse (and future tile-flipping creatures): roll after every player flip.
+  // Skip on cascaded reveals (Abyssal Lens) so a single tap only triggers mice once.
+  if (!tile._lensReveal) {
+    await _maybeMouseUnflip(tile)
+  }
   _maybeOfferDeadlockEscape()
 }
 
