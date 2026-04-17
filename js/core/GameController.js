@@ -2987,7 +2987,8 @@ function onTileTap(row, col) {
     } else if (tile.revealed && tile.type === 'event' && !tile.eventResolved) {
       _openEvent(tile)
     } else if (tile.revealed && tile.type === 'hole') {
-      UI.setMessage('A gaping pit blocks the way. You cannot pass.')
+      if (tile.deadlockEscape) _climbThroughHazard(tile)
+      else UI.setMessage('A gaping pit blocks the way. You cannot pass.')
     } else if (tile.revealed && tile.type === 'sub_floor_entry' && tile.entryReady && !tile.subFloorVisited) {
       _enterSubFloor(tile)
     } else if (tile.revealed && tile.type === 'war_banner' && tile.bannerReady && run.warBanner?.active) {
@@ -3358,6 +3359,7 @@ async function revealTile(tile) {
   }
   _tickPoisonArrowDotOnGlobalTurn()
   TileEngine.refreshAllThreatClueDisplays()
+  _maybeOfferDeadlockEscape()
 }
 
 async function _maybeWarBannerIntro() {
@@ -5241,6 +5243,7 @@ function _endCombatVictory(tile) {
   EventBus.emit('combat:end', { outcome: 'victory' })
   TileEngine.refreshAllThreatClueDisplays()
   _checkFloorCleared()
+  _maybeOfferDeadlockEscape()
 }
 
 // ── Hasty Retreat ────────────────────────────────────────────
@@ -6831,6 +6834,85 @@ function getBalanceBotDiagnostics() {
     maxHp: run?.player?.maxHp ?? null,
     meleeDmg: run?.player ? _playerDamageRange(run.player)[0] : null,
   }
+}
+
+/**
+ * Player-facing deadlock detection: no unrevealed tile is reachable, no exit-pending tile waits to
+ * be tapped, but unrevealed tiles still exist on the floor. Sub-floors and rest floors are skipped
+ * (they have their own exits / sanctuary loop). Returns false during combat / overlays / animations.
+ */
+function _isPlayerDeadlocked() {
+  if (!run || _isInSubFloor() || run.atRest) return false
+  if (!GameState.is(States.FLOOR_EXPLORE)) return false
+  if (_combatBusy) return false
+  const grid = TileEngine.getGrid()
+  if (!grid) return false
+  let hasUnrevealed = false
+  for (const row of grid) {
+    for (const t of row) {
+      if (t.revealed) {
+        if (t.type === 'exit' && !t.exitResolved) return false
+        if (t.enemyData && !t.enemyData._slain && t.enemyData.behaviour !== 'archer') return false
+        continue
+      }
+      if (t.locked) continue
+      hasUnrevealed = true
+      if (t.reachable) return false
+    }
+  }
+  return hasUnrevealed
+}
+
+/**
+ * On deadlock, pick a hole adjacent to a revealed walkable tile and mark it as a one-time
+ * climb-down. Player may tap it to lose 25% max HP (min 5) and replace the pit with floor.
+ * Idempotent — running again with an existing escape tile re-asserts the message but won't
+ * mark a second tile.
+ */
+function _maybeOfferDeadlockEscape() {
+  if (!run || !_isPlayerDeadlocked()) return
+  const grid = TileEngine.getGrid()
+  if (!grid) return
+  // Already offered? Just re-show the prompt so the player isn't confused.
+  for (const row of grid) {
+    for (const t of row) {
+      if (t.deadlockEscape) {
+        UI.setMessage('No path forward — climb through the highlighted pit to continue.')
+        return
+      }
+    }
+  }
+  let pick = null
+  for (const row of grid) {
+    for (const t of row) {
+      if (!t.revealed || t.type !== 'hole') continue
+      const adj = TileEngine.getOrthogonalTiles(t.row, t.col)
+      const hasWalkable = adj.some(n => n.revealed && n.type !== 'hole' && n.type !== 'blockage')
+      if (!hasWalkable) continue
+      pick = t
+      break
+    }
+    if (pick) break
+  }
+  if (!pick) {
+    UI.setMessage('No path forward and no pit to climb. Use the Retreat button to escape this floor.', true)
+    return
+  }
+  pick.deadlockEscape = true
+  if (pick.element) pick.element.classList.add('deadlock-escape')
+  UI.setMessage('No path forward — tap the highlighted pit to climb through.', true)
+}
+
+function _climbThroughHazard(tile) {
+  if (!run || !tile?.deadlockEscape) return
+  tile.deadlockEscape = false
+  tile.element?.classList.remove('deadlock-escape')
+  TileEngine.replaceTileWithEmptyPreserveState(tile.row, tile.col)
+  const fresh = TileEngine.getTile(tile.row, tile.col)
+  fresh.revealed = true
+  TileEngine.patchMainGridTileAt(tile.row, tile.col, UI.getGridEl(), onTileTap, onTileHold)
+  TileEngine.markReachable(tile.row, tile.col, _markReachableUi)
+  UI.setMessage('You scramble across the pit and find a new path.')
 }
 
 /** Grid stats when the bot has zero tap candidates (deadlock analysis). */

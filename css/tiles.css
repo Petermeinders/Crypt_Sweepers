@@ -718,6 +718,18 @@ body.tile-colors .tile-front.type-rope {
   cursor: pointer;
 }
 
+/* Deadlock escape: pulsing amber outline so the player notices the climbable pit */
+.tile.revealed.tile-type-hole.deadlock-escape {
+  animation: deadlock-escape-pulse 1.1s ease-in-out infinite;
+  box-shadow: 0 0 0 2px rgba(241, 196, 15, 0.9), 0 0 14px 4px rgba(241, 196, 15, 0.55);
+  z-index: 6;
+}
+
+@keyframes deadlock-escape-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(241, 196, 15, 0.7), 0 0 10px 3px rgba(241, 196, 15, 0.45); }
+  50%      { box-shadow: 0 0 0 3px rgba(241, 196, 15, 1.0), 0 0 18px 6px rgba(241, 196, 15, 0.75); }
+}
+
 /* Revealed empty floor — long-press for info only; no pointer cursor or hover lift */
 .tile.revealed.tile-type-empty {
   pointer-events: all;

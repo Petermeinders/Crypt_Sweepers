@@ -209,6 +209,7 @@ const UI = {
     el.spellBtn    = document.getElementById('spell-btn')
     el.fleeBtn     = document.getElementById('flee-btn')
     el.retreatBtn  = document.getElementById('retreat-btn')
+    el.hudSettingsBtn = document.getElementById('hud-settings-btn')
     el.grid        = document.getElementById('grid')
     el.skipFloorBtn = document.getElementById('skip-floor-btn')
     el.floorBanner = document.getElementById('floor-banner')
@@ -933,10 +934,12 @@ const UI = {
 
   showRetreat() {
     el.retreatBtn.classList.remove('hidden')
+    el.hudSettingsBtn?.classList.remove('hidden')
   },
 
   hideRetreat() {
     el.retreatBtn.classList.add('hidden')
+    el.hudSettingsBtn?.classList.add('hidden')
     document.getElementById('retreat-confirm').classList.add('hidden')
   },
 

@@ -123,6 +123,29 @@
 }
 
 /* ── Retreat button — header top-right ── */
+#hud-settings-btn {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.75);
+  font-size: 1.25rem;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+#hud-settings-btn:active {
+  color: #fff;
+}
+
+#hud-settings-btn.hidden {
+  display: none;
+}
+
 #retreat-btn {
   flex-shrink: 0;
   background: rgba(10,6,4,0.82);

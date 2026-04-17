@@ -476,6 +476,23 @@ async function boot() {
       })
     }
   )
+  document.getElementById('hud-settings-btn').addEventListener('click', () => {
+    const s = GameController.getSave()
+    const c = s.settings.cheats ?? {}
+    document.getElementById('setting-music').checked        = s.settings.musicOn    ?? true
+    document.getElementById('setting-sfx').checked          = s.settings.sfxOn      ?? true
+    document.getElementById('setting-tile-colors').checked  = s.settings.tileColors ?? false
+    document.getElementById('setting-haptic').checked       = s.settings.hapticFeedback ?? true
+    document.getElementById('setting-sub-levels').checked   = s.settings.subLevelsEnabled ?? true
+    document.getElementById('cheat-god-mode').checked       = c.godMode      ?? false
+    document.getElementById('cheat-instant-kill').checked   = c.instantKill  ?? false
+    document.getElementById('cheat-999-gold').checked       = c.gold999      ?? false
+    document.getElementById('cheat-999-xp').checked         = c.xp999        ?? false
+    document.getElementById('cheat-skip-floor-btn').checked = c.skipFloorButton ?? false
+    document.getElementById('cheat-increase-stats').checked = c.increaseStats ?? false
+    document.getElementById('settings-overlay').classList.remove('hidden')
+  })
+
   document.getElementById('retreat-btn').addEventListener('click', () => {
     document.getElementById('retreat-confirm').classList.remove('hidden')
   })

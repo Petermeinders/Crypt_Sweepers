@@ -105,7 +105,9 @@ html, body {
 
 .header-spacer {
   width: 44px;
-  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 #header-title-block {
