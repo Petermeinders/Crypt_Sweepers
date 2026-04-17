@@ -201,7 +201,7 @@ export const CONFIG = {
   },
 
   difficulty: {
-    easy:   { damageTakenMult: 0.70, xpMult: 0.80, goldMult: 0.80, label: 'Easy'   },
+    easy:   { damageTakenMult: 0.70, xpMult: 0.50, goldMult: 0.50, label: 'Easy'   },
     normal: { damageTakenMult: 1.00, xpMult: 1.00, goldMult: 1.00, label: 'Normal' },
     hard:   { damageTakenMult: 1.35, xpMult: 1.25, goldMult: 1.25, label: 'Hard'   },
   },
