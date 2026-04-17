@@ -1,0 +1,185 @@
+/**
+ * Main-menu “Latest Updates” feed — newest entries first.
+ * Append new releases at the top when you ship.
+ */
+export const CHANGELOG = [
+  {
+    dateLabel: 'Apr 2026',
+    dateIso:   '2026-04-17',
+    version:   'v233',
+    title:     'Treasure Goblin & dungeon polish',
+    summary:
+      'A new optional encounter, necromancer tuning, and presentation upgrades.',
+    items: [
+      {
+        tag:  'New',
+        text: 'Treasure Goblin — rarely appears revealed with a turn timer; path to him for a rare trinket or he slips away.',
+      },
+      {
+        tag:  'Hero',
+        text: 'Necromancer: one minion per corpse — when it falls, the ash is cleared and cannot be raised again.',
+      },
+      {
+        tag:  'Mage',
+        text: 'Chain Lightning: jagged SVG bolt and a sharper electrical sound.',
+      },
+      {
+        tag:  'Balance',
+        text: 'Easy mode: stronger trade-off on XP & gold versus Normal (see difficulty row).',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Apr 2026',
+    dateIso:   '2026-04-17',
+    version:   '',
+    title:     'Necromancer joins the expedition',
+    summary:   'Dark arts, disposable allies, and new build choices.',
+    items: [
+      {
+        tag:  'Hero',
+        text: 'Necromancer — Master\'s Sight hints and Raise Minion from slain foes (mana cost, emoji minions for now).',
+      },
+      {
+        tag:  'Progress',
+        text: 'Minion Mastery picks on level-up improve raised minion HP and damage.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Mar 2026',
+    dateIso:   '2026-03-22',
+    version:   '',
+    title:     'Vampire — night in the crypts',
+    summary:   'A new hero who trades max HP for speed, lifesteal, and shadowy actives.',
+    items: [
+      {
+        tag:  'Hero',
+        text: 'Vampire hero — Dark Eyes marking, slam-style attacks, and sustain tuned around risk.',
+      },
+      {
+        tag:  'Combat',
+        text: 'Melee flow updated so actives and passives interact cleanly with the new kit.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Mar 2026',
+    dateIso:   '2026-03-08',
+    version:   '',
+    title:     'Engineer deploys',
+    summary:   'Ballistic and Tesla turrets join the fight — place, upgrade, and protect your tile.',
+    items: [
+      {
+        tag:  'Hero',
+        text: 'Engineer — construct a turret on eligible tiles; spend mana to level it up mid-run.',
+      },
+      {
+        tag:  'New',
+        text: 'Tesla perimeter zaps or ballistic volleys — two modes, one stubborn companion.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Feb 2026',
+    dateIso:   '2026-02-18',
+    version:   '',
+    title:     'Ranger volleys & poison',
+    summary:   'The ranged hero gets a full active bar: barrages, poison shots, and triple volleys.',
+    items: [
+      {
+        tag:  'Hero',
+        text: 'Ranger — Arrow Barrage, Poison Arrow, Triple Volley with grid targeting previews.',
+      },
+      {
+        tag:  'Balance',
+        text: 'Trapfinder and ranged pacing tuned so kiting and traps stay fair.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Feb 2026',
+    dateIso:   '2026-02-01',
+    version:   '',
+    title:     'Arcane foundations — Mage',
+    summary:   'Spells, mana economy, and screen-wide lightning enter the dungeon.',
+    items: [
+      {
+        tag:  'Mage',
+        text: 'Mage — Chain Lightning, Telekinetic Throw, Blinding Light; diagonal movement option.',
+      },
+      {
+        tag:  'New',
+        text: 'Spell mana costs and HUD slots aligned with the tile-flip loop.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Jan 2026',
+    dateIso:   '2026-01-12',
+    version:   '',
+    title:     'Pressure & side chambers',
+    summary:   'The dungeon gains a war banner threat and hidden sub-floors off the main grid.',
+    items: [
+      {
+        tag:  'World',
+        text: 'War banner — a floor buff until you tear the standard down; worth racing before fights snowball.',
+      },
+      {
+        tag:  'New',
+        text: 'Sub-floor entries — vaults, shrines, ambushes, tunnels, and more in self-contained grids.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Dec 2025',
+    dateIso:   '2025-12-05',
+    version:   '',
+    title:     'Ten biomes, ten moods',
+    summary:   'Every five floors the theme shifts — new enemy pools and backdrop art.',
+    items: [
+      {
+        tag:  'World',
+        text: 'Biome rotation — dungeon, jungle, frozen, volcanic, and beyond; music and visuals follow.',
+      },
+      {
+        tag:  'Balance',
+        text: 'Threat clues and spawn tables reweighted so depth stays readable.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Nov 2025',
+    dateIso:   '2025-11-14',
+    version:   '',
+    title:     'Codex, shop, and between-run growth',
+    summary:   'Discovery UI, trinket catalog, and gold-funded prep for the next descent.',
+    items: [
+      {
+        tag:  'Meta',
+        text: 'Bestiary & Trinket Codex — track what you have seen and read full effect text.',
+      },
+      {
+        tag:  'UI',
+        text: 'Gold Shop consumables and account-wide Passive Upgrades on the main menu.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Oct 2025',
+    dateIso:   '2025-10-01',
+    version:   '',
+    title:     'Paladin baseline & PWA shell',
+    summary:   'First playable loop: flip tiles, fight, die, spend gold, try again — wrapped as an app.',
+    items: [
+      {
+        tag:  'Systems',
+        text: 'IndexedDB saves, export/import JSON, and offline-friendly service worker caching.',
+      },
+      {
+        tag:  'Audio',
+        text: 'Event-driven music crossfades and SFX hooks for combat, chests, and floor changes.',
+      },
+    ],
+  },
+]

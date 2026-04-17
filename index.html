@@ -409,6 +409,7 @@
     <button id="new-run-btn" class="menu-btn primary">⚔️ New Run</button>
     <button id="void-btn" class="menu-btn secondary" disabled title="Complete floor 100 to unlock">🌀 The Void — Coming Soon</button>
     <button id="how-to-play-btn" class="menu-btn secondary">📖 How to Play</button>
+    <button type="button" id="latest-updates-btn" class="menu-updates-chip">✨ Latest Updates</button>
     <button id="settings-btn" class="menu-btn secondary">⚙️ Settings</button>
     <div id="menu-secondary">
       <button id="gold-shop-btn" class="menu-btn secondary">🛒 Gold Shop</button>
@@ -823,6 +824,16 @@
       </section>
 
     </div>
+  </div>
+
+  <!-- ── Latest Updates (patch notes) ── -->
+  <div id="latest-updates-overlay" class="panel-overlay hidden" aria-hidden="true">
+    <div class="panel-header">
+      <button type="button" class="panel-back-btn" id="latest-updates-back">← Back</button>
+      <div class="panel-title">✨ Latest Updates</div>
+    </div>
+    <p class="updates-lead">Highlights from recent builds — <strong>newest first</strong>. For full rules, see How to Play.</p>
+    <div id="changelog-entries" class="updates-body" role="feed" aria-label="Update history"></div>
   </div>
 
   <div id="bestiary-overlay" class="panel-overlay hidden">

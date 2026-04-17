@@ -13,6 +13,53 @@ import { ENGINEER_UPGRADES }                from './data/engineer.js'
 import { MAGE_UPGRADES }                    from './data/mage.js'
 import { NECROMANCER_UPGRADES }             from './data/necromancer.js'
 import { GLOBAL_PASSIVE_UPGRADES, GLOBAL_PASSIVE_IDS } from './data/passives.js'
+import { CHANGELOG } from './data/changelog.js'
+
+function _changelogTagClass(tag) {
+  const map = {
+    New: 'new',
+    Hero: 'hero',
+    Mage: 'mage',
+    Balance: 'balance',
+    Progress: 'progress',
+    Combat: 'combat',
+    World: 'world',
+    Meta: 'meta',
+    UI: 'ui',
+    Systems: 'systems',
+    Audio: 'audio',
+  }
+  return map[tag] ?? 'misc'
+}
+
+function _renderChangelogEntries() {
+  const root = document.getElementById('changelog-entries')
+  if (!root || root.dataset.rendered === '1') return
+  root.dataset.rendered = '1'
+  const articles = CHANGELOG.map(entry => {
+    const ver = entry.version
+      ? `<span class="update-card__ver">${entry.version}</span>`
+      : ''
+    const dt = entry.dateIso ? ` datetime="${entry.dateIso}"` : ''
+    const items = entry.items.map(it => `
+          <li class="update-list__item">
+            <span class="update-tag update-tag--${_changelogTagClass(it.tag)}">${it.tag}</span>
+            <span class="update-list__text">${it.text}</span>
+          </li>`).join('')
+    return `
+    <article class="update-card">
+      <div class="update-card__meta">
+        <time class="update-card__date"${dt}>${entry.dateLabel}</time>
+        ${ver}
+      </div>
+      <h2 class="update-card__title">${entry.title}</h2>
+      <p class="update-card__summary">${entry.summary}</p>
+      <ul class="update-list">${items}</ul>
+    </article>`
+  }).join('')
+  root.innerHTML = articles
+    + '<p class="updates-footnote">Earlier builds may not appear here — this is a highlights reel, not a full change log.</p>'
+}
 
 function _metaCharSave(save, charId) {
   if (charId === 'ranger') return save.ranger
@@ -717,6 +764,18 @@ async function boot() {
   })
   document.getElementById('how-to-play-back')?.addEventListener('click', () => {
     document.getElementById('how-to-play-overlay')?.classList.add('hidden')
+  })
+
+  document.getElementById('latest-updates-btn')?.addEventListener('click', () => {
+    _renderChangelogEntries()
+    const ov = document.getElementById('latest-updates-overlay')
+    ov?.classList.remove('hidden')
+    ov?.setAttribute('aria-hidden', 'false')
+  })
+  document.getElementById('latest-updates-back')?.addEventListener('click', () => {
+    const ov = document.getElementById('latest-updates-overlay')
+    ov?.classList.add('hidden')
+    ov?.setAttribute('aria-hidden', 'true')
   })
 
   document.getElementById('bestiary-btn')?.addEventListener('click', () => {
