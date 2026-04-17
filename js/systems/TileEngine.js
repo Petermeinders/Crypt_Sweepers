@@ -974,7 +974,12 @@ function recomputeReachabilityFromRevealed(uiMark) {
   }
   for (const row of _grid) {
     for (const t of row) {
-      if (t.revealed) markReachable(t.row, t.col, uiMark)
+      if (!t.revealed) continue
+      // Mirror the rules from revealTile: holes/blockages don't spread reachability,
+      // and archer goblins only become reachable once the player paths adjacent.
+      if (t.type === 'hole' || t.type === 'blockage') continue
+      if (t.enemyData?.behaviour === 'archer' && !t.enemyData._slain) continue
+      markReachable(t.row, t.col, uiMark)
     }
   }
 }
