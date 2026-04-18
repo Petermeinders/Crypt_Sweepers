@@ -186,6 +186,13 @@ const PORTRAIT_ANIM = {
     run:    'assets/sprites/Heroes/Vampire/vampire-hero-idle.png',
     death:  'assets/sprites/Heroes/Vampire/vampire-hero-idle.png',
   },
+  necromancer: {
+    idle:   'assets/sprites/Heroes/Necromancer/necromancer-hero-idle.gif',
+    attack: 'assets/sprites/Heroes/Necromancer/necromancer-hero-strike.gif',
+    hit:    'assets/sprites/Heroes/Necromancer/necromancer-hero-idle.gif',
+    run:    'assets/sprites/Heroes/Necromancer/necromancer-hero-idle.gif',
+    death:  'assets/sprites/Heroes/Necromancer/necromancer-hero-idle.gif',
+  },
 }
 
 const UI = {
@@ -976,7 +983,9 @@ const UI = {
           ? 'mage'
           : characterId === 'vampire'
             ? 'vampire'
-            : 'warrior'
+            : characterId === 'necromancer'
+              ? 'necromancer'
+              : 'warrior'
     el.hudCharacterId = id
     const isRanger = id === 'ranger'
     el.hudPortraitWrap.classList.toggle('is-ranger', isRanger)
@@ -997,7 +1006,9 @@ const UI = {
           ? 'mage'
           : el.hudCharacterId === 'vampire'
             ? 'vampire'
-            : 'warrior'
+            : el.hudCharacterId === 'necromancer'
+              ? 'necromancer'
+              : 'warrior'
     const MAP = PORTRAIT_ANIM[id]
     if (MAP && MAP[state]) el.hudPortraitImg.src = MAP[state]
   },

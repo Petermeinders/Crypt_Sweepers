@@ -1266,7 +1266,8 @@
 
 #menu-secondary {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0,…) lets columns shrink below intrinsic content width (avoids clipping in narrow grids) */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
   width: 100%;
   max-width: 360px;
@@ -1274,6 +1275,7 @@
 
 #main-menu #menu-secondary .menu-btn {
   width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: row;
   align-items: stretch;
@@ -1312,15 +1314,57 @@
   display: block;
   width: 100%;
   line-height: 1.12;
+  white-space: nowrap;
 }
 
 #main-menu #menu-secondary .menu-btn-label--single {
   line-height: 1.15;
+  white-space: nowrap;
 }
 
 /* Alternate between the two rivet-plate variants for visual texture */
 #main-menu #menu-secondary .menu-btn:nth-child(even) {
   background-image: url('../assets/ui/menu-btn-stone-rivets.png');
+}
+
+/* Very narrow viewports: compact secondary menu buttons */
+@media (max-width: 340px) {
+  #main-menu #menu-secondary .menu-btn {
+    gap: 0;
+    padding: 11px 12px 12px 34px;
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+  }
+
+  #main-menu #menu-secondary .menu-btn-label {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  #main-menu #menu-secondary .menu-btn-line {
+    line-height: 1.1;
+  }
+}
+
+@media (max-width: 340px) {
+  #main-menu #menu-secondary .menu-btn-ic {
+    display: none;
+  }
+}
+
+/* Mid-narrow viewports: pull icon + label left, tighter type so two-word rows don’t break mid-word */
+@media (min-width: 341px) and (max-width: 410px) {
+  #main-menu #menu-secondary .menu-btn {
+    padding: 10px 8px 12px 20px;
+    gap: 2px;
+    font-size: 0.8rem;
+    letter-spacing: 0.035em;
+  }
+
+  #main-menu #menu-secondary .menu-btn-ic {
+    flex: 0 0 30px;
+    font-size: 1.2rem;
+  }
 }
 
 /* ── Difficulty selector — stone plinth + recessed slots ── */
@@ -1547,16 +1591,31 @@
 }
 
 .panel-back-btn {
-  background: none;
   border: none;
-  color: var(--text-dim);
-  font-size: 0.8rem;
-  font-family: sans-serif;
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
+  padding: 10px 22px 10px 26px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: var(--menu-font-display);
+  letter-spacing: 0.06em;
+  color: #eadfcb;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+  background: url('../assets/ui/btn-back-stone.png') center / 100% 100% no-repeat;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
+  border-radius: 0;
+  min-width: 5.5em;
+  transition: filter 0.15s ease, transform 0.1s ease, color 0.15s ease;
 }
-.panel-back-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.05); }
+
+.panel-back-btn:hover {
+  color: #fff8e8;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.55)) brightness(1.08);
+}
+
+.panel-back-btn:active {
+  transform: translateY(1px) scale(0.99);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4)) brightness(0.96);
+}
 
 .panel-title {
   flex: 1;
@@ -4064,7 +4123,8 @@
 
 /* Bestiary modal buttons — stretch to fill, inherit base style */
 .bestiary-discovery-modal .menu-btn.primary,
-.bestiary-discovery-modal .menu-btn.secondary {
+.bestiary-discovery-modal .menu-btn.secondary,
+.bestiary-discovery-modal .panel-back-btn {
   max-width: none;
 }
 
@@ -4135,7 +4195,8 @@ body.bestiary-detail-open #app {
 .trinket-detail-modal .trinket-effect-label     { color: #f0c060; }
 .trinket-detail-modal .trinket-effect-desc      { color: #e8e0c8; }
 .trinket-detail-modal .bestiary-discovery-header { border-bottom: 1px solid rgba(255,180,60,0.3); padding-bottom: 4px; margin-bottom: 4px; }
-.trinket-detail-modal .menu-btn                 { margin-top: 10px; }
+.trinket-detail-modal .menu-btn,
+.trinket-detail-modal .panel-back-btn           { margin-top: 10px; }
 
 .trinket-codex-desc {
   padding: 0 12px 14px;

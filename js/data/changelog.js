@@ -6,6 +6,24 @@ export const CHANGELOG = [
   {
     dateLabel: 'Apr 2026',
     dateIso:   '2026-04-18',
+    version:   'v250',
+    title:     'Necromancer HUD portrait fix',
+    summary:
+      'The in-run hero portrait now matches the hero you picked — Necromancer no longer shows the Soldier’s animations.',
+    items: [
+      {
+        tag:  'Fix',
+        text: 'Necromancer: HUD idle and strike GIFs use the Necromancer assets instead of falling back to the Warrior portrait.',
+      },
+      {
+        tag:  'Systems',
+        text: 'Service worker cache bumped so the update loads reliably for returning players.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Apr 2026',
+    dateIso:   '2026-04-18',
     version:   'v249',
     title:     'Active abilities, deadlock escape & UI refresh',
     summary:   'Hero actives now enter the level-up pool, soft-locks get a climb-out, and the main menu gets a visual overhaul.',
