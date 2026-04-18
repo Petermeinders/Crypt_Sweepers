@@ -5,6 +5,35 @@
 export const CHANGELOG = [
   {
     dateLabel: 'Apr 2026',
+    dateIso:   '2026-04-18',
+    version:   'v249',
+    title:     'Active abilities, deadlock escape & UI refresh',
+    summary:   'Hero actives now enter the level-up pool, soft-locks get a climb-out, and the main menu gets a visual overhaul.',
+    items: [
+      {
+        tag:  'Systems',
+        text: 'Active abilities are no longer auto-granted — they appear in the level-up pool. First level-up always offers your unlocked actives; later picks add mastery and stat options.',
+      },
+      {
+        tag:  'Systems',
+        text: 'Deadlock detector: when no reachable tiles remain, an adjacent pit pulses amber — tap it to climb through and continue.',
+      },
+      {
+        tag:  'UI',
+        text: 'Settings button (⚙️) added to the in-run header so sound and options can be changed without quitting.',
+      },
+      {
+        tag:  'UI',
+        text: 'New stone-tablet logo, updated New Run and Void button art, and new parchment QR code on the main menu.',
+      },
+      {
+        tag:  'Systems',
+        text: 'Fix: reachability no longer incorrectly spreads from holes, blockages, or archer goblins after a page refresh.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Apr 2026',
     dateIso:   '2026-04-17',
     version:   'v233',
     title:     'Treasure Goblin & dungeon polish',

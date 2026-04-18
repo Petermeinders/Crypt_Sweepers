@@ -24,7 +24,7 @@ const SFX_FILES = {
   trap:     'audio/sfx/trap.ogg',
   slam:     'audio/sfx/slam.mp3',
   heal:     'audio/sfx/heal.ogg',
-  divineLight: 'assets/audio/divine-light.mp3',
+  divineLight: 'audio/sfx/divine-light.mp3',
   menu:     'audio/sfx/menu.ogg',
   footsteps:'audio/sfx/footsteps.mp3',
   // Mage actives — reuse existing SFX until dedicated assets are added (avoids 404 in console).
@@ -93,11 +93,11 @@ async function _loadSfx() {
   for (const [key, path] of Object.entries(SFX_FILES)) {
     try {
       const res  = await fetch(path)
-      if (!res.ok) { Logger.debug(`[AudioManager] SFX missing: ${path}`); continue }
+      if (!res.ok) { Logger.warn(`[AudioManager] SFX missing (${res.status}): ${key} → ${path}`); continue }
       const buf  = await res.arrayBuffer()
       _sfxBuffers[key] = await _ctx.decodeAudioData(buf)
-    } catch {
-      // Missing asset — play silently
+    } catch (e) {
+      Logger.warn(`[AudioManager] Failed to load SFX: ${key} → ${path}`, e)
     }
   }
 }

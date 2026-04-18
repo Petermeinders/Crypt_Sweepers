@@ -14,14 +14,23 @@ async function _openDB() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION)
     req.onupgradeneeded = e => {
+      Logger.info('[SaveManager] DB upgrade — creating store (fresh install or version bump)')
       const db = e.target.result
       if (!db.objectStoreNames.contains(STORE)) {
         db.createObjectStore(STORE)
       }
     }
-    req.onsuccess  = e => { _db = e.target.result; resolve(_db) }
+    req.onsuccess  = e => {
+      _db = e.target.result
+      Logger.info('[SaveManager] DB opened', { version: _db.version })
+      _db.onclose = () => { _db = null }
+      resolve(_db)
+    }
     req.onerror    = e => reject(e.target.error)
-    req.onblocked  = ()  => Logger.warn('[SaveManager] DB upgrade blocked by open tab')
+    req.onblocked  = ()  => {
+      Logger.warn('[SaveManager] DB upgrade blocked by open tab')
+      reject(new Error('IDB blocked — close other tabs and retry'))
+    }
   })
 }
 

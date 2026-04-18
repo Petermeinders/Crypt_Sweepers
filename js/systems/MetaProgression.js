@@ -68,7 +68,7 @@ function buyUpgrade(save, upgradeId) {
   if (!canBuyUpgrade(save, upgradeId)) return false
   save.warrior.totalXP -= WARRIOR_UPGRADES[upgradeId].xpCost
   save.warrior.upgrades.push(upgradeId)
-  Logger.debug(`[MetaProgression] Upgrade purchased: ${upgradeId}`)
+  Logger.info(`[MetaProgression] Upgrade purchased: ${upgradeId}`)
   return true
 }
 
@@ -86,7 +86,7 @@ function buyGlobalPassive(save, id) {
   if (!save.globalPassives) save.globalPassives = []
   save.persistentGold -= GLOBAL_PASSIVE_UPGRADES[id].goldCost
   save.globalPassives.push(id)
-  Logger.debug(`[MetaProgression] Global passive bought: ${id}`)
+  Logger.info(`[MetaProgression] Global passive bought: ${id}`)
   return true
 }
 
@@ -103,7 +103,7 @@ function buyShopItem(save, itemId) {
   if (!canBuyShopItem(save, itemId)) return false
   save.persistentGold -= SHOP_ITEMS[itemId].goldCost
   save.warrior.shopCart.push(itemId)
-  Logger.debug(`[MetaProgression] Shop item bought: ${itemId}`)
+  Logger.info(`[MetaProgression] Shop item bought: ${itemId}`)
   return true
 }
 
@@ -233,7 +233,7 @@ function unlockRanger(save) {
   if (!canUnlockRanger(save)) return false
   save.persistentGold -= CONFIG.rangerUnlockCost
   save.ranger.unlocked = true
-  Logger.debug('[MetaProgression] Ranger unlocked')
+  Logger.info('[MetaProgression] Ranger unlocked')
   return true
 }
 
@@ -251,7 +251,7 @@ function buyRangerUpgrade(save, id) {
   if (!canBuyRangerUpgrade(save, id)) return false
   save.ranger.totalXP -= RANGER_UPGRADES[id].xpCost
   save.ranger.upgrades.push(id)
-  Logger.debug(`[MetaProgression] Ranger upgrade: ${id}`)
+  Logger.info(`[MetaProgression] Ranger upgrade: ${id}`)
   return true
 }
 
@@ -269,7 +269,7 @@ function buyEngineerUpgrade(save, id) {
   if (!canBuyEngineerUpgrade(save, id)) return false
   save.engineer.totalXP -= ENGINEER_UPGRADES[id].xpCost
   save.engineer.upgrades.push(id)
-  Logger.debug(`[MetaProgression] Engineer upgrade: ${id}`)
+  Logger.info(`[MetaProgression] Engineer upgrade: ${id}`)
   return true
 }
 
@@ -288,7 +288,7 @@ function buyMageUpgrade(save, id) {
   if (!canBuyMageUpgrade(save, id)) return false
   save.mage.totalXP -= MAGE_UPGRADES[id].xpCost
   save.mage.upgrades.push(id)
-  Logger.debug(`[MetaProgression] Mage upgrade: ${id}`)
+  Logger.info(`[MetaProgression] Mage upgrade: ${id}`)
   return true
 }
 
@@ -307,7 +307,7 @@ function buyNecromancerUpgrade(save, id) {
   if (!canBuyNecromancerUpgrade(save, id)) return false
   save.necromancer.totalXP -= NECROMANCER_UPGRADES[id].xpCost
   save.necromancer.upgrades.push(id)
-  Logger.debug(`[MetaProgression] Necromancer upgrade: ${id}`)
+  Logger.info(`[MetaProgression] Necromancer upgrade: ${id}`)
   return true
 }
 
@@ -359,7 +359,7 @@ function endRun(save, runStats, outcome) {
   // Clear shop cart — items were consumed this run
   save.warrior.shopCart = []
 
-  Logger.debug(`[MetaProgression] Run ended: +${xpEarned} XP, +${goldBanked} gold banked`)
+  Logger.info(`[MetaProgression] Run ended: +${xpEarned} XP, +${goldBanked} gold banked`)
   return { xpEarned, goldBanked }
 }
 

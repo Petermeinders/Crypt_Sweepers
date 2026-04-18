@@ -62,12 +62,7 @@ function _renderChangelogEntries() {
 }
 
 function _metaCharSave(save, charId) {
-  if (charId === 'ranger') return save.ranger
-  if (charId === 'engineer') return save.engineer
-  if (charId === 'mage') return save.mage
-  if (charId === 'vampire') return save.vampire
-  if (charId === 'necromancer') return save.necromancer ?? { totalXP: 0, upgrades: [] }
-  return save.warrior
+  return save[charId] ?? save.warrior
 }
 
 // ── Character roster ──────────────────────────────────────────
@@ -1696,10 +1691,19 @@ function _wireInstallNudge() {
   }
 }
 
+async function _safeBoot() {
+  try {
+    await boot()
+  } catch (err) {
+    Logger.error('[Boot] Fatal init error', err)
+    document.body.innerHTML = '<p style="color:white;padding:2rem;font-family:sans-serif">Failed to start. Try clearing site data and reloading.</p>'
+  }
+}
+
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', boot)
+  document.addEventListener('DOMContentLoaded', _safeBoot)
 } else {
-  boot()
+  _safeBoot()
 }
 
 // ── Hero carousel ────────────────────────────────────────────

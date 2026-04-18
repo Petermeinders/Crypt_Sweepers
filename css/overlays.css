@@ -448,41 +448,22 @@
 }
 
 #menu-title {
-  font-family: var(--menu-font-display);
-  font-weight: 700;
-  font-size: clamp(1.45rem, 4.2vw, 2rem);
-  color: #f0d78c;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
   text-align: center;
   margin: 0 0 6px;
-  padding: 14px 22px 12px;
-  max-width: 360px;
   width: 100%;
-  line-height: 1.15;
-  text-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.12),
-    0 -1px 0 rgba(0, 0, 0, 0.85),
-    0 0 28px rgba(232, 132, 26, 0.45),
-    0 0 52px rgba(232, 132, 26, 0.2);
-  background:
-    linear-gradient(165deg, rgba(255, 255, 255, 0.07) 0%, transparent 42%),
-    repeating-linear-gradient(
-      90deg,
-      rgba(0, 0, 0, 0.06) 0px,
-      transparent 1px,
-      transparent 3px,
-      rgba(0, 0, 0, 0.05) 4px
-    ),
-    linear-gradient(165deg, #3a3848 0%, #1e1c28 42%, #121018 100%);
-  border-radius: 4px;
-  border: 1px solid rgba(0, 0, 0, 0.65);
-  box-shadow:
-    inset 1px 1px 0 var(--menu-bevel-hi),
-    inset -2px -2px 0 var(--menu-bevel-lo),
-    inset 0 -3px 6px var(--menu-bevel-deep),
-    0 6px 0 rgba(0, 0, 0, 0.45),
-    0 12px 28px rgba(0, 0, 0, 0.55);
+  max-width: 360px;
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+#menu-title-img {
+  width: 100%;
+  max-width: 360px;
+  height: auto;
+  display: block;
+  image-rendering: auto;
 }
 
 /* ── Mini hero block — wood frame with metal corner brackets (object_7) ── */
@@ -628,12 +609,11 @@
   letter-spacing: 0.08em;
 }
 
-/* Primary action — polished wood plank with metal end-caps (object_8) */
-#new-run-btn {
+/* Primary action — wood plank with metal end-caps */
+#main-menu #new-run-btn {
   padding: 18px 56px;
   color: #fff3dc;
-  background-image: url('../assets/ui/menu-btn-wood-bars.png');
-  animation: menu-golden-pulse 2.6s ease-in-out infinite;
+  background-image: url('../assets/ui/btn-new-run.png');
 }
 
 @keyframes menu-golden-pulse {
@@ -645,17 +625,17 @@
   }
 }
 
-/* The Void — faceted purple crystal (object_9) */
-#void-btn {
+/* The Void — purple crystal bar */
+#main-menu #void-btn {
   font-style: italic;
   letter-spacing: 0.05em;
   cursor: default;
   color: #fbe7ff;
-  background-image: url('../assets/ui/menu-btn-crystal.png');
+  background-image: url('../assets/ui/btn-void.png');
   animation: menu-void-pulse 3.4s ease-in-out infinite;
 }
 
-#void-btn:hover {
+#main-menu #void-btn:hover {
   transform: none;
   filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.45)) brightness(1.04);
 }
@@ -704,10 +684,9 @@
     linear-gradient(165deg, rgba(255, 255, 255, 0.09) 0%, transparent 40%),
     linear-gradient(165deg, #5a5868 0%, #32323c 45%, #18181f 100%);
   box-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.14),
     inset -2px -2px 0 rgba(0, 0, 0, 0.55),
     inset 0 -3px 5px rgba(0, 0, 0, 0.72),
-    0 4px 0 rgba(0, 0, 0, 0.42),
+    0px 0px 11px 3px rgba(0, 0, 0, 0.42),
     0 8px 20px rgba(0, 0, 0, 0.45);
   transition: color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, transform 0.1s ease;
 }
@@ -1442,33 +1421,17 @@
   align-items: center;
   gap: 8px;
   margin-top: 4px;
-  padding: 14px 16px 12px;
-  border-radius: 4px;
-  border: 1px solid rgba(40, 32, 22, 0.45);
-  background:
-    linear-gradient(165deg, rgba(255, 255, 255, 0.2) 0%, transparent 35%),
-    repeating-linear-gradient(
-      0deg,
-      rgba(0, 0, 0, 0.02) 0px,
-      transparent 2px
-    ),
-    linear-gradient(165deg, #e8dcc4 0%, #b8a080 45%, #7a6848 100%);
-  box-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.25),
-    inset -2px -2px 0 rgba(0, 0, 0, 0.18),
-    0 4px 0 rgba(0, 0, 0, 0.28),
-    0 12px 28px rgba(0, 0, 0, 0.45);
+  padding: 4px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .menu-qr-link {
   display: block;
   line-height: 0;
-  border-radius: 3px;
-  overflow: hidden;
-  border: 1px solid rgba(0, 0, 0, 0.35);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.25),
-    0 2px 6px rgba(0, 0, 0, 0.35);
+  border: none;
+  box-shadow: none;
   transition: filter 0.15s, transform 0.1s;
 }
 

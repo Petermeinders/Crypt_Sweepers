@@ -11,6 +11,9 @@ const Logger = {
   warn(msg, ...args) {
     console.warn(msg, ...args)
   },
+  info(msg, ...args) {
+    console.info(msg, ...args)
+  },
   debug(msg, ...args) {
     if (CONFIG.debug) console.log(msg, ...args)
   },

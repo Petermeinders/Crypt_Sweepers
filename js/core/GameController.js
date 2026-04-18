@@ -73,6 +73,8 @@ function _hapticVibrate(pattern) {
 
 function _pickRandom(pool) { return pool[Math.floor(Math.random() * pool.length)] }
 
+function hasItem(id) { return run?.player?.inventory?.some(e => e.id === id) ?? false }
+
 function _rollCommonLoot() {
   // Weighted: potions more likely than lantern/spyglass (smiths-tools removed — ~1% via dedicated band in chest rolls)
   const r = Math.random()
@@ -86,12 +88,12 @@ function _rollCommonLoot() {
 
 /** Normal chest: 1% legendary, 2% rare, 1% Smith's Tools, 96% common (no smiths in common pool). */
 function _rollChestLoot() {
-  if (run?.player?.inventory?.some(e => e.id === 'misers-pouch')) {
+  if (hasItem('')) {
     return { type: 'gold', amount: _rand(...CONFIG.chest.goldDrop) }
   }
   let r = Math.random()
   // Cursed lockpick: bias toward rare/legendary
-  if (run?.player?.inventory?.some(e => e.id === 'cursed-lockpick') && r < 0.15) {
+  if (hasItem('') && r < 0.15) {
     r = Math.random() * 0.06  // forces into rare or legendary band
   }
   if (r < 0.01) return { type: _pickRandom(LEGENDARY_TRINKET_IDS) }
@@ -117,7 +119,7 @@ function _rollMagicChestLoot() {
 function _playerOutgoingDamageMult() {
   let mult = 1
   // Glass Cannon Shard
-  if (run?.player?.inventory?.some(e => e.id === 'glass-cannon-shard')) {
+  if (hasItem('')) {
     const p = run.player
     const ratio = p.maxHp > 0 ? p.hp / p.maxHp : 0
     mult *= ratio > 0.5 ? 1.5 : 0.5
@@ -431,13 +433,13 @@ function _serializeHourglassSnapshot() {
       revealed: t.revealed,
       locked: t.locked,
       reachable: t.reachable,
-      enemyData: t.enemyData ? JSON.parse(JSON.stringify(t.enemyData)) : null,
-      itemData: t.itemData ? JSON.parse(JSON.stringify(t.itemData)) : null,
-      chestLoot: t.chestLoot ? JSON.parse(JSON.stringify(t.chestLoot)) : null,
+      enemyData: t.enemyData ? structuredClone(t.enemyData) : null,
+      itemData: t.itemData ? structuredClone(t.itemData) : null,
+      chestLoot: t.chestLoot ? structuredClone(t.chestLoot) : null,
       chestReady: t.chestReady,
       chestLooted: t.chestLooted,
       magicChestReady: t.magicChestReady,
-      pendingLoot: t.pendingLoot ? JSON.parse(JSON.stringify(t.pendingLoot)) : null,
+      pendingLoot: t.pendingLoot ? structuredClone(t.pendingLoot) : null,
       exitResolved: t.exitResolved,
       eventResolved: t.eventResolved,
       ropeResolved: t.ropeResolved,
@@ -448,7 +450,7 @@ function _serializeHourglassSnapshot() {
   )
   return {
     tilesRevealed: run.tilesRevealed,
-    player: JSON.parse(JSON.stringify(run.player)),
+    player: structuredClone(run.player),
     eventTile: run.eventTile ? { row: run.eventTile.row, col: run.eventTile.col } : null,
     bossFloorExitPending: run.bossFloorExitPending,
     tiles,
@@ -458,7 +460,7 @@ function _serializeHourglassSnapshot() {
 function _restoreHourglassSnapshot(snap) {
   if (!snap) return
   const grid = TileEngine.getGrid()
-  run.player = JSON.parse(JSON.stringify(snap.player))
+  run.player = structuredClone(snap.player)
   run.tilesRevealed = snap.tilesRevealed
   run.bossFloorExitPending = snap.bossFloorExitPending
   run.eventTile = snap.eventTile
@@ -473,13 +475,13 @@ function _restoreHourglassSnapshot(snap) {
       t.revealed = st.revealed
       t.locked = st.locked
       t.reachable = st.reachable
-      t.enemyData = st.enemyData ? JSON.parse(JSON.stringify(st.enemyData)) : null
-      t.itemData = st.itemData ? JSON.parse(JSON.stringify(st.itemData)) : null
-      t.chestLoot = st.chestLoot ? JSON.parse(JSON.stringify(st.chestLoot)) : null
+      t.enemyData = st.enemyData ? structuredClone(st.enemyData) : null
+      t.itemData = st.itemData ? structuredClone(st.itemData) : null
+      t.chestLoot = st.chestLoot ? structuredClone(st.chestLoot) : null
       t.chestReady = st.chestReady
       t.chestLooted = st.chestLooted
       t.magicChestReady = st.magicChestReady
-      t.pendingLoot = st.pendingLoot ? JSON.parse(JSON.stringify(st.pendingLoot)) : null
+      t.pendingLoot = st.pendingLoot ? structuredClone(st.pendingLoot) : null
       t.exitResolved = st.exitResolved
       t.eventResolved = st.eventResolved
       t.ropeResolved = st.ropeResolved
@@ -1428,13 +1430,13 @@ function _serializeGridSnapshot() {
       revealed: t.revealed,
       locked: t.locked,
       reachable: t.reachable,
-      enemyData: t.enemyData ? JSON.parse(JSON.stringify(t.enemyData)) : null,
-      itemData: t.itemData ? JSON.parse(JSON.stringify(t.itemData)) : null,
-      chestLoot: t.chestLoot ? JSON.parse(JSON.stringify(t.chestLoot)) : null,
+      enemyData: t.enemyData ? structuredClone(t.enemyData) : null,
+      itemData: t.itemData ? structuredClone(t.itemData) : null,
+      chestLoot: t.chestLoot ? structuredClone(t.chestLoot) : null,
       chestReady: t.chestReady,
       chestLooted: t.chestLooted,
       magicChestReady: t.magicChestReady,
-      pendingLoot: t.pendingLoot ? JSON.parse(JSON.stringify(t.pendingLoot)) : null,
+      pendingLoot: t.pendingLoot ? structuredClone(t.pendingLoot) : null,
       exitResolved: t.exitResolved,
       eventResolved: t.eventResolved,
       ropeResolved: t.ropeResolved,
@@ -1450,21 +1452,21 @@ function _serializeGridSnapshot() {
 function _saveActiveRun() {
   if (!run || !_save) return
   _save.activeRun = {
-    player:          JSON.parse(JSON.stringify(run.player)),
+    player:          structuredClone(run.player),
     floor:           run.floor,
     atRest:          run.atRest,
     levelUpLog:      run.levelUpLog.slice(),
     floorKeyAwarded: !!run.floorKeyAwarded,
-    turret:          run.turret ? JSON.parse(JSON.stringify(run.turret)) : null,
-    minions:         run.minions ? JSON.parse(JSON.stringify(run.minions)) : [],
-    telemetry:       run.telemetry ? JSON.parse(JSON.stringify(run.telemetry)) : undefined,
+    turret:          run.turret ? structuredClone(run.turret) : null,
+    minions:         run.minions ? structuredClone(run.minions) : [],
+    telemetry:       run.telemetry ? structuredClone(run.telemetry) : undefined,
     tilesRevealed:   run.tilesRevealed,
     bossFloorExitPending: !!run.bossFloorExitPending,
     eventTile:       run.eventTile ? { row: run.eventTile.row, col: run.eventTile.col } : null,
     gridSnapshot:    _serializeGridSnapshot(),
     combatEngagement: _combatEngagementTile ? { ..._combatEngagementTile } : null,
-    warBanner:       run.warBanner ? JSON.parse(JSON.stringify(run.warBanner)) : null,
-    treasureGoblin:  run.treasureGoblin ? JSON.parse(JSON.stringify(run.treasureGoblin)) : null,
+    warBanner:       run.warBanner ? structuredClone(run.warBanner) : null,
+    treasureGoblin:  run.treasureGoblin ? structuredClone(run.treasureGoblin) : null,
     floorStartRow:   run.floorStartRow ?? null,
     floorStartCol:   run.floorStartCol ?? null,
   }
@@ -1498,7 +1500,7 @@ function resumeRun() {
     _resumeCombatEngagement: saved.combatEngagement ?? null,
     telemetry:            (() => {
       if (!saved.telemetry) return createInitialTelemetry()
-      const t = JSON.parse(JSON.stringify(saved.telemetry))
+      const t = structuredClone(saved.telemetry)
       if (t.runStartSnapshotDone == null) t.runStartSnapshotDone = true
       if (!t.damageByFloor) t.damageByFloor = {}
       if (!Array.isArray(t.floorSnapshots)) t.floorSnapshots = []
@@ -2295,6 +2297,7 @@ function _spawnSubFloorEntry() {
   target.type = 'sub_floor_entry'
   target.enemyData = null
   target.subFloorType = TileEngine.rollSubFloorType()
+  Logger.info(`[GameController] Sub-floor spawned: ${target.subFloorType} on floor ${run.floor}`)
   // Update the front face so when the player flips it, spiral art shows
   if (target.element) {
     for (const cls of [...target.element.classList]) {
@@ -2398,6 +2401,7 @@ function _spawnWarBannerEntry() {
   target.type = 'war_banner'
   target.enemyData = null
   target.warBannerFlying = true
+  Logger.info(`[GameController] War banner spawned on floor ${run.floor} (enemy buff ×${mult})`)
   // Replacing whatever was under this tile — drop loot-specific state so it cannot resurface after teardown.
   delete target.chestLoot
   delete target.chestReady
@@ -6279,6 +6283,11 @@ function _handleExit() {
     run.atRest = false
     run.floorKeyAwarded = false
     run.floor++
+    Logger.info(`[GameController] Floor transition → ${run.floor}`, {
+      hp: run.player.hp, maxHp: run.player.maxHp,
+      mana: run.player.mana, gold: run.player.gold,
+      inventory: run.player.inventory.map(e => e.id),
+    })
     EventBus.emit('audio:play', { sfx: 'footsteps' })
     UI.setMessage(`🚪 Descending to floor ${run.floor}...`)
     EventBus.emit('run:floorAdvance', { newFloor: run.floor })
@@ -6369,11 +6378,11 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
     UI.spawnFloat(tileEl, '🛡️ Blocked!', 'heal')
     return
   }
-  if (run?.player?.inventory?.some(e => e.id === 'devils-gambit') && Math.random() < 0.05) {
+  if (hasItem('') && Math.random() < 0.05) {
     UI.spawnFloat(tileEl, '🃏 Gambit!', 'heal')
     return
   }
-  if (run?.player?.inventory?.some(e => e.id === 'lucky-rabbit-foot') && Math.random() < 0.02) {
+  if (hasItem('') && Math.random() < 0.02) {
     UI.spawnFloat(tileEl, '🐰 Lucky!', 'heal')
     return
   }
@@ -6766,6 +6775,16 @@ function _die(killerData = null, opts = {}) {
     }
   }
 
+  Logger.info('[GameController] Player died', {
+    floor: run?.floor,
+    hero: run?.heroId,
+    hp: run?.player?.hp,
+    cause: explicitCause ?? resolved?.enemyId ?? 'unknown',
+    killer: resolved?.label ?? null,
+    isBoss: !!(resolved?.isBoss),
+    inventory: run?.player?.inventory?.map(e => e.id) ?? [],
+  })
+
   _spellTargeting         = false
   _combatBusy             = false
   _clearAllCombatEngagement()
@@ -6930,7 +6949,7 @@ function _finalizeRunTelemetry(outcomeType, extras = {}) {
     ...extras,
   }
   _lastRunTelemetrySnapshot = {
-    telemetry: JSON.parse(JSON.stringify(run.telemetry)),
+    telemetry: structuredClone(run.telemetry),
     levelUpLog: (run.levelUpLog ?? []).slice(),
     runStats: _runStats(),
   }
@@ -6978,6 +6997,7 @@ async function _addToBackpack(id) {
   inv.push({ id, qty: 1 })
   // Trinket Codex: show discovery card first time this trinket is seen
   if (TrinketCodex.registerIfNew(_save, id)) {
+    Logger.info(`[GameController] New trinket discovered: ${id} (floor ${run?.floor})`)
     await SaveManager.save(_save).catch(() => {})
     await UI.showTrinketDiscovery(id)
   }
@@ -7772,14 +7792,14 @@ function balanceBotTryOpenRevealTool() {
 function getRunTelemetry() {
   if (run?.telemetry) {
     return {
-      telemetry: JSON.parse(JSON.stringify(run.telemetry)),
+      telemetry: structuredClone(run.telemetry),
       levelUpLog: (run.levelUpLog ?? []).slice(),
       runStats: _runStats(),
     }
   }
   if (_lastRunTelemetrySnapshot) {
     return {
-      telemetry: JSON.parse(JSON.stringify(_lastRunTelemetrySnapshot.telemetry)),
+      telemetry: structuredClone(_lastRunTelemetrySnapshot.telemetry),
       levelUpLog: _lastRunTelemetrySnapshot.levelUpLog.slice(),
       runStats: { ..._lastRunTelemetrySnapshot.runStats },
     }
