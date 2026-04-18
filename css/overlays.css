@@ -367,17 +367,21 @@
 }
 
 /* ═══════════════════════════════════════════════════
-   MAIN MENU
+   MAIN MENU — layered textures + inset bevels (pixel-crisp sprites)
    ═══════════════════════════════════════════════════ */
 
 #main-menu {
+  --menu-bevel-hi: rgba(255, 255, 255, 0.14);
+  --menu-bevel-mid: rgba(255, 255, 255, 0.06);
+  --menu-bevel-lo: rgba(0, 0, 0, 0.55);
+  --menu-bevel-deep: rgba(0, 0, 0, 0.72);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 14px;
   position: fixed;
   inset: 0;
-  background-color: transparent;
+  background-color: #08060c;
   background-image: var(--floor-bg-image);
   background-size: cover;
   background-position: center top;
@@ -385,9 +389,23 @@
   z-index: 95;
   padding: 40px 24px 28px;
   overflow-y: auto;
+  font-family: var(--menu-font-body);
+  -webkit-font-smoothing: antialiased;
 }
 
 #main-menu.hidden { display: none; }
+
+#main-menu::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 95% 70% at 50% 0%, rgba(8, 10, 18, 0.25) 0%, transparent 55%),
+    radial-gradient(ellipse 120% 90% at 50% 100%, rgba(0, 0, 0, 0.55) 0%, transparent 50%),
+    linear-gradient(180deg, rgba(4, 3, 8, 0.35) 0%, rgba(2, 2, 6, 0.65) 100%);
+}
 
 /* ── Hero carousel background ── */
 #menu-hero-carousel {
@@ -400,9 +418,9 @@
   pointer-events: none;
   overflow: hidden;
   z-index: 0;
-  /* Fade out toward the bottom so menu content remains readable */
-  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 60%) 0%, rgb(0 0 0) 55%, #00000000 100%);
-  -webkit-mask-image: linear-gradient(to bottom, rgb(0 0 0 / 60%) 0%, rgb(0 0 0) 55%, #00000000 100%);
+  filter: brightness(0.72) saturate(0.92) contrast(1.05);
+  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 55%) 0%, rgb(0 0 0) 52%, #00000000 100%);
+  -webkit-mask-image: linear-gradient(to bottom, rgb(0 0 0 / 55%) 0%, rgb(0 0 0) 52%, #00000000 100%);
 }
 
 .carousel-hero {
@@ -414,6 +432,7 @@
   width: auto;
   object-fit: contain;
   image-rendering: pixelated;
+  image-rendering: crisp-edges;
   opacity: 0;
   transition: opacity 1.2s ease-in-out;
 }
@@ -429,26 +448,53 @@
 }
 
 #menu-title {
-  font-size: 2rem;
-  color: var(--torch-yellow);
-  text-shadow: 0 0 24px var(--torch-orange), 0 0 60px rgba(232,132,26,0.25);
-  letter-spacing: 4px;
+  font-family: var(--menu-font-display);
+  font-weight: 700;
+  font-size: clamp(1.45rem, 4.2vw, 2rem);
+  color: #f0d78c;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
   text-align: center;
-  margin-bottom: 8px;
+  margin: 0 0 6px;
+  padding: 14px 22px 12px;
+  max-width: 360px;
+  width: 100%;
+  line-height: 1.15;
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.12),
+    0 -1px 0 rgba(0, 0, 0, 0.85),
+    0 0 28px rgba(232, 132, 26, 0.45),
+    0 0 52px rgba(232, 132, 26, 0.2);
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.07) 0%, transparent 42%),
+    repeating-linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.06) 0px,
+      transparent 1px,
+      transparent 3px,
+      rgba(0, 0, 0, 0.05) 4px
+    ),
+    linear-gradient(165deg, #3a3848 0%, #1e1c28 42%, #121018 100%);
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.65);
+  box-shadow:
+    inset 1px 1px 0 var(--menu-bevel-hi),
+    inset -2px -2px 0 var(--menu-bevel-lo),
+    inset 0 -3px 6px var(--menu-bevel-deep),
+    0 6px 0 rgba(0, 0, 0, 0.45),
+    0 12px 28px rgba(0, 0, 0, 0.55);
 }
 
-/* ── Mini hero block on main menu ── */
+/* ── Mini hero block — wood frame with metal corner brackets (object_7) ── */
 #menu-hero-block {
   width: 100%;
-  max-width: 340px;
-  background: rgb(18 21 39 / 90%);
-  border: 1px solid rgba(255,255,255,0.07);
-  border-radius: 10px;
-  padding: 10px 12px;
+  max-width: 360px;
+  padding: 14px 18px 14px 14px;
   display: flex;
   align-items: center;
   gap: 12px;
+  background: url('../assets/ui/menu-panel-wood-frame.png') center/100% 100% no-repeat;
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.55));
 }
 
 #menu-hero-portrait {
@@ -459,8 +505,7 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.22);
+  background: transparent;
 }
 
 #menu-hero-thumb {
@@ -470,7 +515,8 @@
   object-fit: contain;
   object-position: center center;
   image-rendering: pixelated;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.7));
+  image-rendering: crisp-edges;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.75));
 }
 
 #menu-hero-emoji {
@@ -487,125 +533,218 @@
 }
 
 #menu-hero-name {
-  font-size: 1rem;
-  color: var(--torch-yellow);
-  letter-spacing: 1px;
+  font-family: var(--menu-font-display);
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: #e8c878;
+  letter-spacing: 0.06em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
 }
 
 #menu-hero-meta {
   display: flex;
   gap: 12px;
-  font-family: sans-serif;
-  font-size: 0.75rem;
-  color: var(--text-dim);
+  font-family: var(--menu-font-body);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #c4b8a4;
 }
 
 #menu-xp-bar-wrap {
-  height: 3px;
-  background: rgba(255,255,255,0.08);
+  height: 5px;
+  background: rgba(0, 0, 0, 0.45);
   border-radius: 2px;
   overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 
 #menu-xp-bar {
   height: 100%;
-  background: linear-gradient(90deg, #4040c0, #6060ff);
+  background: linear-gradient(90deg, #2a4a9e, #5a7edc 55%, #8aa8ff);
   width: 0%;
   transition: width 0.4s ease;
+  box-shadow: 0 0 8px rgba(100, 140, 255, 0.45);
 }
 
 .hero-change-btn {
   flex-shrink: 0;
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-family: Georgia, serif;
-  font-size: 0.8rem;
+  min-width: 90px;
+  padding: 12px 14px;
+  border: none;
+  background: url('../assets/ui/menu-btn-stone-rivets.png') center/100% 100% no-repeat;
+  font-family: var(--menu-font-display);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   cursor: pointer;
-  background: rgb(18 21 39 / 90%);
-  border: 1px solid rgba(255,255,255,0.15);
-  color: var(--text-primary);
-  letter-spacing: 0.5px;
-  transition: all 0.15s;
+  color: #eadfcb;
   white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+  transition: transform 0.12s ease, filter 0.12s ease;
 }
-.hero-change-btn:active { transform: scale(0.96); opacity: 0.8; }
+.hero-change-btn:hover {
+  filter: brightness(1.1);
+}
+.hero-change-btn:active {
+  transform: scale(0.96);
+  filter: brightness(0.92);
+}
 
-/* ── Menu buttons ── */
-.menu-btn {
+/* ── Menu buttons — painted plate artwork ── */
+#main-menu .menu-btn {
+  position: relative;
   width: 100%;
-  max-width: 340px;
-  padding: 0.7em 1.7em;
-  border-radius: 0.5em;
-  font-family: Georgia, serif;
-  font-size: 0.95rem;
-  letter-spacing: 1px;
+  max-width: 360px;
+  padding: 14px 18px;
+  border: none;
+  background: transparent no-repeat center / 100% 100%;
+  font-family: var(--menu-font-display);
+  font-size: 0.98rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   cursor: pointer;
   outline: none;
   user-select: none;
-  background: var(--color-back);
-  border: solid 2px #030f14;
-  color: var(--btn-text);
-  font-weight: 700;
-  box-shadow:
-    inset 0px -6px 18px -6px rgba(3, 15, 20, 0),
-    inset rgba(54, 69, 75, 1) -1px -1px 6px 0px,
-    inset 12px 0px 12px -6px rgba(3, 15, 20, 0),
-    inset -12px 0px 12px -6px rgba(3, 15, 20, 0),
-    rgba(54, 69, 75, 1) -1px -1px 6px 0px;
-  transition: all 0.3s;
+  color: #f3e7cf;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.9),
+    0 0 8px rgba(0, 0, 0, 0.45);
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.45));
+  transition: filter 0.15s ease, transform 0.1s ease;
 }
+
+#main-menu .menu-btn:hover {
+  filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.55)) brightness(1.08);
+}
+
+#main-menu .menu-btn:active {
+  transform: translateY(1px) scale(0.99);
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5)) brightness(0.95);
+}
+
+#main-menu .menu-btn.primary {
+  font-size: 1.1rem;
+  letter-spacing: 0.08em;
+}
+
+/* Primary action — polished wood plank with metal end-caps (object_8) */
+#new-run-btn {
+  padding: 18px 56px;
+  color: #fff3dc;
+  background-image: url('../assets/ui/menu-btn-wood-bars.png');
+  animation: menu-golden-pulse 2.6s ease-in-out infinite;
+}
+
+@keyframes menu-golden-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 6px rgba(232, 132, 26, 0.4)) drop-shadow(0 4px 6px rgba(0, 0, 0, 0.45));
+  }
+  50% {
+    filter: drop-shadow(0 0 14px rgba(245, 197, 24, 0.55)) drop-shadow(0 4px 6px rgba(0, 0, 0, 0.45));
+  }
+}
+
+/* The Void — faceted purple crystal (object_9) */
+#void-btn {
+  font-style: italic;
+  letter-spacing: 0.05em;
+  cursor: default;
+  color: #fbe7ff;
+  background-image: url('../assets/ui/menu-btn-crystal.png');
+  animation: menu-void-pulse 3.4s ease-in-out infinite;
+}
+
+#void-btn:hover {
+  transform: none;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.45)) brightness(1.04);
+}
+
+@keyframes menu-void-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 8px rgba(160, 70, 220, 0.35)) drop-shadow(0 4px 6px rgba(0, 0, 0, 0.45));
+  }
+  50% {
+    filter: drop-shadow(0 0 18px rgba(180, 90, 240, 0.55)) drop-shadow(0 4px 6px rgba(0, 0, 0, 0.45));
+  }
+}
+
+/* Speckled stone bar (object_10) */
+#main-menu #how-to-play-btn {
+  background-image: url('../assets/ui/menu-btn-stone-speckled.png');
+}
+
+/* Dark slate bar (object_11) */
+#main-menu #settings-btn {
+  background-image: url('../assets/ui/menu-btn-slate.png');
+}
+
+#main-menu .menu-btn.secondary {
+  font-size: 0.88rem;
+  letter-spacing: 0.06em;
+}
+
+/* Modals, hero select, merchants — same carved-stone language (main menu overrides above) */
+.menu-btn {
+  width: 100%;
+  max-width: 340px;
+  padding: 0.7em 1.5em;
+  border-radius: 3px;
+  font-family: var(--menu-font-display);
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  border: 1px solid rgba(0, 0, 0, 0.65);
+  color: #ebe2d4;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.09) 0%, transparent 40%),
+    linear-gradient(165deg, #5a5868 0%, #32323c 45%, #18181f 100%);
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.14),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.55),
+    inset 0 -3px 5px rgba(0, 0, 0, 0.72),
+    0 4px 0 rgba(0, 0, 0, 0.42),
+    0 8px 20px rgba(0, 0, 0, 0.45);
+  transition: color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, transform 0.1s ease;
+}
+
 .menu-btn:hover {
+  filter: brightness(1.05);
   box-shadow:
-    inset 0px -6px 18px -6px rgba(3, 15, 20, 1),
-    inset 0px 6px 18px -6px rgba(3, 15, 20, 1),
-    inset 12px 0px 12px -6px rgba(3, 15, 20, 0),
-    inset -12px 0px 12px -6px rgba(3, 15, 20, 0),
-    -1px -1px 6px 0px rgba(54, 69, 75, 1);
+    inset 1px 1px 0 rgba(255, 255, 255, 0.16),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.5),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.65),
+    0 4px 0 rgba(0, 0, 0, 0.42),
+    0 10px 24px rgba(0, 0, 0, 0.5);
 }
-.menu-btn:hover { transform: none; }
+
 .menu-btn:active {
+  transform: scale(0.985);
   box-shadow:
-    inset 0px -12px 12px -6px rgba(3, 15, 20, 1),
-    inset 0px 12px 12px -6px rgba(3, 15, 20, 1),
-    inset 12px 0px 12px -6px rgba(3, 15, 20, 1),
-    inset -12px 0px 12px -6px rgba(3, 15, 20, 1),
-    -1px -1px 6px 0px rgba(54, 69, 75, 1);
-  transform: scale(0.97);
+    inset 2px 2px 6px rgba(0, 0, 0, 0.55),
+    inset -1px -1px 0 rgba(255, 255, 255, 0.06),
+    0 2px 0 rgba(0, 0, 0, 0.35);
 }
-.menu-btn:hover  { color: var(--btn-text); }
-.menu-btn:active { color: var(--btn-text); }
 
 .menu-btn.primary {
-  font-size: 1.05rem;
-  letter-spacing: 2px;
-}
-
-#new-run-btn {
-  border: 2px solid #f0c040;
-  box-shadow: 0 0 10px rgba(240,192,64,0.6), 0 0 24px rgba(240,192,64,0.3), inset 0 0 8px rgba(240,192,64,0.1);
-  animation: golden-pulse 2.2s ease-in-out infinite;
-}
-
-@keyframes golden-pulse {
-  0%, 100% { box-shadow: 0 0 10px rgba(240,192,64,0.6), 0 0 24px rgba(240,192,64,0.3), inset 0 0 8px rgba(240,192,64,0.1); }
-  50%       { box-shadow: 0 0 18px rgba(240,192,64,0.9), 0 0 40px rgba(240,192,64,0.5), inset 0 0 12px rgba(240,192,64,0.2); }
-}
-
-/* The Void — locked/teaser button */
-#void-btn {
-  border: 2px solid rgba(140, 60, 200, 0.5);
-  color: rgba(180, 120, 255, 0.7);
-  background: rgba(20, 0, 40, 0.6);
-  font-style: italic;
-  letter-spacing: 1px;
-  cursor: default;
-  animation: void-pulse 3s ease-in-out infinite;
-}
-#void-btn:hover { transform: none; box-shadow: 0 0 14px rgba(140,60,200,0.4); }
-
-@keyframes void-pulse {
-  0%, 100% { box-shadow: 0 0 8px rgba(140,60,200,0.3); }
-  50%       { box-shadow: 0 0 20px rgba(140,60,200,0.6); }
+  font-size: 1.02rem;
+  letter-spacing: 0.1em;
+  color: #f8ecd8;
+  border-color: rgba(24, 14, 6, 0.95);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, transparent 35%),
+    repeating-linear-gradient(
+      88deg,
+      rgba(0, 0, 0, 0.06) 0px,
+      transparent 1px,
+      transparent 4px,
+      rgba(0, 0, 0, 0.05) 5px
+    ),
+    linear-gradient(165deg, #5c3d24 0%, #3d2614 42%, #1a1008 100%);
 }
 
 .menu-btn.secondary {
@@ -692,28 +831,35 @@
 .menu-updates-chip {
   width: auto;
   max-width: 340px;
-  padding: 9px 22px;
-  font-size: 0.72rem;
+  padding: 10px 22px;
+  font-size: 0.7rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: var(--menu-font-display);
   cursor: pointer;
-  color: #e8d4b8;
-  background: linear-gradient(145deg, rgba(45, 32, 58, 0.92) 0%, rgba(18, 14, 28, 0.96) 100%);
-  border: 1px solid rgba(200, 160, 100, 0.28);
-  border-radius: 999px;
+  color: #f0e4d4;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.08) 0%, transparent 40%),
+    linear-gradient(165deg, #3a3450 0%, #1a1428 55%, #0c0812 100%);
   box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.35),
-    0 6px 20px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  transition: transform 0.12s ease, border-color 0.15s, box-shadow 0.15s;
+    inset 1px 1px 0 rgba(255, 255, 255, 0.1),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.45),
+    0 3px 0 rgba(0, 0, 0, 0.4),
+    0 8px 20px rgba(0, 0, 0, 0.45);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+  transition: transform 0.12s ease, filter 0.15s ease, box-shadow 0.15s ease;
 }
 .menu-updates-chip:hover {
-  border-color: rgba(240, 200, 120, 0.45);
+  filter: brightness(1.06);
   box-shadow:
-    0 0 0 1px rgba(200, 160, 80, 0.15),
-    0 8px 26px rgba(0, 0, 0, 0.5);
+    inset 1px 1px 0 rgba(255, 255, 255, 0.12),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.45),
+    0 0 14px rgba(200, 160, 100, 0.2),
+    0 3px 0 rgba(0, 0, 0, 0.4),
+    0 10px 24px rgba(0, 0, 0, 0.5);
 }
 .menu-updates-chip:active {
   transform: scale(0.98);
@@ -1142,36 +1288,55 @@
 #menu-secondary {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
-  max-width: 340px;
+  max-width: 360px;
 }
 
-#menu-secondary .menu-btn { width: 100%; }
+#main-menu #menu-secondary .menu-btn {
+  width: 100%;
+  padding: 16px 10px;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  color: #eadfcb;
+  background-image: url('../assets/ui/menu-btn-stone-rivets-wide.png');
+}
 
-/* ── Difficulty selector ── */
+/* Alternate between the two rivet-plate variants for visual texture */
+#main-menu #menu-secondary .menu-btn:nth-child(even) {
+  background-image: url('../assets/ui/menu-btn-stone-rivets.png');
+}
+
+/* ── Difficulty selector — stone plinth + recessed slots ── */
 #difficulty-row {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 6px;
-  font-family: sans-serif;
+  gap: 8px;
+  font-family: var(--menu-font-body);
   font-size: 0.75rem;
 }
 
 .diff-label {
-  color: rgba(230, 220, 200, 0.95);
-  font-size: 0.82rem;
+  font-family: var(--menu-font-display);
+  color: #e8dcc8;
+  font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.22em;
   text-align: center;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08),
+    0 -1px 2px rgba(0, 0, 0, 0.85);
 }
 
 #diff-cards {
   display: flex;
-  gap: 6px;
+  gap: 8px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .diff-btn {
@@ -1179,43 +1344,65 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 3px;
-  background: rgb(18 21 39 / 90%);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 6px;
-  padding: 7px 6px;
+  padding: 12px 8px;
+  border: none;
   cursor: pointer;
-  transition: all 0.15s;
   text-align: center;
+  background: url('../assets/ui/menu-btn-stone-plate.png') center/100% 100% no-repeat;
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.45));
+  transition: filter 0.15s ease, transform 0.1s ease;
+}
+
+.diff-btn:hover {
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5)) brightness(1.08);
+}
+.diff-btn:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+/* Hard tile — crimson warning plate */
+.diff-btn[data-diff="hard"] {
+  background-image: url('../assets/ui/menu-btn-stone-red.png');
 }
 
 .diff-name {
-  font-size: 0.82rem;
+  font-size: 0.88rem;
   font-weight: 700;
-  color: rgba(210, 205, 195, 0.98);
-  font-family: sans-serif;
+  font-family: var(--menu-font-display);
+  color: #ebdfc8;
+  letter-spacing: 0.04em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
 }
 
 .diff-stats {
-  font-size: 0.64rem;
-  color: rgba(195, 185, 170, 0.92);
-  font-family: sans-serif;
-  line-height: 1.35;
+  font-size: 0.6rem;
+  color: #c4b8a4;
+  font-family: var(--menu-font-body);
+  font-weight: 600;
+  line-height: 1.3;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 
 .diff-btn.active {
-  background: rgb(18 21 39 / 90%);
-  border-color: var(--torch-orange);
+  filter: drop-shadow(0 0 10px rgba(232, 132, 26, 0.6)) drop-shadow(0 3px 5px rgba(0, 0, 0, 0.45));
 }
 
-.diff-btn.active .diff-name  { color: var(--torch-yellow); }
-.diff-btn.active .diff-stats { color: rgba(255, 220, 150, 0.95); }
+.diff-btn.active .diff-name {
+  color: #f5d58c;
+  text-shadow: 0 0 10px rgba(232, 132, 26, 0.6), 0 1px 2px rgba(0, 0, 0, 0.8);
+}
 
-/* ── Save buttons (main menu) ── */
+.diff-btn.active .diff-stats {
+  color: rgba(255, 220, 180, 0.96);
+}
+
+/* ── Save buttons (main menu) — parchment strip + seal accent ── */
 #menu-save-row {
   display: flex;
   gap: 10px;
-  margin-top: 8px;
+  margin-top: 6px;
   justify-content: center;
   flex-wrap: wrap;
 }
@@ -1224,57 +1411,69 @@
   flex: 1 1 auto;
   min-width: 120px;
   max-width: 168px;
-  padding: 10px 12px;
-  background: rgb(22 26 44 / 92%);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 8px;
-  color: rgba(230, 225, 215, 0.98);
-  font-size: 0.8rem;
+  padding: 14px 16px;
+  font-size: 0.82rem;
   font-weight: 600;
-  font-family: Georgia, 'Segoe UI', sans-serif;
-  letter-spacing: 0.03em;
+  font-family: var(--menu-font-display);
+  letter-spacing: 0.05em;
   cursor: pointer;
   text-decoration: none;
   text-align: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  color: #f0e2c8;
+  border: none;
+  background: url('../assets/ui/menu-btn-wood-plaque.png') center/100% 100% no-repeat;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.45));
+  transition: filter 0.12s ease, transform 0.1s ease;
 }
 
 #menu-save-row .save-link:hover {
-  color: #fff;
-  border-color: rgba(245, 197, 24, 0.35);
-  background: rgb(28 32 52 / 95%);
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.55)) brightness(1.08);
 }
 
 #menu-save-row .save-link:active {
-  transform: scale(0.98);
-  opacity: 0.95;
+  transform: translateY(1px) scale(0.99);
 }
 
-/* ── QR code (main menu) ── */
+/* ── QR code (main menu) — aged parchment ── */
 .menu-qr-block {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
   margin-top: 4px;
-  padding: 12px 14px 10px;
-  background: rgb(18 21 39 / 88%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  padding: 14px 16px 12px;
+  border-radius: 4px;
+  border: 1px solid rgba(40, 32, 22, 0.45);
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.2) 0%, transparent 35%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.02) 0px,
+      transparent 2px
+    ),
+    linear-gradient(165deg, #e8dcc4 0%, #b8a080 45%, #7a6848 100%);
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.25),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.18),
+    0 4px 0 rgba(0, 0, 0, 0.28),
+    0 12px 28px rgba(0, 0, 0, 0.45);
 }
 
 .menu-qr-link {
   display: block;
   line-height: 0;
-  border-radius: 8px;
+  border-radius: 3px;
   overflow: hidden;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4) inset;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.25),
+    0 2px 6px rgba(0, 0, 0, 0.35);
   transition: filter 0.15s, transform 0.1s;
 }
 
 .menu-qr-link:hover {
-  filter: brightness(1.06);
+  filter: brightness(1.04);
 }
 
 .menu-qr-link:active {
@@ -1286,15 +1485,17 @@
   width: 132px;
   height: 132px;
   image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 
 .menu-qr-caption {
-  font-size: 0.68rem;
+  font-family: var(--menu-font-display);
+  font-size: 0.65rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(200, 195, 185, 0.92);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+  color: #3a3024;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .save-link {

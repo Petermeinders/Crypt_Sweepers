@@ -28,6 +28,10 @@
   --hud-bar-bg:    linear-gradient(180deg, #1e1e2d 0%, #12121c 100%);
   --color-back:    #1a2535;
   --btn-text:      #d0a756;
+
+  /* Main menu — wood / stone / parchment (see overlays.css) */
+  --menu-font-display: 'Cinzel', Georgia, 'Times New Roman', serif;
+  --menu-font-body: 'Crimson Pro', Georgia, 'Times New Roman', serif;
 }
 
 html, body {

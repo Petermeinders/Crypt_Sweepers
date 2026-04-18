@@ -2,7 +2,7 @@
 // Strategy: Cache-first for assets, network-first for HTML.
 // Version bump CACHE_NAME to force cache refresh on deploy.
 
-const CACHE_NAME = 'crypt-sweepers-v235'
+const CACHE_NAME = 'crypt-sweepers-v238'
 
 const PRECACHE_ASSETS = [
   './',
@@ -86,6 +86,16 @@ const PRECACHE_ASSETS = [
   './assets/ui/rare-tile.png',
   './assets/ui/legendary-tile.png',
   './assets/ui/play-qr.png',
+  './assets/ui/menu-panel-wood-frame.png',
+  './assets/ui/menu-btn-wood-bars.png',
+  './assets/ui/menu-btn-wood-plaque.png',
+  './assets/ui/menu-btn-crystal.png',
+  './assets/ui/menu-btn-slate.png',
+  './assets/ui/menu-btn-stone-speckled.png',
+  './assets/ui/menu-btn-stone-plate.png',
+  './assets/ui/menu-btn-stone-rivets.png',
+  './assets/ui/menu-btn-stone-rivets-wide.png',
+  './assets/ui/menu-btn-stone-red.png',
   './assets/sprites/tiles/rubble.png',
   './assets/sprites/tiles/tile-hole.png',
   './assets/sprites/tiles/tile-unflipped2.1.png',
