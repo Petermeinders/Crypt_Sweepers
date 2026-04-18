@@ -32,6 +32,18 @@
   /* Main menu — wood / stone / parchment (see overlays.css) */
   --menu-font-display: 'Exo 2', 'Cinzel', Georgia, 'Times New Roman', serif;
   --menu-font-body: 'Crimson Pro', Georgia, 'Times New Roman', serif;
+  /* Carved gold labels (matches reference art — warm amber + crisp black rim) */
+  --menu-gold-text: #ffd740;
+  --menu-text-outline-shadow:
+    -1px -1px 0 #000,
+    1px -1px 0 #000,
+    -1px 1px 0 #000,
+    1px 1px 0 #000,
+    -1px 0 0 #000,
+    1px 0 0 #000,
+    0 -1px 0 #000,
+    0 1px 0 #000,
+    0 2px 3px rgba(0, 0, 0, 0.5);
 }
 
 html, body {
