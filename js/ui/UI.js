@@ -1781,9 +1781,15 @@ const UI = {
   },
 
   setActiveDifficulty(diff) {
+    const positions = { easy: 'pos-0', normal: 'pos-1', hard: 'pos-2' }
     document.querySelectorAll('.diff-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.diff === diff)
     })
+    const skull = document.getElementById('diff-skull')
+    if (skull) {
+      skull.classList.remove('pos-0', 'pos-1', 'pos-2')
+      skull.classList.add(positions[diff] ?? 'pos-1')
+    }
   },
 
   // ── XP Tree panel (Warrior or Ranger) ────────

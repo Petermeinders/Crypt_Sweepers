@@ -16,6 +16,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Crimson+Pro:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Exo+2:ital,wght@0,100..900;1,100..900&display=swap');
+  </style>
 
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/tiles.css">
@@ -391,7 +394,7 @@
       <img class="carousel-hero" src="assets/sprites/Heroes/Engineer/engineer-hero-idle.gif" alt="">
     </div>
 
-    <div id="menu-title"><img src="assets/ui/title-logo.png" alt="Crypt Sweepers" id="menu-title-img"></div>
+    <div id="menu-title"><img src="assets/ui/title-logo.gif" alt="Crypt Sweepers" id="menu-title-img"></div>
 
     <!-- Mini hero preview -->
     <div id="menu-hero-block">
@@ -416,39 +419,60 @@
     <button type="button" id="latest-updates-btn" class="menu-updates-chip">✨ Latest Updates</button>
     <button id="settings-btn" class="menu-btn secondary">⚙️ Settings</button>
     <div id="menu-secondary">
-      <button id="gold-shop-btn" class="menu-btn secondary">🛒 Gold Shop</button>
-      <button id="passive-upgrades-btn" class="menu-btn secondary">📜 Passive Upgrades</button>
-      <button id="bestiary-btn" class="menu-btn secondary">📖 Bestiary</button>
-      <button id="trinket-codex-btn" class="menu-btn secondary">🔮 Trinkets</button>
+      <button id="gold-shop-btn" class="menu-btn secondary menu-btn--split" type="button">
+        <span class="menu-btn-ic" aria-hidden="true">🛒</span>
+        <span class="menu-btn-label">
+          <span class="menu-btn-line">Gold</span>
+          <span class="menu-btn-line">Shop</span>
+        </span>
+      </button>
+      <button id="passive-upgrades-btn" class="menu-btn secondary menu-btn--split" type="button">
+        <span class="menu-btn-ic" aria-hidden="true">📜</span>
+        <span class="menu-btn-label">
+          <span class="menu-btn-line">Passive</span>
+          <span class="menu-btn-line">Upgrades</span>
+        </span>
+      </button>
+      <button id="bestiary-btn" class="menu-btn secondary menu-btn--split" type="button">
+        <span class="menu-btn-ic" aria-hidden="true">📖</span>
+        <span class="menu-btn-label menu-btn-label--single">Bestiary</span>
+      </button>
+      <button id="trinket-codex-btn" class="menu-btn secondary menu-btn--split" type="button">
+        <span class="menu-btn-ic" aria-hidden="true">🔮</span>
+        <span class="menu-btn-label menu-btn-label--single">Trinkets</span>
+      </button>
     </div>
     <div id="difficulty-row">
-      <span class="diff-label">Difficulty</span>
-      <div id="diff-cards">
-        <button class="diff-btn" data-diff="easy">
-          <span class="diff-name">Easy</span>
-          <span class="diff-stats">−30% dmg taken · −50% XP &amp; gold</span>
-        </button>
-        <button class="diff-btn active" data-diff="normal">
-          <span class="diff-name">Normal</span>
-          <span class="diff-stats">Standard rates</span>
-        </button>
-        <button class="diff-btn" data-diff="hard">
-          <span class="diff-name">Hard</span>
-          <span class="diff-stats">+35% dmg taken · +25% XP &amp; gold</span>
-        </button>
+      <div id="diff-shelf-wrap">
+        <img src="assets/ui/diff-shelf.png" id="diff-shelf-img" alt="difficulty shelf">
+
+        <!-- Invisible tap targets over each stone slot -->
+        <button class="diff-btn" data-diff="easy"   aria-label="Easy difficulty"></button>
+        <button class="diff-btn" data-diff="normal" aria-label="Normal difficulty"></button>
+        <button class="diff-btn" data-diff="hard"   aria-label="Hard difficulty"></button>
+
+        <!-- Skull sits over the active slot -->
+        <div id="diff-skull"><img src="assets/ui/skull.png" alt="skull"></div>
+
+        <!-- QR overlaid on the parchment area (bottom-left of shelf image) -->
+        <div id="diff-qr-area">
+          <a href="https://petermeinders.github.io/Crypt_Sweepers/" target="_blank" rel="noopener noreferrer" title="Scan to play">
+            <img src="assets/ui/play-qr.png" alt="Scan to play QR code">
+          </a>
+        </div>
+
+        <!-- Export / Import overlaid on the dark slate (bottom-right) -->
+        <div id="diff-save-area">
+          <button id="export-save-btn" class="save-seal-btn">
+            <span class="save-seal-label">EXPORT SAVE</span>
+          </button>
+          <button id="import-save-btn" class="save-seal-btn">
+            <span class="save-seal-label">IMPORT SAVE</span>
+          </button>
+        </div>
       </div>
     </div>
-    <div id="menu-save-row">
-      <button id="export-save-btn" class="save-link">Export Save</button>
-      <button id="import-save-btn" class="save-link">Import Save</button>
-    </div>
     <input type="file" id="import-file-input" accept=".json" style="display:none">
-
-    <div id="menu-qr-block" class="menu-qr-block">
-      <a class="menu-qr-link" href="https://petermeinders.github.io/Crypt_Sweepers/" target="_blank" rel="noopener noreferrer" title="Open Crypt Sweepers in the browser">
-        <img src="assets/ui/play-qr.png" width="132" height="132" alt="QR code linking to Crypt Sweepers">
-      </a>
-    </div>
 
     <!-- PWA install nudge (shown by JS when available) -->
     <div id="install-nudge" class="install-prompt hidden">
