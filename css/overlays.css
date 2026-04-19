@@ -2102,40 +2102,88 @@
   isolation: isolate;
   display: flex;
   flex-direction: column;
-  background-image: var(--floor-bg-image);
-  background-size: cover;
-  background-position: center top;
-  background-repeat: no-repeat;
+  background: radial-gradient(ellipse 70% 55% at center 52%, var(--hero-glow, rgba(74, 222, 128, 0.28)) 0%, #00000045 65%), linear-gradient(180deg, rgb(0 0 0 / 65%) 0%, rgba(0, 0, 0, 0.15) 22%, rgba(0, 0, 0, 0.15) 70%, rgba(0, 0, 0, 0.92) 100%), url(../assets/DungeonBackground.png) center / cover no-repeat, #0a0910;
   color: var(--text-primary);
   font-family: Georgia, serif;
   max-width: 480px;
   margin: 0 auto;
+  /* Fallback theme — individual heroes override via .hero-select-slide[data-hero="…"] */
+  --hero-color: #f0b94a;
+  --hero-glow:  rgba(240,185,74,.55);
 }
+
+#hero-select-overlay[data-hero="warrior"]     { --hero-color: #f0b94a; --hero-glow: rgba(240,185,74,.55); }
+#hero-select-overlay[data-hero="ranger"]      { --hero-color: #4ade80; --hero-glow: rgba(74,222,128,.55); }
+#hero-select-overlay[data-hero="vampire"]     { --hero-color: #ef3a4a; --hero-glow: rgba(239,58,74,.55); }
+#hero-select-overlay[data-hero="mage"]        { --hero-color: #5aa9ff; --hero-glow: rgba(90,169,255,.55); }
+#hero-select-overlay[data-hero="engineer"]    { --hero-color: #facc15; --hero-glow: rgba(250,204,21,.55); }
+#hero-select-overlay[data-hero="necromancer"] { --hero-color: #a855f7; --hero-glow: rgba(168,85,247,.55); }
+#hero-select-overlay[data-hero="drone"]       { --hero-color: #f5f5f5; --hero-glow: rgba(245,245,245,.45); }
+#hero-select-overlay[data-hero="druid"]       { --hero-color: #2f7d4f; --hero-glow: rgba(47,125,79,.55); }
+
+.hero-select-slide[data-hero="warrior"]     { --hero-color: #f0b94a; --hero-glow: rgba(240,185,74,.55); }
+.hero-select-slide[data-hero="ranger"]      { --hero-color: #4ade80; --hero-glow: rgba(74,222,128,.55); }
+.hero-select-slide[data-hero="vampire"]     { --hero-color: #ef3a4a; --hero-glow: rgba(239,58,74,.55); }
+.hero-select-slide[data-hero="mage"]        { --hero-color: #5aa9ff; --hero-glow: rgba(90,169,255,.55); }
+.hero-select-slide[data-hero="engineer"]    { --hero-color: #facc15; --hero-glow: rgba(250,204,21,.55); }
+.hero-select-slide[data-hero="necromancer"] { --hero-color: #a855f7; --hero-glow: rgba(168,85,247,.55); }
+.hero-select-slide[data-hero="drone"]       { --hero-color: #f5f5f5; --hero-glow: rgba(245,245,245,.45); }
+.hero-select-slide[data-hero="druid"]       { --hero-color: #2f7d4f; --hero-glow: rgba(47,125,79,.55); }
 
 #hero-select-overlay.hidden { display: none; }
 
 #hero-select-header {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px 8px;
-  background: rgb(18 21 39 / 85%);
+  gap: 4px;
+  padding: 14px 16px 10px;
+  background: transparent;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   flex-shrink: 0;
+  text-align: center;
 }
 
-#hero-select-title {
-  font-size: 1rem;
-  letter-spacing: 2px;
-  color: var(--torch-yellow);
+#hero-select-title-main {
+  font-family: 'Cinzel', Georgia, 'Times New Roman', serif;
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: #f0e4c4;
   text-transform: uppercase;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.9), 0 0 24px var(--hero-glow, rgba(240,185,74,.45));
 }
 
-#hero-select-gold {
-  font-family: sans-serif;
-  font-size: 0.88rem;
-  color: var(--gold);
+#hero-select-subtitle {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.5em;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-top: -2px;
+  color: var(--hero-color, #f0b94a);
+  text-shadow: 0 0 10px var(--hero-glow, transparent);
+  transition: color 0.25s, text-shadow 0.25s;
 }
+
+.hero-select-back-pill {
+  margin: 6px auto 0;
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: var(--text-primary);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hero-select-back-pill:active { transform: scale(0.96); opacity: 0.85; }
+
+#hero-select-gold { display: none; }
+#hero-select-gold.hidden { display: none; }
 
 /* Scrollable body — horizontal snap carousel */
 #hero-select-body {
@@ -2145,11 +2193,7 @@
   flex-direction: column;
   overflow: hidden;
   padding: 0;
-  background: linear-gradient(
-    180deg,
-    rgb(14 10 8 / 0.88) 0%,
-    rgb(16 18 28 / 0.78) 100%
-  );
+  background: transparent;
 }
 
 #hero-carousel-wrap {
@@ -4799,4 +4843,396 @@ body.bestiary-detail-open #app {
 .sub-floor-grid .tile.revealed.tile-type-shrine,
 .sub-floor-grid .tile.revealed.tile-type-chest {
   cursor: pointer;
+}
+
+/* ═══════════════════════════════════════════════════
+   HERO SELECT — REDESIGNED DOORWAY LAYOUT
+   ═══════════════════════════════════════════════════ */
+
+/* Pagination dots under the header */
+.hero-pagination-dots {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  align-items: center;
+  padding: 8px 16px 4px;
+  flex-shrink: 0;
+}
+
+.hero-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.25);
+  cursor: pointer;
+  transition: background 0.2s, width 0.2s, border-radius 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hero-dot.is-active {
+  background: var(--hero-color, #f0b94a);
+  width: 18px;
+  border-radius: 4px;
+  box-shadow: 0 0 8px var(--hero-glow, transparent);
+}
+
+/* Altar stage — full-bleed hero with radial glow + rune rings (no boxed frame) */
+.hero-doorway {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  height: clamp(320px, 58vh, 520px);
+  margin: 0 auto;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Radial glow behind hero */
+.altar-hero-glow {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  transform: translate(-50%, -50%);
+  width: 80%;
+  aspect-ratio: 1;
+  background: radial-gradient(circle at center, var(--hero-glow, rgba(240,185,74,.55)), transparent 60%);
+  filter: blur(24px);
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.55;
+}
+
+.hero-select-slide.is-current .altar-hero-glow {
+  animation: altar-pulse 4s ease-in-out infinite;
+}
+
+@keyframes altar-pulse {
+  0%, 100% { opacity: 0.55; transform: translate(-50%, -50%) scale(1); }
+  50%      { opacity: 0.85; transform: translate(-50%, -50%) scale(1.08); }
+}
+
+/* Rotating dashed rune rings */
+.altar-ring {
+  position: absolute;
+  top: 52%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px dashed rgba(255,255,255,0.18);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.altar-ring.inner {
+  width: 68%;
+  border-color: var(--hero-color, rgba(255,255,255,0.22));
+  opacity: 0.35;
+}
+
+.hero-select-slide.is-current .altar-ring {
+  animation: altar-rot 60s linear infinite;
+}
+
+.hero-select-slide.is-current .altar-ring.inner {
+  animation: altar-rot 40s linear infinite reverse;
+}
+
+@keyframes altar-rot {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Hero portrait centered on the stage, floating */
+.hero-doorway .hero-display-wrap {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: auto;
+  height: auto;
+  max-height: 78%;
+  z-index: 4;
+  filter: drop-shadow(0 8px 24px rgba(0,0,0,0.8));
+}
+
+.hero-select-slide.is-current .hero-doorway .hero-display-wrap {
+  animation: altar-float 4s ease-in-out infinite;
+}
+
+@keyframes altar-float {
+  0%, 100% { transform: translate(-50%, -50%); }
+  50%      { transform: translate(-50%, calc(-50% - 6px)); }
+}
+
+.hero-doorway .hero-display-gif {
+  max-height: clamp(220px, 48vh, 360px);
+  width: auto;
+  height: auto;
+  filter: none;
+}
+
+.hero-doorway .hero-display-emoji {
+  font-size: 6rem;
+}
+
+/* Side rails — glass upgrade slots flanking the hero */
+.hero-upgrades-col {
+  position: absolute;
+  top: 18%;
+  bottom: 18%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  gap: 10px;
+  z-index: 5;
+}
+
+.hero-upgrades-col.left  { left: 10px; }
+.hero-upgrades-col.right { right: 10px; }
+
+.hero-upgrades-col .hero-upgrade-slot {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.55);
+  color: #e0d9c6;
+}
+
+.hero-upgrades-col .hero-upgrade-slot:hover {
+  background: rgba(255,255,255,0.08);
+}
+
+.hero-upgrades-col .hero-upgrade-slot.owned {
+  border-color: var(--hero-color, var(--torch-orange));
+  box-shadow: 0 0 14px var(--hero-glow, transparent);
+}
+
+.hero-upgrades-col .hero-upgrade-icon-img,
+.hero-upgrades-col .hero-upgrade-icon-stack {
+  width: 28px;
+  height: 28px;
+}
+
+.hero-upgrades-col .hero-upgrade-icon-stack .hero-upgrade-icon-bg {
+  width: 28px;
+  height: 28px;
+}
+
+.hero-upgrades-col .hero-upgrade-icon-stack .hero-upgrade-icon-fg {
+  width: 22px;
+  height: 22px;
+}
+
+.hero-upgrades-col .hero-upgrade-icon {
+  font-size: 1.2rem;
+}
+
+.hero-upgrades-col .hero-upgrade-cost {
+  display: none;
+}
+
+/* Ambient particles (JS-randomized per particle: left, size, dur, delay, --dx, opacity) */
+.hero-particles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.hero-particle {
+  position: absolute;
+  bottom: -10px;
+  border-radius: 50%;
+  background: var(--hero-color, #f0b94a);
+  box-shadow: 0 0 6px var(--hero-glow, rgba(240,185,74,.55));
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+.hero-select-slide[data-hero="drone"] .hero-particle {
+  filter: brightness(0.75);
+}
+
+@keyframes hero-particle-rise {
+  0%   { opacity: 0; transform: translateY(0) translateX(0); }
+  15%  { opacity: 0.9; }
+  100% { opacity: 0; transform: translateY(-500px) translateX(var(--dx, 10px)); }
+}
+
+.hero-select-slide.is-current .hero-particle {
+  animation-name: hero-particle-rise;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.hero-select-slide:not(.is-current) .hero-particle {
+  animation: none;
+  opacity: 0 !important;
+}
+
+/* Slide reflow — name goes below doorway, old grid is hidden */
+.hero-select-slide .hero-upgrades-grid[hidden] { display: none; }
+
+/* Re-skin the name block as a floating Altar title + italic tagline + glass stat pill.
+   Overrides the older wood-plaque styling. */
+.hero-select-slide .hero-select-namewrap {
+  margin-top: 4px;
+  width: 100%;
+  max-width: 420px;
+  padding: 0 18px;
+  text-align: center;
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+
+.hero-select-slide .hero-select-namewrap::before,
+.hero-select-slide .hero-select-namewrap::after {
+  display: none;
+}
+
+.hero-select-slide .hero-select-name {
+  font-family: 'Cinzel', Georgia, 'Times New Roman', serif;
+  font-size: 1.9rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #fff;
+  text-shadow:
+    0 4px 12px rgba(0,0,0,0.9),
+    0 0 20px var(--hero-glow, rgba(240,185,74,.45));
+}
+
+.hero-select-slide .hero-select-name::after {
+  display: none;
+}
+
+.hero-select-slide .hero-select-tagline {
+  font-family: 'Crimson Pro', 'Cormorant Garamond', Georgia, serif;
+  font-style: italic;
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.7);
+  margin-top: 2px;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.8);
+  line-height: 1.4;
+}
+
+.hero-select-slide .hero-select-xp-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px auto 0;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-top: 1px solid rgba(255,255,255,0.12);
+  box-shadow: none;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #e0d9c6;
+  text-shadow: none;
+}
+
+.hero-select-slide .hero-select-xp-row .hero-stat-sep {
+  color: rgba(255,255,255,0.25);
+}
+
+/* Circular CTA button */
+#hero-select-footer {
+  padding: 14px 16px 22px;
+  background: transparent;
+  border-top: none;
+}
+
+.hero-select-btn--circle {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #fff;
+  font-family: 'Cinzel', Georgia, 'Times New Roman', serif;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 40%, var(--hero-color, #f0b94a), #1a0820 75%);
+  box-shadow:
+    0 0 40px var(--hero-glow, rgba(240,185,74,.55)),
+    inset 0 2px 12px rgba(255,255,255,0.3),
+    inset 0 -4px 14px rgba(0,0,0,0.5);
+  transition: transform 0.12s, box-shadow 0.2s, filter 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hero-select-btn--circle::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.25);
+  pointer-events: none;
+}
+
+.hero-select-btn--circle::after {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  border: 1px dashed rgba(255,255,255,0.2);
+  pointer-events: none;
+}
+
+.hero-select-btn--circle:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.hero-select-btn--circle:disabled {
+  cursor: default;
+  filter: grayscale(0.35) brightness(0.8);
+  opacity: 0.85;
+}
+
+.hero-select-btn--circle .hero-cta-label {
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.1;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+}
+
+.hero-select-btn--circle .hero-cta-sub {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: rgba(255,255,255,0.92);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.65);
+}
+
+.hero-select-btn--circle .hero-cta-sub.hidden { display: none; }
+
+/* Narrow-viewport safety: hide XP label on perimeter slots */
+@media (max-width: 379px) {
+  .hero-upgrades-col .hero-upgrade-cost { display: none; }
+  .hero-doorway { max-width: 100%; }
+  .hero-upgrades-col.left  { left: 2px; }
+  .hero-upgrades-col.right { right: 2px; }
+  .hero-upgrades-col .hero-upgrade-slot { width: 46px; height: 46px; }
 }

@@ -936,21 +936,22 @@ function _ensureHeroSelectSlides() {
   const scroll = document.getElementById('hero-select-scroll')
   if (!scroll) return
   const first = scroll.children[0]
-  const structureOk = first?.querySelector('.hero-passive-wrap')
+  const structureOk = first?.querySelector('.hero-doorway')
   if (scroll.children.length === CHARACTERS.length && structureOk) return
   scroll.innerHTML = ''
-  CHARACTERS.forEach((_, i) => {
+  CHARACTERS.forEach((char, i) => {
     const slide = document.createElement('section')
     slide.className = 'hero-select-slide'
     slide.dataset.heroIndex = String(i)
+    slide.dataset.hero      = char.id
     slide.innerHTML = `
-      <div class="hero-select-namewrap">
-        <div class="hero-select-name"></div>
-        <div class="hero-select-tagline"></div>
-        <div class="hero-select-xp-row">XP: <span class="hero-select-xp"></span></div>
-      </div>
-      <div class="hero-upgrades-grid"></div>
-      <div class="hero-display-row">
+      <div class="hero-doorway">
+        <div class="altar-ring" aria-hidden="true"></div>
+        <div class="altar-ring inner" aria-hidden="true"></div>
+        <div class="altar-hero-glow" aria-hidden="true"></div>
+        <div class="hero-particles" aria-hidden="true"></div>
+        <div class="hero-upgrades-col left" data-col="left"></div>
+        <div class="hero-upgrades-col right" data-col="right"></div>
         <div class="hero-display-wrap">
           <img class="hero-display-gif" src="" alt="">
           <div class="hero-display-emoji hidden"></div>
@@ -960,10 +961,22 @@ function _ensureHeroSelectSlides() {
           </div>
         </div>
       </div>
+      <div class="hero-select-namewrap">
+        <div class="hero-select-name"></div>
+        <div class="hero-select-tagline"></div>
+        <div class="hero-select-xp-row">
+          <span class="hero-stat-gold">💰 <span class="hero-stat-gold-val">0</span></span>
+          <span class="hero-stat-sep">·</span>
+          <span class="hero-stat-lv">LV <span class="hero-select-lvl">1</span></span>
+          <span class="hero-stat-sep">·</span>
+          <span class="hero-stat-xp">XP <span class="hero-select-xp">0</span></span>
+        </div>
+      </div>
+      <div class="hero-upgrades-grid" hidden></div>
       <div class="hero-passive-wrap" hidden>
         <div class="hero-passive-accordion">
           <button type="button" class="hero-passive-accordion-toggle" aria-expanded="false">
-            <span>Hero Passives</span>
+            <span>Passives &amp; Extra Upgrades</span>
             <span class="accordion-chevron">▸</span>
           </button>
           <div class="hero-passive-accordion-body">
@@ -972,6 +985,20 @@ function _ensureHeroSelectSlides() {
         </div>
       </div>
     `
+    const particlesEl = slide.querySelector('.hero-particles')
+    for (let p = 0; p < 18; p++) {
+      const mote = document.createElement('span')
+      mote.className = 'hero-particle'
+      const size = 1 + Math.random() * 3
+      mote.style.left             = (Math.random() * 100) + '%'
+      mote.style.width            = size + 'px'
+      mote.style.height           = size + 'px'
+      mote.style.animationDuration = (6 + Math.random() * 10) + 's'
+      mote.style.animationDelay    = (-Math.random() * 10) + 's'
+      mote.style.setProperty('--dx', ((Math.random() - 0.5) * 80) + 'px')
+      mote.style.opacity           = String(0.4 + Math.random() * 0.5)
+      particlesEl.appendChild(mote)
+    }
     scroll.appendChild(slide)
   })
   _wireHeroSelectScroll()
@@ -1014,6 +1041,27 @@ function _navHeroSelect(delta) {
   _renderHeroSelect({ scrollBehavior: 'smooth' })
 }
 
+function _renderHeroDots(idx) {
+  const wrap = document.getElementById('hero-pagination-dots')
+  if (!wrap) return
+  if (wrap.children.length !== CHARACTERS.length) {
+    wrap.innerHTML = ''
+    CHARACTERS.forEach((char, i) => {
+      const dot = document.createElement('span')
+      dot.className = 'hero-dot'
+      dot.dataset.hero = char.id
+      dot.dataset.heroIndex = String(i)
+      dot.addEventListener('click', () => {
+        _navHeroSelect(Number(dot.dataset.heroIndex) - _heroIdx)
+      })
+      wrap.appendChild(dot)
+    })
+  }
+  Array.from(wrap.children).forEach((dot, i) => {
+    dot.classList.toggle('is-active', i === idx)
+  })
+}
+
 function _openHeroSelect() {
   const s = GameController.getSave()
   _heroIdx = CHARACTERS.findIndex(c => c.id === (s.selectedCharacter ?? 'warrior'))
@@ -1033,13 +1081,17 @@ function _renderHeroSelect(opts = {}) {
   const scrollBehavior  = opts.scrollBehavior ?? 'instant'
   _ensureHeroSelectSlides()
   const s = GameController.getSave()
-  document.getElementById('hero-select-gold-val').textContent = s.persistentGold
+  const goldValEl = document.getElementById('hero-select-gold-val')
+  if (goldValEl) goldValEl.textContent = s.persistentGold
 
   const scroll = document.getElementById('hero-select-scroll')
+  const overlay = document.getElementById('hero-select-overlay')
+  if (overlay) overlay.dataset.hero = CHARACTERS[_heroIdx]?.id ?? ''
 
   CHARACTERS.forEach((char, i) => {
     const slide = scroll?.children[i]
     if (!slide) return
+    slide.classList.toggle('is-current', i === _heroIdx)
     const charSave  = char.comingSoon ? { totalXP: 0, upgrades: [] }
       : _metaCharSave(s, char.id)
     const isLocked  = !char.comingSoon && char.id === 'ranger' && !s.ranger.unlocked
@@ -1050,6 +1102,10 @@ function _renderHeroSelect(opts = {}) {
     slide.querySelector('.hero-select-name').textContent    = char.name
     slide.querySelector('.hero-select-tagline').textContent = char.tagline
     slide.querySelector('.hero-select-xp').textContent      = String(xp)
+    const goldPill = slide.querySelector('.hero-stat-gold-val')
+    if (goldPill) goldPill.textContent = String(s.persistentGold ?? 0)
+    const lvlPill  = slide.querySelector('.hero-select-lvl')
+    if (lvlPill) lvlPill.textContent = String(1 + Math.floor(xp / 200))
     const xpRow = slide.querySelector('.hero-select-xp-row')
     if (xpRow) xpRow.style.display = char.comingSoon ? 'none' : ''
 
@@ -1077,25 +1133,30 @@ function _renderHeroSelect(opts = {}) {
   document.getElementById('hero-next').classList.toggle('hidden', _heroIdx === CHARACTERS.length - 1)
 
   const char = CHARACTERS[_heroIdx]
-  document.getElementById('hero-stat-hp').textContent   = char.baseHP
-  document.getElementById('hero-stat-mana').textContent = char.baseMana
-  document.getElementById('hero-stat-dmg').textContent  = char.baseDmg
+  _renderHeroDots(_heroIdx)
 
-  const isSelected    = s.selectedCharacter === char.id
-  const isLocked      = !char.comingSoon && char.id === 'ranger' && !s.ranger.unlocked
-  const selectBtn     = document.getElementById('hero-select-btn')
+  const isSelected = s.selectedCharacter === char.id
+  const isLocked   = !char.comingSoon && char.id === 'ranger' && !s.ranger.unlocked
+  const selectBtn  = document.getElementById('hero-select-btn')
+  const labelEl    = selectBtn.querySelector('.hero-cta-label')
+  const subEl      = selectBtn.querySelector('.hero-cta-sub')
+  const setCTA = (label, sub, mode, disabled) => {
+    if (labelEl) labelEl.textContent = label
+    if (subEl) {
+      subEl.textContent = sub ?? ''
+      subEl.classList.toggle('hidden', !sub)
+    }
+    selectBtn.dataset.mode = mode
+    selectBtn.disabled = disabled
+  }
   if (char.comingSoon) {
-    selectBtn.textContent  = '🚧 Coming Soon'
-    selectBtn.disabled     = true
-    selectBtn.dataset.mode = 'coming-soon'
+    setCTA('Coming Soon', '', 'coming-soon', true)
   } else if (isLocked) {
-    selectBtn.textContent = `🔓 Unlock (${char.unlockCost}💰)`
-    selectBtn.disabled    = s.persistentGold < char.unlockCost
-    selectBtn.dataset.mode = 'unlock'
+    setCTA('Unlock', `${char.unlockCost}💰`, 'unlock', s.persistentGold < char.unlockCost)
+  } else if (isSelected) {
+    setCTA('Selected', '', 'select', true)
   } else {
-    selectBtn.textContent = isSelected ? '✓ Selected' : 'Select Hero'
-    selectBtn.disabled    = isSelected
-    selectBtn.dataset.mode = 'select'
+    setCTA('Select', '', 'select', false)
   }
 
   if (!skipScrollSync && scroll && scroll.clientWidth > 0) {
@@ -1164,12 +1225,31 @@ function _renderHeroUpgradeGrid(grid, char, ownedList, xp, isLocked) {
   const slide = grid.closest('.hero-select-slide')
   const passiveWrap = slide?.querySelector('.hero-passive-wrap')
   const passiveGrid = slide?.querySelector('.hero-passive-upgrades-grid')
+  const colLeft     = slide?.querySelector('.hero-upgrades-col.left')
+  const colRight    = slide?.querySelector('.hero-upgrades-col.right')
+  if (colLeft)     colLeft.innerHTML     = ''
+  if (colRight)    colRight.innerHTML    = ''
+  if (passiveGrid) passiveGrid.innerHTML = ''
+
+  // Route perimeter slots: first 6 go around the doorway (3 left, 3 right alternating).
+  // Additional slots overflow into the passive/extra accordion.
+  let _slotIdx = 0
+  const _grid = grid
+  const _appendSlot = (el) => {
+    const target = (_slotIdx < 6)
+      ? ((_slotIdx % 2 === 0 ? colLeft : colRight) ?? _grid)
+      : (passiveGrid ?? _grid)
+    target.appendChild(el)
+    _slotIdx++
+  }
+  // Shadow grid.appendChild so downstream ricochet/simple-slot code routes automatically.
+  grid.appendChild = _appendSlot
 
   if (char.comingSoon) {
     const msg = document.createElement('p')
     msg.className   = 'passive-coming-soon'
     msg.textContent = 'Abilities & upgrades coming soon…'
-    grid.appendChild(msg)
+    if (colLeft) colLeft.appendChild(msg)
     if (passiveWrap) {
       passiveWrap.hidden = false
       if (passiveGrid) {
@@ -1260,7 +1340,6 @@ function _renderHeroUpgradeGrid(grid, char, ownedList, xp, isLocked) {
   if (passiveWrap) {
     passiveWrap.hidden = false
     if (passiveGrid) {
-      passiveGrid.innerHTML = ''
       if (char.id === 'warrior') {
         const senseEvilSlot = document.createElement('div')
         senseEvilSlot.className = 'hero-passive-builtin'

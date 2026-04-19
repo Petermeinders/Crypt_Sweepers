@@ -642,12 +642,14 @@
   <!-- ── Hero Select overlay ── -->
   <div id="hero-select-overlay" class="hidden">
     <div id="hero-select-header">
-      <button id="hero-select-back" class="panel-back-btn">← Back</button>
-      <div id="hero-select-title">Heroes</div>
-      <div id="hero-select-gold">💰 <span id="hero-select-gold-val">0</span></div>
+      <div id="hero-select-title-main">CRYPT SWEEPERS</div>
+      <div id="hero-select-subtitle">CHOOSE YOUR HERO</div>
+      <button id="hero-select-back" class="hero-select-back-pill">← Back</button>
+      <div id="hero-select-gold" class="hidden">💰 <span id="hero-select-gold-val">0</span></div>
     </div>
 
     <div id="hero-select-body">
+      <div class="hero-pagination-dots" id="hero-pagination-dots" aria-hidden="true"></div>
       <div id="hero-carousel-wrap">
         <button type="button" id="hero-prev" class="hero-nav-btn" aria-label="Previous hero">&#9664;</button>
         <div id="hero-select-scroll" role="region" aria-label="Hero carousel">
@@ -657,14 +659,12 @@
       </div>
     </div>
 
-    <!-- Footer: stats + select -->
+    <!-- Footer: circular CTA -->
     <div id="hero-select-footer">
-      <div id="hero-stats-bar">
-        <span>❤️ <span id="hero-stat-hp">0</span></span>
-        <span>🔵 <span id="hero-stat-mana">0</span></span>
-        <span>⚔️ <span id="hero-stat-dmg">0</span></span>
-      </div>
-      <button id="hero-select-btn" class="menu-btn primary">✓ Select Hero</button>
+      <button id="hero-select-btn" class="hero-select-btn--circle" type="button">
+        <span class="hero-cta-label">Select</span>
+        <span class="hero-cta-sub"></span>
+      </button>
     </div>
 
     <!-- Upgrade detail — floating overlay inside hero select -->
