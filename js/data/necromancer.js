@@ -14,6 +14,12 @@ export const NECROMANCER_MINION = {
 
 export const RAISE_MINION_COST = 10
 
+export const STRENGTHEN_MINION_COST   = 10
+export const STRENGTHEN_MINION_HP_GAIN = 5
+export const CORPSE_EXPLOSION_COST    = 10
+export const CORPSE_EXPLOSION_DAMAGE  = 3
+export const DETONATION_CHAIN_EXTRA_COST = 10
+
 export const NECROMANCER_ABILITIES = {
   vitality:          WARRIOR_ABILITIES.vitality,
   'arcane-reserve':  WARRIOR_ABILITIES['arcane-reserve'],
@@ -35,5 +41,38 @@ export const NECROMANCER_ABILITIES = {
   },
 }
 
-/** No meta-unlock tree — Raise Minion is always-on passive. */
-export const NECROMANCER_UPGRADES = {}
+/** Meta-shop tree. Base actives unlock into the level-up pool; mastery tiers require the base active. */
+export const NECROMANCER_UPGRADES = {
+  'strengthen-minion': {
+    name:     'Strengthen Minion',
+    desc:     'Active ability: tap a raised minion to reinforce it with +5 max HP (heals to new max). Unlocks Strengthen Minion in your level-up choice pool.',
+    icon:     '💪',
+    xpCost:   50,
+    manaCost: STRENGTHEN_MINION_COST,
+    effect:   { type: 'active-ability', ability: 'strengthen-minion' },
+  },
+  'corpse-explosion': {
+    name:     'Corpse Explosion',
+    desc:     'Active ability: tap a corpse (ash pile) or one of your minions to detonate it — every revealed enemy in the 8 surrounding tiles takes 3 damage. The corpse is consumed. Unlocks Corpse Explosion in your level-up choice pool.',
+    icon:     '💥',
+    xpCost:   80,
+    manaCost: CORPSE_EXPLOSION_COST,
+    effect:   { type: 'active-ability', ability: 'corpse-explosion' },
+  },
+  'detonation-chain': {
+    name:     'Detonation Chain',
+    desc:     'Corpse Explosion chains: any corpse hit by the blast detonates too (+10 mana per cast). Chains propagate until no unexploded corpses remain in range. Requires Corpse Explosion.',
+    icon:     '⛓️',
+    xpCost:   180,
+    requires: 'corpse-explosion',
+    effect:   { type: 'detonation-chain' },
+  },
+  'abyssal-reach': {
+    name:     'Abyssal Reach',
+    desc:     'Corpse Explosion reaches deeper: 50% chance per cast to also hit the outer ring (distance 2) of tiles. If it procs, mana cost is doubled; if it fails, you pay the base cost. Requires Corpse Explosion.',
+    icon:     '🌑',
+    xpCost:   220,
+    requires: 'corpse-explosion',
+    effect:   { type: 'abyssal-reach' },
+  },
+}

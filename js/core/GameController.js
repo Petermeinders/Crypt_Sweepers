@@ -9,10 +9,20 @@ import MetaProgression       from '../systems/MetaProgression.js'
 import SaveManager           from '../save/SaveManager.js'
 import UI                    from '../ui/UI.js'
 import { RANGER_BASE, RANGER_UPGRADES } from '../data/ranger.js'
-import { ENGINEER_BASE, ENGINEER_UPGRADES, ENGINEER_TURRET } from '../data/engineer.js'
+import { ENGINEER_BASE, ENGINEER_UPGRADES, ENGINEER_TURRET, ENGINEER_CONSTRUCT_MANA_COST } from '../data/engineer.js'
 import { MAGE_BASE, MAGE_UPGRADES } from '../data/mage.js'
 import { VAMPIRE_BASE, VAMPIRE_DARK_EYES_MAX_TILES } from '../data/vampire.js'
-import { NECROMANCER_BASE, NECROMANCER_MINION, RAISE_MINION_COST } from '../data/necromancer.js'
+import {
+  NECROMANCER_BASE,
+  NECROMANCER_MINION,
+  RAISE_MINION_COST,
+  STRENGTHEN_MINION_COST,
+  STRENGTHEN_MINION_HP_GAIN,
+  CORPSE_EXPLOSION_COST,
+  CORPSE_EXPLOSION_DAMAGE,
+  DETONATION_CHAIN_EXTRA_COST,
+  NECROMANCER_UPGRADES,
+} from '../data/necromancer.js'
 import { WARRIOR_UPGRADES }  from '../data/upgrades.js'
 import { ENEMY_SPRITES, MONSTER_ICONS_BASE, ITEM_ICONS_BASE, TILE_TYPE_ICON_FILES, MAGIC_CHEST_OPEN_GIF, MAGIC_CHEST_GIF_DURATION_MS } from '../data/tileIcons.js'
 import { TILE_BLURBS }       from '../data/tileBlurbs.js'
@@ -361,6 +371,7 @@ async function _maybeMouseUnflip(sourceTile) {
         if (t === sourceTile) continue
         if (!t.revealed) continue
         if (t.type !== 'empty') continue
+        if (t.isStart) continue
         candidates.push(t)
       }
     }
@@ -599,10 +610,11 @@ function _charKey() {
 
 /** True iff the active is meta-unlocked AND picked this run via level-up. */
 function _isActiveUnlocked(abilityKey, charKey = _charKey()) {
-  const list = charKey === 'ranger'   ? (_save.ranger?.upgrades   ?? [])
-             : charKey === 'engineer' ? (_save.engineer?.upgrades ?? [])
-             : charKey === 'mage'     ? (_save.mage?.upgrades     ?? [])
-             :                          (_save.warrior?.upgrades  ?? [])
+  const list = charKey === 'ranger'      ? (_save.ranger?.upgrades      ?? [])
+             : charKey === 'engineer'    ? (_save.engineer?.upgrades    ?? [])
+             : charKey === 'mage'        ? (_save.mage?.upgrades        ?? [])
+             : charKey === 'necromancer' ? (_save.necromancer?.upgrades ?? [])
+             :                             (_save.warrior?.upgrades     ?? [])
   if (!list.includes(abilityKey)) return false
   const runUnlocked = run?.player?.unlockedActives ?? []
   return runUnlocked.includes(abilityKey)
@@ -646,6 +658,28 @@ function _refreshRangerActiveHud() {
   UI.setPoisonArrowShotBtn(
     _isRangerActiveUnlocked('poison-arrow-shot'),
     RANGER_UPGRADES['poison-arrow-shot'].manaCost,
+  )
+}
+
+function _refreshNecroActiveHud() {
+  if (_charKey() !== 'necromancer') return
+  // Clear other-hero slot bindings so they don't leak from a prior run
+  UI.setArrowBarrageBtn(false)
+  UI.setPoisonArrowShotBtn(false)
+  UI.setDivineLightBtn(false)
+  UI.setBlindingLightBtn(false)
+  UI.setEngineerConstructBtn(false)
+  UI.setEngineerTeslaBtn(false, 10, false)
+  UI.setRicochetBtn(false, 0)
+  UI.setSlamBtn(false)
+  UI.setChainLightningBtn?.(false)
+  UI.setStrengthenMinionBtn(
+    _isNecroActiveUnlocked('strengthen-minion'),
+    NECROMANCER_UPGRADES['strengthen-minion']?.manaCost ?? STRENGTHEN_MINION_COST,
+  )
+  UI.setCorpseExplosionBtn(
+    _isNecroActiveUnlocked('corpse-explosion'),
+    NECROMANCER_UPGRADES['corpse-explosion']?.manaCost ?? CORPSE_EXPLOSION_COST,
   )
 }
 
@@ -881,8 +915,8 @@ function buildRunState() {
     level:   1,
     safeGold: 0,
     abilities:          isRanger ? ['trapfinder'] : [],
-    /** Active-ability IDs unlocked this run via level-up picks (e.g. 'slam', 'ricochet', 'construct-turret'). */
-    unlockedActives:    [],
+    /** Active-ability IDs unlocked this run via level-up picks (e.g. 'slam', 'ricochet', 'tesla-tower'). */
+    unlockedActives:    isEngineer ? ['construct-turret'] : [],
     /** Engineer: highest turret level the player can build/upgrade to (Mastery I → 2, Mastery II → 3). */
     turretMaxLevel:     1,
     damageBonus:        0,
@@ -1141,7 +1175,7 @@ function _necroRaiseMinion(tile) {
   run.player.mana -= RAISE_MINION_COST
   UI.updateMana(run.player.mana, run.player.maxMana)
 
-  // Reveal category hints for all orthogonal neighbors (Master's Sight)
+  // Master's Sight: reveal category hints for all orthogonal neighbors when a minion rises
   for (const adj of TileEngine.getOrthogonalTiles(tile.row, tile.col)) {
     if (!adj.revealed && adj.element && !adj.echoHintCategory) {
       const cat = _echoCharmCategoryForTileType(adj.type)
@@ -1211,6 +1245,175 @@ function _necroMinionAbsorbDamage(rawAmount, floatEl, enemyTile) {
   return true
 }
 
+// ── Necromancer: active abilities ────────────────────────────
+
+function _isNecroActiveUnlocked(abilityKey) {
+  return _isActiveUnlocked(abilityKey, 'necromancer')
+}
+
+function _hasNecroMetaUpgrade(id) {
+  return (_save.necromancer?.upgrades ?? []).includes(id)
+}
+
+function strengthenMinionAction() {
+  if (_charKey() !== 'necromancer') return
+  if (!_isNecroActiveUnlocked('strengthen-minion')) return
+  if (_combatBusy) return
+  if (_strengthenMinionSelecting) {
+    _cancelStrengthenMinionMode()
+    UI.setMessage('Strengthen Minion cancelled.')
+    return
+  }
+  if (run.player.mana < STRENGTHEN_MINION_COST) {
+    UI.setMessage('Not enough mana for Strengthen Minion!', true)
+    return
+  }
+  const aliveMinions = (run.minions ?? []).filter(m => m.hp > 0)
+  if (!aliveMinions.length) {
+    UI.setMessage('You have no minions to strengthen.', true)
+    return
+  }
+  _cancelCorpseExplosionMode()
+  _strengthenMinionSelecting = true
+  UI.setStrengthenMinionActive?.(true)
+  UI.setMessage(`💪 Strengthen Minion — tap a minion to grant +${STRENGTHEN_MINION_HP_GAIN} max HP. (${STRENGTHEN_MINION_COST} mana)`)
+}
+
+function corpseExplosionAction() {
+  if (_charKey() !== 'necromancer') return
+  if (!_isNecroActiveUnlocked('corpse-explosion')) return
+  if (_combatBusy) return
+  if (_corpseExplosionSelecting) {
+    _cancelCorpseExplosionMode()
+    UI.setMessage('Corpse Explosion cancelled.')
+    return
+  }
+  if (run.player.mana < CORPSE_EXPLOSION_COST) {
+    UI.setMessage('Not enough mana for Corpse Explosion!', true)
+    return
+  }
+  _cancelStrengthenMinionMode()
+  _corpseExplosionSelecting = true
+  UI.setCorpseExplosionActive?.(true)
+  UI.setGridCorpseExplosionMode?.(true)
+  UI.setMessage(`💥 Corpse Explosion — tap a corpse or minion to detonate. (${CORPSE_EXPLOSION_COST} mana)`)
+}
+
+function _corpseExplosionOuterRingTiles(row, col) {
+  const grid = TileEngine.getGrid()
+  if (!grid) return []
+  const rows = grid.length
+  const cols = grid[0]?.length ?? 0
+  const out = []
+  for (let dr = -2; dr <= 2; dr++) {
+    for (let dc = -2; dc <= 2; dc++) {
+      if (Math.max(Math.abs(dr), Math.abs(dc)) !== 2) continue
+      const r = row + dr
+      const c = col + dc
+      if (r < 0 || c < 0 || r >= rows || c >= cols) continue
+      out.push(grid[r][c])
+    }
+  }
+  return out
+}
+
+function _damageEnemyFromCorpseExplosion(targetTile, dmg) {
+  if (!targetTile?.enemyData || targetTile.enemyData._slain) return
+  if (!targetTile.revealed) return
+  const ed = targetTile.enemyData
+  ed.currentHP = Math.max(0, (ed.currentHP ?? ed.hp ?? 0) - dmg)
+  if (targetTile.element) UI.spawnFloat(targetTile.element, `💥 ${dmg}`, 'damage')
+  if (ed.currentHP <= 0) {
+    _gainGold(ed.goldDrop ? _rand(...ed.goldDrop) : 1, targetTile.element, true)
+    _gainXP(ed.xpDrop ?? 0, targetTile.element)
+    _endCombatVictory(targetTile)
+  } else if (targetTile.element) {
+    UI.updateEnemyHP(targetTile.element, ed.currentHP)
+  }
+}
+
+function _executeCorpseExplosion(rootTile) {
+  const hasChain    = _hasNecroMetaUpgrade('detonation-chain')
+  const hasAbyssal  = _hasNecroMetaUpgrade('abyssal-reach')
+  const abyssalProc = hasAbyssal && Math.random() < 0.5
+
+  let cost = CORPSE_EXPLOSION_COST
+  if (hasChain)    cost += DETONATION_CHAIN_EXTRA_COST
+  if (abyssalProc) cost *= 2
+
+  if (run.player.mana < cost) {
+    UI.setMessage(`Not enough mana for this Corpse Explosion! (needs ${cost})`, true)
+    _cancelCorpseExplosionMode()
+    return
+  }
+
+  run.player.mana -= cost
+  UI.updateMana(run.player.mana, run.player.maxMana)
+
+  EventBus.emit('audio:play', { sfx: 'hit' })
+
+  // BFS: each queued center explodes; chained corpses enqueue if Detonation Chain owned.
+  const visited = new Set()
+  const queue = [rootTile]
+  const keyOf = (t) => `${t.row},${t.col}`
+  visited.add(keyOf(rootTile))
+
+  while (queue.length) {
+    const center = queue.shift()
+    // Visual flash on the detonating tile
+    if (center.element) UI.spawnFloat(center.element, '💥 BOOM', 'damage')
+
+    const innerRing = TileEngine.getAdjacentTiles(center.row, center.col)
+    const ring = abyssalProc
+      ? innerRing.concat(_corpseExplosionOuterRingTiles(center.row, center.col))
+      : innerRing
+
+    for (const t of ring) {
+      if (t.revealed && t.enemyData && !t.enemyData._slain) {
+        _damageEnemyFromCorpseExplosion(t, CORPSE_EXPLOSION_DAMAGE)
+      }
+      if (hasChain && t.revealed && t.enemyData?._slain && !t.corpseExploded) {
+        const k = keyOf(t)
+        if (!visited.has(k)) {
+          visited.add(k)
+          queue.push(t)
+        }
+      }
+    }
+
+    // Consume the center
+    _consumeCorpseExplosionSource(center)
+  }
+
+  _cancelCorpseExplosionMode()
+
+  const msg = abyssalProc
+    ? `💥 Corpse Explosion — Abyssal Reach!${hasChain ? ' Chain reaction!' : ''} (${cost} mana)`
+    : hasChain
+      ? `💥 Corpse Explosion — chain reaction! (${cost} mana)`
+      : `💥 Corpse Explosion! (${cost} mana)`
+  UI.setMessage(msg)
+
+  TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
+  TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
+  _saveActiveRun()
+}
+
+/** Mark the corpse or minion tile at `tile` as spent by the explosion. */
+function _consumeCorpseExplosionSource(tile) {
+  tile.corpseExploded = true
+  // If a minion sat on this tile, destroy it.
+  const minionIdx = (run.minions ?? []).findIndex(m => m.row === tile.row && m.col === tile.col)
+  if (minionIdx >= 0) {
+    const minion = run.minions[minionIdx]
+    run.minions.splice(minionIdx, 1)
+    if (tile.element) tile.element.querySelector('.minion-overlay')?.remove()
+    if (minion) _necroClearAshAfterMinionDeath(minion.row, minion.col)
+  } else {
+    _necroClearAshAfterMinionDeath(tile.row, tile.col)
+  }
+}
+
 function _engineerTurretAfterReveal(tile) {
   if (_charKey() !== 'engineer' || !run.turret?.hp) return
   if (!tile?.enemyData || tile.enemyData._slain) return
@@ -1242,7 +1445,7 @@ function _engineerTurretAfterReveal(tile) {
 }
 
 function _handleEngineerConstructTileTap(tile) {
-  const cost = ENGINEER_UPGRADES['construct-turret'].manaCost
+  const cost = ENGINEER_CONSTRUCT_MANA_COST
   const tr = run.turret
   if (tr && tr.row === tile.row && tr.col === tile.col) {
     const maxLevel = run.player.turretMaxLevel ?? 1
@@ -1266,7 +1469,6 @@ function _handleEngineerConstructTileTap(tile) {
     tr.maxHp = _engineerTurretMaxHp(tr.level)
     tr.hp = tr.maxHp
     _syncTurretVisual()
-    _engineerConstructSelecting = false
     _engineerPendingTile = null
     UI.setEngineerPlaceMode(false)
     UI.setMessage(`Turret upgraded to level ${tr.level}!`)
@@ -1277,14 +1479,16 @@ function _handleEngineerConstructTileTap(tile) {
   // (markReachable only tags unrevealed neighbors). Any revealed empty is a valid build site.
   const canPlace = tile.revealed && tile.type === 'empty' && !tile.locked
   if (!canPlace) {
-    UI.setMessage('Choose a revealed empty tile (not locked).', true)
-    return true
+    _engineerPendingTile = null
+    UI.setEngineerPlaceMode(false)
+    return false
   }
   const pending = _engineerPendingTile
   if (pending && (pending.row !== tile.row || pending.col !== tile.col)) {
     _engineerPendingTile = { row: tile.row, col: tile.col }
+    UI.setEngineerPlaceMode(true)
     UI.flashTile(tile.element)
-    UI.setMessage('Tap again to confirm placement.')
+    UI.setMessage('🛠️ Tap again to confirm placement.')
     return true
   }
   if (pending && pending.row === tile.row && pending.col === tile.col) {
@@ -1303,7 +1507,6 @@ function _handleEngineerConstructTileTap(tile) {
       maxHp: _engineerTurretMaxHp(1),
     }
     _engineerPendingTile = null
-    _engineerConstructSelecting = false
     UI.setEngineerPlaceMode(false)
     _syncTurretVisual()
     UI.setMessage('Turret constructed!')
@@ -1311,32 +1514,14 @@ function _handleEngineerConstructTileTap(tile) {
     return true
   }
   _engineerPendingTile = { row: tile.row, col: tile.col }
+  UI.setEngineerPlaceMode(true)
   UI.flashTile(tile.element)
-  UI.setMessage('Tap again to confirm placement.')
+  UI.setMessage('🛠️ Tap again to confirm placement.')
   return true
 }
 
 function constructTurretAction() {
-  if (!_isEngineerUpgradeUnlocked('construct-turret')) return
-  if (_combatBusy) return
-  if (_isCombatCommitmentLocked()) {
-    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
-    return
-  }
-  if (!GameState.is(States.FLOOR_EXPLORE)) return
-  if (_engineerConstructSelecting) {
-    _cancelEngineerConstructMode()
-    UI.setMessage('Placement cancelled.')
-    return
-  }
-  _cancelSpellLanternBlindingForRicochet()
-  _cancelArrowBarrageMode()
-  _cancelPoisonArrowShotMode()
-  _cancelRicochetMode()
-  _engineerConstructSelecting = true
-  _engineerPendingTile = null
-  UI.setEngineerPlaceMode(true)
-  UI.setMessage('🛠️ Tap your turret to upgrade, or tap an empty tile twice to build or relocate.')
+  // Construct Turret is now a starting passive — slot A reserved for a future active ability.
 }
 
 function teslaTowerAction() {
@@ -1369,7 +1554,6 @@ function teslaTowerAction() {
 }
 
 function _refreshEngineerHud() {
-  const c = ENGINEER_UPGRADES['construct-turret'].manaCost
   const t = ENGINEER_UPGRADES['tesla-tower'].manaCost
   UI.setSlamBtn(false)
   UI.setRicochetBtn(false)
@@ -1377,7 +1561,7 @@ function _refreshEngineerHud() {
   UI.setPoisonArrowShotBtn(false)
   UI.setBlindingLightBtn(false)
   UI.setDivineLightBtn(false)
-  UI.setEngineerConstructBtn(_isEngineerUpgradeUnlocked('construct-turret'), c)
+  UI.setEngineerConstructBtn(false)
   UI.setEngineerTeslaBtn(_isEngineerUpgradeUnlocked('tesla-tower'), t, run.turret?.mode === 'tesla')
 }
 
@@ -1581,6 +1765,8 @@ function _startFloor() {
   _cancelEngineerConstructMode()
   _cancelChainLightningMode()
   _cancelTelekineticThrowMode()
+  _cancelStrengthenMinionMode()
+  _cancelCorpseExplosionMode()
   if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0); run.player.freezingHitStacks = 0; UI.setFreezingHit(0); run.player.burnStacks = 0; UI.setBurnOverlay(0); run.player.poisonStacks = 0; UI.setPlayerPoison(0); run.player.corruptionStacks = 0; if (run.player.corruptionBaseMaxHp) { run.player.maxHp = run.player.corruptionBaseMaxHp; run.player.corruptionBaseMaxHp = 0 } if (run.player.corruptionBaseMaxMana) { run.player.maxMana = run.player.corruptionBaseMaxMana; run.player.corruptionBaseMaxMana = 0 } UI.setCorruption(0) }
   if (run) { run._hourglassSnapshot = null }
   _throwingKnifeTargeting  = false
@@ -1612,7 +1798,7 @@ function _startFloor() {
   }
   TileEngine.renderGrid(UI.getGridEl(), onTileTap, onTileHold)
   if (run.turret) _syncTurretVisual()
-  if (run.minions?.length) _syncAllMinionVisuals()
+  run.minions = []
   if (run._resumeEventTile) {
     run.eventTile = TileEngine.getTile(run._resumeEventTile.row, run._resumeEventTile.col)
     run._resumeEventTile = null
@@ -1761,14 +1947,7 @@ function _startFloor() {
     UI.setDivineLightBtn(false)
     UI.setBlindingLightBtn(false)
   } else if (_charKey() === 'necromancer') {
-    UI.setSlamBtn(false)
-    UI.setArrowBarrageBtn(false)
-    UI.setPoisonArrowShotBtn(false)
-    UI.setDivineLightBtn(false)
-    UI.setBlindingLightBtn(false)
-    UI.setEngineerConstructBtn(false)
-    UI.setEngineerTeslaBtn(false, 10, false)
-    UI.setRicochetBtn(false, 0)
+    _refreshNecroActiveHud()
   } else {
     UI.setSlamBtn(_isActiveUnlocked('slam', 'warrior'), WARRIOR_UPGRADES.slam.manaCost)
     UI.setArrowBarrageBtn(false)
@@ -1939,6 +2118,7 @@ function _revealStartTile() {
   }
 
   tile.revealed = true
+  tile.isStart = true
   run.tilesRevealed++
   run.floorStartRow = tile.row
   run.floorStartCol = tile.col
@@ -1953,11 +2133,6 @@ function _revealStartTile() {
     _syncTurretVisual()
     UI.setMessage(`🛡️ Your turret followed you to floor ${run.floor}.`)
   }
-  // Minions do not carry across floors — they fall as you descend
-  if (run.minions?.length > 0) {
-    run.minions = []
-  }
-
   _tickPoisonArrowDotOnGlobalTurn()
   TileEngine.refreshAllThreatClueDisplays()
 }
@@ -1977,7 +2152,6 @@ let _arrowBarrageSelecting = false
 /** Triple Volley: { row, col } center after first tap; second tap same tile fires. */
 let _tripleVolleyCenter = null
 let _poisonArrowShotSelecting = false
-let _engineerConstructSelecting = false
 /** First tile pick for double-tap place / relocate — { row, col } */
 let _engineerPendingTile = null
 let _throwingKnifeTargeting  = false
@@ -1989,6 +2163,10 @@ let _chainLightningSelecting = false
 let _telekineticThrowStep   = 0
 /** Enemy tile captured at step 1 — { row, col } in the active grid. */
 let _telekineticEnemyTile   = null
+/** Necromancer Strengthen Minion — true once the player has tapped the ability. */
+let _strengthenMinionSelecting = false
+/** Necromancer Corpse Explosion — true once the player has tapped the ability. */
+let _corpseExplosionSelecting  = false
 
 /** Single focused enemy for current combat — no swapping until this one is slain (ambush uses `force`). */
 let _combatEngagementTile = null
@@ -2219,7 +2397,6 @@ function _cancelPoisonArrowShotMode() {
 }
 
 function _cancelEngineerConstructMode() {
-  _engineerConstructSelecting = false
   _engineerPendingTile = null
   UI.setEngineerPlaceMode(false)
 }
@@ -2236,6 +2413,17 @@ function _cancelTelekineticThrowMode() {
   UI.setTelekineticThrowActive(false)
   UI.setGridTelekineticThrowMode(null)
   UI.clearTelekineticMarks()
+}
+
+function _cancelStrengthenMinionMode() {
+  _strengthenMinionSelecting = false
+  UI.setStrengthenMinionActive?.(false)
+}
+
+function _cancelCorpseExplosionMode() {
+  _corpseExplosionSelecting = false
+  UI.setCorpseExplosionActive?.(false)
+  UI.setGridCorpseExplosionMode?.(false)
 }
 
 function _cancelSpellLanternBlindingForRicochet() {
@@ -3273,20 +3461,56 @@ function onTileTap(row, col) {
 
   _syncAllUnrevealedLockedDom()
 
-  if (state === States.FLOOR_EXPLORE && _engineerConstructSelecting && _charKey() === 'engineer') {
+  if (state === States.FLOOR_EXPLORE && _charKey() === 'engineer') {
+    const tr = run.turret
+    const isTurretTile = tr?.hp > 0 && tr.row === tile.row && tr.col === tile.col
+    const isRevealedEmpty = tile.revealed && tile.type === 'empty' && !tile.locked
     const isLivingEnemyTap = tile.revealed && tile.enemyData && !tile.enemyData._slain
-    if (!isLivingEnemyTap) {
+    if ((isTurretTile || isRevealedEmpty || _engineerPendingTile) && !isLivingEnemyTap) {
       if (_isCombatCommitmentLocked()) {
-        const tr = run.turret
-        const onTurret = tr && tile.row === tr.row && tile.col === tr.col
-        const emptyBuild = tile.revealed && tile.type === 'empty' && !tile.locked
-        if (!onTurret && !emptyBuild) {
+        if (!isTurretTile && !isRevealedEmpty) {
           UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
           return
         }
       }
       if (_handleEngineerConstructTileTap(tile)) return
     }
+  }
+
+  // Necromancer: Strengthen Minion — tap a minion tile to reinforce it
+  if (_strengthenMinionSelecting) {
+    const minion = (run.minions ?? []).find(m => m.row === tile.row && m.col === tile.col && m.hp > 0)
+    if (!minion) {
+      UI.setMessage('Tap one of your minions to strengthen it.', true)
+      return
+    }
+    if (run.player.mana < STRENGTHEN_MINION_COST) {
+      UI.setMessage('Not enough mana for Strengthen Minion!', true)
+      _cancelStrengthenMinionMode()
+      return
+    }
+    run.player.mana -= STRENGTHEN_MINION_COST
+    UI.updateMana(run.player.mana, run.player.maxMana)
+    minion.maxHp += STRENGTHEN_MINION_HP_GAIN
+    minion.hp    += STRENGTHEN_MINION_HP_GAIN
+    _syncMinionVisual(minion)
+    UI.spawnFloat(tile.element, `❤️ +${STRENGTHEN_MINION_HP_GAIN}`, 'xp')
+    UI.setMessage(`Your minion grows stronger! (❤️ ${minion.hp}/${minion.maxHp})`)
+    _cancelStrengthenMinionMode()
+    _saveActiveRun()
+    return
+  }
+
+  // Necromancer: Corpse Explosion — tap a corpse (ash pile) or minion to detonate
+  if (_corpseExplosionSelecting) {
+    const isCorpse = tile.revealed && tile.enemyData && tile.enemyData._slain && !tile.corpseExploded
+    const isMinion = !!(run.minions ?? []).find(m => m.row === tile.row && m.col === tile.col && m.hp > 0)
+    if (!isCorpse && !isMinion) {
+      UI.setMessage('Tap a corpse or one of your minions to detonate.', true)
+      return
+    }
+    _executeCorpseExplosion(tile)
+    return
   }
 
   // Spell targeting mode: only enemy taps fire; everything else ignored
@@ -5012,6 +5236,7 @@ function abilitySlotAAction() {
   if (_charKey() === 'ranger') ricochetAction()
   else if (_charKey() === 'engineer') constructTurretAction()
   else if (_charKey() === 'mage') chainLightningAction()
+  else if (_charKey() === 'necromancer') strengthenMinionAction()
   else slamAction()
 }
 
@@ -6522,6 +6747,7 @@ function _metaUnlockedForLevelUp() {
   if (c === 'engineer') return _save.engineer?.upgrades ?? []
   if (c === 'mage') return _save.mage?.upgrades ?? []
   if (c === 'vampire') return _save.vampire?.upgrades ?? []
+  if (c === 'necromancer') return _save.necromancer?.upgrades ?? []
   return _save.warrior?.upgrades ?? []
 }
 
@@ -6617,6 +6843,7 @@ function _triggerLevelUp() {
     if (char === 'ranger')         _refreshRangerActiveHud()
     else if (char === 'engineer')  _refreshEngineerHud()
     else if (char === 'mage')      _refreshMageHud()
+    else if (char === 'necromancer') _refreshNecroActiveHud()
     else if (char === 'warrior')   {
       UI.setSlamBtn(_isActiveUnlocked('slam', 'warrior'), WARRIOR_UPGRADES.slam.manaCost)
       UI.setBlindingLightBtn(_isActiveUnlocked('blinding-light', 'warrior'), WARRIOR_UPGRADES['blinding-light'].manaCost)
@@ -7496,7 +7723,7 @@ const _BOT_SAFE_USE_EFFECT_TYPES = new Set([
 function getBalanceBotUseItemCandidates() {
   if (!run || !GameState.is(States.FLOOR_EXPLORE) || _combatBusy) return []
   if (_spellTargeting || _lanternTargeting || _spyglassTargeting) return []
-  if (_engineerConstructSelecting) return []
+  if (_engineerPendingTile) return []
   const inv = run.player.inventory ?? []
   const out = []
   for (const entry of inv) {
@@ -7676,7 +7903,7 @@ function getBalanceBotTapCandidates() {
 
   if (_isCombatCommitmentLocked()) {
     const focusedOnly = _balanceBotFocusedEnemyCandidatesIfCombatLocked() ?? []
-    if (_engineerConstructSelecting && _charKey() === 'engineer') {
+    if (_charKey() === 'engineer') {
       const merged = [...focusedOnly]
       const seen = new Set(merged.map((c) => `${c.row},${c.col}`))
       const tr = run.turret
@@ -7759,7 +7986,7 @@ function balanceBotTryOpenRevealTool() {
   if (_ricochetSelecting || _arrowBarrageSelecting || _poisonArrowShotSelecting) return false
   if (_throwingKnifeTargeting || _twinBladesTargeting || _rustyNailTargeting) return false
   if (_blindingLightTargeting || _divineLightSelecting) return false
-  if (_engineerConstructSelecting) return false
+  if (_engineerPendingTile) return false
 
   const grid = TileEngine.getGrid()
   if (!grid) return false
@@ -7827,7 +8054,7 @@ function getBalanceBotDiagnostics() {
   if (_arrowBarrageSelecting) targeting.push('arrowBarrage')
   if (_tripleVolleyCenter) targeting.push('volleyConfirm')
   if (_poisonArrowShotSelecting) targeting.push('poisonArrow')
-  if (_engineerConstructSelecting) targeting.push('engineerConstruct')
+  if (_engineerPendingTile) targeting.push('engineerConstruct')
   if (_throwingKnifeTargeting) targeting.push('throwingKnife')
   if (_twinBladesTargeting) targeting.push('twinBlades')
   if (_rustyNailTargeting) targeting.push('rustyNail')
@@ -8025,7 +8252,7 @@ function balanceBotTryWarriorAbilities(abilityWeights = {}) {
   if (_blindingLightTargeting || _divineLightSelecting) return false
   if (_ricochetSelecting || _arrowBarrageSelecting || _poisonArrowShotSelecting) return false
   if (_throwingKnifeTargeting || _twinBladesTargeting || _rustyNailTargeting) return false
-  if (_engineerConstructSelecting) return false
+  if (_engineerPendingTile) return false
   if (_charKey() !== 'warrior') return false
 
   const upgrades = _save.warrior?.upgrades ?? []
@@ -8076,7 +8303,7 @@ function balanceBotTryGenericSpellAbility() {
   if (_spellTargeting || _lanternTargeting || _spyglassTargeting) return false
   if (_ricochetSelecting || _arrowBarrageSelecting || _poisonArrowShotSelecting) return false
   if (_throwingKnifeTargeting || _twinBladesTargeting || _rustyNailTargeting) return false
-  if (_engineerConstructSelecting) return false
+  if (_engineerPendingTile) return false
   if (run.player.mana < _previewSpellManaCostForUi()) return false
   if (!_balanceBotHasSpellableEnemy()) return false
   spellAction()
@@ -8288,6 +8515,8 @@ export default {
   poisonArrowShotAction,
   chainLightningAction,
   telekineticThrowAction,
+  strengthenMinionAction,
+  corpseExplosionAction,
   blindingLightAction,
   divineLightAction,
   divineLightHealAction,

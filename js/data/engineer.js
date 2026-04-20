@@ -42,22 +42,16 @@ export const ENGINEER_ABILITIES = {
   },
 }
 
+/** Mana cost to build, relocate, or upgrade a turret (passive ability — no meta-upgrade required). */
+export const ENGINEER_CONSTRUCT_MANA_COST = 10
+
 export const ENGINEER_UPGRADES = {
-  'construct-turret': {
-    name:     'Construct Turret',
-    desc:     'Active: tap an empty tile twice to build (Level 1) or relocate. Absorbs enemy strikes while alive. Costs 10 mana. Turret upgrades require Turret Mastery picks at level-up. Unlocks Construct Turret in your level-up choice pool.',
-    icon:     '🏗️',
-    xpCost:   50,
-    manaCost: 10,
-    effect:   { type: 'active-ability', ability: 'construct-turret' },
-  },
   'tesla-tower': {
     name:     'Tesla Tower',
     desc:     'After a turret exists: spend 10 mana to convert it to a Tesla tower (one-way). Strikes enemies revealed or fought within its perimeter; radius grows with turret level. Unlocks Tesla Tower in your level-up choice pool.',
     icon:     '⚡',
     xpCost:   80,
     manaCost: 10,
-    requires: 'construct-turret',
     effect:   { type: 'active-ability', ability: 'tesla-tower' },
   },
 }

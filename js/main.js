@@ -143,7 +143,7 @@ const CHARACTERS = [
   {
     id:          'necromancer',
     name:        'Necromancer',
-    tagline:     'A dark scholar who commands the dead. Master\'s Sight lets him see through his minions — tap an ash pile to raise a 🧟 minion (10 mana) once per corpse; when it dies, the remains are gone for good.',
+    tagline:     'A dark scholar who commands the dead. Raise Minion turns fallen foes into 🧟 servants; Master\'s Sight lets him see through their dead eyes to reveal the tiles around them.',
     gif:         'assets/sprites/Heroes/Necromancer/necromancer-hero-idle.gif',
     attackGif:   'assets/sprites/Heroes/Necromancer/necromancer-hero-strike.gif',
     attackMs:    600,
@@ -345,18 +345,6 @@ async function boot() {
       const s = GameController.getSave()
       const ch = s.selectedCharacter ?? 'warrior'
       if (ch === 'engineer') {
-        if (!(s.engineer?.upgrades ?? []).includes('construct-turret')) return
-        const def = ENGINEER_UPGRADES['construct-turret']
-        UI.showInfoCard({
-          spriteSrc: '',
-          name:   def.name,
-          type:   'Engineer Ability',
-          blurb:  def.desc,
-          details: [
-            { icon: '🔵', label: 'Mana Cost', desc: `${def.manaCost} mana per build, relocate, or upgrade` },
-            { icon: '🎯', label: 'Targeting', desc: 'Tap empty tile twice to place or move (resets to level 1). Tap your turret once to upgrade.' },
-          ],
-        })
         return
       }
       if (ch === 'mage') {
@@ -436,6 +424,7 @@ async function boot() {
       if (ch === 'ranger') GameController.poisonArrowShotAction()
       else if (ch === 'engineer') GameController.teslaTowerAction()
       else if (ch === 'mage') GameController.telekineticThrowAction()
+      else if (ch === 'necromancer') GameController.corpseExplosionAction()
       else GameController.blindingLightAction()
     },
     () => {
@@ -1403,13 +1392,23 @@ function _renderHeroUpgradeGrid(grid, char, ownedList, xp, isLocked) {
         passiveGrid.appendChild(deSlot)
       }
       if (char.id === 'necromancer') {
+        const rmSlot = document.createElement('div')
+        rmSlot.className = 'hero-passive-builtin'
+        rmSlot.innerHTML = `
+          <span class="hero-passive-builtin-icon">🧟</span>
+          <div class="hero-passive-builtin-info">
+            <div class="hero-passive-builtin-name">Raise Minion <span class="hero-passive-builtin-badge">✓ Applied</span></div>
+            <div class="hero-passive-builtin-desc">Tap an ash pile (slain enemy) to spend 10 mana and raise one 🧟 minion on that tile — only one per corpse. Minions strike alongside you in combat and absorb the next enemy hit (closest minion takes damage instead of you); when a minion dies, the ash scatters and cannot be raised again. Level-up Minion Mastery picks upgrade their stats.</div>
+          </div>`
+        passiveGrid.appendChild(rmSlot)
+
         const msSlot = document.createElement('div')
         msSlot.className = 'hero-passive-builtin'
         msSlot.innerHTML = `
           <span class="hero-passive-builtin-icon">👁️</span>
           <div class="hero-passive-builtin-info">
             <div class="hero-passive-builtin-name">Master's Sight <span class="hero-passive-builtin-badge">✓ Applied</span></div>
-            <div class="hero-passive-builtin-desc">See through your minions. Tap an ash pile (slain enemy) to spend 10 mana — reveals the category of all tiles around it and raises one 🧟 minion on that tile (only one per corpse). Minions strike alongside you in combat and absorb the next enemy hit (closest minion takes damage instead of you); when a minion dies, the ash is gone and cannot be raised again. Level-up Minion Mastery picks upgrade their stats.</div>
+            <div class="hero-passive-builtin-desc">See through your minions. Whenever you raise a minion, the categories of the tiles surrounding it are revealed (enemy, trap, treasure, etc.) — a glimpse through the minion's dead eyes.</div>
           </div>`
         passiveGrid.appendChild(msSlot)
       }

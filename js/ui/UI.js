@@ -672,6 +672,74 @@ const UI = {
     document.getElementById('grid-container')?.classList.toggle('chain-lightning-mode', active)
   },
 
+  // ── Necromancer: Strengthen Minion (slot A) & Corpse Explosion (slot B) ─
+
+  setStrengthenMinionBtn(visible, manaCost = 10) {
+    if (!el.hudSlotA) return
+    el.hudSlotA.classList.remove(
+      'is-slam', 'is-slam-active',
+      'is-ricochet', 'is-ricochet-active',
+      'is-engineer-construct',
+      'is-chain-lightning', 'is-chain-lightning-active',
+    )
+    if (visible) {
+      el.hudSlotA.innerHTML = `
+        <span class="ability-btn-wrap ability-btn-wrap--mana-corner">
+          <span class="ability-btn-emoji" aria-hidden="true">💪</span>
+          <span class="ability-btn-cost">${manaCost}</span>
+        </span>`
+      el.hudSlotA.title    = `Strengthen Minion — +5 max HP to a minion (${manaCost} mana)`
+      el.hudSlotA.disabled = false
+      el.hudSlotA.classList.remove('is-placeholder')
+      el.hudSlotA.classList.add('is-strengthen-minion')
+    } else if (el.hudSlotA.classList.contains('is-strengthen-minion')) {
+      el.hudSlotA.textContent = '···'
+      el.hudSlotA.title       = 'Reserved'
+      el.hudSlotA.disabled    = true
+      el.hudSlotA.classList.add('is-placeholder')
+      el.hudSlotA.classList.remove('is-strengthen-minion', 'is-strengthen-minion-active')
+    }
+  },
+
+  setStrengthenMinionActive(active) {
+    el.hudSlotA?.classList.toggle('is-strengthen-minion-active', active)
+  },
+
+  setCorpseExplosionBtn(visible, manaCost = 10) {
+    if (!el.hudSlotB) return
+    el.hudSlotB.classList.remove(
+      'is-blinding-light', 'is-blinding-light-active',
+      'is-poison-arrow-shot', 'is-poison-arrow-shot-active',
+      'is-engineer-tesla',
+      'is-telekinetic-throw', 'is-telekinetic-throw-active',
+    )
+    if (visible) {
+      el.hudSlotB.innerHTML = `
+        <span class="ability-btn-wrap ability-btn-wrap--mana-corner">
+          <span class="ability-btn-emoji" aria-hidden="true">💥</span>
+          <span class="ability-btn-cost">${manaCost}</span>
+        </span>`
+      el.hudSlotB.title    = `Corpse Explosion — detonate a corpse or minion; 8-tile blast (${manaCost} mana)`
+      el.hudSlotB.disabled = false
+      el.hudSlotB.classList.remove('is-placeholder')
+      el.hudSlotB.classList.add('is-corpse-explosion')
+    } else if (el.hudSlotB.classList.contains('is-corpse-explosion')) {
+      el.hudSlotB.textContent = '···'
+      el.hudSlotB.title       = 'Reserved'
+      el.hudSlotB.disabled    = true
+      el.hudSlotB.classList.add('is-placeholder')
+      el.hudSlotB.classList.remove('is-corpse-explosion', 'is-corpse-explosion-active')
+    }
+  },
+
+  setCorpseExplosionActive(active) {
+    el.hudSlotB?.classList.toggle('is-corpse-explosion-active', active)
+  },
+
+  setGridCorpseExplosionMode(active) {
+    document.getElementById('grid-container')?.classList.toggle('corpse-explosion-mode', active)
+  },
+
   /** Zigzag SVG lightning bolt from fromEl to toEl (viewport coords). */
   spawnZap(fromEl, toEl) {
     if (!toEl) return

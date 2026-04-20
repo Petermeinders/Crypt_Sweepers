@@ -991,6 +991,7 @@ const UNFLIP_EXCLUDED_TYPES = new Set([
  */
 async function unflipAndRerollTile(tile, floor, opts = {}) {
   if (!tile || !tile.revealed) return
+  if (tile.isStart) return
   await unflipTile(tile)
 
   // Reset mutable per-tile state
@@ -1284,6 +1285,7 @@ export default {
   rollEnemyHitDamage,
   refreshEnemyDamageOnTile,
   getOrthogonalTiles,
+  getAdjacentTiles,
   setDiagonalMovement,
   refreshAllThreatClueDisplays,
   computeOrthogonalThreatSum,
