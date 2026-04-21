@@ -284,6 +284,16 @@ async function boot() {
   GameController.init(save)
   UI.refreshSkipFloorButton(save)
 
+  document.addEventListener('click', (e) => {
+    const t = e.target
+    if (!(t instanceof Element)) return
+    const btn = t.closest('button')
+    if (!btn) return
+    if (btn.closest('#grid') || btn.closest('#sub-floor-grid') || btn.closest('#hud-actions')) return
+    if (btn.closest('.tile')) return
+    GameController.uiButtonHaptic()
+  }, true)
+
   document.addEventListener('pagehide', () => {
     try { GameController.persistActiveRun() } catch (_) { /* ignore */ }
   })

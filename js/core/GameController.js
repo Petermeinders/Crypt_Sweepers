@@ -107,6 +107,51 @@ function _hapticFromAsyncTask(pattern) {
   _hapticFromUserGesture(pattern)
 }
 
+/** Light buzz for menu/settings/chrome buttons (main wires delegated click). */
+function uiButtonHaptic() {
+  _hapticFromUserGesture(10)
+}
+
+/** Read-only: would harass damage the player this global tick (matches tick loop + engineer/necro absorb rules)? */
+function _previewHarassDamageThisTurn() {
+  const grid = TileEngine.getGrid()
+  if (!grid || !run) return false
+  if (_charKey() === 'engineer' && run.turret?.hp > 0) return false
+  if (_charKey() === 'necromancer' && run.minions?.some(m => m.hp > 0)) return false
+  let total = 0
+  for (const row of grid) {
+    for (const t of row) {
+      if (!t.revealed || !t.enemyData || t.enemyData._slain) continue
+      if (!t.enemyData.harassPlayer) continue
+      const rawDmg = t.enemyData.harassDmg ?? 1
+      total += _computeEffectiveDamageTaken(rawDmg)
+    }
+  }
+  return total > 0
+}
+
+/**
+ * Firefox: vibrate in the user-gesture turn before the first await in revealTile.
+ * One short pulse if trap (hurt path), DoT tick, or harass will apply. Sets tile._trapDodgeRoll for trap dodge sync with _resolveEffect.
+ */
+function _firefoxPreFlipHapticsIfNeeded(tile) {
+  if (!_vibrationRequiresSyncUserActivation() || !run || !tile) return
+  const p = run.player
+  let shouldPulse = false
+
+  if (tile.type === 'trap' && !p.trapImmune) {
+    tile._trapDodgeRoll = Math.random()
+    const chance = p.trapDodgeChance ?? 0
+    const dodged = chance > 0 && tile._trapDodgeRoll < chance
+    if (!dodged) shouldPulse = true
+  }
+
+  if ((p.poisonStacks ?? 0) > 0 || (p.burnStacks ?? 0) > 0) shouldPulse = true
+  if (_previewHarassDamageThisTurn()) shouldPulse = true
+
+  if (shouldPulse) _hapticFromUserGesture(20)
+}
+
 function _pickRandom(pool) { return pool[Math.floor(Math.random() * pool.length)] }
 
 function hasItem(id) { return run?.player?.inventory?.some(e => e.id === id) ?? false }
@@ -4149,7 +4194,9 @@ function _applyRangerTrapfinderMitigation(preMitigationDmg, p) {
 }
 
 /** One global “turn” for DoT / debuff effects: each tile flip/reveal, or starting a melee vs any enemy. */
-function _tickPoisonArrowDotOnGlobalTurn() {
+function _tickPoisonArrowDotOnGlobalTurn(opts = {}) {
+  const hapticChannel = opts.hapticChannel === 'gesture' ? 'gesture' : 'deferred'
+  const dotHaptic = hapticChannel === 'gesture' ? _hapticFromUserGesture : _hapticFromAsyncTask
   if (!run || GameState.is(States.DEATH)) return
   _tickTreasureGoblinCountdown()
   // Teary Eyes debuff tick
@@ -4186,7 +4233,7 @@ function _tickPoisonArrowDotOnGlobalTurn() {
     const dmg = run.player.poisonStacks
     run.player.hp = Math.max(1, run.player.hp - dmg)
     UI.updateHP(run.player.hp, run.player.maxHp)
-    _hapticFromAsyncTask(20)
+    dotHaptic(20)
     UI.spawnFloat(document.getElementById('hud-portrait'), `☠️ Poison ${dmg}`, 'damage')
     run.player.poisonStacks--
     UI.setPlayerPoison(run.player.poisonStacks)
@@ -4196,7 +4243,7 @@ function _tickPoisonArrowDotOnGlobalTurn() {
     const dmg = run.player.burnStacks
     run.player.hp = Math.max(1, run.player.hp - dmg)
     UI.updateHP(run.player.hp, run.player.maxHp)
-    _hapticFromAsyncTask(20)
+    dotHaptic(20)
     UI.spawnFloat(document.getElementById('hud-portrait'), `🔥 Burn ${dmg}`, 'damage')
     run.player.burnStacks--
     UI.setBurnOverlay(run.player.burnStacks)
@@ -4261,7 +4308,10 @@ function _tickPoisonArrowDotOnGlobalTurn() {
         ? { sfx: 'enemyArcherShot', layered: { count: Math.min(archerCount, 8), spreadMs: 72, jitterMs: 40 } }
         : { sfx: 'enemyArcherShot' })
     }
-    _takeDamage(totalHarassDmg, document.getElementById('hud-portrait'), false, null, { enemyAttack: true })
+    _takeDamage(totalHarassDmg, document.getElementById('hud-portrait'), false, null, {
+      enemyAttack: true,
+      hapticChannel,
+    })
     const parts = []
     if (archerCount > 0) parts.push(`🏹 Goblin Archer${archerCount > 1 ? 's fire' : ' fires'} for ${archerCount} dmg!`)
     if (batCount > 0) parts.push(`🦇 Shadow Bat${batCount > 1 ? 's attack' : ' attacks'}!`)
@@ -4295,6 +4345,7 @@ async function revealTile(tile) {
 
   tile.revealed = true
   run.tilesRevealed++
+  _firefoxPreFlipHapticsIfNeeded(tile)
   UI.setPortraitAnim('run')
   EventBus.emit('audio:play', { sfx: 'flip' })
   await TileEngine.flipTile(tile)
@@ -4366,7 +4417,7 @@ async function revealTile(tile) {
       delete extra._lensReveal
     }
   }
-  _tickPoisonArrowDotOnGlobalTurn()
+  _tickPoisonArrowDotOnGlobalTurn({ hapticChannel: 'deferred' })
   TileEngine.refreshAllThreatClueDisplays()
   // Dungeon Mouse (and future tile-flipping creatures): roll after every player flip.
   // Skip on cascaded reveals (Abyssal Lens) so a single tap only triggers mice once.
@@ -4512,11 +4563,17 @@ function _resolveEffect(tile) {
         UI.showRetreat()
         break
       }
-      if ((p.trapDodgeChance ?? 0) > 0 && Math.random() < p.trapDodgeChance) {
-        EventBus.emit('audio:play', { sfx: 'trap' })
-        UI.setMessage('A trap snaps shut — your training pays off! You dodge it.')
-        UI.spawnFloat(tile.element, '🪤 Dodged!', 'heal')
-        break
+      if ((p.trapDodgeChance ?? 0) > 0) {
+        const r = tile._trapDodgeRoll != null ? tile._trapDodgeRoll : Math.random()
+        if (tile._trapDodgeRoll != null) delete tile._trapDodgeRoll
+        if (r < p.trapDodgeChance) {
+          EventBus.emit('audio:play', { sfx: 'trap' })
+          UI.setMessage('A trap snaps shut — your training pays off! You dodge it.')
+          UI.spawnFloat(tile.element, '🪤 Dodged!', 'heal')
+          break
+        }
+      } else if (tile._trapDodgeRoll != null) {
+        delete tile._trapDodgeRoll
       }
       const rawDmg = _rand(...CONFIG.trap.damage)
       let dmg = Math.max(1, rawDmg - (p.trapReduction ?? 0))
@@ -5063,7 +5120,7 @@ function _setEnemySprite(tile, state) {
 function fightAction(tile) {
   _combatBusy = true; _combatBusySetAt = Date.now()
 
-  _tickPoisonArrowDotOnGlobalTurn()
+  _tickPoisonArrowDotOnGlobalTurn({ hapticChannel: 'gesture' })
   if (!tile?.enemyData || tile.enemyData._slain) {
     _combatBusy = false
     return
@@ -6801,7 +6858,11 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
     UI.spawnFloat(tileEl, `-${effective} HP`, 'damage')
   }
   UI.updateHP(run.player.hp, run.player.maxHp)
-  _hapticFromAsyncTask(55)
+  if (opts.hapticChannel === 'gesture') {
+    _hapticFromUserGesture(55)
+  } else {
+    _hapticFromAsyncTask(55)
+  }
   UI.shakeScreenDamage()
   EventBus.emit('player:hpChange', { amount: -effective, newHP: run.player.hp })
   // Resurrection Stone: prevent death once, restore half max HP
@@ -8724,4 +8785,5 @@ export default {
   resumeRun,
   abandonRun,
   persistActiveRun()  { _saveActiveRun() },
+  uiButtonHaptic,
 }
