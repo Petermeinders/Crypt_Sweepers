@@ -65,13 +65,21 @@ function _metaCharSave(save, charId) {
   return save[charId] ?? save.warrior
 }
 
+/** Gold-locked roster hero (not Paladin, not Coming Soon) — must appear in save.unlockedHeroes. */
+function _heroIsGoldLocked(save, char) {
+  if (!save || !char || char.comingSoon) return false
+  if (char.id === 'warrior') return false
+  if (char.unlockCost == null) return false
+  return !MetaProgression.isHeroUnlocked(save, char.id)
+}
+
 // ── Character roster ──────────────────────────────────────────
 
 const CHARACTERS = [
   {
     id:         'warrior',
     name:       'Paladin',
-    tagline:    'Battle-hardened holy warrior—slow footwork, heavy blows. Sense Evil (see Hero Passives) marks one random hidden enemy each floor.',
+    tagline:    'Battle-hardened holy warrior—slow footwork, heavy blows. Kill Echo (see Hero Passives) chains enemy echo hints from the entrance and from each marked kill.',
     gif:        'assets/sprites/Heroes/Warrior/warrior-idle.gif',
     attackGif:  'assets/sprites/Heroes/Warrior/warrior-strike.gif',
     attackMs:   2000,
@@ -105,7 +113,7 @@ const CHARACTERS = [
     attackMs:    2000,
     emoji:       '🧙‍♂️',
     upgrades:    MAGE_UPGRADES,
-    unlockCost:  null,
+    unlockCost:  CONFIG.heroUnlockCostDefault,
     baseHP:      30,
     baseMana:    60,
     baseDmg:     '1',
@@ -119,7 +127,7 @@ const CHARACTERS = [
     attackMs:    0,
     emoji:       '🧛',
     upgrades:    {},
-    unlockCost:  null,
+    unlockCost:  CONFIG.heroUnlockCostDefault,
     baseHP:      45,
     baseMana:    25,
     baseDmg:     '2',
@@ -134,7 +142,7 @@ const CHARACTERS = [
     attackMs:    600,
     emoji:       '⚙️',
     upgrades:    ENGINEER_UPGRADES,
-    unlockCost:  null,
+    unlockCost:  CONFIG.heroUnlockCostDefault,
     baseHP:      40,
     baseMana:    40,
     baseDmg:     '1',
@@ -149,7 +157,7 @@ const CHARACTERS = [
     attackMs:    600,
     emoji:       '💀',
     upgrades:    NECROMANCER_UPGRADES,
-    unlockCost:  null,
+    unlockCost:  CONFIG.heroUnlockCostDefault,
     baseHP:      35,
     baseMana:    55,
     baseDmg:     '1',
@@ -246,6 +254,16 @@ async function boot() {
   }
   if (!save.selectedCharacter) {
     save.selectedCharacter = 'warrior'
+  }
+
+  MetaProgression.normalizeUnlockedHeroes(save)
+  {
+    const selId = save.selectedCharacter ?? 'warrior'
+    const selCh = CHARACTERS.find(c => c.id === selId)
+    if (selCh && (selCh.comingSoon || (selCh.unlockCost != null && !MetaProgression.isHeroUnlocked(save, selId)))) {
+      save.selectedCharacter = 'warrior'
+      await SaveManager.save(save)
+    }
   }
 
   const urlParams = new URLSearchParams(typeof location !== 'undefined' ? location.search : '')
@@ -620,7 +638,7 @@ async function boot() {
     const char = CHARACTERS[_heroIdx]
     const btn  = document.getElementById('hero-select-btn')
     if (btn.dataset.mode === 'unlock') {
-      if (char.id === 'ranger' && MetaProgression.unlockRanger(s)) {
+      if (MetaProgression.unlockHero(s, char.id)) {
         SaveManager.save(s)
         _renderHeroSelect()
       }
@@ -640,7 +658,7 @@ async function boot() {
       const charSave = char.comingSoon ? { totalXP: 0, upgrades: [] }
         : _metaCharSave(s, char.id)
       const grid     = _heroSlideGrid(_heroIdx)
-      _renderHeroUpgradeGrid(grid, char, charSave.upgrades ?? [], charSave.totalXP ?? 0, !char.comingSoon && char.id === 'ranger' && !s.ranger.unlocked)
+      _renderHeroUpgradeGrid(grid, char, charSave.upgrades ?? [], charSave.totalXP ?? 0, !char.comingSoon && _heroIsGoldLocked(s, char))
     }
   })
 
@@ -795,6 +813,12 @@ async function boot() {
     const text = await file.text()
     const imported = await SaveManager.importJSON(text)
     if (imported) {
+      MetaProgression.normalizeUnlockedHeroes(imported)
+      const impSel = imported.selectedCharacter ?? 'warrior'
+      const impCh  = CHARACTERS.find(c => c.id === impSel)
+      if (impCh && (impCh.comingSoon || (impCh.unlockCost != null && !MetaProgression.isHeroUnlocked(imported, impSel)))) {
+        imported.selectedCharacter = 'warrior'
+      }
       GameController.init(imported)
       _updateMenuHeroPreview()
       UI.setActiveDifficulty(imported.settings.difficulty)
@@ -1083,7 +1107,7 @@ function _renderHeroSelect(opts = {}) {
     slide.classList.toggle('is-current', i === _heroIdx)
     const charSave  = char.comingSoon ? { totalXP: 0, upgrades: [] }
       : _metaCharSave(s, char.id)
-    const isLocked  = !char.comingSoon && char.id === 'ranger' && !s.ranger.unlocked
+    const isLocked  = !char.comingSoon && _heroIsGoldLocked(s, char)
     const xp        = charSave.totalXP ?? 0
     const owned     = charSave.upgrades ?? []
     const isCurrent = i === _heroIdx
@@ -1125,7 +1149,7 @@ function _renderHeroSelect(opts = {}) {
   _renderHeroDots(_heroIdx)
 
   const isSelected = s.selectedCharacter === char.id
-  const isLocked   = !char.comingSoon && char.id === 'ranger' && !s.ranger.unlocked
+  const isLocked   = !char.comingSoon && _heroIsGoldLocked(s, char)
   const selectBtn  = document.getElementById('hero-select-btn')
   const labelEl    = selectBtn.querySelector('.hero-cta-label')
   const subEl      = selectBtn.querySelector('.hero-cta-sub')
@@ -1141,7 +1165,7 @@ function _renderHeroSelect(opts = {}) {
   if (char.comingSoon) {
     setCTA('Coming Soon', '', 'coming-soon', true)
   } else if (isLocked) {
-    setCTA('Unlock', `${char.unlockCost}💰`, 'unlock', s.persistentGold < char.unlockCost)
+    setCTA('Unlock', `${char.unlockCost}💰`, 'unlock', !MetaProgression.canUnlockHero(s, char.id))
   } else if (isSelected) {
     setCTA('Selected', '', 'select', true)
   } else {
@@ -1198,7 +1222,7 @@ function _renderHeroUpgradeSimpleSlot(grid, char, id, def, ownedList, xp, isLock
     _selectedUpgradeId = isSelected ? null : id
     const s        = GameController.getSave()
     const charSave = _metaCharSave(s, char.id)
-    const locked   = char.id === 'ranger' && !s.ranger.unlocked
+    const locked   = _heroIsGoldLocked(s, char)
     const mainGrid = grid.closest('.hero-select-slide')?.querySelector('.hero-upgrades-grid')
     if (mainGrid) {
       _renderHeroUpgradeGrid(mainGrid, char, charSave.upgrades ?? [], charSave.totalXP ?? 0, locked)
@@ -1297,7 +1321,7 @@ function _renderHeroUpgradeGrid(grid, char, ownedList, xp, isLocked) {
       const refresh = () => {
         const s = GameController.getSave()
         const charSave = _metaCharSave(s, char.id)
-        const locked = char.id === 'ranger' && !s.ranger.unlocked
+        const locked = _heroIsGoldLocked(s, char)
         _renderHeroUpgradeGrid(grid, char, charSave.upgrades ?? [], charSave.totalXP ?? 0, locked)
       }
 
@@ -1330,15 +1354,15 @@ function _renderHeroUpgradeGrid(grid, char, ownedList, xp, isLocked) {
     passiveWrap.hidden = false
     if (passiveGrid) {
       if (char.id === 'warrior') {
-        const senseEvilSlot = document.createElement('div')
-        senseEvilSlot.className = 'hero-passive-builtin'
-        senseEvilSlot.innerHTML = `
-          <span class="hero-passive-builtin-icon">😈</span>
+        const killEchoSlot = document.createElement('div')
+        killEchoSlot.className = 'hero-passive-builtin'
+        killEchoSlot.innerHTML = `
+          <span class="hero-passive-builtin-icon">⚔️</span>
           <div class="hero-passive-builtin-info">
-            <div class="hero-passive-builtin-name">Sense Evil <span class="hero-passive-builtin-badge">✓ Applied</span></div>
-            <div class="hero-passive-builtin-desc">At the start of each dungeon floor, picks one random unrevealed enemy and marks its tile with an enemy echo hint. If that foe is slain, a new mark is chosen when possible.</div>
+            <div class="hero-passive-builtin-name">Kill Echo <span class="hero-passive-builtin-badge">✓ Applied</span></div>
+            <div class="hero-passive-builtin-desc">Each dungeon floor starts by marking the closest unrevealed enemy to the entrance (enemy echo hint). Slaying a marked foe marks the next two closest hidden enemies to that kill; slaying any of those marks up to three at once from the latest kill—capping at three echoes until the floor ends. Fewer valid targets than your limit just marks what exists.</div>
           </div>`
-        passiveGrid.appendChild(senseEvilSlot)
+        passiveGrid.appendChild(killEchoSlot)
       }
       if (char.id === 'ranger') {
         const keenEyesSlot = document.createElement('div')

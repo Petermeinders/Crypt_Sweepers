@@ -531,10 +531,10 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
     linear-gradient(180deg, #283828 0%, #1a241c 100%);
 }
 
-/* Stats column — pill / bar feel (shrinks first; keeps readable minimum) */
+/* Stats column — pill / bar feel; widest readable minimum so HP/mana numbers don't clip beside the bars */
 #hud-stats {
-  flex: 1;
-  min-width: 50px;
+  flex: 1 1 auto;
+  min-width: 118px;
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -707,11 +707,11 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
   box-shadow: 0 0 8px rgba(46,134,193,0.35);
 }
 
-/* Key items — same row height as ability column; squares grow to match ability cell height when space allows */
+/* Key items — two stacked squares; %‑of‑stretch height is definite because HUD height is set by #hud-stats, not by keys */
 .hud-keys {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
   justify-content: center;
   align-items: center;
   align-self: stretch;
@@ -722,13 +722,12 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
 .hud-key-slot {
   box-sizing: border-box;
   flex: 0 0 auto;
-  /* One row of the 3×2 ability grid: same vertical slice as a single ability row */
-  height: max(30px, calc((100% - 8px) / 3));
+  height: max(36px, calc((100% - 5px) / 2));
   width: auto;
-  max-width: 100%;
+  max-width: 48px;
   aspect-ratio: 1;
-  min-width: 30px;
-  min-height: 30px;
+  min-width: 36px;
+  min-height: 36px;
   border-radius: 6px;
   display: flex;
   align-items: center;
@@ -739,16 +738,16 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
 }
 
 .hud-key-slot-img {
-  max-height: 82%;
+  max-height: 90%;
   width: auto;
-  max-width: 92%;
+  max-width: 94%;
   object-fit: contain;
   image-rendering: pixelated;
   pointer-events: none;
 }
 
 .hud-key-ghost {
-  font-size: 0.85rem;
+  font-size: clamp(0.95rem, 3.2vw, 1.15rem);
   opacity: 0.28;
   filter: grayscale(0.4);
 }
@@ -765,19 +764,28 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
   border-color: rgba(245,197,24,0.7);
 }
 
-/* 2×3 action slots */
+/* 3×2 action slots — grid itself is 3:2 so cells are ~square from a definite height. Cap height so it can't starve #hud-stats on narrow screens. */
 .hud-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: repeat(3, 1fr);
-  gap: 4px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 5px 4px;
   align-self: stretch;
-  flex-shrink: 0;
+  aspect-ratio: 3 / 2;
+  max-height: 110px;
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 0;
 }
 
 .hud-action-slot {
   touch-action: none;
-  aspect-ratio: 1;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  overflow: hidden;
   border-radius: 8px;
   border: 2px solid rgba(245, 197, 24, 0.38);
   background: linear-gradient(165deg, rgba(40,38,52,0.95) 0%, rgba(18,18,28,0.98) 100%);
@@ -811,8 +819,6 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
   border-color: rgba(255, 120, 20, 0.6);
   padding: 2px;
   overflow: hidden;
-  width: 44px;
-  height: 44px;
 }
 
 .hud-action-slot.is-slam-active {
@@ -833,8 +839,6 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
   border-color: rgba(60, 200, 255, 0.55);
   padding: 2px;
   overflow: hidden;
-  width: 44px;
-  height: 44px;
 }
 
 .hud-action-slot.is-ricochet-active {
@@ -855,8 +859,6 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
   border-color: rgba(255, 170, 80, 0.55);
   padding: 2px;
   overflow: hidden;
-  width: 44px;
-  height: 44px;
 }
 
 .hud-action-slot.is-arrow-barrage-active {
@@ -877,8 +879,6 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
   border-color: rgba(120, 220, 100, 0.55);
   padding: 2px;
   overflow: hidden;
-  width: 44px;
-  height: 44px;
 }
 
 .hud-action-slot.is-poison-arrow-shot-active {
@@ -901,8 +901,6 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
   border-color: rgba(120, 200, 255, 0.55);
   padding: 2px;
   overflow: hidden;
-  width: 44px;
-  height: 44px;
 }
 
 .hud-action-slot.is-chain-lightning-active {
@@ -923,8 +921,6 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
   border-color: rgba(180, 120, 255, 0.55);
   padding: 2px;
   overflow: hidden;
-  width: 44px;
-  height: 44px;
 }
 
 .hud-action-slot.is-telekinetic-throw-active {
@@ -955,19 +951,24 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
   justify-content: center;
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
 }
 
 .ability-btn-emoji {
-  font-size: 1.75rem;
+  font-size: clamp(1.85rem, 5.5vw, 2.1rem);
   line-height: 1;
 }
 
+/* 100% of slot (which now has a definite size), capped at 52px so very small/large slots don't look absurd */
 .ability-btn-img {
-  width: 40px;
-  height: 40px;
-  object-fit: cover;
-  border-radius: 6px;
   display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 52px;
+  max-height: 52px;
+  object-fit: contain;
+  border-radius: 6px;
   flex-shrink: 0;
 }
 
@@ -975,11 +976,13 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
 .ability-btn-wrap--arrow-barrage .ability-btn-bg,
 .ability-btn-wrap--poison-arrow-shot .ability-btn-bg,
 .ability-btn-wrap--divine-light .ability-btn-bg {
-  width: 40px;
-  height: 40px;
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 52px;
+  max-height: 52px;
   object-fit: cover;
   border-radius: 6px;
-  display: block;
   flex-shrink: 0;
 }
 
@@ -991,8 +994,10 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: 30px;
-  height: 30px;
+  width: min(72%, 38px);
+  height: min(72%, 38px);
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   pointer-events: none;
   z-index: 1;
@@ -1032,8 +1037,6 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
   border-color: rgba(100, 180, 255, 0.6);
   padding: 2px;
   overflow: hidden;
-  width: 44px;
-  height: 44px;
 }
 
 .hud-action-slot.is-blinding-light-active {
@@ -1055,8 +1058,6 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
   border-color: rgba(255, 220, 80, 0.6);
   padding: 2px;
   overflow: hidden;
-  width: 44px;
-  height: 44px;
 }
 
 .hud-action-slot.is-divine-light-active {

@@ -26,7 +26,7 @@ The game has been pushed in three overlapping directions:
 
 ### Hero-specific discovery (feel unique per class)
 
-* **Paladin — Sense Evil:** At least one unrevealed enemy on the floor can be marked with an echo-style hint. If that enemy is slain, another valid target can be marked when possible so the “lens” on danger keeps renewing.
+* **Paladin — Kill Echo:** Each floor begins by marking the closest unrevealed enemy to the start tile. Killing a marked enemy refreshes marks from that tile: first kill upgrades to two closest targets, then up to three (cap). Aggressive play surfaces more hidden enemy locations along your path.
 * **Ranger — Keen Eyes:** On revealing a tile, a chance to sense the **category** of orthogonally adjacent hidden tiles (enemy / trap / loot-style buckets, etc.), stacking with other hint systems.
 * **Mage — Phase Step (concept / WIP):** Intended direction — when it **activates**, half the time the Mage may **move diagonally** (exact rules and tuning TBD). *Subject to full redesign and rebalance.*
 
@@ -69,7 +69,7 @@ The game has been pushed in three overlapping directions:
 ## UI, UX & polish
 
 * Hero carousel, How to Play, audio settings, haptics, floor banners, combat feedback.
-* **Hero Passives** (hero select): Built-in passives such as Paladin **Sense Evil**, Ranger **Keen Eyes** + **Trapfinder**, described in the carousel—not to be confused with account-wide **Passive Upgrades** on the main menu.
+* **Hero Passives** (hero select): Built-in passives such as Paladin **Kill Echo**, Ranger **Keen Eyes** + **Trapfinder**, described in the carousel—not to be confused with account-wide **Passive Upgrades** on the main menu.
 
 ---
 

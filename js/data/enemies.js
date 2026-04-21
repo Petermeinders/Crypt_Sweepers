@@ -6,6 +6,7 @@
 //   'universal'              — appears on all floors (default if omitted)
 //   { fromBiome: 'id' }      — appears in that biome and every biome after it
 //   { biomes: ['id', ...] }  — only in the listed biomes
+//   { minFloor: N }          — only on floor N and deeper (biome-universal unless combined with fromBiome/biomes)
 
 export const ENEMY_DEFS = {
   // ── Undead (Warrior Undead Bane applies) ───────────────────
@@ -33,7 +34,7 @@ export const ENEMY_DEFS = {
     xpDrop:     3,
     blurb:      'A shambling corpse that refuses to stay dead. Slow but surprisingly tough.',
     attributes: [],
-    spawn:      'universal',
+    spawn:      { minFloor: 3 },
   },
   wraith: {
     hp:         2,
@@ -153,7 +154,7 @@ export const ENEMY_DEFS = {
     xpDrop:     4,
     blurb:      'A quivering mass of corrosive ooze. Cut it down and it simply splits in two — each half hungry for more.',
     attributes: ['splits'],
-    spawn:      'universal',
+    spawn:      { minFloor: 5 },
   },
 
   // ── Beast ────────────────────────────────────────────────────

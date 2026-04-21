@@ -458,6 +458,7 @@ function _serializeHourglassSnapshot() {
       forgeUsed: t.forgeUsed,
       echoHintCategory: t.echoHintCategory ?? null,
       darkEyesHint: !!t.darkEyesHint,
+      killEchoMarked: !!(t.killEchoMarked || t.senseEvilMarked),
     })),
   )
   return {
@@ -465,6 +466,7 @@ function _serializeHourglassSnapshot() {
     player: structuredClone(run.player),
     eventTile: run.eventTile ? { row: run.eventTile.row, col: run.eventTile.col } : null,
     bossFloorExitPending: run.bossFloorExitPending,
+    killEchoQuota: run.killEchoQuota ?? 1,
     tiles,
   }
 }
@@ -500,9 +502,13 @@ function _restoreHourglassSnapshot(snap) {
       t.forgeUsed = st.forgeUsed
       t.echoHintCategory = st.echoHintCategory ?? null
       t.darkEyesHint = !!st.darkEyesHint
+      t.killEchoMarked = !!st.killEchoMarked
+      delete t.senseEvilMarked
       _normalizeTileFieldsForType(t)
     }
   }
+
+  run.killEchoQuota = snap.killEchoQuota ?? 1
 
   _refreshMainGridDomFromModel()
   UI.updateHP(run.player.hp, run.player.maxHp)
@@ -522,44 +528,101 @@ function _restoreHourglassSnapshot(snap) {
   TileEngine.refreshAllThreatClueDisplays()
 }
 
-/** Paladin Sense Evil — pick one random unrevealed enemy tile and mark it with the enemy echo hint.
- *  Uses a dedicated `senseEvilMarked` flag so re-picks reliably clear only the previous sensed tile,
- *  never touching marks from trinkets (echo-charm, resonance-core, abyssal-lens). */
-function _paladinSenseEvilPick() {
-  if (_charKey() !== 'warrior') return
+/** Paladin Kill Echo — unrevealed enemy tiles only; Manhattan distance for “closest”. */
+function _isKillEchoHiddenEnemyTile(t) {
+  return !!(
+    t &&
+    !t.revealed &&
+    t.enemyData &&
+    !t.enemyData._slain &&
+    (t.type === 'enemy' || t.type === 'enemy_fast' || t.type === 'boss')
+  )
+}
+
+/** Clear Kill Echo marks only (⚔️ hints we placed); strips legacy senseEvilMarked too. */
+function _paladinKillEchoClearMarks() {
   const grid = TileEngine.getGrid?.()
   if (!grid) return
-  // Clear any existing sense-evil mark first (only our own — leave trinket marks alone)
   for (const row of grid) {
     for (const t of row) {
-      if (t.senseEvilMarked) {
-        t.senseEvilMarked = false
-        t.echoHintCategory = null
-        if (t.element) {
-          t.element.classList.remove('echo-hint')
-          delete t.element.dataset.echoHint
-        }
+      if (!t.killEchoMarked && !t.senseEvilMarked) continue
+      t.killEchoMarked = false
+      t.senseEvilMarked = false
+      t.echoHintCategory = null
+      if (t.element) {
+        t.element.classList.remove('echo-hint')
+        delete t.element.dataset.echoHint
       }
     }
   }
-  const candidates = []
+}
+
+function _paladinKillEchoStripMarkFromTile(t) {
+  if (!t || (!t.killEchoMarked && !t.senseEvilMarked)) return
+  t.killEchoMarked = false
+  t.senseEvilMarked = false
+  t.echoHintCategory = null
+  if (t.element) {
+    t.element.classList.remove('echo-hint')
+    delete t.element.dataset.echoHint
+  }
+}
+
+function _paladinKillEchoMarkedHiddenCount() {
+  const grid = TileEngine.getGrid?.()
+  if (!grid) return 0
+  let n = 0
   for (const row of grid) {
     for (const t of row) {
-      if (!t.revealed && t.enemyData && !t.enemyData._slain &&
-          (t.type === 'enemy' || t.type === 'enemy_fast' || t.type === 'boss')) {
-        candidates.push(t)
-      }
+      if (!_isKillEchoHiddenEnemyTile(t)) continue
+      if (t.killEchoMarked || t.senseEvilMarked) n++
     }
   }
-  if (!candidates.length) { run.senseEvilTile = null; return }
-  const target = candidates[Math.floor(Math.random() * candidates.length)]
-  target.senseEvilMarked = true
-  target.echoHintCategory = '⚔️'
-  if (target.element) {
-    target.element.classList.add('echo-hint')
-    target.element.dataset.echoHint = '⚔️'
+  return n
+}
+
+/** Mark up to `pickCount` still-unmarked hidden enemies, closest first to (anchorRow, anchorCol). */
+function _paladinKillEchoMarkNewClosest(anchorRow, anchorCol, pickCount) {
+  if (_charKey() !== 'warrior') return
+  const grid = TileEngine.getGrid?.()
+  if (!grid || anchorRow == null || anchorCol == null || pickCount <= 0) return
+  const scored = []
+  for (const row of grid) {
+    for (const t of row) {
+      if (!_isKillEchoHiddenEnemyTile(t)) continue
+      if (t.killEchoMarked || t.senseEvilMarked) continue
+      const d = Math.abs(t.row - anchorRow) + Math.abs(t.col - anchorCol)
+      scored.push({ t, d })
+    }
   }
-  run.senseEvilTile = { row: target.row, col: target.col }
+  scored.sort((a, b) => a.d - b.d || a.t.row - b.t.row || a.t.col - b.t.col)
+  const n = Math.min(pickCount, scored.length)
+  for (let i = 0; i < n; i++) {
+    const t = scored[i].t
+    t.killEchoMarked = true
+    t.echoHintCategory = '⚔️'
+    if (t.element) {
+      t.element.classList.add('echo-hint')
+      t.element.dataset.echoHint = '⚔️'
+    }
+  }
+}
+
+/** Floor start: clear prior floor’s marks, then mark `count` closest to the entrance. */
+function _paladinKillEchoApplyMarks(anchorRow, anchorCol, count) {
+  if (_charKey() !== 'warrior') return
+  if (count <= 0) return
+  _paladinKillEchoClearMarks()
+  _paladinKillEchoMarkNewClosest(anchorRow, anchorCol, count)
+}
+
+/** After slaying a marked foe: keep other marks; add new ones until we reach `run.killEchoQuota`. */
+function _paladinKillEchoAddMarksAfterKill(tile) {
+  if (_charKey() !== 'warrior' || !tile) return
+  _paladinKillEchoStripMarkFromTile(tile)
+  const q = run.killEchoQuota ?? 1
+  const need = Math.max(0, q - _paladinKillEchoMarkedHiddenCount())
+  _paladinKillEchoMarkNewClosest(tile.row, tile.col, need)
 }
 
 function _echoCharmCategoryForTileType(type) {
@@ -1000,6 +1063,8 @@ function buildRunState() {
     floorStartCol:    null,
     /** While active: { row, col, turnsLeft } — countdown until goblin escapes */
     treasureGoblin:   null,
+    /** Paladin Kill Echo: how many hidden enemies may be marked at once (1 → 2 → 3 this floor). */
+    killEchoQuota:    1,
   }
 }
 
@@ -1676,6 +1741,7 @@ function _serializeGridSnapshot() {
       darkEyesHint: !!t.darkEyesHint,
       bannerReady: t.bannerReady ?? null,
       warBannerFlying: t.warBannerFlying ?? null,
+      killEchoMarked: !!(t.killEchoMarked || t.senseEvilMarked),
     })),
   )
 }
@@ -1700,6 +1766,7 @@ function _saveActiveRun() {
     treasureGoblin:  run.treasureGoblin ? structuredClone(run.treasureGoblin) : null,
     floorStartRow:   run.floorStartRow ?? null,
     floorStartCol:   run.floorStartCol ?? null,
+    killEchoQuota:   run.killEchoQuota ?? 1,
   }
   SaveManager.save(_save).catch(() => {})
 }
@@ -1741,6 +1808,7 @@ function resumeRun() {
     treasureGoblin: saved.treasureGoblin ?? null,
     floorStartRow: saved.floorStartRow ?? null,
     floorStartCol: saved.floorStartCol ?? null,
+    killEchoQuota: saved.killEchoQuota ?? 1,
   }
   const ch = _save.selectedCharacter ?? 'warrior'
   if (ch === 'engineer' && (run.player.seismicPingLevel == null || run.player.seismicPingLevel < 1)) {
@@ -1933,9 +2001,10 @@ function _startFloor() {
       }
     }
   }
-  // Paladin Sense Evil: mark one random unrevealed enemy at floor start
+  // Paladin Kill Echo: mark closest hidden enemy/enemies to floor start; quota resets each floor
   if (!gridRestored && !run.atRest && _charKey() === 'warrior') {
-    _paladinSenseEvilPick()
+    run.killEchoQuota = 1
+    _paladinKillEchoApplyMarks(run.floorStartRow, run.floorStartCol, run.killEchoQuota)
   }
   // Mending Moss: restore 3 HP at start of each new floor (skip floor 1 and sanctuary)
   if (!gridRestored && !run.atRest && run.floor > 1 && run.player.inventory.some(e => e.id === 'mending-moss')) {
@@ -6394,6 +6463,7 @@ function _endCombatVictory(tile) {
     return
   }
 
+  const killEchoKill = _charKey() === 'warrior' && !!(tile.killEchoMarked || tile.senseEvilMarked)
   tile.enemyData._slain = true
   _clearCombatEngagementForTile(tile)
   // Drowned Hulk: remove crew aura from all buffed enemies on death
@@ -6402,10 +6472,10 @@ function _endCombatVictory(tile) {
     _removeHulkBuffFromAll()
   }
   TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
-  // Paladin Sense Evil: if the slain enemy was the sensed tile, pick a new one
-  if (_charKey() === 'warrior' && run.senseEvilTile && run.senseEvilTile.row === tile.row && run.senseEvilTile.col === tile.col) {
-    run.senseEvilTile = null
-    _paladinSenseEvilPick()
+  // Paladin Kill Echo: widen quota; add new marks from this kill without stripping other marked foes
+  if (killEchoKill) {
+    run.killEchoQuota = Math.min((run.killEchoQuota ?? 1) + 1, 3)
+    _paladinKillEchoAddMarksAfterKill(tile)
   }
   // Archer / Treasure Goblin spawn pre-revealed without markReachable (see _spawnArcherGoblin),
   // so neighbors stay unreachable until the player paths adjacent. On defeat,

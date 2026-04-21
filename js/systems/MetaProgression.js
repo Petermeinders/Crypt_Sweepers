@@ -22,6 +22,8 @@ export function defaultSave() {
       upgrades:  [],
       shopCart:  [],
     },
+    /** Hero IDs unlocked for selection (always includes warrior). Ranger syncs with ranger.unlocked. */
+    unlockedHeroes: ['warrior'],
     ranger: {
       unlocked:  false,
       totalXP:   0,
@@ -223,18 +225,63 @@ function _applyUpgradeEffect(player, effect) {
   }
 }
 
-// ── Ranger unlock ─────────────────────────────────────────────
+// ── Hero gold unlocks (Paladin/warrior free; others purchased) ─────────────────
+
+/** Gold cost to unlock this hero ID, or null if not sold for gold. */
+function heroUnlockGoldCost(heroId) {
+  if (heroId === 'ranger') return CONFIG.rangerUnlockCost
+  if (heroId === 'mage' || heroId === 'vampire' || heroId === 'engineer' || heroId === 'necromancer') {
+    return CONFIG.heroUnlockCostDefault
+  }
+  return null
+}
+
+/** Merge unlockedHeroes array, legacy ranger.unlocked, and grandfathered meta progress. */
+function normalizeUnlockedHeroes(save) {
+  if (!save) return
+  if (!Array.isArray(save.unlockedHeroes)) save.unlockedHeroes = ['warrior']
+  const set = new Set(save.unlockedHeroes)
+  set.add('warrior')
+  if (save.ranger?.unlocked) set.add('ranger')
+  for (const id of ['mage', 'engineer', 'vampire', 'necromancer']) {
+    const st = save[id]
+    if (st && ((st.totalXP ?? 0) > 0 || (st.upgrades?.length ?? 0) > 0)) set.add(id)
+  }
+  save.unlockedHeroes = [...set]
+  if (set.has('ranger') && save.ranger) save.ranger.unlocked = true
+}
+
+function isHeroUnlocked(save, heroId) {
+  if (!save || heroId === 'warrior') return true
+  normalizeUnlockedHeroes(save)
+  return save.unlockedHeroes.includes(heroId)
+}
+
+function canUnlockHero(save, heroId) {
+  if (!save || heroId === 'warrior') return false
+  if (isHeroUnlocked(save, heroId)) return false
+  const cost = heroUnlockGoldCost(heroId)
+  if (cost == null) return false
+  return save.persistentGold >= cost
+}
+
+function unlockHero(save, heroId) {
+  if (!canUnlockHero(save, heroId)) return false
+  const cost = heroUnlockGoldCost(heroId)
+  save.persistentGold -= cost
+  normalizeUnlockedHeroes(save)
+  if (!save.unlockedHeroes.includes(heroId)) save.unlockedHeroes.push(heroId)
+  if (heroId === 'ranger' && save.ranger) save.ranger.unlocked = true
+  Logger.info(`[MetaProgression] Hero unlocked: ${heroId}`)
+  return true
+}
 
 function canUnlockRanger(save) {
-  return !save.ranger.unlocked && save.persistentGold >= CONFIG.rangerUnlockCost
+  return canUnlockHero(save, 'ranger')
 }
 
 function unlockRanger(save) {
-  if (!canUnlockRanger(save)) return false
-  save.persistentGold -= CONFIG.rangerUnlockCost
-  save.ranger.unlocked = true
-  Logger.info('[MetaProgression] Ranger unlocked')
-  return true
+  return unlockHero(save, 'ranger')
 }
 
 // ── Ranger XP tree ────────────────────────────────────────────
@@ -372,6 +419,11 @@ export default {
   canBuyShopItem,
   buyShopItem,
   removeShopItem,
+  normalizeUnlockedHeroes,
+  heroUnlockGoldCost,
+  isHeroUnlocked,
+  canUnlockHero,
+  unlockHero,
   canUnlockRanger,
   unlockRanger,
   canBuyRangerUpgrade,

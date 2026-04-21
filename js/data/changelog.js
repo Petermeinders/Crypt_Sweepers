@@ -5,12 +5,42 @@
 export const CHANGELOG = [
   {
     dateLabel: 'Apr 2026',
+    dateIso:   '2026-04-21',
+    version:   'v252',
+    title:     'HUD layout tune — bigger ability & key slots',
+    summary:
+      'The bottom HUD gets bigger, easier-to-tap targets. Six ability slots sit in a 3×2 grid so each cell is noticeably larger without making the HUD any taller, the backpack and golden-key tiles are bigger, and the unused “helmet” slot is gone.',
+    items: [
+      {
+        tag:  'UI',
+        text: 'Ability slots — switched from 2×3 to a 3×2 grid so each of the six cells is larger at the same HUD height; ability art fills more of the button.',
+      },
+      {
+        tag:  'UI',
+        text: 'Key column — removed the decorative locked helmet slot; the remaining backpack and golden-key tiles use the extra room to grow into larger squares.',
+      },
+      {
+        tag:  'Fix',
+        text: 'Prevented a layout cycle where unlocking an active ability (e.g. Slam) could blow up the HUD height — the actions grid now has a stable 3:2 aspect and a max height, so HP/mana numbers stay readable.',
+      },
+      {
+        tag:  'Systems',
+        text: 'Service worker cache bumped so the updated HUD loads cleanly for returning players.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Apr 2026',
     dateIso:   '2026-04-20',
     version:   'v251',
     title:     'Hero select refresh & Engineer Seismic Ping',
     summary:
       'The character screen gets a cinematic altar layout with clearer actions, and the Engineer’s turret now pings nearby tiles for intel.',
     items: [
+      {
+        tag:  'Hero',
+        text: 'Paladin — **Sense Evil** is replaced by **Kill Echo**: the first mark each floor is the closest hidden enemy to the entrance; each kill of a marked foe widens the pulse (1 → 2 → 3 simultaneous echo hints) anchored on that kill, favoring aggressive pathing.',
+      },
       {
         tag:  'UI',
         text: 'Hero select — “Choose Your Hero” header, centered Back under the subtitle, per-hero colors, carousel dots, circular Select / Selected / Unlock / Coming Soon button, ability slots around the portrait, and subtle rising particles on the active hero.',

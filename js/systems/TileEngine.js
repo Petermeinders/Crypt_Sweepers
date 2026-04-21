@@ -111,14 +111,18 @@ function _adjustedWeights(floor) {
 }
 
 /**
- * Returns true if an enemy's spawn rule allows it on the given biome.
- * spawn: 'universal' | { fromBiome: 'id' } | { biomes: ['id',...] }
+ * Returns true if an enemy's spawn rule allows it on the given floor + biome.
+ * spawn: 'universal' | { minFloor?, fromBiome?, biomes? }
  */
-function _enemyAllowedInBiome(enemyId, biomeId) {
+function _enemySpawnAllowed(enemyId, biomeId, floor) {
   const def   = ENEMY_DEFS[enemyId]
   if (!def) return false
   const spawn = def.spawn ?? 'universal'
+  if (typeof spawn === 'object' && spawn.minFloor != null && floor < spawn.minFloor) {
+    return false
+  }
   if (spawn === 'universal') return true
+  if (typeof spawn !== 'object') return true
   if (spawn.biomes) return spawn.biomes.includes(biomeId)
   if (spawn.fromBiome) {
     // Find ordered biome index; enemy allowed if current biome index >= fromBiome index
@@ -142,7 +146,7 @@ function _pickEnemyType(floor, tileType) {
   // All non-boss enemies, filtered by spawn rules for this biome
   const allIds = Object.keys(ENEMY_DEFS).filter(id => {
     const def = ENEMY_DEFS[id]
-    return def.behaviour !== 'boss' && _enemyAllowedInBiome(id, biomeId)
+    return def.behaviour !== 'boss' && _enemySpawnAllowed(id, biomeId, floor)
   })
 
   if (tileType === 'enemy_fast') {
@@ -202,7 +206,7 @@ function _pickSingleMobType(floor) {
   const biomeId = CONFIG.biomeFor(floor)?.id ?? 'dungeon'
   const pool = Object.keys(ENEMY_DEFS).filter(id => {
     const d = ENEMY_DEFS[id]
-    return d.behaviour !== 'boss' && d.behaviour !== 'fast' && _enemyAllowedInBiome(id, biomeId)
+    return d.behaviour !== 'boss' && d.behaviour !== 'fast' && _enemySpawnAllowed(id, biomeId, floor)
   })
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : 'skeleton'
 }
@@ -666,8 +670,10 @@ function importGridFromSnapshot(snapshot, floor, opts = {}) {
         eventResolved: st.eventResolved,
         ropeResolved: st.ropeResolved,
         forgeUsed: st.forgeUsed,
-        echoHintCategory: st.echoHintCategory ?? null,
+        echoHintCategory: st.echoHintCategory
+          ?? ((st.killEchoMarked || st.senseEvilMarked) ? '⚔️' : null),
         darkEyesHint: !!st.darkEyesHint,
+        killEchoMarked: !!(st.killEchoMarked || st.senseEvilMarked),
         bannerReady: st.bannerReady ?? null,
         warBannerFlying: st.type === 'war_banner' ? (st.warBannerFlying !== false) : null,
         element: null,

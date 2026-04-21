@@ -38,7 +38,7 @@ Each hero plays the dungeon differently:
 
 | Hero | Passive | Playstyle |
 |------|---------|-----------|
-| **Paladin** | **Sense Evil** — One hidden enemy is marked each floor. Slay it and another is revealed. | Tanky frontliner. Slam hits every enemy on the board. |
+| **Paladin** | **Kill Echo** — Marks the closest hidden enemy to the entrance; killing a marked foe chains echoes (up to 3) from that kill toward the nearest hidden threats. | Tanky frontliner. Slam hits every enemy on the board. |
 | **Ranger** | **Keen Eyes** — 50% chance on each flip to sense what's hiding in adjacent tiles. | Ranged attacker. Ricochet, Arrow Barrage, and Poison Arrow. |
 | **Mage** | **Phase Walk** — 50% chance on each flip to unlock diagonal movement. | Fragile but high mana. Moves like a queen, not a rook. |
 | **Vampire** | **Corrupted Blood** — Lose 1 HP per flip, drain 1 HP from every visible monster. | Risk/reward. Gets stronger the more enemies are exposed. |

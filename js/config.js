@@ -230,8 +230,10 @@ export const CONFIG = {
     cost: 2,    // gold cost to roll with the merchant
   },
 
-  // Ranger character unlock cost (persistent gold)
-  rangerUnlockCost: 20,
+  // Character unlock costs (persistent gold)
+  rangerUnlockCost: 50,
+  /** Default gold cost for other playable heroes (Mage, Vampire, Engineer, Necromancer). */
+  heroUnlockCostDefault: 100,
 
   // Legacy — kept for any code that still reads floorNames by index.
   // The source of truth for floor theming is now CONFIG.biomes.
