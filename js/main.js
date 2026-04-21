@@ -113,7 +113,7 @@ const CHARACTERS = [
     attackMs:    2000,
     emoji:       '🧙‍♂️',
     upgrades:    MAGE_UPGRADES,
-    unlockCost:  CONFIG.heroUnlockCostDefault,
+    unlockCost:  CONFIG.mageUnlockCost,
     baseHP:      30,
     baseMana:    60,
     baseDmg:     '1',
@@ -127,7 +127,7 @@ const CHARACTERS = [
     attackMs:    0,
     emoji:       '🧛',
     upgrades:    {},
-    unlockCost:  CONFIG.heroUnlockCostDefault,
+    unlockCost:  CONFIG.vampireUnlockCost,
     baseHP:      45,
     baseMana:    25,
     baseDmg:     '2',
@@ -142,7 +142,7 @@ const CHARACTERS = [
     attackMs:    600,
     emoji:       '⚙️',
     upgrades:    ENGINEER_UPGRADES,
-    unlockCost:  CONFIG.heroUnlockCostDefault,
+    unlockCost:  CONFIG.engineerUnlockCost,
     baseHP:      40,
     baseMana:    40,
     baseDmg:     '1',
@@ -157,7 +157,7 @@ const CHARACTERS = [
     attackMs:    600,
     emoji:       '💀',
     upgrades:    NECROMANCER_UPGRADES,
-    unlockCost:  CONFIG.heroUnlockCostDefault,
+    unlockCost:  CONFIG.necromancerUnlockCost,
     baseHP:      35,
     baseMana:    55,
     baseDmg:     '1',
@@ -707,6 +707,9 @@ async function boot() {
     const s = GameController.getSave()
     s.settings.hapticFeedback = e.target.checked
     SaveManager.save(s)
+    if (e.target.checked && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      try { navigator.vibrate(22) } catch (_) { /* Firefox / privacy mode may block */ }
+    }
   })
 
   document.getElementById('setting-sub-levels').addEventListener('change', e => {

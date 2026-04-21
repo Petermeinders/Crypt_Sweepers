@@ -1414,6 +1414,16 @@ const UI = {
     setTimeout(() => tileEl.classList.remove('shaking'), 400)
   },
 
+  /** Subtle full-viewport shake when the hero loses HP (not blocked shields / absorbs). */
+  shakeScreenDamage() {
+    const app = document.getElementById('app')
+    if (!app) return
+    app.classList.remove('take-damage-shake')
+    void app.offsetWidth
+    app.classList.add('take-damage-shake')
+    setTimeout(() => app.classList.remove('take-damage-shake'), 280)
+  },
+
   playSlam() {
     const overlay = document.getElementById('slam-overlay')
     const gif     = document.getElementById('slam-gif')

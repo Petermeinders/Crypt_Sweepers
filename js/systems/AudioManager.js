@@ -14,6 +14,8 @@ const SFX_FILES = {
   hit:      'audio/sfx/hit.mp3',
   hit2:     'audio/sfx/hit2.mp3',
   arrowShot: 'audio/sfx/arrow-shot.mp3',
+  /** Goblin archer harass (distinct from ranger arrow-shot). */
+  enemyArcherShot: 'audio/sfx/archer-shot.mp3',
   spell:    'audio/sfx/spell.ogg',
   gold:     'audio/sfx/gold.ogg',
   levelup:  'audio/sfx/levelup.ogg',

@@ -70,14 +70,23 @@ let _hapticUserGestureOk = false
 if (typeof document !== 'undefined') {
   const arm = () => { _hapticUserGestureOk = true }
   document.addEventListener('pointerdown', arm, { capture: true, passive: true })
+  document.addEventListener('touchstart', arm, { capture: true, passive: true })
   document.addEventListener('keydown', arm, { capture: true, passive: true })
 }
 
 function _hapticVibrate(pattern) {
-  if (!_hapticUserGestureOk || typeof navigator === 'undefined' || !navigator.vibrate) return
+  if (!_hapticUserGestureOk || typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return
   if (!(_save?.settings?.hapticFeedback ?? true)) return
   try {
-    navigator.vibrate(pattern)
+    if (typeof pattern === 'number' && Number.isFinite(pattern)) {
+      navigator.vibrate(Math.max(0, Math.min(400, Math.round(pattern))))
+    } else if (Array.isArray(pattern) && pattern.length) {
+      const capped = pattern.map(n => Math.max(0, Math.min(400, Math.round(Number(n) || 0))))
+      const ok = navigator.vibrate(capped)
+      if (ok === false && capped[0] > 0) {
+        navigator.vibrate(Math.min(capped[0], 80))
+      }
+    }
   } catch (_) { /* ignore */ }
 }
 
@@ -4230,6 +4239,11 @@ function _tickPoisonArrowDotOnGlobalTurn() {
     }
   }
   if (totalHarassDmg > 0 && !GameState.is(States.DEATH)) {
+    if (archerCount > 0) {
+      EventBus.emit('audio:play', archerCount > 1
+        ? { sfx: 'enemyArcherShot', layered: { count: Math.min(archerCount, 8), spreadMs: 72, jitterMs: 40 } }
+        : { sfx: 'enemyArcherShot' })
+    }
     _takeDamage(totalHarassDmg, document.getElementById('hud-portrait'), false, null, { enemyAttack: true })
     const parts = []
     if (archerCount > 0) parts.push(`🏹 Goblin Archer${archerCount > 1 ? 's fire' : ' fires'} for ${archerCount} dmg!`)
@@ -6762,7 +6776,8 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
     UI.spawnFloat(tileEl, `-${effective} HP`, 'damage')
   }
   UI.updateHP(run.player.hp, run.player.maxHp)
-  _hapticVibrate([50, 40, 80])
+  _hapticVibrate(55)
+  UI.shakeScreenDamage()
   EventBus.emit('player:hpChange', { amount: -effective, newHP: run.player.hp })
   // Resurrection Stone: prevent death once, restore half max HP
   if (run.player.hp <= 0 && !run.player.resurrectionUsed &&

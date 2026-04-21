@@ -230,9 +230,10 @@ function _applyUpgradeEffect(player, effect) {
 /** Gold cost to unlock this hero ID, or null if not sold for gold. */
 function heroUnlockGoldCost(heroId) {
   if (heroId === 'ranger') return CONFIG.rangerUnlockCost
-  if (heroId === 'mage' || heroId === 'vampire' || heroId === 'engineer' || heroId === 'necromancer') {
-    return CONFIG.heroUnlockCostDefault
-  }
+  if (heroId === 'mage') return CONFIG.mageUnlockCost
+  if (heroId === 'vampire') return CONFIG.vampireUnlockCost
+  if (heroId === 'engineer') return CONFIG.engineerUnlockCost
+  if (heroId === 'necromancer') return CONFIG.necromancerUnlockCost
   return null
 }
 

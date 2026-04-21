@@ -248,6 +248,17 @@
   animation: shake 0.35s ease;
 }
 
+@keyframes screen-shake-damage {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  20%      { transform: translate3d(-2px, 1px, 0); }
+  45%      { transform: translate3d(2px, -1px, 0); }
+  70%      { transform: translate3d(-1px, -1px, 0); }
+}
+
+#app.take-damage-shake {
+  animation: screen-shake-damage 0.22s ease-out;
+}
+
 /* ── Triple Volley rain overlay ── */
 .arrow-rain-overlay {
   position: absolute;

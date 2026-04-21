@@ -231,9 +231,11 @@ export const CONFIG = {
   },
 
   // Character unlock costs (persistent gold)
-  rangerUnlockCost: 50,
-  /** Default gold cost for other playable heroes (Mage, Vampire, Engineer, Necromancer). */
-  heroUnlockCostDefault: 100,
+  rangerUnlockCost:    100,
+  mageUnlockCost:      200,
+  vampireUnlockCost:   300,
+  engineerUnlockCost:     400,
+  necromancerUnlockCost:  500,
 
   // Legacy — kept for any code that still reads floorNames by index.
   // The source of truth for floor theming is now CONFIG.biomes.
