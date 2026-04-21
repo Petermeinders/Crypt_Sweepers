@@ -986,12 +986,13 @@ const UNFLIP_EXCLUDED_TYPES = new Set([
  *
  * @param {object} tile   - grid tile (must be .revealed)
  * @param {number} floor  - current floor
- * @param {object} [opts] - { rerollPool?: string[] } override whitelist
+ * @param {object} [opts] - { rerollPool?: string[], isProtected?: (tile) => boolean }
  * @returns {Promise<void>}
  */
 async function unflipAndRerollTile(tile, floor, opts = {}) {
   if (!tile || !tile.revealed) return
   if (tile.isStart) return
+  if (typeof opts.isProtected === 'function' && opts.isProtected(tile)) return
   await unflipTile(tile)
 
   // Reset mutable per-tile state

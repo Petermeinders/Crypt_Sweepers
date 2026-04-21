@@ -4881,10 +4881,13 @@ body.bestiary-detail-open #app {
   position: relative;
   width: 100%;
   max-width: 420px;
-  height: clamp(320px, 58vh, 520px);
+  height: clamp(300px, min(58vh, 52dvh), 520px);
   margin: 0 auto;
   overflow: hidden;
   isolation: isolate;
+  /* Let portrait sizing use cqh so tall sprites never exceed the stage */
+  container-type: size;
+  container-name: hero-doorway;
 }
 
 /* Radial glow behind hero */
@@ -4943,11 +4946,11 @@ body.bestiary-detail-open #app {
   to { transform: translate(-50%, -50%) rotate(360deg); }
 }
 
-/* Hero portrait centered on the stage, floating */
+/* Hero portrait — biased slightly down so helmets / raised weapons stay inside overflow:hidden */
 .hero-doorway .hero-display-wrap {
   position: absolute;
   left: 50%;
-  top: 50%;
+  top: 54%;
   transform: translate(-50%, -50%);
   width: auto;
   height: auto;
@@ -4962,14 +4965,27 @@ body.bestiary-detail-open #app {
 
 @keyframes altar-float {
   0%, 100% { transform: translate(-50%, -50%); }
-  50%      { transform: translate(-50%, calc(-50% - 6px)); }
+  /* Small motion only — large shifts push tall sprites into the top clip */
+  50%      { transform: translate(-50%, calc(-50% - 3px)); }
 }
 
 .hero-doorway .hero-display-gif {
-  max-height: clamp(220px, 48vh, 360px);
+  display: block;
   width: auto;
   height: auto;
+  /* Fallback when cqh unsupported — keep sprite shorter than the stage */
+  max-height: min(300px, 44vh);
+  max-width: 100%;
   filter: none;
+}
+
+@supports (height: 1cqh) {
+  .hero-doorway .hero-display-wrap {
+    max-height: 88cqh;
+  }
+  .hero-doorway .hero-display-gif {
+    max-height: min(360px, 76cqh, 48vh);
+  }
 }
 
 .hero-doorway .hero-display-emoji {

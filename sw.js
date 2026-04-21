@@ -2,7 +2,7 @@
 // Strategy: Cache-first for assets, network-first for HTML.
 // Version bump CACHE_NAME to force cache refresh on deploy.
 
-const CACHE_NAME = 'crypt-sweepers-v292'
+const CACHE_NAME = 'crypt-sweepers-v298'
 
 const PRECACHE_ASSETS = [
   './',

@@ -9,7 +9,7 @@ import MetaProgression       from '../systems/MetaProgression.js'
 import SaveManager           from '../save/SaveManager.js'
 import UI                    from '../ui/UI.js'
 import { RANGER_BASE, RANGER_UPGRADES } from '../data/ranger.js'
-import { ENGINEER_BASE, ENGINEER_UPGRADES, ENGINEER_TURRET, ENGINEER_CONSTRUCT_MANA_COST } from '../data/engineer.js'
+import { ENGINEER_BASE, ENGINEER_UPGRADES, ENGINEER_TURRET, ENGINEER_CONSTRUCT_MANA_COST, ENGINEER_SEISMIC_PING } from '../data/engineer.js'
 import { MAGE_BASE, MAGE_UPGRADES } from '../data/mage.js'
 import { VAMPIRE_BASE, VAMPIRE_DARK_EYES_MAX_TILES } from '../data/vampire.js'
 import {
@@ -364,7 +364,7 @@ async function _maybeMouseUnflip(sourceTile) {
     const chance = mouseTile.enemyData.tileFlipChance ?? 0.5
     if (Math.random() >= chance) continue
 
-    // Candidates: revealed, plain empty tiles — never the tile just revealed
+    // Candidates: revealed, plain empty tiles — never the tile just revealed, never Engineer's turret tile
     const candidates = []
     for (const row of grid) {
       for (const t of row) {
@@ -372,6 +372,7 @@ async function _maybeMouseUnflip(sourceTile) {
         if (!t.revealed) continue
         if (t.type !== 'empty') continue
         if (t.isStart) continue
+        if (_turretDeployedOnTile(t)) continue
         candidates.push(t)
       }
     }
@@ -383,7 +384,7 @@ async function _maybeMouseUnflip(sourceTile) {
     if (mouseTile.element) UI.spawnFloat(mouseTile.element, '🐭 Hidden!', 'damage')
     UI.setMessage('A mouse scurries across the floor — a tile is hidden again!')
 
-    await TileEngine.unflipAndRerollTile(target, run.floor)
+    await TileEngine.unflipAndRerollTile(target, run.floor, { isProtected: _turretDeployedOnTile })
     const patched = TileEngine.patchMainGridTileAt(target.row, target.col, UI.getGridEl(), onTileTap, onTileHold)
     if (!patched) _refreshMainGridDomFromModel()
 
@@ -919,6 +920,8 @@ function buildRunState() {
     unlockedActives:    isEngineer ? ['construct-turret'] : [],
     /** Engineer: highest turret level the player can build/upgrade to (Mastery I → 2, Mastery II → 3). */
     turretMaxLevel:     1,
+    /** Engineer passive — Seismic Ping ring radius (Chebyshev steps). L1 = 8 neighbors; masteries may raise this later. */
+    seismicPingLevel:   isEngineer ? ENGINEER_SEISMIC_PING.defaultLevel : undefined,
     damageBonus:        0,
     damageReduction:    0,
     spellCostReduction: 0,
@@ -1026,6 +1029,14 @@ function _inTeslaPerimeter(tr, tile) {
   if (!tr || tile == null) return false
   const d = Math.abs(tr.row - tile.row) + Math.abs(tr.col - tile.col)
   return d <= _teslaManhattanRadius(tr.level)
+}
+
+/** True when Engineer has a live turret deployed on this grid cell (never unflip / re-reveal over it). */
+function _turretDeployedOnTile(tile) {
+  if (!tile) return false
+  const tr = run?.turret
+  if (!tr || tr.hp <= 0) return false
+  return tr.row === tile.row && tr.col === tile.col
 }
 
 function _syncTurretVisual() {
@@ -1414,6 +1425,41 @@ function _consumeCorpseExplosionSource(tile) {
   }
 }
 
+/** Unrevealed tiles within Chebyshev distance `radius` of (row,col), excluding the center. */
+function _engineerSeismicPingTargetTiles(row, col) {
+  const raw = run?.player?.seismicPingLevel ?? ENGINEER_SEISMIC_PING.defaultLevel
+  const radius = Math.max(1, Math.min(ENGINEER_SEISMIC_PING.maxLevel, raw))
+  const grid = TileEngine.getGrid()
+  if (!grid) return []
+  const out = []
+  for (let dr = -radius; dr <= radius; dr++) {
+    for (let dc = -radius; dc <= radius; dc++) {
+      if (dr === 0 && dc === 0) continue
+      if (Math.max(Math.abs(dr), Math.abs(dc)) > radius) continue
+      const t = grid[row + dr]?.[col + dc]
+      if (t) out.push(t)
+    }
+  }
+  return out
+}
+
+/** Engineer passive — Seismic Ping: after turret is placed or moved, scan hidden tiles in the ping ring for category hints + brief flash. */
+function _engineerTurretSeismicPing(row, col) {
+  if (_charKey() !== 'engineer' || row == null || col == null) return
+  const neighbors = _engineerSeismicPingTargetTiles(row, col)
+  for (const adj of neighbors) {
+    if (!adj?.element || adj.revealed) continue
+    if (!adj.echoHintCategory) {
+      const cat = _echoCharmCategoryForTileType(adj.type)
+      adj.echoHintCategory = cat
+      adj.element.classList.add('echo-hint')
+      adj.element.dataset.echoHint = cat
+    }
+    adj.element.classList.add('flash-seismic')
+    setTimeout(() => adj.element.classList.remove('flash-seismic'), 520)
+  }
+}
+
 function _engineerTurretAfterReveal(tile) {
   if (_charKey() !== 'engineer' || !run.turret?.hp) return
   if (!tile?.enemyData || tile.enemyData._slain) return
@@ -1509,6 +1555,7 @@ function _handleEngineerConstructTileTap(tile) {
     _engineerPendingTile = null
     UI.setEngineerPlaceMode(false)
     _syncTurretVisual()
+    _engineerTurretSeismicPing(tile.row, tile.col)
     UI.setMessage('Turret constructed!')
     _saveActiveRun()
     return true
@@ -1696,6 +1743,9 @@ function resumeRun() {
     floorStartCol: saved.floorStartCol ?? null,
   }
   const ch = _save.selectedCharacter ?? 'warrior'
+  if (ch === 'engineer' && (run.player.seismicPingLevel == null || run.player.seismicPingLevel < 1)) {
+    run.player.seismicPingLevel = ENGINEER_SEISMIC_PING.defaultLevel
+  }
   run.player.isEngineer    = ch === 'engineer'
   run.player.isRanger      = ch === 'ranger'
   run.player.isMage        = ch === 'mage'
@@ -1860,10 +1910,10 @@ function _startFloor() {
     _spawnArcherGoblin(specialSpawnUsed)
   }
 
-  // Dungeon Mouse: always floor 1 (placeholder), otherwise CONFIG.mouse.spawnChance on non-boss dungeon floors.
+  // Dungeon Mouse: CONFIG.mouse.spawnChance per non-boss dungeon floor (no floor-1 guarantee).
   // Pre-revealed; each time the player flips a tile, 50% to unflip a random revealed empty tile.
   if (!gridRestored && !run.atRest && !CONFIG.bossFloors.includes(run.floor)
-      && (run.floor === 1 || Math.random() < (CONFIG.mouse?.spawnChance ?? 0.10))) {
+      && Math.random() < (CONFIG.mouse?.spawnChance ?? 0.20)) {
     _spawnMouse(specialSpawnUsed)
   }
 
@@ -2131,6 +2181,7 @@ function _revealStartTile() {
     run.turret.row = tile.row
     run.turret.col = tile.col
     _syncTurretVisual()
+    _engineerTurretSeismicPing(tile.row, tile.col)
     UI.setMessage(`🛡️ Your turret followed you to floor ${run.floor}.`)
   }
   _tickPoisonArrowDotOnGlobalTurn()
@@ -3897,11 +3948,16 @@ function onTileHold(row, col) {
   if (tile.revealed && tr && tr.row === row && tr.col === col) {
     const dmg    = _engineerTurretDamage(tr.level)
     const radius = tr.mode === 'tesla' ? _teslaManhattanRadius(tr.level) : null
+    const pingLv = Math.max(1, Math.min(ENGINEER_SEISMIC_PING.maxLevel, run.player.seismicPingLevel ?? ENGINEER_SEISMIC_PING.defaultLevel))
+    const seismicDesc = pingLv === 1
+      ? 'Passive Seismic Ping L1 — each build or move pings the 8 adjacent hidden tiles with category hints (enemy, trap, loot, …) and a quick pulse.'
+      : `Passive Seismic Ping L${pingLv} — each build or move pings hidden tiles up to ${pingLv} steps from the turret (same hints + pulse).`
     const details = [
       { icon: '🛡️', label: 'Mode',   desc: tr.mode === 'tesla' ? 'Tesla — zaps enemies in perimeter' : 'Ballistic — fires at all revealed enemies' },
       { icon: '⬆️', label: 'Level',  desc: `T${tr.level}` },
       { icon: '❤️', label: 'HP',     desc: `${tr.hp} / ${tr.maxHp}` },
       { icon: '⚔️', label: 'Damage', desc: `${dmg} per hit` },
+      { icon: '📳', label: 'Seismic', desc: seismicDesc },
       ...(radius !== null ? [{ icon: '📡', label: 'Radius', desc: `${radius} tile${radius !== 1 ? 's' : ''} (Manhattan)` }] : []),
     ]
     _showTurretPerimeter(tr)
@@ -4126,6 +4182,7 @@ function _tickPoisonArrowDotOnGlobalTurn() {
 }
 
 async function revealTile(tile) {
+  if (!tile.revealed && _turretDeployedOnTile(tile)) return
   _syncAllUnrevealedLockedDom()
   if (run.player.inventory.some(e => e.id === 'hourglass-sand')) {
     run._hourglassSnapshot = _serializeHourglassSnapshot()

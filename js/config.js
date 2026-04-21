@@ -115,8 +115,8 @@ export const CONFIG = {
 
   /** Dungeon Mouse — pre-revealed creature that unflips tiles when the player flips */
   mouse: {
-    /** Floor 1 always gets a mouse; on deeper floors, this chance per non-boss dungeon floor */
-    spawnChance: 0.10,
+    /** Per non-boss dungeon floor (boss floors & sanctuary excluded) */
+    spawnChance: 0.20,
   },
 
   /** Treasure Goblin — rare pre-revealed 1 HP foe; drops a rare trinket if slain before its timer expires */

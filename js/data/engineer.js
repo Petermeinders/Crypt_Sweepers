@@ -45,6 +45,16 @@ export const ENGINEER_ABILITIES = {
 /** Mana cost to build, relocate, or upgrade a turret (passive ability — no meta-upgrade required). */
 export const ENGINEER_CONSTRUCT_MANA_COST = 10
 
+/** Innate Engineer passive — Seismic Ping (category hints + pulse when the turret is placed or moved).
+ *  Level 1 is granted from the start (`player.seismicPingLevel === 1`). Future masteries may raise
+ *  that level to widen scan reach (Chebyshev radius: 1 = 8 adjacent tiles, 2 = 24 tiles, etc.). */
+export const ENGINEER_SEISMIC_PING = {
+  id: 'seismic-ping',
+  defaultLevel: 1,
+  /** Clamp for safety until mastery tiers are implemented. */
+  maxLevel: 3,
+}
+
 export const ENGINEER_UPGRADES = {
   'tesla-tower': {
     name:     'Tesla Tower',

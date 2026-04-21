@@ -1412,7 +1412,18 @@ function _renderHeroUpgradeGrid(grid, char, ownedList, xp, isLocked) {
           </div>`
         passiveGrid.appendChild(msSlot)
       }
-      if (char.id !== 'warrior' && char.id !== 'ranger' && char.id !== 'mage' && char.id !== 'vampire' && char.id !== 'necromancer') {
+      if (char.id === 'engineer') {
+        const pingSlot = document.createElement('div')
+        pingSlot.className = 'hero-passive-builtin'
+        pingSlot.innerHTML = `
+          <span class="hero-passive-builtin-icon">📡</span>
+          <div class="hero-passive-builtin-info">
+            <div class="hero-passive-builtin-name">Seismic Ping <span class="hero-passive-builtin-badge">Passive · L1</span></div>
+            <div class="hero-passive-builtin-desc">Innate Engineer passive (level 1 from the start). When you finish placing or moving your turret, it <strong>seismic-pings</strong> hidden tiles around it: each shows a category hint (enemy, trap, loot, stairs, etc.) like Keen Eyes, and those tiles briefly pulse. At L1 the ring is the 8 adjacent tiles; future <strong>Seismic Ping masteries</strong> may extend reach.</div>
+          </div>`
+        passiveGrid.appendChild(pingSlot)
+      }
+      if (char.id !== 'warrior' && char.id !== 'ranger' && char.id !== 'mage' && char.id !== 'vampire' && char.id !== 'necromancer' && char.id !== 'engineer') {
         const comingSoon = document.createElement('p')
         comingSoon.className = 'passive-coming-soon'
         comingSoon.textContent = 'Coming Soon…'

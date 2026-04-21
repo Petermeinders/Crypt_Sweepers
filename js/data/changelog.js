@@ -5,6 +5,32 @@
 export const CHANGELOG = [
   {
     dateLabel: 'Apr 2026',
+    dateIso:   '2026-04-20',
+    version:   'v251',
+    title:     'Hero select refresh & Engineer Seismic Ping',
+    summary:
+      'The character screen gets a cinematic altar layout with clearer actions, and the Engineer’s turret now pings nearby tiles for intel.',
+    items: [
+      {
+        tag:  'UI',
+        text: 'Hero select — “Choose Your Hero” header, centered Back under the subtitle, per-hero colors, carousel dots, circular Select / Selected / Unlock / Coming Soon button, ability slots around the portrait, and subtle rising particles on the active hero.',
+      },
+      {
+        tag:  'UI',
+        text: 'Mobile — hero art scales to the altar stage (container-based max height, safer viewport height, gentler float) so tall sprites like the Paladin aren’t clipped at the top.',
+      },
+      {
+        tag:  'Hero',
+        text: 'Engineer — Seismic Ping (innate passive, L1): when you finish placing or moving your turret (or it follows you to a new floor), it scans the 8 adjacent hidden tiles for category hints and flashes them briefly; future masteries can widen reach.',
+      },
+      {
+        tag:  'Systems',
+        text: 'Service worker cache bumped so menus and stylesheets refresh for returning players.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Apr 2026',
     dateIso:   '2026-04-18',
     version:   'v250',
     title:     'Necromancer HUD portrait fix',

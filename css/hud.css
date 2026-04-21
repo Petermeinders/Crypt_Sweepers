@@ -7,8 +7,14 @@
 }
 
 /* ── Message log wrap ── */
+/* Fixed height so multi-line messages don't resize the action panel / flex grid — short lines sit at the bottom; longer text fills upward; overflow scrolls inside. */
 #message-log-wrap {
   position: relative;
+  flex-shrink: 0;
+  height: calc(0.78rem * 1.45 * 3);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
 }
 
 #message-box {
@@ -17,10 +23,18 @@
   text-align: center;
   font-style: italic;
   line-height: 1.45;
-  min-height: 1.45em;
+  flex-shrink: 1;
+  max-height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(180, 130, 60, 0.25) transparent;
   transition: color 0.2s;
   cursor: pointer;
   user-select: none;
+  word-break: break-word;
 }
 
 #message-box::after {
