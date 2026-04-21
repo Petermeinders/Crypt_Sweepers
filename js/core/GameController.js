@@ -1849,6 +1849,13 @@ function _clearActiveRun() {
   SaveManager.save(_save).catch(() => {})
 }
 
+/** In-run background music key for AudioManager (sanctuary rest vs dungeon). */
+function _runMusicTrack() {
+  if (!run) return 'dungeon'
+  if (run.atRest) return 'sanctuary'
+  return 'dungeon'
+}
+
 function resumeRun() {
   const saved = _save?.activeRun
   if (!saved) return
@@ -1892,8 +1899,7 @@ function resumeRun() {
   run.player.isNecromancer = ch === 'necromancer'
   TileEngine.setDiagonalMovement(ch === 'mage')
   UI.hideMainMenu()
-  const track = CONFIG.bossFloors.includes(run.floor) ? 'boss' : 'dungeon'
-  EventBus.emit('audio:crossfade', { track, duration: 1500 })
+  EventBus.emit('audio:crossfade', { track: _runMusicTrack(), duration: 1500 })
   _startFloor()
 }
 
@@ -6736,6 +6742,7 @@ function _handleExit() {
       mana: run.player.mana, gold: run.player.gold,
       inventory: run.player.inventory.map(e => e.id),
     })
+    EventBus.emit('audio:crossfade', { track: _runMusicTrack(), duration: 1500 })
     EventBus.emit('audio:play', { sfx: 'footsteps' })
     UI.setMessage(`🚪 Descending to floor ${run.floor}...`)
     EventBus.emit('run:floorAdvance', { newFloor: run.floor })
@@ -6748,6 +6755,7 @@ function _handleExit() {
   if (run.bossFloorExitPending) {
     run.bossFloorExitPending = false
     run.atRest = true
+    EventBus.emit('audio:crossfade', { track: 'sanctuary', duration: 1500 })
     EventBus.emit('audio:play', { sfx: 'footsteps' })
     UI.setMessage('Stone gives way to still air — a sanctuary between the depths.')
     EventBus.emit('run:floorAdvance', { newFloor: run.floor })
@@ -6789,6 +6797,7 @@ function _confirmRope(tile) {
 function _nextFloor() {
   run.floorKeyAwarded = false
   run.floor++
+  EventBus.emit('audio:crossfade', { track: _runMusicTrack(), duration: 1500 })
   EventBus.emit('audio:play', { sfx: 'footsteps' })
   UI.setMessage(`🚪 Descending to floor ${run.floor}...`)
   EventBus.emit('run:floorAdvance', { newFloor: run.floor })
@@ -8618,6 +8627,7 @@ function cheatSkipFloor() {
     run.atRest = false
     run.floorKeyAwarded = false
     run.floor++
+    EventBus.emit('audio:crossfade', { track: _runMusicTrack(), duration: 1500 })
     EventBus.emit('audio:play', { sfx: 'footsteps' })
     UI.setMessage(`[Cheat] Skipped sanctuary → floor ${run.floor}`)
     EventBus.emit('run:floorAdvance', { newFloor: run.floor })

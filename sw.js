@@ -2,7 +2,7 @@
 // Strategy: Cache-first for assets, network-first for HTML.
 // Version bump CACHE_NAME to force cache refresh on deploy.
 
-const CACHE_NAME = 'crypt-sweepers-v311'
+const CACHE_NAME = 'crypt-sweepers-v313'
 
 const PRECACHE_ASSETS = [
   './',
@@ -228,7 +228,7 @@ const PRECACHE_ASSETS = [
   // Music
   './audio/music/main-menu-theme.mp3',
   './audio/music/dungeon.mp3',
-  './audio/music/boss.mp3',
+  './audio/music/echoes-celestial-sanctuary.mp3',
 ]
 
 // ── Install: precache all assets ──────────────────────────────

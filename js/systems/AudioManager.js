@@ -35,9 +35,9 @@ const SFX_FILES = {
 }
 
 const MUSIC_FILES = {
-  menu:    'audio/music/main-menu-theme.mp3',
-  dungeon: 'audio/music/dungeon.mp3',
-  boss:    'audio/music/boss.mp3',
+  menu:      'audio/music/main-menu-theme.mp3',
+  dungeon:   'audio/music/dungeon.mp3',
+  sanctuary: 'audio/music/echoes-celestial-sanctuary.mp3',
 }
 
 let _ctx          = null
