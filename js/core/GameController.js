@@ -74,20 +74,37 @@ if (typeof document !== 'undefined') {
   document.addEventListener('keydown', arm, { capture: true, passive: true })
 }
 
-function _hapticVibrate(pattern) {
+/** Firefox enforces sticky user activation: vibrate() is ignored after await/setTimeout/microtasks. */
+function _vibrationRequiresSyncUserActivation() {
+  if (typeof navigator === 'undefined') return false
+  return /Firefox/i.test(navigator.userAgent || '')
+}
+
+function _hapticApplyPattern(pattern) {
+  if (typeof pattern === 'number' && Number.isFinite(pattern)) {
+    navigator.vibrate(Math.max(0, Math.min(400, Math.round(pattern))))
+  } else if (Array.isArray(pattern) && pattern.length) {
+    const capped = pattern.map(n => Math.max(0, Math.min(400, Math.round(Number(n) || 0))))
+    const ok = navigator.vibrate(capped)
+    if (ok === false && capped[0] > 0) {
+      navigator.vibrate(Math.min(capped[0], 80))
+    }
+  }
+}
+
+/** Call only from the same synchronous stack as pointerdown/click (tile tap, melee start, settings). */
+function _hapticFromUserGesture(pattern) {
   if (!_hapticUserGestureOk || typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return
   if (!(_save?.settings?.hapticFeedback ?? true)) return
   try {
-    if (typeof pattern === 'number' && Number.isFinite(pattern)) {
-      navigator.vibrate(Math.max(0, Math.min(400, Math.round(pattern))))
-    } else if (Array.isArray(pattern) && pattern.length) {
-      const capped = pattern.map(n => Math.max(0, Math.min(400, Math.round(Number(n) || 0))))
-      const ok = navigator.vibrate(capped)
-      if (ok === false && capped[0] > 0) {
-        navigator.vibrate(Math.min(capped[0], 80))
-      }
-    }
+    _hapticApplyPattern(pattern)
   } catch (_) { /* ignore */ }
+}
+
+/** After async work (damage ticks, setTimeout combat). Silently skipped on Firefox — use _hapticFromUserGesture earlier if possible. */
+function _hapticFromAsyncTask(pattern) {
+  if (_vibrationRequiresSyncUserActivation()) return
+  _hapticFromUserGesture(pattern)
 }
 
 function _pickRandom(pool) { return pool[Math.floor(Math.random() * pool.length)] }
@@ -3943,7 +3960,7 @@ function onTileTap(row, col) {
       return
     }
     if (!_combatBusy && !tile.revealed && !tile.locked && tile.reachable) {
-      _hapticVibrate(15)
+      _hapticFromUserGesture(15)
       revealTile(tile)
     } else if (tile.revealed && tile.type === 'chest' && tile.chestReady && !tile.chestLooted) {
       _openChest(tile)
@@ -4169,7 +4186,7 @@ function _tickPoisonArrowDotOnGlobalTurn() {
     const dmg = run.player.poisonStacks
     run.player.hp = Math.max(1, run.player.hp - dmg)
     UI.updateHP(run.player.hp, run.player.maxHp)
-    _hapticVibrate(20)
+    _hapticFromAsyncTask(20)
     UI.spawnFloat(document.getElementById('hud-portrait'), `☠️ Poison ${dmg}`, 'damage')
     run.player.poisonStacks--
     UI.setPlayerPoison(run.player.poisonStacks)
@@ -4179,7 +4196,7 @@ function _tickPoisonArrowDotOnGlobalTurn() {
     const dmg = run.player.burnStacks
     run.player.hp = Math.max(1, run.player.hp - dmg)
     UI.updateHP(run.player.hp, run.player.maxHp)
-    _hapticVibrate(20)
+    _hapticFromAsyncTask(20)
     UI.spawnFloat(document.getElementById('hud-portrait'), `🔥 Burn ${dmg}`, 'damage')
     run.player.burnStacks--
     UI.setBurnOverlay(run.player.burnStacks)
@@ -5156,6 +5173,14 @@ function fightAction(tile) {
   const canSplit = killsEnemy
     && tile.enemyData?.attributes?.includes('splits')
     && !tile.enemyData.hasSplit
+
+  // Firefox: counter-attack and spiked-collar damage run inside setTimeout — vibrate must happen now, in the gesture turn.
+  if (_vibrationRequiresSyncUserActivation() && !killsEnemy && !canSplit) {
+    let ms = 0
+    if (run.player.inventory.some(e => e.id === 'spiked-collar')) ms += 18
+    if (!isStunned && result.enemyDmg > 0) ms += 48
+    if (ms > 0) _hapticFromUserGesture(Math.min(90, ms))
+  }
 
   if (killsEnemy && !canSplit) {
     // Fatal blow — enemy never gets to counter
@@ -6776,7 +6801,7 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
     UI.spawnFloat(tileEl, `-${effective} HP`, 'damage')
   }
   UI.updateHP(run.player.hp, run.player.maxHp)
-  _hapticVibrate(55)
+  _hapticFromAsyncTask(55)
   UI.shakeScreenDamage()
   EventBus.emit('player:hpChange', { amount: -effective, newHP: run.player.hp })
   // Resurrection Stone: prevent death once, restore half max HP
@@ -6791,7 +6816,7 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
     const inv = run.player.inventory
     const idx = inv.findIndex(e => e.id === 'resurrection-stone')
     if (idx !== -1) inv.splice(idx, 1)
-    UI.renderBackpack(inv)
+    EventBus.emit('inventory:changed')
     return
   }
   if (run.player.hp <= 0) { _die(killerData); return }

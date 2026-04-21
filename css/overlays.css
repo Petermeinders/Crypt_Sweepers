@@ -3442,19 +3442,29 @@
   box-shadow:
     0 -12px 40px rgba(0, 0, 0, 0.72),
     inset 0 1px 0 rgba(255, 200, 120, 0.08);
-  transform: translate(-50%, calc(100% + 12px));
-  transition: transform 0.34s cubic-bezier(0.25, 0.85, 0.32, 1);
+  transform: translate(-50%, calc(100% + 24px));
+  /* Hide while “off-screen” so parent transforms (e.g. #app take-damage shake) can’t subpixel-leak the drawer into view. Delay hiding until after slide-down matches transform duration. */
+  visibility: hidden;
+  transition:
+    transform 0.34s cubic-bezier(0.25, 0.85, 0.32, 1),
+    visibility 0s linear 0.34s;
   pointer-events: none;
 }
 
 #backpack-overlay.backpack-drawer.is-open {
   transform: translate(-50%, 0);
   pointer-events: auto;
+  visibility: visible;
+  transition: transform 0.34s cubic-bezier(0.25, 0.85, 0.32, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {
   #backpack-overlay.backpack-drawer {
     transition: none;
+    visibility: hidden;
+  }
+  #backpack-overlay.backpack-drawer.is-open {
+    visibility: visible;
   }
 }
 
