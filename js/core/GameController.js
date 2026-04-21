@@ -1225,6 +1225,7 @@ function _syncTurretVisual() {
 }
 
 function _destroyTurret() {
+  EventBus.emit('audio:play', { sfx: 'turretDestroyed' })
   run.turret = null
   _syncTurretVisual()
 }
@@ -1653,6 +1654,7 @@ function _handleEngineerConstructTileTap(tile) {
     _syncTurretVisual()
     _engineerPendingTile = null
     UI.setEngineerPlaceMode(false)
+    EventBus.emit('audio:play', { sfx: 'confirmClick' })
     UI.setMessage(`Turret upgraded to level ${tr.level}!`)
     _saveActiveRun()
     return true
@@ -1692,6 +1694,7 @@ function _handleEngineerConstructTileTap(tile) {
     UI.setEngineerPlaceMode(false)
     _syncTurretVisual()
     _engineerTurretSeismicPing(tile.row, tile.col)
+    EventBus.emit('audio:play', { sfx: 'confirmClick' })
     UI.setMessage('Turret constructed!')
     _saveActiveRun()
     return true
@@ -1732,6 +1735,7 @@ function teslaTowerAction() {
   UI.updateMana(run.player.mana, run.player.maxMana)
   run.turret.mode = 'tesla'
   _syncTurretVisual()
+  EventBus.emit('audio:play', { sfx: 'confirmClick' })
   UI.setMessage('⚡ Tesla Tower online!')
   _saveActiveRun()
 }
@@ -5516,6 +5520,7 @@ function _executeRicochet() {
     return
   }
 
+  EventBus.emit('audio:play', { sfx: 'confirmClick' })
   const savedEngagement = _suspendCombatEngagementForMultiTargetAbility()
   _cancelRicochetMode()
 
@@ -5963,6 +5968,7 @@ function _executeTripleVolley(center) {
     return
   }
 
+  EventBus.emit('audio:play', { sfx: 'confirmClick' })
   const savedEngagement = _suspendCombatEngagementForMultiTargetAbility()
 
   _cancelArrowBarrageMode()
@@ -6058,6 +6064,7 @@ function _executePoisonArrowShot(tile) {
     return
   }
 
+  EventBus.emit('audio:play', { sfx: 'confirmClick' })
   const row = tile.row
   const col = tile.col
   _cancelPoisonArrowShotMode()

@@ -29,6 +29,9 @@ const SFX_FILES = {
   divineLight: 'audio/sfx/divine-light.mp3',
   menu:     'audio/sfx/menu.ogg',
   footsteps:'audio/sfx/footsteps.mp3',
+  /** Multi-step confirms: turret place/upgrade, Ranger actives, etc. */
+  confirmClick: 'audio/sfx/confirm-click.mp3',
+  turretDestroyed: 'audio/sfx/turret-destroyed.mp3',
   // Mage actives — reuse existing SFX until dedicated assets are added (avoids 404 in console).
   zap:             'audio/sfx/spell.ogg',
   telekineticSlam: 'audio/sfx/slam.mp3',
