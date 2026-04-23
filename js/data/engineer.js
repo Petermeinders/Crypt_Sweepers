@@ -5,7 +5,7 @@ import { WARRIOR_ABILITIES } from './abilities.js'
 
 export const ENGINEER_BASE = {
   hp:     40,
-  mana:   40,
+  mana:   30,
   /** Melee damage: same model as warrior (fixed base + bonus). */
   damage: 1,
 }
@@ -40,10 +40,29 @@ export const ENGINEER_ABILITIES = {
     requiresActive: 'construct-turret',
     requiresAbility: 'turret-mastery-1',
   },
+  'mana-generator-mastery-1': {
+    name: 'Mana Generator Mastery I',
+    desc: '25% chance your Mana Generator grants 2 mana per flip instead of 1.',
+    icon: '🔋',
+    effect: { type: 'mana-generator-mastery' },
+    repeatable: false,
+    requiresActive: 'mana-generator',
+  },
+  'mana-generator-mastery-2': {
+    name: 'Mana Generator Mastery II',
+    desc: '25% chance your Mana Generator grants 3 mana per flip instead.',
+    icon: '⚡',
+    effect: { type: 'mana-generator-mastery' },
+    repeatable: false,
+    requiresActive: 'mana-generator',
+    requiresAbility: 'mana-generator-mastery-1',
+  },
 }
 
-/** Mana cost to build, relocate, or upgrade a turret (passive ability — no meta-upgrade required). */
+/** Mana cost to build or upgrade a turret. */
 export const ENGINEER_CONSTRUCT_MANA_COST = 10
+/** Mana cost to relocate an existing turret. */
+export const ENGINEER_MOVE_MANA_COST = 5
 
 /** Innate Engineer passive — Seismic Ping (category hints + pulse when the turret is placed or moved).
  *  Level 1 is granted from the start (`player.seismicPingLevel === 1`). Future masteries may raise
@@ -58,10 +77,16 @@ export const ENGINEER_SEISMIC_PING = {
 export const ENGINEER_UPGRADES = {
   'tesla-tower': {
     name:     'Tesla Tower',
-    desc:     'After a turret exists: spend 10 mana to convert it to a Tesla tower (one-way). Strikes enemies revealed or fought within its perimeter; radius grows with turret level. Unlocks Tesla Tower in your level-up choice pool.',
+    desc:     'Toggle your turret into Tesla mode: it strikes enemies revealed or fought within its perimeter. Radius grows with turret level. Toggle off to return to ballistic mode. Unlocks Tesla Tower in your level-up choice pool.',
     icon:     '⚡',
     xpCost:   80,
-    manaCost: 10,
     effect:   { type: 'active-ability', ability: 'tesla-tower' },
+  },
+  'mana-generator': {
+    name:     'Mana Generator',
+    desc:     'Toggle your turret into Mana Generator mode: it stops firing and instead grants +1 mana every time you flip a tile. Toggle off to resume firing. Unlocks Mana Generator in your level-up choice pool.',
+    icon:     '🔋',
+    xpCost:   80,
+    effect:   { type: 'active-ability', ability: 'mana-generator' },
   },
 }

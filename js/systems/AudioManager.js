@@ -31,6 +31,7 @@ const SFX_FILES = {
   footsteps:'audio/sfx/footsteps.mp3',
   /** Multi-step confirms: turret place/upgrade, Ranger actives, etc. */
   confirmClick: 'audio/sfx/confirm-click.mp3',
+  turretSetup:     'audio/sfx/turret-setup.mp3',
   turretDestroyed: 'audio/sfx/turret-destroyed.mp3',
   // Mage actives — reuse existing SFX until dedicated assets are added (avoids 404 in console).
   zap:             'audio/sfx/spell.ogg',

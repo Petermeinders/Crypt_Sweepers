@@ -572,6 +572,32 @@ const UI = {
     el.hudSlotB?.classList.toggle('is-blinding-light-active', active)
   },
 
+  /** Slot A — Engineer Mana Generator toggle */
+  setEngineerManaGeneratorBtn(visible, active = false) {
+    if (!el.hudSlotA) return
+    el.hudSlotA.classList.remove('is-slam', 'is-slam-active', 'is-ricochet', 'is-ricochet-active')
+    if (visible) {
+      el.hudSlotA.innerHTML = active
+        ? `<span class="ability-btn-wrap ability-btn-wrap--mana-corner">
+             <span class="ability-btn-emoji" aria-hidden="true">🔋</span>
+             <span class="ability-btn-cost">✓</span>
+           </span>`
+        : `<span class="ability-btn-wrap">
+             <span class="ability-btn-emoji" aria-hidden="true">🔋</span>
+           </span>`
+      el.hudSlotA.title    = active ? 'Mana Generator active — tap to deactivate' : 'Mana Generator — tap to activate'
+      el.hudSlotA.disabled = false
+      el.hudSlotA.classList.remove('is-placeholder')
+      el.hudSlotA.classList.add('is-engineer-mana-generator')
+    } else if (el.hudSlotA.classList.contains('is-engineer-mana-generator')) {
+      el.hudSlotA.textContent = '···'
+      el.hudSlotA.title       = 'Reserved'
+      el.hudSlotA.disabled    = true
+      el.hudSlotA.classList.add('is-placeholder')
+      el.hudSlotA.classList.remove('is-engineer-mana-generator')
+    }
+  },
+
   /** Slot A — Engineer construct / relocate / upgrade */
   setEngineerConstructBtn(visible, manaCost = 10) {
     if (!el.hudSlotA) return
@@ -595,8 +621,8 @@ const UI = {
     }
   },
 
-  /** Slot B — Engineer Tesla (optional upgrade) */
-  setEngineerTeslaBtn(visible, manaCost = 10, alreadyTesla = false) {
+  /** Slot B — Engineer Tesla toggle */
+  setEngineerTeslaBtn(visible, active = false) {
     if (!el.hudSlotB) return
     if (!visible) {
       if (el.hudSlotB.classList.contains('is-engineer-tesla')) {
@@ -608,24 +634,15 @@ const UI = {
       }
       return
     }
-    if (alreadyTesla) {
-      el.hudSlotB.innerHTML = `
-        <span class="ability-btn-wrap ability-btn-wrap--mana-corner">
-          <span class="ability-btn-emoji" aria-hidden="true">⚡</span>
-          <span class="ability-btn-cost">✓</span>
-        </span>`
-      el.hudSlotB.title    = 'Tesla Tower active'
-      el.hudSlotB.disabled = true
-      el.hudSlotB.classList.remove('is-placeholder', 'is-poison-arrow-shot', 'is-blinding-light')
-      el.hudSlotB.classList.add('is-engineer-tesla')
-      return
-    }
-    el.hudSlotB.innerHTML = `
-      <span class="ability-btn-wrap ability-btn-wrap--mana-corner">
-        <span class="ability-btn-emoji" aria-hidden="true">⚡</span>
-        <span class="ability-btn-cost">${manaCost}</span>
-      </span>`
-    el.hudSlotB.title    = `Tesla Tower (${manaCost} mana)`
+    el.hudSlotB.innerHTML = active
+      ? `<span class="ability-btn-wrap ability-btn-wrap--mana-corner">
+           <span class="ability-btn-emoji" aria-hidden="true">⚡</span>
+           <span class="ability-btn-cost">✓</span>
+         </span>`
+      : `<span class="ability-btn-wrap">
+           <span class="ability-btn-emoji" aria-hidden="true">⚡</span>
+         </span>`
+    el.hudSlotB.title    = active ? 'Tesla Tower active — tap to deactivate' : 'Tesla Tower — tap to activate'
     el.hudSlotB.disabled = false
     el.hudSlotB.classList.remove('is-placeholder', 'is-poison-arrow-shot', 'is-blinding-light')
     el.hudSlotB.classList.add('is-engineer-tesla')
@@ -1494,6 +1511,30 @@ const UI = {
     tileEl.appendChild(slash)
     // 14 frames × 50ms = 700ms; remove after one cycle
     setTimeout(() => slash.remove(), 750)
+  },
+
+  spawnMageAttack(tileEl) {
+    const el = document.createElement('img')
+    el.src = 'assets/sprites/effects/MageAttack.gif?' + Date.now()
+    el.className = 'strike-slash'
+    tileEl.appendChild(el)
+    setTimeout(() => el.remove(), 750)
+  },
+
+  spawnVampireAttack(tileEl) {
+    const el = document.createElement('img')
+    el.src = 'assets/sprites/effects/VampireAttack.gif?' + Date.now()
+    el.className = 'strike-slash'
+    tileEl.appendChild(el)
+    setTimeout(() => el.remove(), 750)
+  },
+
+  spawnNecromancerAttack(tileEl) {
+    const el = document.createElement('img')
+    el.src = 'assets/sprites/effects/NecromancerAttack.gif?' + Date.now()
+    el.className = 'strike-slash'
+    tileEl.appendChild(el)
+    setTimeout(() => el.remove(), 750)
   },
 
   markTileReachable(tileEl) {

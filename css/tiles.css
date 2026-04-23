@@ -932,13 +932,15 @@ body.tile-colors .tile-front.type-rope {
 
 /* Tesla perimeter — always visible in Tesla mode */
 .tile.turret-perimeter {
-  outline: 2px solid rgba(180, 120, 255, 0.85);
-  outline-offset: -2px;
+  outline: 3px solid rgba(190, 100, 255, 1);
+  outline-offset: -3px;
+  z-index: 1;
 }
 
 .tile.turret-perimeter .tile-back,
 .tile.turret-perimeter .tile-front {
-  box-shadow: inset 0 0 10px 2px rgba(160, 80, 255, 0.35);
+  box-shadow: inset 0 0 14px 5px rgba(170, 60, 255, 0.55);
+  background-color: rgba(130, 40, 220, 0.18);
 }
 
 /* Turret sprite + stats overlay */

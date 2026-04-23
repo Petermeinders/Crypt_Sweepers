@@ -89,6 +89,7 @@ const CHARACTERS = [
     baseHP:     50,
     baseMana:   30,
     baseDmg:    '1',
+    complexity: 'Easy',
   },
   {
     id:         'ranger',
@@ -103,6 +104,7 @@ const CHARACTERS = [
     baseHP:     40,
     baseMana:   35,
     baseDmg:    '1',
+    complexity: 'Easy',
   },
   {
     id:          'mage',
@@ -117,6 +119,7 @@ const CHARACTERS = [
     baseHP:      30,
     baseMana:    60,
     baseDmg:     '1',
+    complexity:  'Easy',
   },
   {
     id:          'vampire',
@@ -132,11 +135,12 @@ const CHARACTERS = [
     baseMana:    25,
     baseDmg:     '2',
     comingSoon:  false,
+    complexity:  'Medium',
   },
   {
     id:          'engineer',
     name:        'Engineer',
-    tagline:     'A cunning inventor who turns the dungeon itself into a weapon. Places traps, deploys gadgets, and solves problems with explosions.',
+    tagline:     'A cunning inventor who turns the dungeon itself into a weapon. Deploy a turret to fight alongside you — but protect it: if it\'s destroyed, the feedback blast deals 5 damage to you.',
     gif:         'assets/sprites/Heroes/Engineer/engineer-hero-idle.gif',
     attackGif:   'assets/sprites/Heroes/Engineer/engineer-hero-strike.gif',
     attackMs:    600,
@@ -144,9 +148,10 @@ const CHARACTERS = [
     upgrades:    ENGINEER_UPGRADES,
     unlockCost:  CONFIG.engineerUnlockCost,
     baseHP:      40,
-    baseMana:    40,
+    baseMana:    30,
     baseDmg:     '1',
     comingSoon:  false,
+    complexity:  'Hard',
   },
   {
     id:          'necromancer',
@@ -161,6 +166,7 @@ const CHARACTERS = [
     baseHP:      35,
     baseMana:    55,
     baseDmg:     '1',
+    complexity:  'Hard',
   },
   {
     id:          'druid',
@@ -176,6 +182,7 @@ const CHARACTERS = [
     baseMana:    45,
     baseDmg:     '1',
     comingSoon:  true,
+    complexity:  'Hard',
   },
   {
     id:          'drone',
@@ -191,6 +198,7 @@ const CHARACTERS = [
     baseMana:    20,
     baseDmg:     '2',
     comingSoon:  true,
+    complexity:  'TBD',
   },
 ]
 
@@ -373,6 +381,21 @@ async function boot() {
       const s = GameController.getSave()
       const ch = s.selectedCharacter ?? 'warrior'
       if (ch === 'engineer') {
+        if (!(s.engineer?.upgrades ?? []).includes('mana-generator')) return
+        const def = ENGINEER_UPGRADES['mana-generator']
+        const stacks = GameController.getActiveRunInfo?.()?.player?.manaGeneratorMasteryStacks ?? 0
+        UI.showInfoCard({
+          spriteSrc: '',
+          name:   def.name,
+          type:   'Engineer Ability',
+          blurb:  'Toggle your turret into Mana Generator mode. While active the turret stops firing and grants mana on every tile flip.',
+          details: [
+            { icon: '🔋', label: 'Base Yield',    desc: '+1 mana per flip' },
+            { icon: '🎲', label: 'Mastery I',      desc: '25% chance for +2 mana per flip' },
+            { icon: '🎲', label: 'Mastery II',     desc: '25% chance for +3 mana per flip' },
+            { icon: '📊', label: 'Current Stacks', desc: `${stacks} mastery stack${stacks !== 1 ? 's' : ''}` },
+          ],
+        })
         return
       }
       if (ch === 'mage') {
@@ -487,7 +510,8 @@ async function boot() {
           type:   'Engineer Ability',
           blurb:  def.desc,
           details: [
-            { icon: '🔵', label: 'Mana Cost', desc: `${def.manaCost} mana to convert an existing turret (one-way)` },
+            { icon: '⚡', label: 'Toggle',     desc: 'Tap to enable/disable — disables Mana Generator when activated' },
+            { icon: '📐', label: 'Perimeter',  desc: 'Radius grows with turret level (level 1 = 1, level 2 = 2, level 3 = 3)' },
           ],
         })
         return
@@ -996,6 +1020,13 @@ function _ensureHeroSelectSlides() {
           <span class="hero-stat-lv">LV <span class="hero-select-lvl">1</span></span>
           <span class="hero-stat-sep">·</span>
           <span class="hero-stat-xp">XP <span class="hero-select-xp">0</span></span>
+        </div>
+        <div class="hero-select-base-stats-row">
+          <span class="hero-base-stat hero-base-hp">❤️ ${char.baseHP}</span>
+          <span class="hero-stat-sep">·</span>
+          <span class="hero-base-stat hero-base-mana">🔵 ${char.baseMana}</span>
+          <span class="hero-stat-sep">·</span>
+          <span class="hero-base-stat hero-complexity hero-complexity--${char.complexity.toLowerCase()}">${char.complexity}</span>
         </div>
       </div>
       <div class="hero-upgrades-grid" hidden></div>

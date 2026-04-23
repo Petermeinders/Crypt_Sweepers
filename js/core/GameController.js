@@ -9,7 +9,7 @@ import MetaProgression       from '../systems/MetaProgression.js'
 import SaveManager           from '../save/SaveManager.js'
 import UI                    from '../ui/UI.js'
 import { RANGER_BASE, RANGER_UPGRADES } from '../data/ranger.js'
-import { ENGINEER_BASE, ENGINEER_UPGRADES, ENGINEER_TURRET, ENGINEER_CONSTRUCT_MANA_COST, ENGINEER_SEISMIC_PING } from '../data/engineer.js'
+import { ENGINEER_BASE, ENGINEER_UPGRADES, ENGINEER_TURRET, ENGINEER_CONSTRUCT_MANA_COST, ENGINEER_MOVE_MANA_COST, ENGINEER_SEISMIC_PING } from '../data/engineer.js'
 import { MAGE_BASE, MAGE_UPGRADES } from '../data/mage.js'
 import { VAMPIRE_BASE, VAMPIRE_DARK_EYES_MAX_TILES } from '../data/vampire.js'
 import {
@@ -784,6 +784,7 @@ function _refreshRangerActiveHud() {
   UI.setBlindingLightBtn(false)
   UI.setDivineLightBtn(false)
   UI.setEngineerConstructBtn(false)
+  UI.setEngineerManaGeneratorBtn(false)
   UI.setEngineerTeslaBtn(false, 10, false)
   UI.setRicochetBtn(_isRangerActiveUnlocked('ricochet'), RANGER_UPGRADES.ricochet.manaCost)
   UI.setArrowBarrageBtn(
@@ -804,6 +805,7 @@ function _refreshNecroActiveHud() {
   UI.setDivineLightBtn(false)
   UI.setBlindingLightBtn(false)
   UI.setEngineerConstructBtn(false)
+  UI.setEngineerManaGeneratorBtn(false)
   UI.setEngineerTeslaBtn(false, 10, false)
   UI.setRicochetBtn(false, 0)
   UI.setSlamBtn(false)
@@ -872,6 +874,9 @@ function _vampireDrainKillPresentationThenResolve(t, damageDealt, onDone) {
   if (el) {
     UI.shakeTile(el)
     if (_charKey() === 'ranger') UI.spawnArrow(el)
+    else if (_charKey() === 'mage') UI.spawnMageAttack(el)
+    else if (_charKey() === 'vampire') UI.spawnVampireAttack(el)
+    else if (_charKey() === 'necromancer') UI.spawnNecromancerAttack(el)
     else UI.spawnSlash(el)
   }
   const attackSfx = _charKey() === 'ranger'
@@ -894,6 +899,9 @@ function _vampireDrainSlimeSplitPresentation(t, hpBeforeDrain, onDone) {
   if (el) {
     UI.shakeTile(el)
     if (_charKey() === 'ranger') UI.spawnArrow(el)
+    else if (_charKey() === 'mage') UI.spawnMageAttack(el)
+    else if (_charKey() === 'vampire') UI.spawnVampireAttack(el)
+    else if (_charKey() === 'necromancer') UI.spawnNecromancerAttack(el)
     else UI.spawnSlash(el)
   }
   const attackSfx = _charKey() === 'ranger'
@@ -1157,14 +1165,9 @@ function _engineerTurretDamage(level) {
   return ENGINEER_TURRET.damageByLevel[Math.max(1, Math.min(3, level)) - 1]
 }
 
-function _teslaManhattanRadius(level) {
-  return ENGINEER_TURRET.teslaRadiusByLevel[Math.max(1, Math.min(3, level)) - 1]
-}
-
 function _inTeslaPerimeter(tr, tile) {
   if (!tr || tile == null) return false
-  const d = Math.abs(tr.row - tile.row) + Math.abs(tr.col - tile.col)
-  return d <= _teslaManhattanRadius(tr.level)
+  return Math.max(Math.abs(tr.row - tile.row), Math.abs(tr.col - tile.col)) === 1
 }
 
 /** True when Engineer has a live turret deployed on this grid cell (never unflip / re-reveal over it). */
@@ -1175,7 +1178,7 @@ function _turretDeployedOnTile(tile) {
   return tr.row === tile.row && tr.col === tile.col
 }
 
-function _syncTurretVisual() {
+function _syncTurretVisual(constructing = false) {
   const grid = TileEngine.getGrid()
   if (!grid) return
   // Clear turret classes, perimeter, and injected content from all tiles
@@ -1196,13 +1199,10 @@ function _syncTurretVisual() {
   tile.element.classList.add('engineer-turret')
   if (tr.mode === 'tesla') {
     tile.element.classList.add('engineer-turret-tesla')
-    // Always show perimeter in Tesla mode
-    const radius = _teslaManhattanRadius(tr.level)
     for (const row of grid) {
       for (const t of row) {
         if (!t.element) continue
-        const d = Math.abs(tr.row - t.row) + Math.abs(tr.col - t.col)
-        if (d > 0 && d <= radius) t.element.classList.add('turret-perimeter')
+        if (_inTeslaPerimeter(tr, t)) t.element.classList.add('turret-perimeter')
       }
     }
   }
@@ -1211,23 +1211,44 @@ function _syncTurretVisual() {
   const dmg = _engineerTurretDamage(tr.level)
   const overlay = document.createElement('div')
   overlay.className = 'turret-overlay'
-  const spriteSrc = tr.mode === 'tesla'
-    ? 'assets/sprites/Heroes/Engineer/turret-tesla.gif'
-    : 'assets/sprites/Heroes/Engineer/turret-t1.gif'
+  const idleSrc = tr.manaGeneratorActive
+    ? 'assets/sprites/Heroes/Engineer/turret-mana.gif'
+    : tr.mode === 'tesla'
+      ? 'assets/sprites/Heroes/Engineer/turret-tesla.gif'
+      : 'assets/sprites/Heroes/Engineer/turret-t1.gif'
+  const spriteSrc = constructing
+    ? 'assets/sprites/Heroes/Engineer/turret-construction.gif'
+    : idleSrc
+  const statLine = tr.manaGeneratorActive
+    ? `<span class="stat-dmg">🔋 +mana</span>`
+    : `<span class="stat-dmg">⚔️ ${dmg}</span>`
   overlay.innerHTML = `
     <span class="turret-level-badge">T${tr.level}</span>
-    <img class="turret-sprite" src="${spriteSrc}" alt="Turret">
+    <img class="turret-sprite" src="${spriteSrc}?t=${Date.now()}" alt="Turret">
     <div class="tile-enemy-stats">
       <span class="stat-hp">❤️ ${tr.hp}</span>
-      <span class="stat-dmg">⚔️ ${dmg}</span>
+      ${statLine}
     </div>`
   tile.element.appendChild(overlay)
+
+  if (constructing) {
+    setTimeout(() => _syncTurretVisual(false), 2160)
+  }
 }
 
 function _destroyTurret() {
   EventBus.emit('audio:play', { sfx: 'turretDestroyed' })
   run.turret = null
   _syncTurretVisual()
+  // Feedback blast: losing the turret costs the player 5 HP
+  const backlash = 5
+  run.player.hp = Math.max(0, run.player.hp - backlash)
+  UI.updateHP(run.player.hp, run.player.maxHp)
+  UI.spawnFloat(document.getElementById('hud-portrait'), `💥 −${backlash} HP`, 'damage')
+  _refreshEngineerHud()
+  if (run.player.hp <= 0) {
+    _triggerDeath()
+  }
 }
 
 function _damageTurretFromEnemyHit(rawAmount, floatEl) {
@@ -1236,7 +1257,7 @@ function _damageTurretFromEnemyHit(rawAmount, floatEl) {
   run.turret.hp -= eff
   UI.spawnFloat(floatEl ?? document.getElementById('hud-portrait'), `🛡️ Turret −${eff}`, 'damage')
   if (run.turret.hp <= 0) {
-    UI.setMessage('Your turret is destroyed!')
+    UI.setMessage('💥 Your turret is destroyed! You take 5 damage from the feedback blast.')
     _destroyTurret()
   } else {
     _syncTurretVisual()
@@ -1601,6 +1622,7 @@ function _engineerTurretAfterReveal(tile) {
   if (_charKey() !== 'engineer' || !run.turret?.hp) return
   if (!tile?.enemyData || tile.enemyData._slain) return
   const tr = run.turret
+  if (tr.manaGeneratorActive) return
   if (tr.mode === 'tesla' && !_inTeslaPerimeter(tr, tile)) return
   const dmg = _engineerTurretDamage(tr.level)
   const td = tile.enemyData
@@ -1628,9 +1650,9 @@ function _engineerTurretAfterReveal(tile) {
 }
 
 function _handleEngineerConstructTileTap(tile) {
-  const cost = ENGINEER_CONSTRUCT_MANA_COST
   const tr = run.turret
   if (tr && tr.row === tile.row && tr.col === tile.col) {
+    const cost = ENGINEER_CONSTRUCT_MANA_COST
     const maxLevel = run.player.turretMaxLevel ?? 1
     if (tr.level >= maxLevel) {
       UI.setMessage(maxLevel < 3
@@ -1676,26 +1698,33 @@ function _handleEngineerConstructTileTap(tile) {
     return true
   }
   if (pending && pending.row === tile.row && pending.col === tile.col) {
+    const isRelocation = !!run.turret
+    const cost = isRelocation ? ENGINEER_MOVE_MANA_COST : ENGINEER_CONSTRUCT_MANA_COST
     if (run.player.mana < cost) {
       UI.setMessage('Not enough mana.', true)
       return true
     }
     run.player.mana -= cost
     UI.updateMana(run.player.mana, run.player.maxMana)
-    run.turret = {
-      row: tile.row,
-      col: tile.col,
-      level: 1,
-      mode: 'ballistic',
-      hp: _engineerTurretMaxHp(1),
-      maxHp: _engineerTurretMaxHp(1),
+    if (isRelocation) {
+      run.turret.row = tile.row
+      run.turret.col = tile.col
+    } else {
+      run.turret = {
+        row: tile.row,
+        col: tile.col,
+        level: 1,
+        mode: 'ballistic',
+        hp: _engineerTurretMaxHp(1),
+        maxHp: _engineerTurretMaxHp(1),
+      }
     }
     _engineerPendingTile = null
     UI.setEngineerPlaceMode(false)
-    _syncTurretVisual()
+    _syncTurretVisual(true)
     _engineerTurretSeismicPing(tile.row, tile.col)
-    EventBus.emit('audio:play', { sfx: 'confirmClick' })
-    UI.setMessage('Turret constructed!')
+    EventBus.emit('audio:play', { sfx: 'turretSetup' })
+    UI.setMessage(isRelocation ? 'Turret relocated!' : 'Turret constructed!')
     _saveActiveRun()
     return true
   }
@@ -1707,7 +1736,7 @@ function _handleEngineerConstructTileTap(tile) {
 }
 
 function constructTurretAction() {
-  // Construct Turret is now a starting passive — slot A reserved for a future active ability.
+  if (_isEngineerUpgradeUnlocked('mana-generator')) manaGeneratorAction()
 }
 
 function teslaTowerAction() {
@@ -1722,22 +1751,50 @@ function teslaTowerAction() {
     UI.setMessage('Build a turret first.', true)
     return
   }
-  if (run.turret.mode === 'tesla') {
-    UI.setMessage('Already a Tesla tower.', true)
-    return
-  }
-  const cost = ENGINEER_UPGRADES['tesla-tower'].manaCost
-  if (run.player.mana < cost) {
-    UI.setMessage('Not enough mana for Tesla.', true)
-    return
-  }
-  run.player.mana -= cost
-  UI.updateMana(run.player.mana, run.player.maxMana)
-  run.turret.mode = 'tesla'
+  const tr = run.turret
+  const enabling = tr.mode !== 'tesla'
+  tr.mode = enabling ? 'tesla' : 'ballistic'
+  if (enabling) tr.manaGeneratorActive = false
   _syncTurretVisual()
+  _refreshEngineerHud()
   EventBus.emit('audio:play', { sfx: 'confirmClick' })
-  UI.setMessage('⚡ Tesla Tower online!')
+  UI.setMessage(enabling ? '⚡ Tesla Tower online!' : '⚡ Tesla Tower offline.')
   _saveActiveRun()
+}
+
+function manaGeneratorAction() {
+  if (!_isEngineerUpgradeUnlocked('mana-generator')) return
+  if (_combatBusy) return
+  if (_isCombatCommitmentLocked()) {
+    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
+    return
+  }
+  if (!GameState.is(States.FLOOR_EXPLORE)) return
+  if (!run.turret?.hp) {
+    UI.setMessage('Build a turret first.', true)
+    return
+  }
+  const tr = run.turret
+  const enabling = !tr.manaGeneratorActive
+  tr.manaGeneratorActive = enabling
+  if (enabling) tr.mode = 'ballistic'
+  _syncTurretVisual()
+  _refreshEngineerHud()
+  EventBus.emit('audio:play', { sfx: 'confirmClick' })
+  UI.setMessage(enabling ? '🔋 Mana Generator online!' : '🔋 Mana Generator offline.')
+  _saveActiveRun()
+}
+
+function _engineerManaGeneratorOnReveal(tileEl) {
+  if (_charKey() !== 'engineer') return
+  if (!run.turret?.hp || !run.turret.manaGeneratorActive) return
+  const stacks = run.player.manaGeneratorMasteryStacks ?? 0
+  let gain = 1
+  if (stacks >= 2 && Math.random() < 0.25) gain = 3
+  else if (stacks >= 1 && Math.random() < 0.25) gain = 2
+  run.player.mana = Math.min(run.player.maxMana, run.player.mana + gain)
+  UI.updateMana(run.player.mana, run.player.maxMana)
+  UI.spawnFloat(tileEl, `🔋 +${gain}`, 'xp')
 }
 
 function _refreshEngineerHud() {
@@ -1748,8 +1805,8 @@ function _refreshEngineerHud() {
   UI.setPoisonArrowShotBtn(false)
   UI.setBlindingLightBtn(false)
   UI.setDivineLightBtn(false)
-  UI.setEngineerConstructBtn(false)
-  UI.setEngineerTeslaBtn(_isEngineerUpgradeUnlocked('tesla-tower'), t, run.turret?.mode === 'tesla')
+  UI.setEngineerManaGeneratorBtn(_isEngineerUpgradeUnlocked('mana-generator'), run.turret?.manaGeneratorActive ?? false)
+  UI.setEngineerTeslaBtn(_isEngineerUpgradeUnlocked('tesla-tower'), run.turret?.mode === 'tesla')
 }
 
 function _refreshMageHud() {
@@ -1761,6 +1818,7 @@ function _refreshMageHud() {
   UI.setBlindingLightBtn(false)
   UI.setDivineLightBtn(false)
   UI.setEngineerConstructBtn(false)
+  UI.setEngineerManaGeneratorBtn(false)
   UI.setEngineerTeslaBtn(false, 10, false)
   UI.setChainLightningBtn(
     _isMageActiveUnlocked('chain-lightning'),
@@ -3556,7 +3614,10 @@ function _subFloorFight(tile) {
 
   UI.setPortraitAnim('attack')
   EventBus.emit('audio:play', { sfx: 'hit' })
-  UI.spawnSlash(tile.element)
+  if (_charKey() === 'mage') UI.spawnMageAttack(tile.element)
+  else if (_charKey() === 'vampire') UI.spawnVampireAttack(tile.element)
+  else if (_charKey() === 'necromancer') UI.spawnNecromancerAttack(tile.element)
+  else UI.spawnSlash(tile.element)
   UI.shakeTile(tile.element)
 
   // Apply player damage to enemy
@@ -4067,14 +4128,10 @@ function onTileTap(row, col) {
 function _showTurretPerimeter(tr) {
   const grid = TileEngine.getGrid()
   if (!grid || !tr) return
-  const radius = tr.mode === 'tesla' ? _teslaManhattanRadius(tr.level) : null
   for (const row of grid) {
     for (const t of row) {
       if (!t.element) continue
-      if (radius !== null) {
-        const d = Math.abs(tr.row - t.row) + Math.abs(tr.col - t.col)
-        t.element.classList.toggle('turret-perimeter', d > 0 && d <= radius)
-      }
+      t.element.classList.toggle('turret-perimeter', tr.mode === 'tesla' && _inTeslaPerimeter(tr, t))
     }
   }
 }
@@ -4097,18 +4154,19 @@ function onTileHold(row, col) {
   const tr = run?.turret
   if (tile.revealed && tr && tr.row === row && tr.col === col) {
     const dmg    = _engineerTurretDamage(tr.level)
-    const radius = tr.mode === 'tesla' ? _teslaManhattanRadius(tr.level) : null
     const pingLv = Math.max(1, Math.min(ENGINEER_SEISMIC_PING.maxLevel, run.player.seismicPingLevel ?? ENGINEER_SEISMIC_PING.defaultLevel))
     const seismicDesc = pingLv === 1
       ? 'Passive Seismic Ping L1 — each build or move pings the 8 adjacent hidden tiles with category hints (enemy, trap, loot, …) and a quick pulse.'
       : `Passive Seismic Ping L${pingLv} — each build or move pings hidden tiles up to ${pingLv} steps from the turret (same hints + pulse).`
+    const modeDesc = tr.manaGeneratorActive
+      ? 'Mana Generator — grants mana on every tile flip'
+      : tr.mode === 'tesla' ? 'Tesla — zaps enemies in the 8 surrounding tiles' : 'Ballistic — fires at all revealed enemies'
     const details = [
-      { icon: '🛡️', label: 'Mode',   desc: tr.mode === 'tesla' ? 'Tesla — zaps enemies in perimeter' : 'Ballistic — fires at all revealed enemies' },
+      { icon: '🛡️', label: 'Mode',   desc: modeDesc },
       { icon: '⬆️', label: 'Level',  desc: `T${tr.level}` },
       { icon: '❤️', label: 'HP',     desc: `${tr.hp} / ${tr.maxHp}` },
       { icon: '⚔️', label: 'Damage', desc: `${dmg} per hit` },
       { icon: '📳', label: 'Seismic', desc: seismicDesc },
-      ...(radius !== null ? [{ icon: '📡', label: 'Radius', desc: `${radius} tile${radius !== 1 ? 's' : ''} (Manhattan)` }] : []),
     ]
     _showTurretPerimeter(tr)
     const overlay = document.getElementById('info-card-overlay')
@@ -4368,6 +4426,7 @@ async function revealTile(tile) {
   }
   UI.setPortraitAnim('idle')
   _gainXP(CONFIG.xp.perTileReveal, tile.element)
+  _engineerManaGeneratorOnReveal(tile.element)
   EventBus.emit('tile:revealed', { tile })
   // Deathmask: instant kill on first enemy reveal after a proc
   if (tile.enemyData && !tile.enemyData._slain && run.player.deathmaskPending) {
@@ -5154,7 +5213,7 @@ function fightAction(tile) {
   let playerDmg = result.playerDmg
   if (_charKey() === 'engineer' && run.turret?.hp > 0) {
     const tr = run.turret
-    const useTurret = tr.mode === 'ballistic' || (tr.mode === 'tesla' && _inTeslaPerimeter(tr, tile))
+    const useTurret = !tr.manaGeneratorActive && (tr.mode === 'ballistic' || (tr.mode === 'tesla' && _inTeslaPerimeter(tr, tile)))
     if (useTurret) {
       playerDmg += _engineerTurretDamage(tr.level)
       const turretTileEl = TileEngine.getTile(tr.row, tr.col)?.element
@@ -5220,6 +5279,9 @@ function fightAction(tile) {
 
   UI.setPortraitAnim('attack')
   if (_charKey() === 'ranger') UI.spawnArrow(tile.element)
+  else if (_charKey() === 'mage') UI.spawnMageAttack(tile.element)
+  else if (_charKey() === 'vampire') UI.spawnVampireAttack(tile.element)
+  else if (_charKey() === 'necromancer') UI.spawnNecromancerAttack(tile.element)
   else UI.spawnSlash(tile.element)
   const attackSfx = _charKey() === 'ranger'
     ? 'arrowShot'
@@ -8755,6 +8817,7 @@ export default {
   abilitySlotAAction,
   constructTurretAction,
   teslaTowerAction,
+  manaGeneratorAction,
   ricochetAction,
   arrowBarrageAction,
   poisonArrowShotAction,

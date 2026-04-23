@@ -5174,6 +5174,32 @@ body.bestiary-detail-open #app {
   color: rgba(255,255,255,0.25);
 }
 
+.hero-select-base-stats-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px auto 0;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.08);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.65);
+}
+
+.hero-select-base-stats-row .hero-stat-sep {
+  color: rgba(255,255,255,0.2);
+}
+
+.hero-complexity--easy   { color: #6ee77a; }
+.hero-complexity--medium { color: #f5c842; }
+.hero-complexity--hard   { color: #f07070; }
+.hero-complexity--tbd    { color: rgba(255,255,255,0.35); }
+
 /* Circular CTA button */
 #hero-select-footer {
   padding: 14px 16px 22px;

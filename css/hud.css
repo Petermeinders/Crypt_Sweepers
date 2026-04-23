@@ -1,13 +1,11 @@
 /* ── Messages & combat (above XP / bottom HUD) ── */
 #action-panel {
   padding: 8px 12px 10px;
-  background: linear-gradient(180deg, rgba(8,8,16,0.95) 0%, #080810 100%);
+  background: linear-gradient(180deg, rgba(8,8,16,0) 0%, rgba(0,0,0,0.52) 100%);
   flex-shrink: 0;
-  border-top: 1px solid rgba(255,255,255,0.04);
 }
 
-/* ── Message log wrap ── */
-/* Fixed height so multi-line messages don't resize the action panel / flex grid — short lines sit at the bottom; longer text fills upward; overflow scrolls inside. */
+/* ── Message log wrap — floating scroll ── */
 #message-log-wrap {
   position: relative;
   flex-shrink: 0;
@@ -15,11 +13,15 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
+  overflow: visible;
+  animation: scroll-bob 4.2s ease-in-out infinite;
 }
 
+/* ── Scroll body ── */
 #message-box {
+  position: relative;
   font-size: 0.78rem;
-  color: var(--text-dim);
+  color: #d4a84e;
   text-align: center;
   font-style: italic;
   line-height: 1.45;
@@ -30,60 +32,110 @@
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
-  scrollbar-color: rgba(180, 130, 60, 0.25) transparent;
+  scrollbar-color: rgba(180,130,60,0.25) transparent;
   transition: color 0.2s;
   cursor: pointer;
   user-select: none;
   word-break: break-word;
+  padding: 4px 18px;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.9), 0 0 12px rgba(200,140,40,0.15);
+  letter-spacing: 0.2px;
+
+  /* Aged parchment body */
+  background-image:
+    /* Diamond filigree at very low opacity */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M12 2 L22 12 L12 22 L2 12 Z' fill='none' stroke='rgba(180,130,50,0.06)' stroke-width='1'/%3E%3C/svg%3E"),
+    /* Vignette: dark edges, slightly lighter centre */
+    radial-gradient(ellipse at 50% 50%,
+      rgba(55,35,10,0.0) 30%,
+      rgba(20,12,3,0.55) 100%
+    ),
+    /* Horizontal banding — aged paper look */
+    repeating-linear-gradient(
+      180deg,
+      transparent 0px,
+      transparent 14px,
+      rgba(0,0,0,0.04) 14px,
+      rgba(0,0,0,0.04) 15px
+    ),
+    /* Warm parchment base */
+    linear-gradient(180deg,
+      rgba(52,32,10,0.97) 0%,
+      rgba(42,26,8,0.99) 30%,
+      rgba(38,23,7,0.99) 70%,
+      rgba(50,31,9,0.97) 100%
+    );
+
+  border-top:    1.5px solid rgba(180,128,45,0.6);
+  border-bottom: 1.5px solid rgba(180,128,45,0.6);
+  box-shadow:
+    /* Inner shadow — rolled-under edges */
+    inset 0  4px 10px rgba(0,0,0,0.55),
+    inset 0 -4px 10px rgba(0,0,0,0.55),
+    /* Warm lateral fade toward rods */
+    inset 20px  0 30px rgba(0,0,0,0.3),
+    inset -20px 0 30px rgba(0,0,0,0.3);
 }
 
 #message-box::after {
   content: '▲';
-  font-size: 0.5rem;
-  opacity: 0.35;
-  margin-left: 6px;
+  font-size: 0.48rem;
+  opacity: 0.5;
+  margin-left: 7px;
   vertical-align: middle;
+  color: rgba(210,165,65,0.8);
 }
 
 #message-box.alert {
-  color: #ff8888;
+  color: #ff9a80;
   font-style: normal;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.9), 0 0 10px rgba(255,80,50,0.3);
 }
 
-/* ── Expanded scroll log ── */
+/* ── Expanded scroll log — unrolled parchment ── */
 #message-log-expanded {
   position: absolute;
-  bottom: calc(100% + 4px);
+  bottom: calc(100% + 2px);
   left: -12px;
   right: -12px;
   height: 300px;
   z-index: 200;
-  border-radius: 10px 10px 4px 4px;
+  border-radius: 10px 10px 2px 2px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
 
-  /* Scroll/parchment look */
-  background:
-    linear-gradient(180deg, rgba(30,20,10,0.97) 0%, rgba(18,12,6,0.99) 100%);
-  border: 1px solid rgba(180,130,60,0.4);
-  border-bottom: none;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M12 2 L22 12 L12 22 L2 12 Z' fill='none' stroke='rgba(180,130,50,0.05)' stroke-width='1'/%3E%3C/svg%3E"),
+    repeating-linear-gradient(
+      180deg,
+      transparent 0px,
+      transparent 18px,
+      rgba(0,0,0,0.045) 18px,
+      rgba(0,0,0,0.045) 19px
+    ),
+    linear-gradient(180deg,
+      rgba(48,30,8,0.98) 0%,
+      rgba(36,22,6,0.99) 100%
+    );
+  border: 1px solid rgba(180,128,45,0.55);
+  border-bottom: 2px solid rgba(120,80,20,0.8);
   box-shadow:
-    0 -6px 24px rgba(0,0,0,0.7),
-    inset 0 1px 0 rgba(200,160,80,0.15),
-    inset 0 0 40px rgba(0,0,0,0.4);
+    0 -10px 32px rgba(0,0,0,0.8),
+    inset 0 1px 0 rgba(210,165,65,0.2),
+    inset 0 0 60px rgba(0,0,0,0.35),
+    0 0 24px rgba(160,110,25,0.18);
 }
 
+/* Decorative header with SVG flourish */
 #message-log-expanded::before {
-  content: '— Event Log —';
+  content: '';
   display: block;
-  text-align: center;
-  font-size: 0.6rem;
-  letter-spacing: 2px;
-  color: rgba(180,140,70,0.6);
-  padding: 6px 0 4px;
-  border-bottom: 1px solid rgba(180,130,60,0.2);
+  height: 28px;
   flex-shrink: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='28'%3E%3Cdefs%3E%3ClinearGradient id='fade' x1='0' x2='1' y1='0' y2='0'%3E%3Cstop offset='0%25' stop-color='rgba(180,128,45,0)' /%3E%3Cstop offset='20%25' stop-color='rgba(180,128,45,0.5)'/%3E%3Cstop offset='50%25' stop-color='rgba(200,150,55,0.7)'/%3E%3Cstop offset='80%25' stop-color='rgba(180,128,45,0.5)'/%3E%3Cstop offset='100%25' stop-color='rgba(180,128,45,0)'/%3E%3C/linearGradient%3E%3C/defs%3E%3C!-- horizontal rule top --%3E%3Crect x='0' y='4' width='300' height='1' fill='url(%23fade)'/%3E%3C!-- left vine/flourish --%3E%3Cpath d='M10,14 Q30,6 55,14 Q70,19 80,14' fill='none' stroke='rgba(180,128,45,0.45)' stroke-width='1.2'/%3E%3Ccircle cx='10' cy='14' r='2' fill='rgba(180,128,45,0.4)'/%3E%3Ccircle cx='55' cy='14' r='1.5' fill='rgba(180,128,45,0.35)'/%3E%3C!-- right vine/flourish (mirrored) --%3E%3Cpath d='M290,14 Q270,6 245,14 Q230,19 220,14' fill='none' stroke='rgba(180,128,45,0.45)' stroke-width='1.2'/%3E%3Ccircle cx='290' cy='14' r='2' fill='rgba(180,128,45,0.4)'/%3E%3Ccircle cx='245' cy='14' r='1.5' fill='rgba(180,128,45,0.35)'/%3E%3C!-- centre diamond ornament --%3E%3Cpath d='M150,8 L156,14 L150,20 L144,14 Z' fill='none' stroke='rgba(200,150,55,0.6)' stroke-width='1'/%3E%3Ccircle cx='150' cy='14' r='2' fill='rgba(200,155,58,0.55)'/%3E%3C!-- text placeholder lines (decorative) --%3E%3Crect x='0' y='27' width='300' height='1' fill='url(%23fade)'/%3E%3C/svg%3E");
+  background-size: 100% 28px;
+  background-repeat: no-repeat;
 }
 
 #message-log-expanded.hidden {
@@ -93,31 +145,33 @@
 #message-log-scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 6px 14px 10px;
+  padding: 4px 16px 12px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(180,130,60,0.3) transparent;
+  scrollbar-color: rgba(180,130,60,0.35) transparent;
 }
 
 .log-entry {
   font-size: 0.72rem;
-  color: rgba(180,165,140,0.75);
+  color: rgba(190,162,115,0.78);
   font-style: italic;
-  line-height: 1.4;
-  padding: 4px 6px;
-  border-bottom: 1px solid rgba(180,130,60,0.08);
+  line-height: 1.45;
+  padding: 3px 6px;
+  border-bottom: 1px solid rgba(180,128,45,0.08);
+  letter-spacing: 0.1px;
 }
 
 .log-entry.log-latest {
-  color: var(--text-primary, #e8d5a8);
+  color: #ddb85a;
   font-style: normal;
   font-weight: 600;
+  text-shadow: 0 0 8px rgba(200,150,50,0.25);
 }
 
 .log-entry.log-alert {
-  color: #ff9999;
+  color: #ff9a80;
   font-style: normal;
 }
 

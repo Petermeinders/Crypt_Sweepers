@@ -1,3 +1,16 @@
+/* ── Scroll float & candle glow ── */
+@keyframes scroll-bob {
+  0%, 100% { transform: translateY(0px);   }
+  30%       { transform: translateY(-2.5px); }
+  70%       { transform: translateY(-1px);  }
+}
+
+@keyframes candle-glow {
+  0%, 100% { filter: drop-shadow(0 0 6px  rgba(205,140,35,0.38)) drop-shadow(0 4px 12px rgba(0,0,0,0.65)); }
+  35%       { filter: drop-shadow(0 0 11px rgba(230,165,48,0.58)) drop-shadow(0 4px 12px rgba(0,0,0,0.65)); }
+  60%       { filter: drop-shadow(0 0 8px  rgba(215,148,38,0.44)) drop-shadow(0 4px 12px rgba(0,0,0,0.65)); }
+}
+
 /* ── Gold collect ── */
 @keyframes coin-collect {
   0%   { transform: translateY(0)    scale(1);    opacity: 1; }

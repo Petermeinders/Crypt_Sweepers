@@ -212,6 +212,9 @@ function applyAbility(abilityId, player, charKey = 'warrior', ctx = {}) {
     case 'necro-minion-mastery':
       player.minionMasteryLevel = Math.max(player.minionMasteryLevel ?? 1, effect.level)
       break
+    case 'mana-generator-mastery':
+      player.manaGeneratorMasteryStacks = (player.manaGeneratorMasteryStacks ?? 0) + 1
+      break
   }
 
   if (!Array.isArray(player.abilities)) player.abilities = []
