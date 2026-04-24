@@ -11,7 +11,7 @@ import UI                    from '../ui/UI.js'
 import { RANGER_BASE, RANGER_UPGRADES } from '../data/ranger.js'
 import { ENGINEER_BASE, ENGINEER_UPGRADES, ENGINEER_TURRET, ENGINEER_CONSTRUCT_MANA_COST, ENGINEER_MOVE_MANA_COST, ENGINEER_SEISMIC_PING } from '../data/engineer.js'
 import { MAGE_BASE, MAGE_UPGRADES } from '../data/mage.js'
-import { VAMPIRE_BASE, VAMPIRE_DARK_EYES_MAX_TILES } from '../data/vampire.js'
+import { VAMPIRE_BASE, VAMPIRE_DARK_EYES_MAX_TILES, VAMPIRE_UPGRADES } from '../data/vampire.js'
 import {
   NECROMANCER_BASE,
   NECROMANCER_MINION,
@@ -749,6 +749,7 @@ function _isActiveUnlocked(abilityKey, charKey = _charKey()) {
              : charKey === 'engineer'    ? (_save.engineer?.upgrades    ?? [])
              : charKey === 'mage'        ? (_save.mage?.upgrades        ?? [])
              : charKey === 'necromancer' ? (_save.necromancer?.upgrades ?? [])
+             : charKey === 'vampire'     ? (_save.vampire?.upgrades     ?? [])
              :                             (_save.warrior?.upgrades     ?? [])
   if (!list.includes(abilityKey)) return false
   const runUnlocked = run?.player?.unlockedActives ?? []
@@ -818,6 +819,39 @@ function _refreshNecroActiveHud() {
     _isNecroActiveUnlocked('corpse-explosion'),
     NECROMANCER_UPGRADES['corpse-explosion']?.manaCost ?? CORPSE_EXPLOSION_COST,
   )
+}
+
+function _refreshVampireHud() {
+  if (_charKey() !== 'vampire') return
+  UI.setRicochetBtn(false, 0)
+  UI.setPoisonArrowShotBtn(false)
+  UI.setArrowBarrageBtn(false)
+  UI.setDivineLightBtn(false)
+  UI.setBlindingLightBtn(false)
+  UI.setEngineerConstructBtn(false)
+  UI.setEngineerManaGeneratorBtn(false)
+  UI.setEngineerTeslaBtn(false, 10, false)
+  UI.setSlamBtn(false)
+  UI.setChainLightningBtn?.(false)
+  UI.setStrengthenMinionBtn(false)
+  // Slot A: Blood Tithe
+  UI.setBloodTitheBtn(
+    _isActiveUnlocked('blood-tithe', 'vampire'),
+    _bloodTitheHpCost(),
+  )
+  // Slot B: Mist Form
+  if (_isActiveUnlocked('mist-form', 'vampire')) {
+    UI.setMistFormBtn(true, VAMPIRE_UPGRADES['mist-form'].manaCost, _mistFormFlipsRemaining)
+    UI.setMistFormActive(_mistFormFlipsRemaining > 0)
+  } else {
+    UI.setMistFormBtn(false)
+  }
+  // Slot C: Blood Pact
+  if (_isActiveUnlocked('blood-pact', 'vampire')) {
+    UI.setBloodPactBtn(true, VAMPIRE_UPGRADES['blood-pact'].manaCost)
+  } else {
+    UI.setBloodPactBtn(false)
+  }
 }
 
 /** Ranger __Attack.gif length — portrait stays on "attack" until this elapses. */
@@ -982,6 +1016,23 @@ function _vampireDarkEyesRoll(tile) {
 
 function _vampireCorruptedBloodAndDarkEyes(tile) {
   if (!run || GameState.is(States.DEATH) || _charKey() !== 'vampire') return
+
+  // Mist Form: skip HP drain/gain, decrement counter, still allow Dark Eyes roll
+  if (_mistFormFlipsRemaining > 0) {
+    _mistFormFlipsRemaining--
+    const floatEl = tile.element ?? document.getElementById('hud-portrait')
+    if (_mistFormFlipsRemaining > 0) {
+      UI.spawnFloat(floatEl, `🌫️ ${_mistFormFlipsRemaining} left`, 'xp')
+      UI.setMistFormBtn(true, VAMPIRE_UPGRADES['mist-form'].manaCost, _mistFormFlipsRemaining)
+    } else {
+      UI.spawnFloat(floatEl, '🌫️ Mist faded', 'xp')
+      UI.setMistFormActive(false)
+      UI.setMistFormBtn(true, VAMPIRE_UPGRADES['mist-form'].manaCost, 0)
+    }
+    _vampireDarkEyesRoll(tile)
+    return
+  }
+
   const p = run.player
   const grid = TileEngine.getGrid()
   const drainTargets = []
@@ -2024,6 +2075,7 @@ function _startFloor() {
   _cancelTelekineticThrowMode()
   _cancelStrengthenMinionMode()
   _cancelCorpseExplosionMode()
+  _mistFormFlipsRemaining = 0
   if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0); run.player.freezingHitStacks = 0; UI.setFreezingHit(0); run.player.burnStacks = 0; UI.setBurnOverlay(0); run.player.poisonStacks = 0; UI.setPlayerPoison(0); run.player.corruptionStacks = 0; if (run.player.corruptionBaseMaxHp) { run.player.maxHp = run.player.corruptionBaseMaxHp; run.player.corruptionBaseMaxHp = 0 } if (run.player.corruptionBaseMaxMana) { run.player.maxMana = run.player.corruptionBaseMaxMana; run.player.corruptionBaseMaxMana = 0 } UI.setCorruption(0) }
   if (run) { run._hourglassSnapshot = null }
   _throwingKnifeTargeting  = false
@@ -2199,11 +2251,7 @@ function _startFloor() {
   } else if (_charKey() === 'mage') {
     _refreshMageHud()
   } else if (_charKey() === 'vampire') {
-    UI.setSlamBtn(false)
-    UI.setArrowBarrageBtn(false)
-    UI.setPoisonArrowShotBtn(false)
-    UI.setDivineLightBtn(false)
-    UI.setBlindingLightBtn(false)
+    _refreshVampireHud()
   } else if (_charKey() === 'necromancer') {
     _refreshNecroActiveHud()
   } else {
@@ -2402,6 +2450,7 @@ let _spellTargeting         = false
 let _combatBusy             = false
 let _combatBusySetAt        = 0   // timestamp when _combatBusy last became true
 let _lanternTargeting       = false
+let _mistFormFlipsRemaining = 0
 let _spyglassTargeting      = false
 let _blindingLightTargeting = false
 let _divineLightSelecting   = false
@@ -4467,7 +4516,7 @@ async function revealTile(tile) {
       }
     }
   }
-  if (_charKey() === 'vampire' && run && !GameState.is(States.DEATH)) {
+  if (_charKey() === 'vampire' && run && !GameState.is(States.DEATH) && !run.atRest) {
     _vampireCorruptedBloodAndDarkEyes(tile)
   }
   // Abyssal Lens: randomly reveal one additional tile per flip (non-recursive)
@@ -5531,7 +5580,132 @@ function abilitySlotAAction() {
   else if (_charKey() === 'engineer') constructTurretAction()
   else if (_charKey() === 'mage') chainLightningAction()
   else if (_charKey() === 'necromancer') strengthenMinionAction()
+  else if (_charKey() === 'vampire') bloodTitheAction()
   else slamAction()
+}
+
+function _bloodTitheHpCost() {
+  const tier = run?.player?.bloodTitheMasteryTier ?? 1
+  if (tier >= 3) return 7
+  if (tier >= 2) return 8
+  return 10
+}
+
+function _bloodTitheManaGain() {
+  return (run?.player?.bloodTitheMasteryTier ?? 1) >= 3 ? 11 : 10
+}
+
+function bloodTitheAction() {
+  if (!_isActiveUnlocked('blood-tithe', 'vampire')) return
+  if (_combatBusy) return
+  const hpCost  = _bloodTitheHpCost()
+  const manaGain = _bloodTitheManaGain()
+  if (run.player.hp <= hpCost) {
+    UI.setMessage('Not enough HP — Blood Tithe would be lethal!', true)
+    return
+  }
+  if (run.player.mana >= run.player.maxMana) {
+    UI.setMessage('Mana is already full!', true)
+    return
+  }
+  run.player.hp -= hpCost
+  UI.updateHP(run.player.hp, run.player.maxHp)
+  UI.spawnFloat(document.getElementById('hud-portrait'), `🩸 −${hpCost} HP`, 'damage')
+  const gained = Math.min(manaGain, run.player.maxMana - run.player.mana)
+  run.player.mana = Math.min(run.player.maxMana, run.player.mana + manaGain)
+  UI.updateMana(run.player.mana, run.player.maxMana)
+  UI.spawnFloat(document.getElementById('hud-portrait'), `🔵 +${gained}`, 'xp')
+  UI.setMessage(`🩸 Blood Tithe — spent ${hpCost} HP, gained ${gained} mana.`)
+  EventBus.emit('audio:play', { sfx: 'spell' })
+}
+
+function mistFormAction() {
+  if (!_isActiveUnlocked('mist-form', 'vampire')) return
+  if (_combatBusy) return
+  if (_mistFormFlipsRemaining > 0) {
+    UI.setMessage('Mist Form is already active!', true)
+    return
+  }
+  const cost = _stillWaterManaCost(VAMPIRE_UPGRADES['mist-form'].manaCost)
+  if (run.player.mana < cost) {
+    UI.setMessage('Not enough mana for Mist Form!', true)
+    return
+  }
+  run.player.mana = Math.max(0, run.player.mana - cost)
+  _markStillWaterAbilityUsed()
+  UI.updateMana(run.player.mana, run.player.maxMana)
+  _mistFormFlipsRemaining = 5
+  UI.setMistFormBtn(true, VAMPIRE_UPGRADES['mist-form'].manaCost, _mistFormFlipsRemaining)
+  UI.setMistFormActive(true)
+  UI.setMessage('🌫️ Mist Form — next 5 flips protected from blood drain.')
+  EventBus.emit('audio:play', { sfx: 'spell' })
+}
+
+function bloodPactAction() {
+  if (!_isActiveUnlocked('blood-pact', 'vampire')) return
+  if (_combatBusy) return
+  const cost = _stillWaterManaCost(VAMPIRE_UPGRADES['blood-pact'].manaCost)
+  if (run.player.mana < cost) {
+    UI.setMessage('Not enough mana for Blood Pact!', true)
+    return
+  }
+
+  const targets = []
+  for (const tile of _getActiveTiles()) {
+    if (
+      tile.revealed && tile.enemyData && !tile.enemyData._slain &&
+      tile.enemyData.behaviour !== 'boss' && tile.type !== 'boss'
+    ) {
+      targets.push(tile)
+    }
+  }
+
+  if (targets.length === 0) {
+    UI.setMessage('No eligible enemies — bosses are immune to Blood Pact!', true)
+    return
+  }
+
+  run.player.mana = Math.max(0, run.player.mana - cost)
+  _markStillWaterAbilityUsed()
+  UI.updateMana(run.player.mana, run.player.maxMana)
+
+  // Ensure currentHP is initialized, add 1 to each, then equalize at rounded average
+  for (const tile of targets) {
+    const e = tile.enemyData
+    if (!Number.isFinite(e.currentHP)) e.currentHP = Number(e.hp) || 1
+    e.currentHP = Math.max(1, e.currentHP + 1)
+  }
+  const total = targets.reduce((sum, tile) => sum + tile.enemyData.currentHP, 0)
+  const avgHp = Math.max(1, Math.round(total / targets.length))
+
+  for (const tile of targets) {
+    tile.enemyData.currentHP = avgHp
+    if (tile.element) UI.updateEnemyHP(tile.element, avgHp)
+    UI.spawnFloat(tile.element, `⚖️ ${avgHp}`, 'xp')
+  }
+
+  UI.setMessage(`⚖️ Blood Pact — ${targets.length} enem${targets.length !== 1 ? 'ies' : 'y'} equalized to ${avgHp} HP.`)
+  EventBus.emit('audio:play', { sfx: 'spell' })
+}
+
+function getBloodPactBreakdown() {
+  if (!run || _charKey() !== 'vampire') return null
+  const targets = []
+  for (const tile of _getActiveTiles()) {
+    if (
+      tile.revealed && tile.enemyData && !tile.enemyData._slain &&
+      tile.enemyData.behaviour !== 'boss' && tile.type !== 'boss'
+    ) {
+      const cur = Number.isFinite(tile.enemyData.currentHP)
+        ? tile.enemyData.currentHP
+        : (Number(tile.enemyData.hp) || 1)
+      targets.push(cur)
+    }
+  }
+  if (targets.length === 0) return { count: 0, avgHp: null }
+  const total = targets.reduce((sum, hp) => sum + hp + 1, 0)
+  const avgHp = Math.max(1, Math.round(total / targets.length))
+  return { count: targets.length, avgHp }
 }
 
 function ricochetAction() {
@@ -7150,6 +7324,7 @@ function _triggerLevelUp() {
     else if (char === 'engineer')  _refreshEngineerHud()
     else if (char === 'mage')      _refreshMageHud()
     else if (char === 'necromancer') _refreshNecroActiveHud()
+    else if (char === 'vampire')   _refreshVampireHud()
     else if (char === 'warrior')   {
       UI.setSlamBtn(_isActiveUnlocked('slam', 'warrior'), WARRIOR_UPGRADES.slam.manaCost)
       UI.setBlindingLightBtn(_isActiveUnlocked('blinding-light', 'warrior'), WARRIOR_UPGRADES['blinding-light'].manaCost)
@@ -7244,6 +7419,15 @@ function getBlindingLightBreakdown() {
   const m = _blindingLightMultFromStacks(stacks)
   const stunTurns = Math.max(2, Math.round(avg * m))
   return { avgMelee: avg, baseTenths, stacks, mult: m, stunTurns, final: stunTurns }
+}
+
+function getBloodTitheBreakdown() {
+  if (!run || _charKey() !== 'vampire') return null
+  return {
+    hpCost:   _bloodTitheHpCost(),
+    manaGain: _bloodTitheManaGain(),
+    tier:     run.player.bloodTitheMasteryTier ?? 1,
+  }
 }
 
 function _hasRicochetArcMasteryMeta() {
@@ -8809,6 +8993,8 @@ export default {
   getPoisonArrowShotBreakdown,
   getChainLightningBreakdown,
   getTelekineticThrowBreakdown,
+  getBloodTitheBreakdown,
+  getBloodPactBreakdown,
   newGame,
   returnToMenu,
   onTileTap,
@@ -8825,6 +9011,9 @@ export default {
   telekineticThrowAction,
   strengthenMinionAction,
   corpseExplosionAction,
+  bloodTitheAction,
+  mistFormAction,
+  bloodPactAction,
   blindingLightAction,
   divineLightAction,
   divineLightHealAction,

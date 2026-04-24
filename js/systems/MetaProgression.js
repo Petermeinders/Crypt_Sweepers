@@ -3,6 +3,7 @@ import { RANGER_UPGRADES }             from '../data/ranger.js'
 import { ENGINEER_UPGRADES }           from '../data/engineer.js'
 import { MAGE_UPGRADES }               from '../data/mage.js'
 import { NECROMANCER_UPGRADES }        from '../data/necromancer.js'
+import { VAMPIRE_UPGRADES }            from '../data/vampire.js'
 import { GLOBAL_PASSIVE_UPGRADES }     from '../data/passives.js'
 import { CONFIG }                       from '../config.js'
 import Logger                           from '../core/Logger.js'
@@ -146,7 +147,7 @@ function applyToPlayer(player, save) {
       : char === 'mage'
         ? MAGE_UPGRADES
         : char === 'vampire'
-          ? {}
+          ? VAMPIRE_UPGRADES
           : char === 'necromancer'
             ? NECROMANCER_UPGRADES
             : WARRIOR_UPGRADES
@@ -359,6 +360,25 @@ function buyNecromancerUpgrade(save, id) {
   return true
 }
 
+// ── Vampire XP tree ──────────────────────────────────────────
+
+function canBuyVampireUpgrade(save, id) {
+  const def = VAMPIRE_UPGRADES[id]
+  if (!def) return false
+  if (!save.vampire) return false
+  if (save.vampire.upgrades.includes(id)) return false
+  if (def.requires && !save.vampire.upgrades.includes(def.requires)) return false
+  return save.vampire.totalXP >= def.xpCost
+}
+
+function buyVampireUpgrade(save, id) {
+  if (!canBuyVampireUpgrade(save, id)) return false
+  save.vampire.totalXP -= VAMPIRE_UPGRADES[id].xpCost
+  save.vampire.upgrades.push(id)
+  Logger.info(`[MetaProgression] Vampire upgrade: ${id}`)
+  return true
+}
+
 // ── Run XP calculation ────────────────────────────────────────
 
 function calcRunXP(runStats) {
@@ -435,6 +455,8 @@ export default {
   buyMageUpgrade,
   canBuyNecromancerUpgrade,
   buyNecromancerUpgrade,
+  canBuyVampireUpgrade,
+  buyVampireUpgrade,
   applyToPlayer,
   calcRunXP,
   endRun,
@@ -444,4 +466,5 @@ export default {
   ENGINEER_UPGRADES,
   MAGE_UPGRADES,
   NECROMANCER_UPGRADES,
+  VAMPIRE_UPGRADES,
 }

@@ -12,6 +12,7 @@ import { RANGER_UPGRADES }                  from './data/ranger.js'
 import { ENGINEER_UPGRADES }                from './data/engineer.js'
 import { MAGE_UPGRADES }                    from './data/mage.js'
 import { NECROMANCER_UPGRADES }             from './data/necromancer.js'
+import { VAMPIRE_UPGRADES }                 from './data/vampire.js'
 import { GLOBAL_PASSIVE_UPGRADES, GLOBAL_PASSIVE_IDS } from './data/passives.js'
 import { CHANGELOG } from './data/changelog.js'
 
@@ -129,7 +130,7 @@ const CHARACTERS = [
     attackGif:   null,
     attackMs:    0,
     emoji:       '🧛',
-    upgrades:    {},
+    upgrades:    VAMPIRE_UPGRADES,
     unlockCost:  CONFIG.vampireUnlockCost,
     baseHP:      45,
     baseMana:    25,
@@ -418,6 +419,28 @@ async function boot() {
         })
         return
       }
+      if (ch === 'vampire') {
+        if (!(s.vampire?.upgrades ?? []).includes('blood-tithe')) return
+        const def = VAMPIRE_UPGRADES['blood-tithe']
+        const br  = GameController.getBloodTitheBreakdown?.()
+        const hpCost  = br?.hpCost  ?? def.hpCost
+        const manaGain = br?.manaGain ?? def.manaGain
+        const tier    = br?.tier ?? 1
+        const tierDesc = tier >= 3 ? 'III (7 HP → 11 mana)' : tier >= 2 ? 'II (8 HP → 10 mana)' : 'I (10 HP → 10 mana)'
+        UI.showInfoCard({
+          spriteSrc: '',
+          name:   def.name,
+          type:   'Vampire Ability',
+          blurb:  'Sacrifice blood for power. Spend HP to instantly restore mana — a dangerous but vital tool when you need one more ability cast.',
+          details: [
+            { icon: '🩸', label: 'HP Cost',    desc: `${hpCost} HP per use` },
+            { icon: '🔵', label: 'Mana Gain',  desc: `+${manaGain} mana` },
+            { icon: '💀', label: 'Limit',       desc: 'Cannot be used if it would reduce HP to 0 or below' },
+            { icon: '📈', label: 'Mastery',     desc: `Current tier: ${tierDesc}` },
+          ],
+        })
+        return
+      }
       if (ch === 'ranger') {
         const arc = (s.ranger?.upgrades ?? []).includes('ricochet-arc-mastery')
         const rr  = GameController.getRicochetBreakdown()
@@ -476,6 +499,7 @@ async function boot() {
       else if (ch === 'engineer') GameController.teslaTowerAction()
       else if (ch === 'mage') GameController.telekineticThrowAction()
       else if (ch === 'necromancer') GameController.corpseExplosionAction()
+      else if (ch === 'vampire') GameController.mistFormAction()
       else GameController.blindingLightAction()
     },
     () => {
@@ -512,6 +536,23 @@ async function boot() {
           details: [
             { icon: '⚡', label: 'Toggle',     desc: 'Tap to enable/disable — disables Mana Generator when activated' },
             { icon: '📐', label: 'Perimeter',  desc: 'Radius grows with turret level (level 1 = 1, level 2 = 2, level 3 = 3)' },
+          ],
+        })
+        return
+      }
+      if (ch === 'vampire') {
+        if (!(s.vampire?.upgrades ?? []).includes('mist-form')) return
+        const def = VAMPIRE_UPGRADES['mist-form']
+        UI.showInfoCard({
+          spriteSrc: '',
+          name:   def.name,
+          type:   'Vampire Ability',
+          blurb:  'Dissolve into crimson mist. For your next 5 tile flips, Corrupted Blood is fully suspended — you take no HP drain and non-enemy tiles grant no blood back. Pure protection.',
+          details: [
+            { icon: '🔵', label: 'Mana Cost',    desc: `${def.manaCost} mana per use` },
+            { icon: '🌫️', label: 'Duration',     desc: '5 tile flips' },
+            { icon: '🛡️', label: 'Protection',   desc: 'No HP drain per flip while active' },
+            { icon: '⚠️', label: 'Restriction',  desc: 'Non-enemy tiles yield no blood either — pure survival tool' },
           ],
         })
         return
@@ -567,12 +608,36 @@ async function boot() {
     document.getElementById('hud-btn-slot-c'),
     () => {
       const s = GameController.getSave()
-      if ((s.selectedCharacter ?? 'warrior') === 'ranger') GameController.arrowBarrageAction()
+      const ch3 = s.selectedCharacter ?? 'warrior'
+      if (ch3 === 'ranger') GameController.arrowBarrageAction()
+      else if (ch3 === 'vampire') GameController.bloodPactAction()
       else GameController.divineLightAction()
     },
     () => {
       const s = GameController.getSave()
-      if ((s.selectedCharacter ?? 'warrior') !== 'ranger') {
+      const ch4 = s.selectedCharacter ?? 'warrior'
+      if (ch4 === 'vampire') {
+        if (!(s.vampire?.upgrades ?? []).includes('blood-pact')) return
+        const def = VAMPIRE_UPGRADES['blood-pact']
+        const br  = GameController.getBloodPactBreakdown?.()
+        const eqDesc = br?.count > 0
+          ? `${br.count} enem${br.count !== 1 ? 'ies' : 'y'} would be equalized to ${br.avgHp} HP (based on current board).`
+          : 'Equalization preview available during a run with revealed enemies.'
+        UI.showInfoCard({
+          spriteSrc: '',
+          name:   def.name,
+          type:   'Vampire Ability',
+          blurb:  'Add 1 HP to each revealed non-boss enemy, then set all of them to the group average (rounded). Weaklings sustain your drain longer; behemoths are cut down to size.',
+          details: [
+            { icon: '🔵', label: 'Mana Cost',  desc: `${def.manaCost} mana per use` },
+            { icon: '⚖️', label: 'Equalize',   desc: 'All revealed non-boss enemies → rounded average HP' },
+            { icon: '➕', label: '+1 First',    desc: 'Each enemy gains 1 HP before averaging (ensures no instant kills)' },
+            { icon: '🔮', label: 'Preview',     desc: eqDesc },
+          ],
+        })
+        return
+      }
+      if (ch4 !== 'ranger') {
         // Warrior: Divine Light info card
         if (!(s.warrior?.upgrades ?? []).includes('divine-light')) return
         const dl = GameController.getDivineLightBreakdown()
@@ -1524,7 +1589,7 @@ function _renderUpgradeDetail(id, def, isOwned, canAfford) {
   const map      = char.id === 'ranger' ? RANGER_UPGRADES
     : char.id === 'engineer' ? ENGINEER_UPGRADES
       : char.id === 'mage' ? MAGE_UPGRADES
-        : char.id === 'vampire' ? {}
+        : char.id === 'vampire' ? VAMPIRE_UPGRADES
           : char.id === 'necromancer' ? NECROMANCER_UPGRADES
             : WARRIOR_UPGRADES
   const missingPrereq = def.requires && !owned.includes(def.requires)
@@ -1556,7 +1621,9 @@ function _renderUpgradeDetail(id, def, isOwned, canAfford) {
             ? MetaProgression.buyMageUpgrade(s, id)
             : char.id === 'necromancer'
               ? MetaProgression.buyNecromancerUpgrade(s, id)
-              : MetaProgression.buyUpgrade(s, id)
+              : char.id === 'vampire'
+                ? MetaProgression.buyVampireUpgrade(s, id)
+                : MetaProgression.buyUpgrade(s, id)
       if (bought) {
         SaveManager.save(s)
         _selectedUpgradeId = null

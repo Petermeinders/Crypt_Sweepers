@@ -722,6 +722,91 @@ const UI = {
     el.hudSlotA?.classList.toggle('is-strengthen-minion-active', active)
   },
 
+  setBloodTitheBtn(visible, hpCost = 10) {
+    if (!el.hudSlotA) return
+    el.hudSlotA.classList.remove(
+      'is-slam', 'is-slam-active',
+      'is-ricochet', 'is-ricochet-active',
+      'is-engineer-construct',
+      'is-chain-lightning', 'is-chain-lightning-active',
+      'is-strengthen-minion', 'is-strengthen-minion-active',
+    )
+    if (visible) {
+      el.hudSlotA.innerHTML = `
+        <span class="ability-btn-wrap ability-btn-wrap--mana-corner">
+          <span class="ability-btn-emoji" aria-hidden="true">🩸</span>
+          <span class="ability-btn-cost">-${hpCost}❤</span>
+        </span>`
+      el.hudSlotA.title    = `Blood Tithe — spend ${hpCost} HP to gain 10 mana`
+      el.hudSlotA.disabled = false
+      el.hudSlotA.classList.remove('is-placeholder')
+      el.hudSlotA.classList.add('is-blood-tithe')
+    } else if (el.hudSlotA.classList.contains('is-blood-tithe')) {
+      el.hudSlotA.textContent = '···'
+      el.hudSlotA.title       = 'Reserved'
+      el.hudSlotA.disabled    = true
+      el.hudSlotA.classList.add('is-placeholder')
+      el.hudSlotA.classList.remove('is-blood-tithe')
+    }
+  },
+
+  /** Slot B — Vampire Mist Form. flipsRemaining > 0 shows countdown instead of mana cost. */
+  setMistFormBtn(visible, manaCost = 10, flipsRemaining = 0) {
+    if (!el.hudSlotB) return
+    el.hudSlotB.classList.remove(
+      'is-poison-arrow-shot', 'is-poison-arrow-shot-active',
+      'is-blinding-light', 'is-blinding-light-active',
+      'is-engineer-tesla',
+    )
+    if (visible) {
+      const label = flipsRemaining > 0 ? String(flipsRemaining) : String(manaCost)
+      el.hudSlotB.innerHTML = `
+        <span class="ability-btn-wrap ability-btn-wrap--mana-corner">
+          <span class="ability-btn-emoji" aria-hidden="true">🌫️</span>
+          <span class="ability-btn-cost">${label}</span>
+        </span>`
+      el.hudSlotB.title    = flipsRemaining > 0
+        ? `Mist Form active — ${flipsRemaining} flip${flipsRemaining !== 1 ? 's' : ''} remaining`
+        : `Mist Form — 5 protected flips, no HP drain (${manaCost} mana)`
+      el.hudSlotB.disabled = false
+      el.hudSlotB.classList.remove('is-placeholder')
+      el.hudSlotB.classList.add('is-mist-form')
+    } else if (el.hudSlotB.classList.contains('is-mist-form')) {
+      el.hudSlotB.textContent = '···'
+      el.hudSlotB.title       = 'Reserved'
+      el.hudSlotB.disabled    = true
+      el.hudSlotB.classList.add('is-placeholder')
+      el.hudSlotB.classList.remove('is-mist-form', 'is-mist-form-active')
+    }
+  },
+
+  setMistFormActive(active) {
+    el.hudSlotB?.classList.toggle('is-mist-form-active', active)
+  },
+
+  /** Slot C — Vampire Blood Pact */
+  setBloodPactBtn(visible, manaCost = 10) {
+    if (!el.hudSlotC) return
+    el.hudSlotC.classList.remove('is-arrow-barrage', 'is-arrow-barrage-active')
+    if (visible) {
+      el.hudSlotC.innerHTML = `
+        <span class="ability-btn-wrap ability-btn-wrap--mana-corner">
+          <span class="ability-btn-emoji" aria-hidden="true">⚖️</span>
+          <span class="ability-btn-cost">${manaCost}</span>
+        </span>`
+      el.hudSlotC.title    = `Blood Pact — equalize all revealed enemy HP (${manaCost} mana)`
+      el.hudSlotC.disabled = false
+      el.hudSlotC.classList.remove('is-placeholder')
+      el.hudSlotC.classList.add('is-blood-pact')
+    } else if (el.hudSlotC.classList.contains('is-blood-pact')) {
+      el.hudSlotC.textContent = '···'
+      el.hudSlotC.title       = 'Reserved'
+      el.hudSlotC.disabled    = true
+      el.hudSlotC.classList.add('is-placeholder')
+      el.hudSlotC.classList.remove('is-blood-pact')
+    }
+  },
+
   setCorpseExplosionBtn(visible, manaCost = 10) {
     if (!el.hudSlotB) return
     el.hudSlotB.classList.remove(

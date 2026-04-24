@@ -5,7 +5,7 @@ export const ITEM_ICONS_BASE = 'assets/sprites/Items/'
 export const MONSTER_ICONS_BASE = 'assets/sprites/monsters/'
 
 export const MAGIC_CHEST_OPEN_GIF = 'magic-chest-open.gif'
-export const MAGIC_CHEST_GIF_DURATION_MS = 4000
+export const MAGIC_CHEST_GIF_DURATION_MS = 1000
 
 /** Non-enemy tile types */
 export const TILE_TYPE_ICON_FILES = {

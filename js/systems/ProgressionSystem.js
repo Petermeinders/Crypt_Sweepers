@@ -3,6 +3,7 @@ import { RANGER_ABILITIES, RANGER_UPGRADES }   from '../data/ranger.js'
 import { ENGINEER_ABILITIES, ENGINEER_UPGRADES } from '../data/engineer.js'
 import { MAGE_ABILITIES, MAGE_UPGRADES }       from '../data/mage.js'
 import { NECROMANCER_ABILITIES, NECROMANCER_UPGRADES } from '../data/necromancer.js'
+import { VAMPIRE_UPGRADES, VAMPIRE_MASTERY_ABILITIES } from '../data/vampire.js'
 import { WARRIOR_UPGRADES } from '../data/upgrades.js'
 import Logger from '../core/Logger.js'
 
@@ -17,7 +18,7 @@ const ABILITY_MAPS = {
   ranger:      RANGER_ABILITIES,
   engineer:    ENGINEER_ABILITIES,
   mage:        MAGE_ABILITIES,
-  vampire:     STAT_ABILITIES,
+  vampire:     { ...STAT_ABILITIES, ...VAMPIRE_MASTERY_ABILITIES },
   necromancer: NECROMANCER_ABILITIES,
 }
 
@@ -26,7 +27,7 @@ const UPGRADE_MAPS = {
   ranger:      RANGER_UPGRADES,
   engineer:    ENGINEER_UPGRADES,
   mage:        MAGE_UPGRADES,
-  vampire:     {},
+  vampire:     VAMPIRE_UPGRADES,
   necromancer: NECROMANCER_UPGRADES,
 }
 
@@ -214,6 +215,9 @@ function applyAbility(abilityId, player, charKey = 'warrior', ctx = {}) {
       break
     case 'mana-generator-mastery':
       player.manaGeneratorMasteryStacks = (player.manaGeneratorMasteryStacks ?? 0) + 1
+      break
+    case 'blood-tithe-mastery':
+      player.bloodTitheMasteryTier = Math.max(player.bloodTitheMasteryTier ?? 1, effect.tier)
       break
   }
 

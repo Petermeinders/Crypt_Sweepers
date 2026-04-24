@@ -119,3 +119,17 @@ A summary of features and changes added during development.
 
 - Cache version bumped incrementally (v1 → v14) as new assets were added.
 - Precache list updated to include all monster GIFs, effect GIFs, item sprites, and new JS data files.
+
+---
+
+## Vampire Hero
+
+- **Corrupted Blood** — Each tile flip costs 1 HP; each revealed living enemy on the floor returns 1 HP back (net: −1 + enemies visible). High risk / high reward — more monsters = faster recovery.
+- **Dark Eyes** — Passive: each flip reveals category hints (enemy / item / hazard) on unreachable tiles, up to 12 hints per flip.
+- **Sanctuary Fix** — Corrupted Blood is suppressed on the Sanctuary floor so the vampire doesn't bleed out while resting.
+
+### Active Abilities (meta-unlocked, then picked at level-up)
+
+- **Blood Tithe** `🩸` *(Slot A)* — Converts 10 HP into 10 mana. Cannot be used if it would kill the player. Mastery II reduces HP cost to 8; Mastery III drops it to 7 and raises mana gain to 11.
+- **Mist Form** `🌫️` *(Slot B, 10 mana)* — Suspends Corrupted Blood for 5 tile flips: no HP drain per flip, but non-enemy tiles grant no blood either. Button badge counts down remaining flips. Pure protection mechanism.
+- **Blood Pact** `⚖️` *(Slot C, 10 mana)* — Adds 1 HP to every revealed non-boss enemy, then equalizes all of them to the rounded group average. Keeps weak enemies alive longer (sustained draining) while cutting powerful enemies down to size. Bosses are immune.
