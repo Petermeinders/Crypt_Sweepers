@@ -2705,6 +2705,100 @@
   display: none;
 }
 
+#hero-upgrade-detail-cost {
+  font-size: 0.8rem;
+  color: rgba(120, 200, 255, 0.9);
+  letter-spacing: 0.02em;
+}
+
+#hero-upgrade-detail-cost.hidden { display: none; }
+
+#hero-upgrade-detail-masteries {
+  width: 100%;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  padding-top: 10px;
+  margin-top: 2px;
+  text-align: left;
+}
+
+#hero-upgrade-detail-masteries.hidden { display: none; }
+
+.upgrade-masteries-title {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 8px;
+}
+
+.upgrade-mastery-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.upgrade-mastery-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.upgrade-mastery-check {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid rgba(255,255,255,0.25);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 0.6rem;
+  color: transparent;
+}
+
+.upgrade-mastery-check.owned {
+  background: #c8930a;
+  border-color: #c8930a;
+  color: #fff;
+}
+
+.upgrade-mastery-name {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  font-family: sans-serif;
+}
+
+.upgrade-mastery-desc {
+  font-size: 0.68rem;
+  color: rgba(255,255,255,0.4);
+  font-family: sans-serif;
+  line-height: 1.3;
+}
+
+.upgrade-mastery-btn {
+  font-size: 0.68rem;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: rgba(200,147,10,0.15);
+  border: 1px solid rgba(200,147,10,0.4);
+  color: #c8930a;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.upgrade-mastery-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.upgrade-mastery-btn.is-owned {
+  background: rgba(100,200,100,0.1);
+  border-color: rgba(100,200,100,0.3);
+  color: rgba(100,200,100,0.7);
+}
+
 #hero-upgrade-buy-btn {
   margin-top: 4px;
   padding: 10px 20px;

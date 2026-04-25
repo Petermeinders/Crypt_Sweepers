@@ -947,6 +947,63 @@ const UI = {
     el.hudSlotB?.classList.toggle('is-telekinetic-throw-active', active)
   },
 
+  setManaShieldBtn(visible, manaCost = 5, active = false) {
+    if (!el.hudSlotC) return
+    el.hudSlotC.classList.remove(
+      'is-arrow-barrage', 'is-arrow-barrage-active',
+      'is-divine-light', 'is-divine-light-active',
+      'is-blood-pact',
+    )
+    if (visible) {
+      el.hudSlotC.innerHTML = `
+        <span class="ability-btn-wrap ability-btn-wrap--mana-corner">
+          <span class="ability-btn-emoji" aria-hidden="true">🔵</span>
+          <span class="ability-btn-cost">${manaCost}</span>
+        </span>`
+      el.hudSlotC.title    = `Mana Shield — toggle: absorb damage as mana drain (${manaCost} mana to activate)`
+      el.hudSlotC.disabled = false
+      el.hudSlotC.classList.remove('is-placeholder')
+      el.hudSlotC.classList.add('is-mana-shield')
+      el.hudSlotC.classList.toggle('is-mana-shield-active', active)
+    } else if (el.hudSlotC.classList.contains('is-mana-shield')) {
+      el.hudSlotC.textContent = '···'
+      el.hudSlotC.title       = 'Reserved'
+      el.hudSlotC.disabled    = true
+      el.hudSlotC.classList.add('is-placeholder')
+      el.hudSlotC.classList.remove('is-mana-shield', 'is-mana-shield-active')
+    }
+  },
+
+  setManaShieldActive(active) {
+    el.hudSlotC?.classList.toggle('is-mana-shield-active', active)
+  },
+
+  setLifeTapBtn(visible, active = false) {
+    if (!el.hudSlotD) return
+    el.hudSlotD.classList.remove('is-arrow-barrage', 'is-arrow-barrage-active')
+    if (visible) {
+      el.hudSlotD.innerHTML = `
+        <span class="ability-btn-wrap">
+          <span class="ability-btn-emoji" aria-hidden="true">🔴</span>
+        </span>`
+      el.hudSlotD.title    = 'Life Tap — toggle: each flip costs HP, grants mana (free to activate)'
+      el.hudSlotD.disabled = false
+      el.hudSlotD.classList.remove('is-placeholder')
+      el.hudSlotD.classList.add('is-life-tap')
+      el.hudSlotD.classList.toggle('is-life-tap-active', active)
+    } else if (el.hudSlotD.classList.contains('is-life-tap')) {
+      el.hudSlotD.textContent = '···'
+      el.hudSlotD.title       = 'Reserved'
+      el.hudSlotD.disabled    = true
+      el.hudSlotD.classList.add('is-placeholder')
+      el.hudSlotD.classList.remove('is-life-tap', 'is-life-tap-active')
+    }
+  },
+
+  setLifeTapActive(active) {
+    el.hudSlotD?.classList.toggle('is-life-tap-active', active)
+  },
+
   /** mode: 'enemy' | 'dest' | null — drives grid-level highlights. */
   setGridTelekineticThrowMode(mode) {
     const gc = document.getElementById('grid-container')

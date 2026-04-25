@@ -90,8 +90,10 @@ function getChoices(player, charKey = 'warrior', metaUnlockedIds = [], choiceCou
     if (id === 'vitality' || id === 'arcane-reserve' || id === 'scavenger' || id === 'trapfinder') continue
     const reqActive  = def.requiresActive
     const reqAbility = def.requiresAbility
+    const reqMeta    = def.requiresMeta
     if (reqActive && !unlockedActives.has(reqActive)) continue
     if (reqAbility && !acquired.has(reqAbility)) continue
+    if (reqMeta && !meta.has(reqMeta)) continue
     if (!def.repeatable && acquired.has(id)) continue
     pool.push({ id, kind: 'mastery', weight: WEIGHTS.mastery })
   }
@@ -210,6 +212,30 @@ function applyAbility(abilityId, player, charKey = 'warrior', ctx = {}) {
       player.mageActiveStacks[key] = (player.mageActiveStacks[key] ?? 0) + 1
       break
     }
+    case 'warrior-active-mastery': {
+      const key = effect.ability
+      if (!player.warriorActiveStacks) player.warriorActiveStacks = {}
+      player.warriorActiveStacks[key] = (player.warriorActiveStacks[key] ?? 0) + 1
+      break
+    }
+    case 'vampire-active-mastery': {
+      const key = effect.ability
+      if (!player.vampireActiveStacks) player.vampireActiveStacks = {}
+      player.vampireActiveStacks[key] = (player.vampireActiveStacks[key] ?? 0) + 1
+      break
+    }
+    case 'engineer-active-mastery': {
+      const key = effect.ability
+      if (!player.engineerActiveStacks) player.engineerActiveStacks = {}
+      player.engineerActiveStacks[key] = (player.engineerActiveStacks[key] ?? 0) + 1
+      break
+    }
+    case 'strengthen-minion-mastery':
+      player.strengthenMinionStacks = (player.strengthenMinionStacks ?? 0) + 1
+      break
+    case 'turret-kill-heal':
+      player.turretKillHeal = true
+      break
     case 'necro-minion-mastery':
       player.minionMasteryLevel = Math.max(player.minionMasteryLevel ?? 1, effect.level)
       break

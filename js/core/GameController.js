@@ -765,6 +765,26 @@ function _mageActiveDamageMult(abilityKey) {
   return 1 + 0.1 * stacks
 }
 
+function _manaShieldAbsorptionRate() {
+  const stacks = run?.player?.mageActiveStacks?.['mana-shield'] ?? 0
+  return [0.30, 0.45, 0.60][Math.min(stacks, 2)]
+}
+
+function _manaShieldDrainRatio() {
+  const stacks = run?.player?.mageActiveStacks?.['mana-shield'] ?? 0
+  return [1.0, 0.85, 0.70][Math.min(stacks, 2)]
+}
+
+function _lifeTapHpCost() {
+  const stacks = run?.player?.mageActiveStacks?.['life-tap'] ?? 0
+  return stacks >= 1 ? 2 : 1
+}
+
+function _lifeTapMpGain() {
+  const stacks = run?.player?.mageActiveStacks?.['life-tap'] ?? 0
+  return [1, 3, 4][Math.min(stacks, 2)]
+}
+
 /** Legacy alias used by ranger HUD/actions. Now delegates to the unified active-unlock check. */
 function _isRangerActiveUnlocked(abilityKey) {
   if (_isActiveUnlocked(abilityKey, 'ranger')) return true
@@ -780,13 +800,14 @@ function _rangerActiveDamageMult(abilityKey) {
 
 function _refreshRangerActiveHud() {
   if (_charKey() !== 'ranger') return
-  // Clear warrior/engineer slot bindings — otherwise Blinding Light (slot B) survives from a prior Warrior run.
+  // Clear warrior/engineer/mage slot bindings — otherwise Blinding Light (slot B) survives from a prior Warrior run.
   UI.setSlamBtn(false)
   UI.setBlindingLightBtn(false)
   UI.setDivineLightBtn(false)
   UI.setEngineerConstructBtn(false)
   UI.setEngineerManaGeneratorBtn(false)
   UI.setEngineerTeslaBtn(false, 10, false)
+  UI.setLifeTapBtn(false)
   UI.setRicochetBtn(_isRangerActiveUnlocked('ricochet'), RANGER_UPGRADES.ricochet.manaCost)
   UI.setArrowBarrageBtn(
     _isRangerActiveUnlocked('arrow-barrage'),
@@ -811,9 +832,10 @@ function _refreshNecroActiveHud() {
   UI.setRicochetBtn(false, 0)
   UI.setSlamBtn(false)
   UI.setChainLightningBtn?.(false)
+  UI.setLifeTapBtn(false)
   UI.setStrengthenMinionBtn(
     _isNecroActiveUnlocked('strengthen-minion'),
-    NECROMANCER_UPGRADES['strengthen-minion']?.manaCost ?? STRENGTHEN_MINION_COST,
+    _hasNecroMetaUpgrade('strengthen-minion-mastery-3') ? 6 : STRENGTHEN_MINION_COST,
   )
   UI.setCorpseExplosionBtn(
     _isNecroActiveUnlocked('corpse-explosion'),
@@ -834,6 +856,7 @@ function _refreshVampireHud() {
   UI.setSlamBtn(false)
   UI.setChainLightningBtn?.(false)
   UI.setStrengthenMinionBtn(false)
+  UI.setLifeTapBtn(false)
   // Slot A: Blood Tithe
   UI.setBloodTitheBtn(
     _isActiveUnlocked('blood-tithe', 'vampire'),
@@ -848,7 +871,7 @@ function _refreshVampireHud() {
   }
   // Slot C: Blood Pact
   if (_isActiveUnlocked('blood-pact', 'vampire')) {
-    UI.setBloodPactBtn(true, VAMPIRE_UPGRADES['blood-pact'].manaCost)
+    UI.setBloodPactBtn(true, _bloodPactManaCost())
   } else {
     UI.setBloodPactBtn(false)
   }
@@ -1021,6 +1044,14 @@ function _vampireCorruptedBloodAndDarkEyes(tile) {
   if (_mistFormFlipsRemaining > 0) {
     _mistFormFlipsRemaining--
     const floatEl = tile.element ?? document.getElementById('hud-portrait')
+    // M3: heal 3% max HP (min 1) per flip while active
+    const mfStacks = run.player.vampireActiveStacks?.['mist-form'] ?? 0
+    if (mfStacks >= 3) {
+      const mfHeal = Math.max(1, Math.floor(run.player.maxHp * 0.03))
+      run.player.hp = Math.min(run.player.maxHp, run.player.hp + mfHeal)
+      UI.updateHP(run.player.hp, run.player.maxHp)
+      UI.spawnFloat(floatEl, `💚 +${mfHeal}`, 'xp')
+    }
     if (_mistFormFlipsRemaining > 0) {
       UI.spawnFloat(floatEl, `🌫️ ${_mistFormFlipsRemaining} left`, 'xp')
       UI.setMistFormBtn(true, VAMPIRE_UPGRADES['mist-form'].manaCost, _mistFormFlipsRemaining)
@@ -1133,10 +1164,30 @@ function buildRunState() {
     rangerActiveStacks: isRanger
       ? { ricochet: 0, 'arrow-barrage': 0, 'poison-arrow-shot': 0 }
       : undefined,
-    /** Mage: level-up picks for Chain Lightning / Telekinetic Throw — +10% damage per stack for that active. */
+    /** Mage: level-up picks for Chain Lightning / Telekinetic Throw / Mana Shield / Life Tap masteries. */
     mageActiveStacks: isMage
-      ? { 'chain-lightning': 0, 'telekinetic-throw': 0 }
+      ? { 'chain-lightning': 0, 'telekinetic-throw': 0, 'mana-shield': 0, 'life-tap': 0 }
       : undefined,
+    /** Warrior: level-up picks for Divine Light heal tier. */
+    warriorActiveStacks: _charKey() === 'warrior'
+      ? { 'divine-light': 0 }
+      : undefined,
+    /** Vampire: level-up picks for Mist Form duration / Blood Pact mana. */
+    vampireActiveStacks: isVampire
+      ? { 'mist-form': 0, 'blood-pact': 0 }
+      : undefined,
+    /** Engineer: level-up picks for Tesla Tower radius/arc. */
+    engineerActiveStacks: isEngineer
+      ? { 'tesla-tower': 0 }
+      : undefined,
+    /** Necromancer: Strengthen Minion mastery level (HP gain + damage bonus). */
+    strengthenMinionStacks: isNecromancer ? 0 : undefined,
+    /** Engineer: turret heal-on-kill (Turret Mastery III in-run pick). */
+    turretKillHeal: false,
+    /** Mage: Mana Shield toggle state. */
+    manaShieldActive: false,
+    /** Mage: Life Tap toggle state. */
+    lifeTapActive: false,
     retreatPercent:     CONFIG.retreat.goldKeepPercent,
     extraAbilityChoice: false,
     damageTakenMult:    1,
@@ -1216,9 +1267,23 @@ function _engineerTurretDamage(level) {
   return ENGINEER_TURRET.damageByLevel[Math.max(1, Math.min(3, level)) - 1]
 }
 
+function _teslaStacks() {
+  return run?.player?.engineerActiveStacks?.['tesla-tower'] ?? 0
+}
+
+function _teslaRadius() {
+  const s = _teslaStacks()
+  return s >= 3 ? 4 : s >= 2 ? 3 : s >= 1 ? 2 : 1
+}
+
+function _teslaArcChance() {
+  const s = _teslaStacks()
+  return s >= 3 ? 0.75 : s >= 2 ? 0.50 : s >= 1 ? 0.25 : 0
+}
+
 function _inTeslaPerimeter(tr, tile) {
   if (!tr || tile == null) return false
-  return Math.max(Math.abs(tr.row - tile.row), Math.abs(tr.col - tile.col)) === 1
+  return Math.max(Math.abs(tr.row - tile.row), Math.abs(tr.col - tile.col)) <= _teslaRadius()
 }
 
 /** True when Engineer has a live turret deployed on this grid cell (never unflip / re-reveal over it). */
@@ -1484,7 +1549,8 @@ function strengthenMinionAction() {
     UI.setMessage('Strengthen Minion cancelled.')
     return
   }
-  if (run.player.mana < STRENGTHEN_MINION_COST) {
+  const _smCost = _hasNecroMetaUpgrade('strengthen-minion-mastery-3') ? 6 : STRENGTHEN_MINION_COST
+  if (run.player.mana < _smCost) {
     UI.setMessage('Not enough mana for Strengthen Minion!', true)
     return
   }
@@ -1590,7 +1656,8 @@ function _executeCorpseExplosion(rootTile) {
 
     for (const t of ring) {
       if (t.revealed && t.enemyData && !t.enemyData._slain) {
-        _damageEnemyFromCorpseExplosion(t, CORPSE_EXPLOSION_DAMAGE)
+        const ceDmg = CORPSE_EXPLOSION_DAMAGE + (_hasNecroMetaUpgrade('corpse-explosion-mastery-1') ? 1 : 0)
+        _damageEnemyFromCorpseExplosion(t, ceDmg)
       }
       if (hasChain && t.revealed && t.enemyData?._slain && !t.corpseExploded) {
         const k = keyOf(t)
@@ -1689,8 +1756,41 @@ function _engineerTurretAfterReveal(tile) {
   if (td.currentHP <= 0) {
     _gainGold(td.goldDrop ? _rand(...td.goldDrop) : 1, tile.element, true)
     _gainXP(td.xpDrop ?? 0, tile.element)
+    // Turret kill heal (Mastery III in-run pick)
+    if (run.player.turretKillHeal && tr.level >= 3 && tr.hp > 0) {
+      const tkHeal = Math.max(1, Math.floor(run.player.maxHp * 0.03))
+      run.player.hp = Math.min(run.player.maxHp, run.player.hp + tkHeal)
+      UI.updateHP(run.player.hp, run.player.maxHp)
+      UI.spawnFloat(tile.element, `💚 +${tkHeal}`, 'xp')
+    }
     _endCombatVictory(tile)
     return
+  }
+  // Tesla arc: after firing, chance to arc to a second revealed enemy
+  if (tr.mode === 'tesla' && Math.random() < _teslaArcChance()) {
+    const arcTargets = _getActiveTiles().filter(t =>
+      t !== tile && t.revealed && t.enemyData && !t.enemyData._slain
+    )
+    if (arcTargets.length > 0) {
+      const arcTile = arcTargets[Math.floor(Math.random() * arcTargets.length)]
+      arcTile.enemyData.currentHP = Math.max(0, arcTile.enemyData.currentHP - dmg)
+      const turretTileEl = TileEngine.getTile(tr.row, tr.col)?.element
+      setTimeout(() => UI.spawnTeslaArc(turretTileEl, arcTile.element), 120)
+      UI.spawnFloat(arcTile.element, `⚡ ${dmg}`, 'damage')
+      if (arcTile.enemyData.currentHP <= 0) {
+        arcTile.enemyData._slain = true
+        _gainGold(arcTile.enemyData.goldDrop ? _rand(...arcTile.enemyData.goldDrop) : 1, arcTile.element, true)
+        _gainXP(arcTile.enemyData.xpDrop ?? 0, arcTile.element)
+        if (run.player.turretKillHeal && tr.level >= 3 && tr.hp > 0) {
+          const tkHeal = Math.max(1, Math.floor(run.player.maxHp * 0.03))
+          run.player.hp = Math.min(run.player.maxHp, run.player.hp + tkHeal)
+          UI.updateHP(run.player.hp, run.player.maxHp)
+          UI.spawnFloat(arcTile.element, `💚 +${tkHeal}`, 'xp')
+        }
+      } else {
+        UI.updateEnemyHP(arcTile.element, arcTile.enemyData.currentHP)
+      }
+    }
   }
   UI.updateEnemyHP(tile.element, td.currentHP)
   const [dmgMin, dmgMax] = td.dmg ?? CONFIG.enemy.damage
@@ -1840,6 +1940,13 @@ function _engineerManaGeneratorOnReveal(tileEl) {
   if (_charKey() !== 'engineer') return
   if (!run.turret?.hp || !run.turret.manaGeneratorActive) return
   const stacks = run.player.manaGeneratorMasteryStacks ?? 0
+  // M3: when mana is already full, heal 1 HP instead
+  if (stacks >= 3 && run.player.mana >= run.player.maxMana) {
+    run.player.hp = Math.min(run.player.maxHp, run.player.hp + 1)
+    UI.updateHP(run.player.hp, run.player.maxHp)
+    UI.spawnFloat(tileEl, '💚 +1', 'xp')
+    return
+  }
   let gain = 1
   if (stacks >= 2 && Math.random() < 0.25) gain = 3
   else if (stacks >= 1 && Math.random() < 0.25) gain = 2
@@ -1856,6 +1963,7 @@ function _refreshEngineerHud() {
   UI.setPoisonArrowShotBtn(false)
   UI.setBlindingLightBtn(false)
   UI.setDivineLightBtn(false)
+  UI.setLifeTapBtn(false)
   UI.setEngineerManaGeneratorBtn(_isEngineerUpgradeUnlocked('mana-generator'), run.turret?.manaGeneratorActive ?? false)
   UI.setEngineerTeslaBtn(_isEngineerUpgradeUnlocked('tesla-tower'), run.turret?.mode === 'tesla')
 }
@@ -1878,6 +1986,15 @@ function _refreshMageHud() {
   UI.setTelekineticThrowBtn(
     _isMageActiveUnlocked('telekinetic-throw'),
     MAGE_UPGRADES['telekinetic-throw'].manaCost,
+  )
+  UI.setManaShieldBtn(
+    _isMageActiveUnlocked('mana-shield'),
+    MAGE_UPGRADES['mana-shield'].manaCost,
+    run?.player?.manaShieldActive ?? false,
+  )
+  UI.setLifeTapBtn(
+    _isMageActiveUnlocked('life-tap'),
+    run?.player?.lifeTapActive ?? false,
   )
 }
 
@@ -3800,12 +3917,18 @@ function onTileTap(row, col) {
       _cancelStrengthenMinionMode()
       return
     }
-    run.player.mana -= STRENGTHEN_MINION_COST
+    const smStacks = run.player.strengthenMinionStacks ?? 0
+    const smHpGain = smStacks >= 1 ? 10 : 5
+    const smManaCost = _hasNecroMetaUpgrade('strengthen-minion-mastery-3') ? 6 : STRENGTHEN_MINION_COST
+    run.player.mana -= smManaCost
     UI.updateMana(run.player.mana, run.player.maxMana)
-    minion.maxHp += STRENGTHEN_MINION_HP_GAIN
-    minion.hp    += STRENGTHEN_MINION_HP_GAIN
+    minion.maxHp += smHpGain
+    minion.hp    += smHpGain
+    if (smStacks >= 2) {
+      minion.damage = (minion.damage ?? 1) + 1
+    }
     _syncMinionVisual(minion)
-    UI.spawnFloat(tile.element, `❤️ +${STRENGTHEN_MINION_HP_GAIN}`, 'xp')
+    UI.spawnFloat(tile.element, `❤️ +${smHpGain}`, 'xp')
     UI.setMessage(`Your minion grows stronger! (❤️ ${minion.hp}/${minion.maxHp})`)
     _cancelStrengthenMinionMode()
     _saveActiveRun()
@@ -4518,6 +4641,9 @@ async function revealTile(tile) {
   }
   if (_charKey() === 'vampire' && run && !GameState.is(States.DEATH) && !run.atRest) {
     _vampireCorruptedBloodAndDarkEyes(tile)
+  }
+  if (_charKey() === 'mage' && run && !GameState.is(States.DEATH)) {
+    _mageLifeTapOnFlip(tile.element ?? document.getElementById('hud-portrait'))
   }
   // Abyssal Lens: randomly reveal one additional tile per flip (non-recursive)
   if (!tile._lensReveal && run.player.inventory.some(e => e.id === 'abyssal-lens')) {
@@ -5586,13 +5712,18 @@ function abilitySlotAAction() {
 
 function _bloodTitheHpCost() {
   const tier = run?.player?.bloodTitheMasteryTier ?? 1
-  if (tier >= 3) return 7
-  if (tier >= 2) return 8
+  if (tier >= 4) return 7
+  if (tier >= 3) return 8
+  if (tier >= 2) return 9
   return 10
 }
 
 function _bloodTitheManaGain() {
-  return (run?.player?.bloodTitheMasteryTier ?? 1) >= 3 ? 11 : 10
+  const tier = run?.player?.bloodTitheMasteryTier ?? 1
+  if (tier >= 4) return 13
+  if (tier >= 3) return 12
+  if (tier >= 2) return 11
+  return 10
 }
 
 function bloodTitheAction() {
@@ -5600,15 +5731,21 @@ function bloodTitheAction() {
   if (_combatBusy) return
   const hpCost  = _bloodTitheHpCost()
   const manaGain = _bloodTitheManaGain()
-  if (run.player.hp <= hpCost) {
+  const btTier   = run?.player?.bloodTitheMasteryTier ?? 1
+  const btSafety = btTier >= 4
+  if (!btSafety && run.player.hp <= hpCost) {
     UI.setMessage('Not enough HP — Blood Tithe would be lethal!', true)
+    return
+  }
+  if (btSafety && run.player.hp <= 1) {
+    UI.setMessage('Cannot Blood Tithe at 1 HP!', true)
     return
   }
   if (run.player.mana >= run.player.maxMana) {
     UI.setMessage('Mana is already full!', true)
     return
   }
-  run.player.hp -= hpCost
+  run.player.hp = btSafety ? Math.max(1, run.player.hp - hpCost) : run.player.hp - hpCost
   UI.updateHP(run.player.hp, run.player.maxHp)
   UI.spawnFloat(document.getElementById('hud-portrait'), `🩸 −${hpCost} HP`, 'damage')
   const gained = Math.min(manaGain, run.player.maxMana - run.player.mana)
@@ -5634,17 +5771,25 @@ function mistFormAction() {
   run.player.mana = Math.max(0, run.player.mana - cost)
   _markStillWaterAbilityUsed()
   UI.updateMana(run.player.mana, run.player.maxMana)
-  _mistFormFlipsRemaining = 5
+  const mfStacks = run.player.vampireActiveStacks?.['mist-form'] ?? 0
+  _mistFormFlipsRemaining = mfStacks >= 2 ? 8 : mfStacks >= 1 ? 5 : 3
   UI.setMistFormBtn(true, VAMPIRE_UPGRADES['mist-form'].manaCost, _mistFormFlipsRemaining)
   UI.setMistFormActive(true)
-  UI.setMessage('🌫️ Mist Form — next 5 flips protected from blood drain.')
+  UI.setMessage(`🌫️ Mist Form — next ${_mistFormFlipsRemaining} flips protected from blood drain.`)
   EventBus.emit('audio:play', { sfx: 'spell' })
+}
+
+function _bloodPactManaCost() {
+  const stacks = run?.player?.vampireActiveStacks?.['blood-pact'] ?? 0
+  if (stacks >= 2) return 10
+  if (stacks >= 1) return 13
+  return 15
 }
 
 function bloodPactAction() {
   if (!_isActiveUnlocked('blood-pact', 'vampire')) return
   if (_combatBusy) return
-  const cost = _stillWaterManaCost(VAMPIRE_UPGRADES['blood-pact'].manaCost)
+  const cost = _stillWaterManaCost(_bloodPactManaCost())
   if (run.player.mana < cost) {
     UI.setMessage('Not enough mana for Blood Pact!', true)
     return
@@ -5682,6 +5827,15 @@ function bloodPactAction() {
     tile.enemyData.currentHP = avgHp
     if (tile.element) UI.updateEnemyHP(tile.element, avgHp)
     UI.spawnFloat(tile.element, `⚖️ ${avgHp}`, 'xp')
+  }
+
+  // M3: heal 1 HP per enemy affected
+  const bpStacks = run.player.vampireActiveStacks?.['blood-pact'] ?? 0
+  if (bpStacks >= 3) {
+    const healAmt = targets.length
+    run.player.hp = Math.min(run.player.maxHp, run.player.hp + healAmt)
+    UI.updateHP(run.player.hp, run.player.maxHp)
+    UI.spawnFloat(document.getElementById('hud-portrait'), `💚 +${healAmt}`, 'xp')
   }
 
   UI.setMessage(`⚖️ Blood Pact — ${targets.length} enem${targets.length !== 1 ? 'ies' : 'y'} equalized to ${avgHp} HP.`)
@@ -6086,6 +6240,91 @@ function _executeTelekineticThrow(originTile, destTile) {
     _combatBusy = false
   }, 600)
   _saveActiveRun()
+}
+
+function manaShieldAction() {
+  if (!_isMageActiveUnlocked('mana-shield')) return
+  if (_combatBusy) return
+  if (_isCombatCommitmentLocked()) {
+    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
+    return
+  }
+  const ACTIVATION_COST = MAGE_UPGRADES['mana-shield'].manaCost
+  const enabling = !run.player.manaShieldActive
+  if (enabling) {
+    if (run.player.mana < ACTIVATION_COST) {
+      UI.setMessage(`🔵 Not enough mana (need ${ACTIVATION_COST}).`, true)
+      return
+    }
+    run.player.mana -= ACTIVATION_COST
+    UI.updateMana(run.player.mana, run.player.maxMana)
+  }
+  run.player.manaShieldActive = enabling
+  _refreshMageHud()
+  EventBus.emit('audio:play', { sfx: 'confirmClick' })
+  UI.setMessage(enabling ? '🔵 Mana Shield active!' : '🔵 Mana Shield deactivated.')
+  _saveActiveRun()
+}
+
+function lifeTapAction() {
+  if (!_isMageActiveUnlocked('life-tap')) return
+  if (_combatBusy) return
+  if (_isCombatCommitmentLocked()) {
+    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
+    return
+  }
+  const enabling = !run.player.lifeTapActive
+  if (enabling) {
+    const hpCost = _lifeTapHpCost()
+    if (run.player.hp <= hpCost) {
+      UI.setMessage('🔴 Not enough HP to activate Life Tap.', true)
+      return
+    }
+    if (run.player.mana >= run.player.maxMana) {
+      UI.setMessage('🔴 Mana already full.', true)
+      return
+    }
+  }
+  run.player.lifeTapActive = enabling
+  _refreshMageHud()
+  EventBus.emit('audio:play', { sfx: 'confirmClick' })
+  UI.setMessage(enabling ? '🔴 Life Tap active!' : '🔴 Life Tap deactivated.')
+  _saveActiveRun()
+}
+
+function _mageLifeTapOnFlip(tileEl) {
+  if (!run || !run.player.lifeTapActive || _charKey() !== 'mage') return
+  const p = run.player
+  const hpCost = _lifeTapHpCost()
+  const mpGain = _lifeTapMpGain()
+  // Auto-disable if mana is full — M3 keeps active and heals instead
+  const ltStacks = p.mageActiveStacks?.['life-tap'] ?? 0
+  if (p.mana >= p.maxMana) {
+    if (ltStacks >= 3) {
+      if (Math.random() < 0.5) {
+        p.hp = Math.min(p.maxHp, p.hp + 1)
+        UI.updateHP(p.hp, p.maxHp)
+        UI.spawnFloat(tileEl, '+1 HP', 'xp')
+      }
+      return
+    }
+    p.lifeTapActive = false
+    _refreshMageHud()
+    UI.setMessage('🔴 Life Tap: mana full — deactivated.')
+    return
+  }
+  if (p.hp <= hpCost) {
+    p.lifeTapActive = false
+    _refreshMageHud()
+    UI.setMessage('🔴 Life Tap: not enough HP — deactivated.')
+    return
+  }
+  p.hp   = Math.max(1, p.hp - hpCost)
+  p.mana = Math.min(p.maxMana, p.mana + mpGain)
+  UI.updateHP(p.hp, p.maxHp)
+  UI.updateMana(p.mana, p.maxMana)
+  UI.spawnFloat(tileEl, `-${hpCost} HP`, 'damage')
+  UI.spawnFloat(tileEl, `+${mpGain} MP`, 'xp')
 }
 
 /** Re-render a single tile's DOM in-place from its model. For sub-floors we re-render the whole grid. */
@@ -6603,7 +6842,7 @@ function divineLightAction() {
     UI.setLanternTargeting(false)
     _divineLightSelecting = true
     UI.setDivineLightActive(true)
-    UI.setMessage('🌟 Divine Light — tap an enemy to smite it, or tap your portrait to heal 10% HP.')
+    UI.setMessage('🌟 Divine Light — tap an enemy to smite it, or tap your portrait to heal HP.')
   } else {
     _divineLightSelecting = false
     UI.setDivineLightActive(false)
@@ -6624,7 +6863,9 @@ function divineLightHealAction() {
   _markStillWaterAbilityUsed()
   UI.updateMana(run.player.mana, run.player.maxMana)
 
-  const heal = Math.max(1, Math.floor(run.player.maxHp * 0.10))
+  const dlStacks = run.player.warriorActiveStacks?.['divine-light'] ?? 0
+  const dlRate   = dlStacks >= 3 ? 0.15 : dlStacks >= 2 ? 0.10 : dlStacks >= 1 ? 0.05 : 0.03
+  const heal = Math.max(1, Math.floor(run.player.maxHp * dlRate))
   run.player.hp = Math.min(run.player.maxHp, run.player.hp + heal)
   UI.updateHP(run.player.hp, run.player.maxHp)
   UI.setPortraitAnim('attack')
@@ -6857,6 +7098,17 @@ function _endCombatVictory(tile) {
     UI.updateHP(run.player.hp, run.player.maxHp)
   }
 
+  // Engineer Turret Mastery III: heal 3% (min 1) on any kill while turret is active at level 3
+  if (_charKey() === 'engineer' && run.player.turretKillHeal) {
+    const tr = run.turret
+    if (tr?.hp > 0 && tr.level >= 3) {
+      const tkHeal = Math.max(1, Math.floor(run.player.maxHp * 0.03))
+      run.player.hp = Math.min(run.player.maxHp, run.player.hp + tkHeal)
+      UI.updateHP(run.player.hp, run.player.maxHp)
+      UI.spawnFloat(tile.element, `💚 +${tkHeal}`, 'xp')
+    }
+  }
+
   if (run.player.inventory.some(e => e.id === 'vampire-fang')) {
     run.player.hp = Math.min(run.player.maxHp, run.player.hp + 1)
     UI.spawnFloat(tile.element, '+1 HP', 'heal')
@@ -7086,7 +7338,43 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
     UI.spawnFloat(tileEl, '🐰 Lucky!', 'heal')
     return
   }
-  const effective = _computeEffectiveDamageTaken(amount)
+  let effective = _computeEffectiveDamageTaken(amount)
+  // Mana Shield: absorb a portion of damage by draining mana
+  if (_charKey() === 'mage' && run.player.manaShieldActive && run.player.mana > 0) {
+    const rate       = _manaShieldAbsorptionRate()
+    const drainRatio = _manaShieldDrainRatio()
+    const wantAbsorb = Math.max(1, Math.floor(effective * rate))
+    const wantDrain  = Math.max(1, Math.round(wantAbsorb * drainRatio))
+    const actualDrain  = Math.min(run.player.mana, wantDrain)
+    const actualAbsorb = wantDrain > 0 ? Math.min(wantAbsorb, Math.round(wantAbsorb * actualDrain / wantDrain)) : 0
+    run.player.mana -= actualDrain
+    UI.updateMana(run.player.mana, run.player.maxMana)
+    if (actualAbsorb > 0) UI.spawnFloat(tileEl, `-${actualAbsorb} MP`, 'xp')
+    effective = Math.max(0, effective - actualAbsorb)
+    if (run.player.mana <= 0) {
+      run.player.manaShieldActive = false
+      _refreshMageHud()
+      const msStacks = run.player.mageActiveStacks?.['mana-shield'] ?? 0
+      if (msStacks >= 3) {
+        const [dmgMin, dmgMax] = _playerDamageRange(run.player)
+        const explosionDmg = Math.floor((dmgMin + dmgMax) / 2)
+        for (const t of _getActiveTiles()) {
+          if (t.revealed && t.enemyData && !t.enemyData._slain) {
+            t.enemyData.currentHP = Math.max(0, t.enemyData.currentHP - explosionDmg)
+            UI.spawnFloat(t.element, `💥 ${explosionDmg}`, 'damage')
+            if (t.enemyData.currentHP <= 0) t.enemyData._slain = true
+          }
+        }
+        UI.setMessage(`💥 Mana Shield collapsed and exploded for ${explosionDmg} damage!`)
+      } else {
+        UI.setMessage('🔵 Mana Shield collapsed!')
+      }
+    }
+    if (effective <= 0) {
+      UI.updateHP(run.player.hp, run.player.maxHp)
+      return
+    }
+  }
   // Pauper's Crown: drain gold before HP
   if (run.player.inventory?.some(e => e.id === 'paupers-crown')) {
     const goldDrained = Math.min(run.player.gold, effective)
@@ -9009,6 +9297,10 @@ export default {
   poisonArrowShotAction,
   chainLightningAction,
   telekineticThrowAction,
+  manaShieldAction,
+  getManaShieldStacks: () => run?.player?.mageActiveStacks?.['mana-shield'] ?? 0,
+  lifeTapAction,
+  getLifeTapStacks: () => run?.player?.mageActiveStacks?.['life-tap'] ?? 0,
   strengthenMinionAction,
   corpseExplosionAction,
   bloodTitheAction,

@@ -610,12 +610,33 @@ async function boot() {
       const s = GameController.getSave()
       const ch3 = s.selectedCharacter ?? 'warrior'
       if (ch3 === 'ranger') GameController.arrowBarrageAction()
+      else if (ch3 === 'mage') GameController.manaShieldAction()
       else if (ch3 === 'vampire') GameController.bloodPactAction()
       else GameController.divineLightAction()
     },
     () => {
       const s = GameController.getSave()
       const ch4 = s.selectedCharacter ?? 'warrior'
+      if (ch4 === 'mage') {
+        if (!(s.mage?.upgrades ?? []).includes('mana-shield')) return
+        const def = MAGE_UPGRADES['mana-shield']
+        const stacks = GameController.getManaShieldStacks?.() ?? 0
+        const absorptionPct = ['30%', '45%', '60%'][Math.min(stacks, 2)]
+        const drainPct      = ['100%', '85%', '70%'][Math.min(stacks, 2)]
+        UI.showInfoCard({
+          spriteSrc: '',
+          name:   def.name,
+          type:   'Mage Ability',
+          blurb:  'A barrier of solidified mana intercepts incoming blows, draining your mana pool before your HP takes damage. Costs mana to switch on; auto-collapses when mana runs dry.',
+          details: [
+            { icon: '🔵', label: 'Activation',  desc: `${def.manaCost} mana to toggle on` },
+            { icon: '🛡️', label: 'Absorption',  desc: `${absorptionPct} of each hit absorbed (min 1), drained from mana at ${drainPct} efficiency` },
+            { icon: '⚡', label: 'Collapse',     desc: 'Auto-deactivates when mana hits 0; costs 5 mana again to re-enable' },
+            { icon: '📈', label: 'Masteries',   desc: stacks > 0 ? `Mana Shield ${stacks + 1} active (${absorptionPct} absorption, ${drainPct} drain)` : 'Pick Mana Shield 2 & 3 at level-up to improve absorption and drain efficiency' },
+          ],
+        })
+        return
+      }
       if (ch4 === 'vampire') {
         if (!(s.vampire?.upgrades ?? []).includes('blood-pact')) return
         const def = VAMPIRE_UPGRADES['blood-pact']
@@ -672,6 +693,35 @@ async function boot() {
           { icon: '🔵', label: 'Mana Cost', desc: `${vol.manaCost} mana when you fire` },
           { icon: '🎯', label: 'Area',       desc: '3×3 centered on your first tap; confirm on the same tile' },
           { icon: '🏹', label: 'Damage',     desc: dmgLine },
+        ],
+      })
+    }
+  )
+  _wireAbilityHold(
+    document.getElementById('hud-btn-slot-d'),
+    () => {
+      const s = GameController.getSave()
+      const ch5 = s.selectedCharacter ?? 'warrior'
+      if (ch5 === 'mage') GameController.lifeTapAction()
+    },
+    () => {
+      const s = GameController.getSave()
+      if ((s.selectedCharacter ?? 'warrior') !== 'mage') return
+      if (!(s.mage?.upgrades ?? []).includes('life-tap')) return
+      const def = MAGE_UPGRADES['life-tap']
+      const stacks = GameController.getLifeTapStacks?.() ?? 0
+      const hpCost = stacks >= 1 ? 2 : 1
+      const mpGain = [1, 3, 4][Math.min(stacks, 2)]
+      UI.showInfoCard({
+        spriteSrc: '',
+        name:   def.name,
+        type:   'Mage Ability',
+        blurb:  'Convert vitality into arcane energy. Each tile flip drains HP and replenishes mana. Mana Shield does not protect against this drain. Auto-deactivates when mana is full or HP is too low.',
+        details: [
+          { icon: '🆓', label: 'Activation',  desc: 'Free to toggle on and off' },
+          { icon: '🔴', label: 'Per Flip',    desc: `−${hpCost} HP, +${mpGain} MP` },
+          { icon: '⚡', label: 'Auto-off',     desc: 'Deactivates when mana hits max or HP ≤ drain cost' },
+          { icon: '📈', label: 'Masteries',   desc: stacks > 0 ? `Life Tap ${stacks + 1} active (${hpCost} HP → ${mpGain} MP)` : 'Pick Life Tap 2 & 3 at level-up to improve HP-to-MP conversion rate' },
         ],
       })
     }
@@ -1323,10 +1373,7 @@ function _renderHeroUpgradeSimpleSlot(grid, char, id, def, ownedList, xp, isLock
     : def.iconSrc
       ? `<img class="hero-upgrade-icon-img" src="${def.iconSrc}" alt="${def.name}" draggable="false"/>`
       : `<span class="hero-upgrade-icon">${def.icon}</span>`
-  btn.innerHTML = `
-    ${iconHTML}
-    <span class="hero-upgrade-cost">${isOwned ? '✓' : def.xpCost + ' XP'}</span>
-  `
+  btn.innerHTML = iconHTML
   btn.addEventListener('click', () => {
     _selectedUpgradeId = isSelected ? null : id
     const s        = GameController.getSave()
@@ -1386,76 +1433,7 @@ function _renderHeroUpgradeGrid(grid, char, ownedList, xp, isLocked) {
   }
 
   for (const [id, def] of Object.entries(char.upgrades)) {
-    if (char.id === 'ranger' && id === 'ricochet-arc-mastery') continue
-
-    if (char.id === 'ranger' && id === 'ricochet') {
-      const masDef = RANGER_UPGRADES['ricochet-arc-mastery']
-      const hasBase = ownedList.includes('ricochet')
-      const hasMas = ownedList.includes('ricochet-arc-mastery')
-      const comboSelected =
-        _selectedUpgradeId === 'ricochet' || _selectedUpgradeId === 'ricochet-arc-mastery'
-
-      const slot = document.createElement('div')
-      slot.className = 'hero-upgrade-slot hero-upgrade-slot--ricochet-combo'
-        + (hasBase ? ' owned' : '')
-        + (comboSelected ? ' selected' : '')
-
-      slot.innerHTML = `
-        <div class="hero-upgrade-ricochet-inner">
-          <span class="hero-upgrade-icon-stack">
-            <img class="hero-upgrade-icon-bg" src="${def.iconBgSrc}" alt="" draggable="false"/>
-            <img class="hero-upgrade-icon-fg" src="${def.iconSrc}" alt="${def.name}" draggable="false"/>
-          </span>
-          <div class="hero-upgrade-ricochet-tiers">
-            <button type="button" class="hero-upgrade-tier${hasBase ? ' owned' : ''}${_selectedUpgradeId === 'ricochet' ? ' tier-selected' : ''}"
-              data-upgrade-id="ricochet" aria-pressed="${_selectedUpgradeId === 'ricochet' ? 'true' : 'false'}">
-              <span class="hero-upgrade-rchk" aria-hidden="true"></span>
-              <span class="hero-upgrade-tier-meta">
-                <span class="hero-upgrade-tier-label">Ricochet</span>
-                <span class="hero-upgrade-tier-xp">${hasBase ? '✓' : `${def.xpCost} XP`}</span>
-              </span>
-            </button>
-            <button type="button" class="hero-upgrade-tier${hasMas ? ' owned' : ''}${_selectedUpgradeId === 'ricochet-arc-mastery' ? ' tier-selected' : ''}${!hasBase ? ' is-locked' : ''}"
-              data-upgrade-id="ricochet-arc-mastery" ${!hasBase ? 'disabled' : ''}
-              aria-pressed="${_selectedUpgradeId === 'ricochet-arc-mastery' ? 'true' : 'false'}">
-              <span class="hero-upgrade-rchk" aria-hidden="true"></span>
-              <span class="hero-upgrade-tier-meta">
-                <span class="hero-upgrade-tier-label">Mastery</span>
-                <span class="hero-upgrade-tier-xp">${hasMas ? '✓' : `${masDef.xpCost} XP`}</span>
-              </span>
-            </button>
-          </div>
-        </div>`
-
-      const refresh = () => {
-        const s = GameController.getSave()
-        const charSave = _metaCharSave(s, char.id)
-        const locked = _heroIsGoldLocked(s, char)
-        _renderHeroUpgradeGrid(grid, char, charSave.upgrades ?? [], charSave.totalXP ?? 0, locked)
-      }
-
-      slot.querySelectorAll('.hero-upgrade-tier').forEach(tierBtn => {
-        tierBtn.addEventListener('click', e => {
-          e.stopPropagation()
-          const uid = tierBtn.dataset.upgradeId
-          if (tierBtn.disabled) return
-          const isSel = _selectedUpgradeId === uid
-          _selectedUpgradeId = isSel ? null : uid
-          refresh()
-        })
-      })
-
-      slot.querySelector('.hero-upgrade-icon-stack')?.addEventListener('click', e => {
-        e.stopPropagation()
-        const isSel = _selectedUpgradeId === 'ricochet'
-        _selectedUpgradeId = isSel ? null : 'ricochet'
-        refresh()
-      })
-
-      grid.appendChild(slot)
-      continue
-    }
-
+    if (def.masteryOf) continue  // mastery tiers appear in the detail card, not as grid slots
     _renderHeroUpgradeSimpleSlot(grid, char, id, def, ownedList, xp, isLocked)
   }
 
@@ -1570,12 +1548,24 @@ function _renderHeroUpgradeGrid(grid, char, ownedList, xp, isLocked) {
   }
 }
 
+function _buyUpgradeForChar(s, charId, upgradeId) {
+  if (charId === 'ranger')      return MetaProgression.buyRangerUpgrade(s, upgradeId)
+  if (charId === 'engineer')    return MetaProgression.buyEngineerUpgrade(s, upgradeId)
+  if (charId === 'mage')        return MetaProgression.buyMageUpgrade(s, upgradeId)
+  if (charId === 'necromancer') return MetaProgression.buyNecromancerUpgrade(s, upgradeId)
+  if (charId === 'vampire')     return MetaProgression.buyVampireUpgrade(s, upgradeId)
+  return MetaProgression.buyUpgrade(s, upgradeId)
+}
+
 function _renderUpgradeDetail(id, def, isOwned, canAfford) {
-  const backdrop = document.getElementById('hero-upgrade-backdrop')
-  const hintEl   = document.getElementById('hero-upgrade-detail-hint')
+  const backdrop     = document.getElementById('hero-upgrade-backdrop')
+  const hintEl       = document.getElementById('hero-upgrade-detail-hint')
+  const costEl       = document.getElementById('hero-upgrade-detail-cost')
+  const masteriesEl  = document.getElementById('hero-upgrade-detail-masteries')
+  const masteriesListEl = document.getElementById('hero-upgrade-detail-masteries-list')
+
   if (!id || !def) {
     backdrop.classList.add('hidden')
-    hintEl?.classList.add('hidden')
     return
   }
   backdrop.classList.remove('hidden')
@@ -1586,22 +1576,76 @@ function _renderUpgradeDetail(id, def, isOwned, canAfford) {
   const s        = GameController.getSave()
   const charSave = _metaCharSave(s, char.id)
   const owned    = charSave.upgrades ?? []
+  const xp       = charSave.totalXP ?? 0
   const map      = char.id === 'ranger' ? RANGER_UPGRADES
     : char.id === 'engineer' ? ENGINEER_UPGRADES
       : char.id === 'mage' ? MAGE_UPGRADES
         : char.id === 'vampire' ? VAMPIRE_UPGRADES
           : char.id === 'necromancer' ? NECROMANCER_UPGRADES
             : WARRIOR_UPGRADES
+
+  // Cost line
+  if (costEl) {
+    const parts = []
+    if (def.manaCost) parts.push(`${def.manaCost} mana`)
+    if (def.hpCost)   parts.push(`${def.hpCost} HP`)
+    if (parts.length) {
+      costEl.textContent = `Cost: ${parts.join(' / ')} per use`
+      costEl.classList.remove('hidden')
+    } else {
+      costEl.classList.add('hidden')
+    }
+  }
+
+  // Prereq hint
   const missingPrereq = def.requires && !owned.includes(def.requires)
   if (hintEl) {
     if (missingPrereq && !isOwned) {
-      hintEl.textContent = `Requires ${map[def.requires]?.name ?? def.requires} (purchase first).`
+      hintEl.textContent = `Requires ${map[def.requires]?.name ?? def.requires} first.`
       hintEl.classList.remove('hidden')
     } else {
       hintEl.classList.add('hidden')
     }
   }
 
+  // Masteries section
+  const tiers = Object.entries(map).filter(([, d]) => d.masteryOf === id)
+  if (masteriesEl && masteriesListEl) {
+    if (tiers.length > 0) {
+      masteriesListEl.innerHTML = ''
+      tiers.forEach(([tierId, tierDef]) => {
+        const tierOwned    = owned.includes(tierId)
+        const prereqMet    = !tierDef.requires || owned.includes(tierDef.requires)
+        const tierAfford   = !tierOwned && prereqMet && xp >= tierDef.xpCost
+        const row = document.createElement('div')
+        row.className = 'upgrade-mastery-row'
+        row.innerHTML = `
+          <span class="upgrade-mastery-check${tierOwned ? ' owned' : ''}" aria-hidden="true">${tierOwned ? '✓' : ''}</span>
+          <div class="upgrade-mastery-info">
+            <span class="upgrade-mastery-name">${tierDef.name}</span>
+            ${tierDef.desc ? `<span class="upgrade-mastery-desc">${tierDef.desc}</span>` : ''}
+          </div>
+          <button class="upgrade-mastery-btn${tierOwned ? ' is-owned' : ''}" ${tierOwned || !tierAfford ? 'disabled' : ''}>
+            ${tierOwned ? 'Owned' : tierAfford ? `${tierDef.xpCost} XP` : !prereqMet ? 'Locked' : `${tierDef.xpCost} XP`}
+          </button>`
+        if (!tierOwned && tierAfford) {
+          row.querySelector('.upgrade-mastery-btn').addEventListener('click', () => {
+            const sv = GameController.getSave()
+            if (_buyUpgradeForChar(sv, char.id, tierId)) {
+              SaveManager.save(sv)
+              _renderHeroSelect()
+            }
+          })
+        }
+        masteriesListEl.appendChild(row)
+      })
+      masteriesEl.classList.remove('hidden')
+    } else {
+      masteriesEl.classList.add('hidden')
+    }
+  }
+
+  // Base buy button
   const buyBtn = document.getElementById('hero-upgrade-buy-btn')
   if (isOwned) {
     buyBtn.textContent = '✓ Owned'
@@ -1611,21 +1655,10 @@ function _renderUpgradeDetail(id, def, isOwned, canAfford) {
     buyBtn.textContent = `Unlock — ${def.xpCost} XP`
     buyBtn.disabled    = !canAfford
     buyBtn.onclick     = () => {
-      const s      = GameController.getSave()
-      const char   = CHARACTERS[_heroIdx]
-      const bought = char.id === 'ranger'
-        ? MetaProgression.buyRangerUpgrade(s, id)
-        : char.id === 'engineer'
-          ? MetaProgression.buyEngineerUpgrade(s, id)
-          : char.id === 'mage'
-            ? MetaProgression.buyMageUpgrade(s, id)
-            : char.id === 'necromancer'
-              ? MetaProgression.buyNecromancerUpgrade(s, id)
-              : char.id === 'vampire'
-                ? MetaProgression.buyVampireUpgrade(s, id)
-                : MetaProgression.buyUpgrade(s, id)
-      if (bought) {
-        SaveManager.save(s)
+      const sv   = GameController.getSave()
+      const ch   = CHARACTERS[_heroIdx]
+      if (_buyUpgradeForChar(sv, ch.id, id)) {
+        SaveManager.save(sv)
         _selectedUpgradeId = null
         _renderHeroSelect()
       }
