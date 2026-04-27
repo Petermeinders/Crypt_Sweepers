@@ -456,6 +456,7 @@ async function _maybeMouseUnflip(sourceTile) {
     UI.setMessage('A mouse scurries across the floor — a tile is hidden again!')
 
     await TileEngine.unflipAndRerollTile(target, run.floor, { isProtected: _turretDeployedOnTile })
+    if (!run) return
     const patched = TileEngine.patchMainGridTileAt(target.row, target.col, UI.getGridEl(), onTileTap, onTileHold)
     if (!patched) _refreshMainGridDomFromModel()
 
@@ -1075,21 +1076,27 @@ function _vampireCorruptedBloodAndDarkEyes(tile) {
       drainTargets.push(t)
     }
   }
-  // Constant −1 HP per flip; +1 per revealed living monster (net = −1 + M), counted before drain.
-  const netHp = -1 + monsterCount
+  // −1 HP per flip always; +1 per revealed monster beyond the first (need 2 monsters to break even).
+  const netHp = -1 + Math.max(0, monsterCount - 1)
   const floatEl = tile.element ?? document.getElementById('hud-portrait')
   if (netHp > 0) {
     p.hp = Math.min(p.maxHp, p.hp + netHp)
     UI.spawnFloat(floatEl, `🩸 +${netHp} HP`, 'heal')
   } else if (netHp < 0) {
     p.hp = Math.max(0, p.hp + netHp)
+    const dmgTaken = -netHp
+    if (run.telemetry) {
+      run.telemetry.totalDamageTaken += dmgTaken
+      _telemetryBumpDamageTaken(run.floor, dmgTaken)
+      _telemetryBumpDamageSource('corrupted_blood', dmgTaken)
+    }
     UI.spawnFloat(floatEl, `🩸 ${netHp} HP`, 'damage')
   } else {
     UI.spawnFloat(floatEl, '🩸 0', 'xp')
   }
   UI.updateHP(p.hp, p.maxHp)
   if (p.hp <= 0) {
-    _die(null)
+    _die(null, { deathCause: 'corrupted_blood' })
     return
   }
   const pendingPresentations = []
@@ -1295,6 +1302,7 @@ function _turretDeployedOnTile(tile) {
 }
 
 function _syncTurretVisual(constructing = false) {
+  if (!run) return
   const grid = TileEngine.getGrid()
   if (!grid) return
   // Clear turret classes, perimeter, and injected content from all tiles
@@ -1363,7 +1371,7 @@ function _destroyTurret() {
   UI.spawnFloat(document.getElementById('hud-portrait'), `💥 −${backlash} HP`, 'damage')
   _refreshEngineerHud()
   if (run.player.hp <= 0) {
-    _triggerDeath()
+    _die(null, { deathCause: 'turret_destroyed' })
   }
 }
 
@@ -2201,7 +2209,7 @@ function _startFloor() {
   if (run?.player) run.player.navigatorsChartUsed = false
   const resumeSnapshot = !!(run?._resumeGridSnapshot)
   // Hunger Stone: costs 2 HP and grants +1 max damage each floor (skip sanctuary)
-  if (!resumeSnapshot && !run.atRest && run.floor > 1 && run.player.inventory.some(e => e.id === 'hunger-stone')) {
+  if (!resumeSnapshot && run && !run.atRest && run.floor > 1 && run.player.inventory.some(e => e.id === 'hunger-stone')) {
     run.player.damageBonus = (run.player.damageBonus ?? 0) + 1
     run.player.hp = Math.max(1, run.player.hp - 2)
   }
@@ -2239,6 +2247,15 @@ function _startFloor() {
     _tickPoisonArrowDotOnGlobalTurn()
   } else {
     _revealStartTile()
+  }
+  // First-run intro: show once on floor 1 (skipped during bot runs)
+  const _isBot = new URLSearchParams(location.search).has('balanceBot') || new URLSearchParams(location.search).has('testBotOngoing')
+  if (!_isBot && run.floor === 1 && !(_save.settings?.firstRunIntroDismissed)) {
+    UI.showFirstRunIntro(() => {
+      _save.settings = _save.settings ?? {}
+      _save.settings.firstRunIntroDismissed = true
+      SaveManager.save(_save).catch(() => {})
+    })
   }
   // Cracked Compass: reveal exit tile from the start (skip rest floors)
   if (!gridRestored && !run.atRest && run.player.inventory.some(e => e.id === 'cracked-compass')) {
@@ -3668,7 +3685,7 @@ function _subFloorReveal(tile) {
     }
     case 'trap': {
       const trapDmg = _rand(2, 5)
-      _takeDamage(trapDmg, tile.element)
+      _takeDamage(trapDmg, tile.element, false, null, { deathCause: 'trap' })
       _gainXP(CONFIG.xp.perTileReveal, tile.element)
       UI.setSubFloorMessage(`A trap! You take ${trapDmg} damage.`)
       break
@@ -3698,7 +3715,7 @@ function _subFloorReveal(tile) {
       // Toxic gas: deal damage each flip
       if (run.subFloor?.type === 'toxic_gas') {
         const dmg = CONFIG.subFloor.toxicGasDamagePerFlip
-        _takeDamage(dmg, tile.element)
+        _takeDamage(dmg, tile.element, false, null, { deathCause: 'toxic_gas' })
         UI.setSubFloorMessage(`☠️ Gas chokes you — ${dmg} damage! Keep searching for the exit.`)
       } else {
         UI.setSubFloorMessage('Just rubble and dust.')
@@ -4523,7 +4540,9 @@ function _tickPoisonArrowDotOnGlobalTurn(opts = {}) {
       if (!tile.revealed || !tile.enemyData || tile.enemyData._slain) continue
       if (!tile.enemyData.harassPlayer) continue
       const rawDmg = tile.enemyData.harassDmg ?? 1
-      const dmg = _computeEffectiveDamageTaken(rawDmg)
+      // Harass damage scales +1 per 10 floors (floor 1-9 = base, 10-19 = base+1, ...)
+      const harassFloorBonus = Math.floor((run.floor ?? 1) / 10)
+      const dmg = _computeEffectiveDamageTaken(rawDmg + harassFloorBonus)
       totalHarassDmg += dmg
       if (tile.enemyData.enemyId === 'archer_goblin') {
         archerCount++
@@ -4551,9 +4570,10 @@ function _tickPoisonArrowDotOnGlobalTurn(opts = {}) {
     _takeDamage(totalHarassDmg, document.getElementById('hud-portrait'), false, null, {
       enemyAttack: true,
       hapticChannel,
+      deathCause: 'archer_harass',
     })
     const parts = []
-    if (archerCount > 0) parts.push(`🏹 Goblin Archer${archerCount > 1 ? 's fire' : ' fires'} for ${archerCount} dmg!`)
+    if (archerCount > 0) parts.push(`🏹 Goblin Archer${archerCount > 1 ? 's fire' : ' fires'} for ${totalHarassDmg} dmg!`)
     if (batCount > 0) parts.push(`🦇 Shadow Bat${batCount > 1 ? 's attack' : ' attacks'}!`)
     UI.setMessage(parts.join(' ') + ` (${totalHarassDmg} total)`)
   }
@@ -4830,7 +4850,7 @@ function _resolveEffect(tile) {
         if (r.proc) tfNote = ' Trapfinder!'
       }
       EventBus.emit('audio:play', { sfx: 'trap' })
-      _takeDamage(dmg, tile.element)
+      _takeDamage(dmg, tile.element, false, null, { deathCause: 'trap' })
       UI.setMessage(`A trap snaps shut! You take ${dmg} damage${reduced}.${tfNote}`)
       if (!GameState.is(States.DEATH)) UI.showRetreat()
       break
@@ -4961,7 +4981,7 @@ function _resolveEffect(tile) {
         if (!wardensBlock && !reflexDodge) {
           const baseDmg = dmg + (p.inventory.some(e => e.id === 'abyssal-lens') ? 1 : 0)
           const r = _applyRangerTrapfinderMitigation(baseDmg, p)
-          _takeDamage(r.dmg, tile.element, false, null, { enemyAttack: true })
+          _takeDamage(r.dmg, tile.element, false, null, { enemyAttack: true, deathCause: 'fast_enemy' })
         }
         UI.shakeTile(tile.element)
       }
@@ -5132,6 +5152,18 @@ function balanceBotDismissNpcEvent() {
   if (run?.eventTile) {
     _closeEventSession(run.eventTile)
     return true
+  }
+  // No eventTile on run — mark any unresolved event tile on the grid so the bot doesn't re-tap it
+  const grid = TileEngine.getGrid()
+  if (grid) {
+    for (const row of grid) {
+      for (const t of row) {
+        if (t.revealed && t.type === 'event' && !t.eventResolved) {
+          t.eventResolved = true
+          t.element?.classList.remove('event-pending')
+        }
+      }
+    }
   }
   UI.hideEventOverlays()
   if (!GameState.transition(States.FLOOR_EXPLORE)) GameState.set(States.FLOOR_EXPLORE)
@@ -5322,7 +5354,7 @@ function _applyStoryOutcome(outcome, tile) {
   const p = run.player
   switch (outcome.effect) {
     case 'damage':
-      _takeDamage(outcome.effectValue, tile.element)
+      _takeDamage(outcome.effectValue, tile.element, false, null, { deathCause: 'merchant' })
       break
     case 'heal':
       p.hp = Math.min(p.maxHp, p.hp + outcome.effectValue)
@@ -5582,7 +5614,7 @@ function fightAction(tile) {
 
       // Spiked Collar: deal 1 self-damage on every melee hit
       if (run.player.inventory.some(e => e.id === 'spiked-collar')) {
-        _takeDamage(1, tile.element, true)
+        _takeDamage(1, tile.element, true, null, { deathCause: 'spiked_collar' })
         if (GameState.is(States.DEATH)) { _combatBusy = false; return }
       }
 
@@ -5960,7 +5992,7 @@ function _chainLightningDamagePerZap() {
   const avg  = _avgMeleeDamage()
   const unit = Math.max(1, Math.round(avg * CONFIG.ability.ricochetUnitMult))
   const mult = _mageActiveDamageMult('chain-lightning')
-  return Math.max(1, Math.round(unit * 1.5 * mult))
+  return Math.max(CombatResolver.abilityDmgFloor(run.floor), Math.round(unit * 1.5 * mult))
 }
 
 function getChainLightningBreakdown() {
@@ -6082,7 +6114,7 @@ function _executeChainLightning(primary) {
 function _telekineticThrowDamage() {
   const avg  = _avgMeleeDamage()
   const mult = _mageActiveDamageMult('telekinetic-throw')
-  return Math.max(1, Math.round(avg * 3 * mult))
+  return Math.max(CombatResolver.abilityDmgFloor(run.floor), Math.round(avg * 3 * mult))
 }
 
 function getTelekineticThrowBreakdown() {
@@ -7045,10 +7077,12 @@ function _endCombatVictory(tile) {
       UI.updateHP(run.player.hp, run.player.maxHp)
     }
     EventBus.emit('audio:play', { sfx: 'gold' })
+    _telemetryBumpKill(run.floor)
     EventBus.emit('combat:end', { outcome: 'victory' })
     return
   }
 
+  _telemetryBumpKill(run.floor)
   const killEchoKill = _charKey() === 'warrior' && !!(tile.killEchoMarked || tile.senseEvilMarked)
   tile.enemyData._slain = true
   _clearCombatEngagementForTile(tile)
@@ -7297,6 +7331,7 @@ function _nextFloor() {
   UI.setMessage(`🚪 Descending to floor ${run.floor}...`)
   EventBus.emit('run:floorAdvance', { newFloor: run.floor })
   UI.runFloorTransition(3000, () => {
+    if (!run) return
     GameState.set(States.BOOT)
     _startFloor()
   }, run.floor)
@@ -7387,6 +7422,7 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
     if (run.telemetry && hpDmg > 0) {
       run.telemetry.totalDamageTaken += hpDmg
       _telemetryBumpDamageTaken(run.floor, hpDmg)
+      _telemetryBumpDamageSource(opts.deathCause ?? (opts.enemyAttack ? 'combat' : 'other'), hpDmg)
     }
     UI.spawnFloat(tileEl, `-${hpDmg} HP`, 'damage')
   } else {
@@ -7394,6 +7430,7 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
     if (run.telemetry && effective > 0) {
       run.telemetry.totalDamageTaken += effective
       _telemetryBumpDamageTaken(run.floor, effective)
+      _telemetryBumpDamageSource(opts.deathCause ?? (opts.enemyAttack ? 'combat' : 'other'), effective)
     }
     UI.spawnFloat(tileEl, `-${effective} HP`, 'damage')
   }
@@ -7420,7 +7457,26 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
     EventBus.emit('inventory:changed')
     return
   }
-  if (run.player.hp <= 0) { _die(killerData); return }
+  if (run.player.hp <= 0) { _die(killerData, opts.deathCause ? { deathCause: opts.deathCause } : {}); return }
+  // Auto-potion: use a health potion if HP drops below 30% threshold (player setting)
+  if (_save.settings?.autoPotions && run.player.hp > 0) {
+    const ratio = run.player.hp / run.player.maxHp
+    if (ratio < 0.30) {
+      const inv = run.player.inventory
+      const potEntry = inv.find(e => e.id === 'potion-red' && e.qty > 0)
+      if (potEntry) {
+        const healed = Math.min(ITEMS['potion-red'].effect.amount, run.player.maxHp - run.player.hp)
+        if (healed > 0) {
+          run.player.hp += healed
+          potEntry.qty--
+          if (potEntry.qty <= 0) inv.splice(inv.indexOf(potEntry), 1)
+          UI.updateHP(run.player.hp, run.player.maxHp)
+          UI.spawnFloat(tileEl ?? document.getElementById('hud-portrait'), `🧪 Auto +${healed} HP`, 'heal')
+          EventBus.emit('inventory:changed')
+        }
+      }
+    }
+  }
   // Thorn Wrap / Inferno Barbs: reflect damage to attacker
   const hasThorn  = run.player.inventory.some(e => e.id === 'thorn-wrap')
   const hasInferno = run.player.inventory.some(e => e.id === 'inferno-barbs')
@@ -7471,6 +7527,7 @@ function _gainGold(amount, tileEl, fromEnemy = false) {
     return
   }
   run.player.gold += actual
+  _telemetryBumpGold(run.floor, actual)
   UI.spawnFloat(tileEl, `+${actual}🪙`, 'gold')
   UI.updateGold(run.player.gold)
   EventBus.emit('player:goldChange', { amount: actual, newTotal: run.player.gold })
@@ -7677,7 +7734,7 @@ function _slamDamagePerTarget() {
   const avg    = _avgMeleeDamage()
   const stacks = run.player.slamMasteryStacks ?? 0
   const m      = _slamMultFromStacks(stacks)
-  return Math.max(1, Math.round(avg * m))
+  return Math.max(CombatResolver.abilityDmgFloor(run.floor), Math.round(avg * m))
 }
 
 /** For Slam info modal — null if no active run or not warrior. */
@@ -7890,6 +7947,23 @@ function _telemetryBumpDamageDealt(floor, amount) {
   const k = String(floor)
   if (!run.telemetry.damageByFloor[k]) run.telemetry.damageByFloor[k] = { taken: 0, dealt: 0 }
   run.telemetry.damageByFloor[k].dealt += amount
+}
+
+function _telemetryBumpDamageSource(source, amount) {
+  if (!run?.telemetry || amount <= 0) return
+  run.telemetry.damageSources[source] = (run.telemetry.damageSources[source] ?? 0) + amount
+}
+
+function _telemetryBumpKill(floor) {
+  if (!run?.telemetry) return
+  const k = String(floor)
+  run.telemetry.killsByFloor[k] = (run.telemetry.killsByFloor[k] ?? 0) + 1
+}
+
+function _telemetryBumpGold(floor, amount) {
+  if (!run?.telemetry || amount <= 0) return
+  const k = String(floor)
+  run.telemetry.goldByFloor[k] = (run.telemetry.goldByFloor[k] ?? 0) + amount
 }
 
 function _appendFloorSnapshot(trigger) {
@@ -8850,6 +8924,7 @@ function getBalanceBotDiagnostics() {
     hp: run?.player?.hp ?? null,
     maxHp: run?.player?.maxHp ?? null,
     meleeDmg: run?.player ? _playerDamageRange(run.player)[0] : null,
+    hero: _charKey() ?? null,
   }
 }
 

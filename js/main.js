@@ -286,7 +286,8 @@ async function boot() {
 
   if (hasBalanceBot && (balanceBotPreset === 'beginner' || balanceBotPreset === 'end')) {
     const { applyBalanceBotSavePreset } = await import('./dev/balanceBotSavePresets.js')
-    applyBalanceBotSavePreset(save, balanceBotPreset)
+    const balanceBotHero = urlParams.get('balanceBotHero') || 'warrior'
+    applyBalanceBotSavePreset(save, balanceBotPreset, balanceBotHero)
     await SaveManager.save(save)
   }
 
@@ -734,6 +735,7 @@ async function boot() {
     document.getElementById('setting-tile-colors').checked  = s.settings.tileColors ?? false
     document.getElementById('setting-haptic').checked       = s.settings.hapticFeedback ?? true
     document.getElementById('setting-sub-levels').checked   = s.settings.subLevelsEnabled ?? true
+    document.getElementById('setting-auto-potions').checked = s.settings.autoPotions ?? false
     document.getElementById('cheat-god-mode').checked       = c.godMode      ?? false
     document.getElementById('cheat-instant-kill').checked   = c.instantKill  ?? false
     document.getElementById('cheat-999-gold').checked       = c.gold999      ?? false
@@ -820,6 +822,7 @@ async function boot() {
     document.getElementById('setting-tile-colors').checked  = s.settings.tileColors ?? false
     document.getElementById('setting-haptic').checked       = s.settings.hapticFeedback ?? true
     document.getElementById('setting-sub-levels').checked   = s.settings.subLevelsEnabled ?? true
+    document.getElementById('setting-auto-potions').checked = s.settings.autoPotions ?? false
     document.getElementById('cheat-god-mode').checked       = c.godMode      ?? false
     document.getElementById('cheat-instant-kill').checked   = c.instantKill  ?? false
     document.getElementById('cheat-999-gold').checked       = c.gold999      ?? false
@@ -864,6 +867,12 @@ async function boot() {
   document.getElementById('setting-sub-levels').addEventListener('change', e => {
     const s = GameController.getSave()
     s.settings.subLevelsEnabled = e.target.checked
+    SaveManager.save(s)
+  })
+
+  document.getElementById('setting-auto-potions').addEventListener('change', e => {
+    const s = GameController.getSave()
+    s.settings.autoPotions = e.target.checked
     SaveManager.save(s)
   })
 

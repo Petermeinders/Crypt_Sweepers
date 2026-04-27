@@ -27,23 +27,23 @@ import { fileURLToPath } from 'url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
 
-function parseRunsAndPreset(argv2, argv3) {
+const ALL_HEROES = ['warrior', 'ranger', 'mage', 'engineer', 'vampire', 'necromancer']
+
+function parseArgs(argv) {
   let runs = 20
   let preset = null
-  if (argv2 === 'beginner' || argv2 === 'end') {
-    preset = argv2
-    runs = Math.max(1, parseInt(argv3 || '20', 10) || 20)
-  } else if (argv3 === 'beginner' || argv3 === 'end') {
-    runs = Math.max(1, parseInt(argv2 || '20', 10) || 20)
-    preset = argv3
-  } else {
-    runs = Math.max(1, parseInt(argv2 || '20', 10) || 20)
+  let hero = process.env.BALANCE_BOT_HERO || null
+  for (const a of argv) {
+    if (a === 'beginner' || a === 'end') preset = a
+    else if (ALL_HEROES.includes(a)) hero = a
+    else if (/^\d+$/.test(a)) runs = Math.max(1, parseInt(a, 10))
   }
-  return { runs, preset }
+  return { runs, preset, hero }
 }
 
-const { runs, preset: presetFromArgv } = parseRunsAndPreset(process.argv[2], process.argv[3])
+const { runs, preset: presetFromArgv, hero: heroFromArgv } = parseArgs(process.argv.slice(2))
 const balanceBotPreset = process.env.BALANCE_BOT_PRESET || presetFromArgv
+const balanceBotHero = process.env.BALANCE_BOT_HERO || heroFromArgv
 const testBotOngoing = process.env.BALANCE_BOT_ONGOING === '1' || process.env.BALANCE_BOT_ONGOING === 'true'
 const base = (process.env.BALANCE_BOT_URL || 'http://127.0.0.1:3456').replace(/\/$/, '')
 const maxWaitMs = Number(process.env.BALANCE_BOT_TIMEOUT_MS || 900000)
@@ -69,9 +69,15 @@ function throwFirstPageError(pageErrors) {
   throw new Error(String(first))
 }
 
+/** How many consecutive polls with no progress before we declare the bot stuck. */
+const STUCK_POLL_LIMIT = Math.ceil(30000 / Math.max(500, Number(process.env.BALANCE_BOT_POLL_MS || 5000)))
+
 async function waitForReportWithProgress(page, targetRuns, pageErrors) {
   const start = Date.now()
   const deadline = start + maxWaitMs
+
+  let lastProgressKey = null
+  let stuckPolls = 0
 
   while (Date.now() < deadline) {
     throwFirstPageError(pageErrors)
@@ -100,6 +106,23 @@ async function waitForReportWithProgress(page, targetRuns, pageErrors) {
       ? ` | ${d.gameState ?? '?'} run=${d.runActive ? '1' : '0'} f=${d.floor ?? '—'} tiles=${d.tilesRevealed ?? '—'} tap=${d.tapCandidates ?? '?'} use=${d.useItemCandidates ?? '?'}${d.hp != null ? ` hp=${d.hp}/${d.maxHp}` : ''}${d.meleeDmg != null ? ` dmg=${d.meleeDmg}` : ''}${d.combatBusy ? ' combatBusy' : ''}${d.targeting ? ` [${d.targeting}]` : ''}${d.lastBranch ? ` branch=${d.lastBranch}` : ''}${d.preset ? ` preset=${d.preset}` : ''}`
       : ' | (autopilot not ready)'
     console.log(`[balance-bot] ${elapsedSec}s  ${bar}  finished ${state.completed}/${state.target}${extra}`)
+
+    // Stuck detection: force-retreat the current run if no progress for ~30s (rather than aborting the batch)
+    const progressKey = `${state.completed}|${d?.floor ?? '—'}|${d?.tilesRevealed ?? '—'}`
+    if (progressKey === lastProgressKey) {
+      stuckPolls++
+      if (stuckPolls >= STUCK_POLL_LIMIT) {
+        console.warn(`[balance-bot] STUCK for ${stuckPolls} polls — force-retreating current run. State: ${extra.trim()}`)
+        try {
+          await page.evaluate(() => { window.__balanceBotCommand = 'retreat' })
+        } catch (_) { /* ignore — page evaluate failure is non-fatal */ }
+        stuckPolls = 0
+        lastProgressKey = null
+      }
+    } else {
+      lastProgressKey = progressKey
+      stuckPolls = 0
+    }
 
     await sleep(pollMs)
   }
@@ -159,6 +182,9 @@ try {
   if (balanceBotPreset === 'beginner' || balanceBotPreset === 'end') {
     entryUrl.searchParams.set('balanceBotPreset', balanceBotPreset)
   }
+  if (balanceBotHero && ALL_HEROES.includes(balanceBotHero)) {
+    entryUrl.searchParams.set('balanceBotHero', balanceBotHero)
+  }
   const pageUrl = entryUrl.toString()
   console.log(`[balance-bot] Loading ${pageUrl} …`)
 
@@ -185,10 +211,12 @@ try {
   }
 
   mkdirSync(join(root, 'artifacts'), { recursive: true })
-  const outPath = join(root, 'artifacts', 'balance-bot-report.json')
+  const heroTag = balanceBotHero ? `-${balanceBotHero}` : ''
+  const presetTag = balanceBotPreset ? `-${balanceBotPreset}` : ''
+  const outPath = join(root, 'artifacts', `balance-bot-report${heroTag}${presetTag}.json`)
   writeFileSync(outPath, JSON.stringify(report, null, 2))
   console.log('[balance-bot] Wrote', outPath)
-  const ndPath = join(root, 'artifacts', 'balance-bot-runs.ndjson')
+  const ndPath = join(root, 'artifacts', `balance-bot-runs${heroTag}${presetTag}.ndjson`)
   if (Array.isArray(report.runsDetail) && report.runsDetail.length > 0) {
     writeFileSync(ndPath, `${report.runsDetail.map(r => JSON.stringify(r)).join('\n')}\n`)
     console.log('[balance-bot] Wrote', ndPath)

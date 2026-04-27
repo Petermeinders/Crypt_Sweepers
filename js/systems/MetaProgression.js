@@ -54,6 +54,10 @@ export function defaultSave() {
       subLevelsEnabled: true,
       /** Shown once: full-screen war banner intro (bestiary-style) */
       warBannerIntroSeen: false,
+      /** Shown once on floor 1 of the very first run */
+      firstRunIntroDismissed: false,
+      /** Auto-use red potions when HP drops below 30% (off by default) */
+      autoPotions: false,
     },
   }
 }

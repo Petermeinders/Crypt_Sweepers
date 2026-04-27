@@ -4000,6 +4000,33 @@
   min-width: 0;
 }
 
+/* ── First-run intro modal ─────────────────────────── */
+
+.first-run-intro-modal {
+  width: min(460px, 94vw);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.first-run-intro-body p {
+  margin: 0 0 0.8em;
+}
+
+.first-run-intro-body p:last-child {
+  margin-bottom: 0;
+}
+
+.first-run-intro-divider {
+  border: none;
+  border-top: 1px solid rgba(107, 79, 42, 0.5);
+  margin: 14px 0;
+}
+
+.first-run-intro-note {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
 /* ═══════════════════════════════════════════════════
    BESTIARY — in-run discovery + menu catalog
    Parchment / scroll — dungeon field journal aesthetic

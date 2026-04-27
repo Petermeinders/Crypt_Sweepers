@@ -119,4 +119,14 @@ function rollMerchant() {
   return { roll, ...outcomes[1] }
 }
 
-export default { resolveFight, resolveSpell, resolveFlee, resolveFastReveal, rollMerchant }
+/**
+ * Minimum ability damage that scales with floor depth.
+ * Ensures abilities never feel useless even on a low-meta run.
+ * Full-meta players are unaffected (their damage exceeds this floor).
+ * floor 1–9 → 1, floor 10–19 → 2, floor 20–29 → 3, etc.
+ */
+function abilityDmgFloor(floor) {
+  return Math.max(1, Math.floor((floor ?? 1) / 10))
+}
+
+export default { resolveFight, resolveSpell, resolveFlee, resolveFastReveal, rollMerchant, abilityDmgFloor }

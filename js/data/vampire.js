@@ -1,7 +1,7 @@
 // Vampire hero — base stats and tuning knobs (see GameController + CombatResolver).
 
 export const VAMPIRE_BASE = {
-  hp:    45,
+  hp:    40,
   mana:  25,
   /** Fixed melee damage before damageBonus / items (matches hero-select display). */
   damage: 2,

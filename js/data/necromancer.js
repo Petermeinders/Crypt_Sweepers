@@ -8,7 +8,7 @@ export const NECROMANCER_BASE = {
 
 /** Minion stats indexed by mastery level (1 = base, 2 = Mastery I, 3 = Mastery II, 4 = Mastery III). */
 export const NECROMANCER_MINION = {
-  hpByLevel:     [1, 2, 3, 4],
+  hpByLevel:     [2, 3, 4, 5],
   damageByLevel: [1, 1, 2, 2],
 }
 
@@ -26,7 +26,7 @@ export const NECROMANCER_ABILITIES = {
   scavenger:         WARRIOR_ABILITIES.scavenger,
   'minion-mastery-1': {
     name:      'Minion Mastery I',
-    desc:      'Your raised minions grow sturdier — upgraded to 2 HP, 1 damage.',
+    desc:      'Your raised minions grow sturdier — upgraded to 3 HP, 1 damage.',
     icon:      '🦴',
     effect:    { type: 'necro-minion-mastery', level: 2 },
     repeatable: false,
@@ -34,7 +34,7 @@ export const NECROMANCER_ABILITIES = {
   },
   'minion-mastery-2': {
     name:      'Minion Mastery II',
-    desc:      'Your minions reach peak undead power — 3 HP, 2 damage.',
+    desc:      'Your minions reach peak undead power — 4 HP, 2 damage.',
     icon:      '💀',
     effect:    { type: 'necro-minion-mastery', level: 3 },
     repeatable: false,
@@ -43,7 +43,7 @@ export const NECROMANCER_ABILITIES = {
   },
   'minion-mastery-3': {
     name:      'Minion Mastery III',
-    desc:      'Your minions are truly fearsome — 4 HP, 2 damage.',
+    desc:      'Your minions are truly fearsome — 5 HP, 2 damage.',
     icon:      '👑',
     effect:    { type: 'necro-minion-mastery', level: 4 },
     repeatable: false,
@@ -145,14 +145,14 @@ export const NECROMANCER_UPGRADES = {
   },
   'raise-minion-mastery-1': {
     name:     'Raise Minion Mastery I',
-    desc:     'Unlocks Minion Mastery I in level-up picks (2 HP, 1 damage).',
+    desc:     'Unlocks Minion Mastery I in level-up picks (3 HP, 1 damage).',
     icon:     '🦴',
     xpCost:   30,
     effect:   { type: 'mastery-tier-unlock' },
   },
   'raise-minion-mastery-2': {
     name:     'Raise Minion Mastery II',
-    desc:     'Unlocks Minion Mastery II in level-up picks (3 HP, 2 damage).',
+    desc:     'Unlocks Minion Mastery II in level-up picks (4 HP, 2 damage).',
     icon:     '💀',
     xpCost:   50,
     requires: 'raise-minion-mastery-1',
@@ -160,7 +160,7 @@ export const NECROMANCER_UPGRADES = {
   },
   'raise-minion-mastery-3': {
     name:     'Raise Minion Mastery III',
-    desc:     'Unlocks Minion Mastery III in level-up picks (4 HP, 2 damage).',
+    desc:     'Unlocks Minion Mastery III in level-up picks (5 HP, 2 damage).',
     icon:     '👑',
     xpCost:   80,
     requires: 'raise-minion-mastery-2',

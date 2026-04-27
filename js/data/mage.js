@@ -5,7 +5,7 @@
 import { WARRIOR_ABILITIES } from './abilities.js'
 
 export const MAGE_BASE = {
-  hp:     30,
+  hp:     42,
   mana:   60,
   damage: 1,   // base melee; bonuses come from damageBonus
   gold:   0,

@@ -8,6 +8,12 @@ export function createInitialTelemetry() {
     levelSnapshots: [],
     /** @type {Record<string, { taken: number, dealt: number }>} keyed by floor number string */
     damageByFloor: {},
+    /** @type {Record<string, number>} damage taken keyed by source: 'combat','trap','corrupted_blood','fast_enemy','archer_harass','toxic_gas','merchant','turret_destroyed','other' */
+    damageSources: {},
+    /** @type {Record<string, number>} enemy kills per floor, keyed by floor string */
+    killsByFloor: {},
+    /** @type {Record<string, number>} gold collected per floor, keyed by floor string */
+    goldByFloor: {},
     floorSnapshots: [],
     totalDamageTaken: 0,
     totalDamageDealtToEnemies: 0,

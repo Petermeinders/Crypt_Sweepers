@@ -36,8 +36,11 @@ export const CONFIG = {
     fastDamage: [1, 2],
     goldDrop:   [1, 2],
     // Stat scaling per floor: each floor adds this fraction of base stats
-    floorScaleHP:  0.10,       // +10% HP per floor
-    floorScaleDmg: 0.05,       // +5% DMG per floor
+    floorScaleHP:  0.10,       // +10% HP per floor (floors 1–50)
+    floorScaleDmg: 0.05,       // +5% DMG per floor (floors 1–50)
+    // Steeper scaling for floors 51–100 (piecewise linear inflection)
+    floorScaleHP_late:  0.15,  // +15% HP per floor above 50
+    floorScaleDmg_late: 0.075, // +7.5% DMG per floor above 50
   },
 
   spell: {

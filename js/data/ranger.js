@@ -5,7 +5,7 @@
 import { WARRIOR_ABILITIES } from './abilities.js'
 
 export const RANGER_BASE = {
-  hp:      40,
+  hp:      44,
   mana:    35,
   damage:  [1, 1],    // base per strike; variance comes from damageBonus (abilities, chest, etc.)
   gold:    0,

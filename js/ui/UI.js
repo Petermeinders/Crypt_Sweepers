@@ -1806,6 +1806,28 @@ const UI = {
     el.trapModalBackdrop.addEventListener('click', close)
   },
 
+  /** First-run intro: shown once on floor 1. Calls onDismiss when closed. */
+  showFirstRunIntro(onDismiss) {
+    const ov = document.getElementById('first-run-intro-overlay')
+    const okBtn = document.getElementById('first-run-intro-ok')
+    const backdrop = document.getElementById('first-run-intro-backdrop')
+    if (!ov) { onDismiss?.(); return }
+    let done = false
+    const close = () => {
+      if (done) return
+      done = true
+      okBtn.removeEventListener('click', close)
+      backdrop.removeEventListener('click', close)
+      ov.classList.add('hidden')
+      ov.setAttribute('aria-hidden', 'true')
+      onDismiss?.()
+    }
+    ov.classList.remove('hidden')
+    ov.setAttribute('aria-hidden', 'false')
+    okBtn.addEventListener('click', close)
+    backdrop.addEventListener('click', close)
+  },
+
   /** Rope tile: explain escape, then Confirm or Cancel (backdrop = cancel). */
   showRopeModal(onConfirm, onCancel) {
     const ov = el.ropeModalOverlay

@@ -128,6 +128,11 @@ function _tryDismissFloorExploreBlockingUi() {
     document.getElementById('trap-modal-ok')?.click()
     return true
   }
+  const introOverlay = document.getElementById('first-run-intro-overlay')
+  if (introOverlay && !introOverlay.classList.contains('hidden')) {
+    document.getElementById('first-run-intro-ok')?.click()
+    return true
+  }
   const rope = document.getElementById('rope-modal-overlay')
   if (rope && !rope.classList.contains('hidden')) {
     document.getElementById('rope-modal-cancel')?.click()
@@ -339,23 +344,83 @@ function _tileTypeLabel(t) {
   return t.type
 }
 
-/** Random legal tap from candidate list (chest priority). Used by main loop and last-chance deadlock recovery. */
-function _performRandomTapFromCandidates(cands, floor, logTag = '[bot:tap]') {
-  const chestPicks = []
-  const enemyPicks = []
+/**
+ * Hero-aware tap selection. Priority order:
+ *  1. Archers (all heroes) — silence them first to stop the harass chip
+ *  2. Chests
+ *  3. Kill-Echo-marked hidden tiles (Paladin)
+ *  4. Dark-Eyes-hinted hidden tiles (Vampire — known enemy positions to reveal as "batteries")
+ *  5. Everything else
+ *
+ * Vampire special: when HP > 25%, avoid tapping revealed living enemies (keep them as battery).
+ * Prefer revealing new enemies instead so Corrupted Blood heals more per flip.
+ */
+function _performRandomTapFromCandidates(cands, floor, logTag = '[bot:tap]', heroOverride = null) {
+  const diag = GameController.getBalanceBotDiagnostics()
+  const hero = heroOverride ?? diag.hero ?? null
+  const hpRatio = (diag.hp ?? 1) / (diag.maxHp ?? 1)
+  // When commitment-locked to a fight, skip all special priorities — just resolve the combat
+  const locked = diag.combatLocked
+
+  const archerPicks   = []
+  const chestPicks    = []
+  const echoPicks     = []
+  const darkEyePicks  = []
+  const enemyPicks    = []
+
   for (const c of cands) {
     const t = TileEngine.getTile(c.row, c.col)
     if (!t) continue
-    if ((t.type === 'chest' && t.chestReady && !t.chestLooted) || (t.type === 'magic_chest' && t.magicChestReady)) {
+
+    if (t.revealed && t.enemyData && !t.enemyData._slain && t.enemyData.behaviour === 'archer') {
+      // Only prioritize archers that can actually be engaged (have at least one revealed neighbor)
+      const nbrs = TileEngine.getOrthogonalTiles(t.row, t.col)
+      if (nbrs.some(n => n.revealed)) {
+        archerPicks.push(c)
+      } else {
+        enemyPicks.push(c)  // treat as a regular enemy — will be reached organically
+      }
+    } else if ((t.type === 'chest' && t.chestReady && !t.chestLooted) || (t.type === 'magic_chest' && t.magicChestReady)) {
       chestPicks.push(c)
+    } else if (!t.revealed && (t.killEchoMarked || t.senseEvilMarked)) {
+      echoPicks.push(c)
+    } else if (!t.revealed && t.darkEyesHint) {
+      darkEyePicks.push(c)
     } else if (t.revealed && t.enemyData && !t.enemyData._slain) {
       enemyPicks.push(c)
     }
   }
-  const pool = chestPicks.length > 0 ? chestPicks : cands
+
+  // Vampire: when HP is stable, filter out direct combat tiles — revealed enemies are "batteries"
+  let pool
+  if (locked) {
+    // Commitment-locked: only fight revealed enemies (resolve the current engagement)
+    pool = enemyPicks.length > 0 ? enemyPicks : cands
+  } else if (hero === 'vampire' && hpRatio > 0.25) {
+    const nonCombat = cands.filter(c => {
+      const t = TileEngine.getTile(c.row, c.col)
+      return !(t?.revealed && t.enemyData && !t.enemyData._slain && t.enemyData.behaviour !== 'archer')
+    })
+    pool = archerPicks.length > 0 ? archerPicks
+         : chestPicks.length  > 0 ? chestPicks
+         : darkEyePicks.length > 0 ? darkEyePicks
+         : nonCombat.length   > 0 ? nonCombat
+         : cands
+  } else {
+    pool = archerPicks.length  > 0 ? archerPicks
+         : chestPicks.length   > 0 ? chestPicks
+         : hero === 'warrior' && echoPicks.length > 0 ? echoPicks
+         : cands
+  }
+
   const pick = pool[Math.floor(Math.random() * pool.length)]
   const t = TileEngine.getTile(pick.row, pick.col)
-  console.log(`${logTag} floor=${floor} tapping ${_tileTypeLabel(t)} at [${pick.row},${pick.col}] (pool=${pool === chestPicks ? 'chest' : 'all'}, cands=${cands.length}, enemies=${enemyPicks.length})`)
+  const poolLabel = pool === archerPicks  ? 'archer'
+                  : pool === chestPicks   ? 'chest'
+                  : pool === echoPicks    ? 'echo'
+                  : pool === darkEyePicks ? 'darkEye'
+                  : 'all'
+  console.log(`${logTag} floor=${floor} tapping ${_tileTypeLabel(t)} at [${pick.row},${pick.col}] (pool=${poolLabel}, cands=${cands.length}, enemies=${enemyPicks.length})`)
   GameController.onTileTap(pick.row, pick.col)
 }
 
@@ -443,6 +508,18 @@ function tick() {
   /** Which autopilot branch ran this tick — set before every return; flushed in `finally` so debug matches reality. */
   let lastBranch = 'init'
   try {
+    // External command from the Playwright batch script (e.g. stuck recovery)
+    if (window.__balanceBotCommand) {
+      const cmd = window.__balanceBotCommand
+      window.__balanceBotCommand = null
+      if (cmd === 'retreat') {
+        console.warn('[bot:tick] external retreat command received — force-retreating run')
+        GameController.doRetreat('balance-bot-stuck')
+        lastBranch = 'external_retreat'
+        return
+      }
+    }
+
     const ro = document.getElementById('resume-overlay')
     if (ro && !ro.classList.contains('hidden')) {
       lastBranch = 'resume'
@@ -648,7 +725,7 @@ function tick() {
       stuckNoTapTicks = 0
       reachabilityRepaired = false
       lastBranch = 'tap'
-      _performRandomTapFromCandidates(cands, diag.floor, '[bot:tap]')
+      _performRandomTapFromCandidates(cands, diag.floor, '[bot:tap]', diag.hero)
       return
     }
 
@@ -715,7 +792,7 @@ function tick() {
       reachabilityRepaired = false
       lastBranch = 'stuck_last_chance_tap'
       console.warn(`[bot:stuck] last-chance recheck found ${lastChance.length} tap(s) — skipping retreat`)
-      _performRandomTapFromCandidates(lastChance, diag.floor, '[bot:tap:last-chance]')
+      _performRandomTapFromCandidates(lastChance, diag.floor, '[bot:tap:last-chance]', diag.hero)
       return
     }
 
@@ -726,7 +803,7 @@ function tick() {
       stuckNoTapTicks = 0
       reachabilityRepaired = false
       lastBranch = 'stuck_force_unlock_tap'
-      _performRandomTapFromCandidates(afterUnlock, diag.floor, '[bot:tap:force-unlock]')
+      _performRandomTapFromCandidates(afterUnlock, diag.floor, '[bot:tap:force-unlock]', diag.hero)
       return
     }
 

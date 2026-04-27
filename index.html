@@ -238,6 +238,24 @@
     </div>
   </div>
 
+  <!-- ── First-run intro ── -->
+  <div id="first-run-intro-overlay" class="trap-modal-overlay hidden" aria-hidden="true">
+    <div class="trap-modal-backdrop" id="first-run-intro-backdrop" aria-hidden="true"></div>
+    <div class="trap-modal first-run-intro-modal" role="dialog" aria-modal="true" aria-labelledby="first-run-intro-title">
+      <div class="trap-modal-emoji" aria-hidden="true">⚔️</div>
+      <h2 id="first-run-intro-title" class="trap-modal-title">Welcome to Crypt Sweepers</h2>
+      <div class="trap-modal-body first-run-intro-body">
+        <p><strong>Flip tiles</strong> to explore the dungeon. Each tile hides an enemy, trap, treasure, or empty space. Numbers on revealed tiles hint at nearby threats — like Minesweeper.</p>
+        <p><strong>Tap an enemy</strong> to fight. You strike, then they strike. Kill in one hit to skip their counter. Fast enemies ambush on reveal — watch out.</p>
+        <p><strong>Reach the exit</strong> 🚪 on each floor to descend deeper. Death ends the run, but your progress carries over.</p>
+        <hr class="first-run-intro-divider">
+        <p class="first-run-intro-note">💡 <strong>Mana and abilities</strong> don't appear until you unlock them. Visit your hero's upgrade tree between runs to spend earned XP — that's where your power comes from.</p>
+        <p class="first-run-intro-note">🎯 Your first few runs will be tough. That's intentional — each run you'll go a little deeper.</p>
+      </div>
+      <button type="button" id="first-run-intro-ok" class="menu-btn primary">Let's go!</button>
+    </div>
+  </div>
+
   <!-- ── Level-up overlay ── -->
   <div id="level-up-overlay">
     <div id="level-up-title">⬆️ Level Up!</div>
@@ -526,6 +544,17 @@
 
       <div class="settings-row">
         <div class="settings-label">
+          <span class="settings-label-title">Auto-Use Potions</span>
+          <span class="settings-label-desc">Automatically drink a Red Potion when HP drops below 30%</span>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="setting-auto-potions">
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+
+      <div class="settings-row">
+        <div class="settings-label">
           <span class="settings-label-title">Haptic Feedback</span>
           <span class="settings-label-desc">Vibration on tile flips, menu and settings taps, and when you lose HP (mobile). Some browsers (e.g. Firefox on Android) only support this in part or not at all.</span>
         </div>
@@ -762,7 +791,7 @@
         <h2 class="htp-heading">📊 Resources</h2>
         <div class="htp-resource-list">
           <div class="htp-resource"><span class="htp-res-icon">❤️</span><div><strong>HP</strong> — at 0, the run ends. Heal with potions, hearts, camps, and effects.</div></div>
-          <div class="htp-resource"><span class="htp-res-icon">🔵</span><div><strong>Mana</strong> — powers spells and actives; regenerates as you reveal tiles.</div></div>
+          <div class="htp-resource"><span class="htp-res-icon">🔵</span><div><strong>Mana</strong> — powers spells and actives; regenerates as you reveal tiles. <em>Mana and ability buttons only appear once you've unlocked them in your hero's upgrade tree between runs.</em></div></div>
           <div class="htp-resource"><span class="htp-res-icon">⚔️</span><div><strong>Damage</strong> — your attack band; improves from levels, trinkets, and shop.</div></div>
           <div class="htp-resource"><span class="htp-res-icon">🪙</span><div><strong>Gold</strong> — in-run shops and main-menu <strong>Gold Shop</strong> unlocks.</div></div>
           <div class="htp-resource"><span class="htp-res-icon">✨</span><div><strong>XP</strong> — from reveals and kills; level-ups strengthen your hero this run.</div></div>
@@ -831,7 +860,7 @@
           <div class="htp-details-content">
             <div class="htp-meta-list">
               <div class="htp-meta-row"><span>🗡️</span><div><strong>Heroes</strong> — unlock heroes; each has unique tools and <strong>Hero Passives</strong> (see hero carousel).</div></div>
-              <div class="htp-meta-row"><span>⚡</span><div><strong>Class XP tree</strong> — spend XP on that hero’s upgrades (including active abilities as you unlock tiers).</div></div>
+              <div class="htp-meta-row"><span>⚡</span><div><strong>Class XP tree</strong> — spend XP on that hero’s upgrades (including active abilities as you unlock tiers). <strong>Abilities and the mana bar don’t appear in-run until unlocked here.</strong></div></div>
               <div class="htp-meta-row"><span>📜</span><div><strong>Passive Upgrades</strong> — <em>account-wide</em> bonuses (HP, damage, economy) bought with persistent gold — not the same as per-hero passives.</div></div>
               <div class="htp-meta-row"><span>🛒</span><div><strong>Gold Shop</strong> — spend run gold on consumables and unlocks for the <em>next</em> run.</div></div>
             </div>
