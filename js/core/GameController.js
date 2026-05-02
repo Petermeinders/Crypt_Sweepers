@@ -170,12 +170,18 @@ function _rollCommonLoot() {
 
 /** Normal chest: 1% legendary, 2% rare, 1% Smith's Tools, 96% common (no smiths in common pool). */
 function _rollChestLoot() {
-  if (hasItem('')) {
+  if (hasItem('misers-pouch')) {
     return { type: 'gold', amount: _rand(...CONFIG.chest.goldDrop) }
+  }
+  // Delver's Kit: always rare or legendary
+  if (hasItem('delvers-kit')) {
+    return Math.random() < 0.15
+      ? { type: _pickRandom(LEGENDARY_TRINKET_IDS) }
+      : { type: _pickRandom(RARE_TRINKET_IDS) }
   }
   let r = Math.random()
   // Cursed lockpick: bias toward rare/legendary
-  if (hasItem('') && r < 0.15) {
+  if (hasItem('cursed-lockpick') && r < 0.15) {
     r = Math.random() * 0.06  // forces into rare or legendary band
   }
   if (r < 0.01) return { type: _pickRandom(LEGENDARY_TRINKET_IDS) }
@@ -2366,9 +2372,14 @@ function _startFloor() {
     run.killEchoQuota = 1
     _paladinKillEchoApplyMarks(run.floorStartRow, run.floorStartCol, run.killEchoQuota)
   }
-  // Mending Moss: restore 3 HP at start of each new floor (skip floor 1 and sanctuary)
-  if (!gridRestored && !run.atRest && run.floor > 1 && run.player.inventory.some(e => e.id === 'mending-moss')) {
+  // Mending Moss / Living Bramble: restore 3 HP at start of each new floor (skip floor 1 and sanctuary)
+  if (!gridRestored && !run.atRest && run.floor > 1 && (run.player.inventory.some(e => e.id === 'mending-moss') || run.player.inventory.some(e => e.id === 'living-bramble'))) {
     run.player.hp = Math.min(run.player.maxHp, run.player.hp + 3)
+  }
+  // Predator's Edge: +1 max damage per floor, costs 2 HP (same as Hunger Stone)
+  if (!resumeSnapshot && run && !run.atRest && run.floor > 1 && run.player.inventory.some(e => e.id === 'predators-edge')) {
+    run.player.damageBonus = (run.player.damageBonus ?? 0) + 1
+    run.player.hp = Math.max(1, run.player.hp - 2)
   }
   // Twin Fates: coin flip each floor (skip floor 1 and sanctuary)
   if (!gridRestored && !run.atRest && run.floor > 1 && run.player.inventory.some(e => e.id === 'twin-fates')) {
@@ -4544,8 +4555,9 @@ function _tickPoisonArrowDotOnGlobalTurn(opts = {}) {
     }
   }
   const grid = TileEngine.getGrid()
-  const plagueBonus = run.player.inventory?.some(e => e.id === 'plague-rat-skull') ? 1 : 0
-  const pDmg = _scaleOutgoingDamageToEnemy(_poisonArrowUnitDamage()) + plagueBonus
+  const plagueBonus    = run.player.inventory?.some(e => e.id === 'plague-rat-skull') ? 1 : 0
+  const festerBonus   = run.player.inventory?.some(e => e.id === 'festering-wound') ? 2 : 0
+  const pDmg = _scaleOutgoingDamageToEnemy(_poisonArrowUnitDamage()) + plagueBonus + festerBonus
   for (const tile of _getActiveTiles()) {
     if (!tile.revealed || !tile.enemyData || tile.enemyData._slain) continue
     if ((tile.enemyData.poisonTurns ?? 0) <= 0) continue
@@ -4825,7 +4837,10 @@ function _resolveEffect(tile) {
   switch (tile.type) {
 
     case 'empty':
-      if (run.player.inventory.some(e => e.id === 'scavengers-bag') && Math.random() < 0.05) {
+      if (run.player.inventory.some(e => e.id === 'tomb-tithe') || run.player.inventory.some(e => e.id === 'delvers-kit')) {
+        _gainGold(1, tile.element)
+        UI.setMessage('🪦 The tomb pays its tithe — +1 gold.')
+      } else if (run.player.inventory.some(e => e.id === 'scavengers-bag') && Math.random() < 0.05) {
         _gainGold(1, tile.element)
         UI.setMessage("Your scavenger's bag catches a glint — +1 gold!")
       } else {
@@ -5077,6 +5092,12 @@ function _resolveEffect(tile) {
       }
       UI.markTileEnemyAlive(tile.element)
 
+      // Fortune's Fool: auto-reroll enemy stats on reveal (free, no mana cost)
+      if (run.player.inventory.some(e => e.id === 'fortunes-fool')) {
+        TileEngine.refreshEnemyDamageOnTile(tile, run.floor)
+        UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
+        UI.spawnFloat(tile.element, '🤡 Rerolled!', 'xp')
+      }
       // Tongue Snatch: Toad Beast steals 1–5 gold on reveal
       if (tile.enemyData?.tongueSnatch) {
         const snatch = Math.min(p.gold, _rand(1, 5))
@@ -5508,6 +5529,11 @@ function fightAction(tile) {
     playerDmg += 1
     tile.enemyData._duelistFirstMeleeDone = true
   }
+  // Predator's Edge: first hit on each enemy deals double damage
+  if (run.player.inventory.some(e => e.id === 'predators-edge') && !tile.enemyData._predatorFirstHitDone) {
+    playerDmg = playerDmg * 2
+    tile.enemyData._predatorFirstHitDone = true
+  }
   // Whetstone: +1 damage for next N hits
   if ((run.player.whettsoneHits ?? 0) > 0) {
     playerDmg += 1
@@ -5543,6 +5569,10 @@ function fightAction(tile) {
   // Infected Blade: every melee hit poisons the enemy (3 turns)
   if (!killsEnemy && run.player.inventory.some(e => e.id === 'infected-blade')) {
     tile.enemyData.poisonTurns = Math.max(tile.enemyData.poisonTurns ?? 0, 3)
+  }
+  // Festering Wound: every melee hit poisons the enemy (8 turns)
+  if (!killsEnemy && run.player.inventory.some(e => e.id === 'festering-wound')) {
+    tile.enemyData.poisonTurns = Math.max(tile.enemyData.poisonTurns ?? 0, 8)
   }
 
   // Stun: enemy is stunned if stunTurns > 0
@@ -7077,6 +7107,18 @@ function _castSpell(tile) {
     UI.spawnFloat(document.getElementById('hud-portrait'), '🔮 -1 HP', 'damage')
     if (run.player.hp <= 0) { _die(null, { deathCause: 'witching_stone' }); return }
   }
+  // Spell Siphon: each spell costs +2 HP; 40% chance to restore 3 HP
+  if (run.player.inventory.some(e => e.id === 'spell-siphon')) {
+    run.player.hp = Math.max(0, run.player.hp - 2)
+    UI.updateHP(run.player.hp, run.player.maxHp)
+    UI.spawnFloat(document.getElementById('hud-portrait'), '🩸 -2 HP', 'damage')
+    if (run.player.hp <= 0) { _die(null, { deathCause: 'spell_siphon' }); return }
+    if (Math.random() < 0.40) {
+      run.player.hp = Math.min(run.player.maxHp, run.player.hp + 3)
+      UI.updateHP(run.player.hp, run.player.maxHp)
+      UI.spawnFloat(document.getElementById('hud-portrait'), '🩸 +3 HP', 'heal')
+    }
+  }
   _markStillWaterAbilityUsed()
   if (run.player.inventory.some(e => e.id === 'surge-pearl') && Math.random() < 0.20) {
     const refund = Math.floor(effectiveCost / 2)
@@ -7266,6 +7308,26 @@ function _endCombatVictory(tile) {
   if (run.player.inventory.some(e => e.id === 'eagle-eye')) {
     run.player.eagleEyeFreeFlip = true
     UI.spawnFloat(tile.element, '🦅 Free flip!', 'xp')
+  }
+  // Hunter's Instinct: reveal nearest adjacent hidden tile + echo hint all other adjacent tiles
+  if (run.player.inventory.some(e => e.id === 'hunters-instinct')) {
+    const adjs = TileEngine.getOrthogonalTiles(tile.row, tile.col).filter(t => !t.revealed)
+    if (adjs.length > 0) {
+      const nearest = adjs[0]
+      nearest.revealed = true
+      run.tilesRevealed++
+      TileEngine.markReachable(nearest.row, nearest.col, _markReachableUi)
+      if (nearest.element) TileEngine.flipTile(nearest, UI)
+      for (const adj of adjs.slice(1)) {
+        if (!adj.revealed && adj.element) {
+          const cat = _echoCharmCategoryForTileType(adj.type)
+          adj.echoHintCategory = cat
+          adj.element.classList.add('echo-hint')
+          adj.element.dataset.echoHint = cat
+        }
+      }
+      UI.spawnFloat(tile.element, '🐾 Instinct!', 'xp')
+    }
   }
   // Soulbound Blade: +0.1 permanent damage per kill
   if (run.player.inventory.some(e => e.id === 'soulbound-blade')) {
@@ -7562,13 +7624,16 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
       }
     }
   }
-  // Thorn Wrap / Inferno Barbs: reflect damage to attacker
-  const hasThorn  = run.player.inventory.some(e => e.id === 'thorn-wrap')
-  const hasInferno = run.player.inventory.some(e => e.id === 'inferno-barbs')
-  if (killerData && !killerData._slain && (hasThorn || hasInferno)) {
-    const reflectDmg = hasInferno ? 2 : 1
+  // Thorn Wrap / Inferno Barbs / Barbed Mantle / Living Bramble: reflect damage to attacker
+  const hasThorn        = run.player.inventory.some(e => e.id === 'thorn-wrap')
+  const hasInferno      = run.player.inventory.some(e => e.id === 'inferno-barbs')
+  const hasBarbedMantle = run.player.inventory.some(e => e.id === 'barbed-mantle')
+  const hasLivingBramble = run.player.inventory.some(e => e.id === 'living-bramble')
+  if (killerData && !killerData._slain && (hasThorn || hasInferno || hasBarbedMantle || hasLivingBramble)) {
+    const reflectDmg = hasInferno ? 2 : hasBarbedMantle ? 3 : 1
     killerData.currentHP = Math.max(0, killerData.currentHP - reflectDmg)
-    UI.spawnFloat(tileEl, hasInferno ? `🌋 Barbs! −${reflectDmg}` : '🌿 Thorn!', 'heal')
+    const reflectLabel = hasInferno ? `🌋 Barbs! −${reflectDmg}` : hasBarbedMantle ? `🦔 Barbed! −${reflectDmg}` : '🌿 Thorn!'
+    UI.spawnFloat(tileEl, reflectLabel, 'heal')
     if (hasInferno) _applyBurnHit(1)   // Inferno Barbs also burns attacker
     if (killerData.currentHP <= 0) {
       const combatTile = run.activeCombatTile
@@ -7592,11 +7657,15 @@ function _gainGold(amount, tileEl, fromEnemy = false, fromChest = false) {
   let actual = amount
   if (fromEnemy) {
     if (run.player.inventory.some(e => e.id === 'misers-pouch')) actual += 1
+    if (run.player.inventory.some(e => e.id === 'tomb-tithe')) actual += 1
     if (run.player.inventory.some(e => e.id === 'gamblers-mark')) actual = Math.random() < 0.5 ? 0 : actual * 2
+    if (run.player.inventory.some(e => e.id === 'fortunes-fool')) actual *= 2
     if (run.player.inventory.some(e => e.id === 'devils-gambit') && Math.random() < 0.20) actual *= 2
     if (run.player.inventory.some(e => e.id === 'vault-key')) actual += 2
     actual = Math.round(actual)
   }
+  // Fortune's Fool: also doubles chest gold
+  if (fromChest && run.player.inventory.some(e => e.id === 'fortunes-fool')) actual *= 2
   // Floor modifiers: Ancient Cache (chest double gold) and Hungry Dungeon (halve enemy/chest gold)
   if (run.floorModifier?.id === 'ancient-cache' && fromChest) actual *= 2
   if (run.floorModifier?.id === 'hungry-dungeon' && (fromEnemy || fromChest)) actual = Math.max(0, Math.floor(actual / 2))
@@ -7651,16 +7720,23 @@ function _checkFloorModifierOnReveal(tile) {
   }
 }
 
-/** +mana on successful melee strike (not on shield block — see fightAction). Mana ring: 10% double. */
+/** +mana on successful melee strike (not on shield block — see fightAction). Mana ring: 10% double. Mana Crucible: +1 guaranteed. */
 function _gainManaFromMeleeHit(tileEl) {
   if (!run?.player) return
   const add = CONFIG.player.manaPerMeleeHit ?? 0
-  if (add <= 0 || run.player.mana >= run.player.maxMana) return
-  const hasManaRing = run.player.inventory.some(e => e.id === 'mana-ring')
-  const gain = (hasManaRing && Math.random() < 0.10) ? add * 2 : add
+  const hasManaRing     = run.player.inventory.some(e => e.id === 'mana-ring')
+  const hasCrucible     = run.player.inventory.some(e => e.id === 'mana-crucible')
+  let gain = 0
+  if (add > 0) {
+    gain += (hasManaRing && Math.random() < 0.10) ? add * 2 : add
+  }
+  if (hasCrucible) gain += 1
+  if (gain <= 0 || run.player.mana >= run.player.maxMana) return
   run.player.mana = Math.min(run.player.maxMana, run.player.mana + gain)
   if (hasManaRing && gain > add) {
     UI.spawnFloat(tileEl, `+${gain}🔵`, 'mana')
+  } else if (hasCrucible) {
+    UI.spawnFloat(tileEl, '+1🔵', 'mana')
   }
   UI.updateMana(run.player.mana, run.player.maxMana)
 }
@@ -8222,6 +8298,12 @@ async function _addToBackpack(id) {
     run.player.maxMana = (run.player.maxMana ?? CONFIG.player.maxMana) + 10
     UI.updateMana(run.player.mana, run.player.maxMana)
     UI.spawnFloat(document.getElementById('hud-portrait'), '🌰 +10 Mana!', 'mana')
+  }
+  // Mana Crucible: +15 max mana on equip
+  if (id === 'mana-crucible') {
+    run.player.maxMana = (run.player.maxMana ?? CONFIG.player.maxMana) + 15
+    UI.updateMana(run.player.mana, run.player.maxMana)
+    UI.spawnFloat(document.getElementById('hud-portrait'), '🫙 +15 Mana!', 'mana')
   }
   // Sanguine Covenant: +3 dmg, halve max HP on equip
   if (id === 'sanguine-covenant') {
@@ -9317,6 +9399,13 @@ function dropItem(id) {
     run.player.mana = Math.min(run.player.mana, run.player.maxMana)
     UI.updateMana(run.player.mana, run.player.maxMana)
     UI.spawnFloat(document.getElementById('hud-portrait'), '🌰 −10 Mana', 'damage')
+  }
+  // Mana Crucible: revert max mana on drop
+  if (id === 'mana-crucible') {
+    run.player.maxMana = Math.max(1, (run.player.maxMana ?? CONFIG.player.maxMana) - 15)
+    run.player.mana = Math.min(run.player.mana, run.player.maxMana)
+    UI.updateMana(run.player.mana, run.player.maxMana)
+    UI.spawnFloat(document.getElementById('hud-portrait'), '🫙 −15 Mana', 'damage')
   }
   // Sanguine Covenant: revert on drop
   if (id === 'sanguine-covenant') {

@@ -1017,4 +1017,153 @@ export const ITEMS = {
     ],
     effect: { type: 'smoke-bomb' },
   },
+
+  'barbed-mantle': {
+    name:      'Barbed Mantle',
+    rarity:    'merged',
+    icon:      '🦔',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'Every wound you take becomes a wound they share. The thorns grew inward so the steel could grow outward.',
+    details: [
+      { icon: '🌿', label: 'Passive', desc: 'Reflect 3 damage to any enemy that hits you' },
+      { icon: '⚒️', label: 'Forged',  desc: 'Spiked Collar + Thorn Wrap' },
+    ],
+    effect: { type: 'passive-barbed-mantle' },
+  },
+
+  'festering-wound': {
+    name:      'Festering Wound',
+    rarity:    'merged',
+    icon:      '🧫',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'The plague feeds the poison. Eight turns of rot — and each tick bites harder.',
+    details: [
+      { icon: '☠️', label: 'On Hit',  desc: 'Every melee hit poisons the enemy (8 turns)' },
+      { icon: '📈', label: 'Passive', desc: 'Poison deals +2 damage per tick' },
+      { icon: '⚒️', label: 'Forged',  desc: 'Plague Rat Skull + Rusty Nail' },
+    ],
+    effect: { type: 'passive-festering-wound' },
+  },
+
+  'predators-edge': {
+    name:      "Predator's Edge",
+    rarity:    'merged',
+    icon:      '🐆',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'Hunger sharpens the blade. Each floor you go deeper, and every first strike goes twice as deep.',
+    details: [
+      { icon: '⚔️', label: 'Per Floor', desc: '+1 max damage each floor (costs 2 HP — same as Hunger Stone)' },
+      { icon: '💥', label: 'First Hit', desc: 'First melee strike against each enemy deals double damage' },
+      { icon: '⚒️', label: 'Forged',    desc: "Hunger Stone + Duelist's Glove" },
+    ],
+    effect: { type: 'passive-predators-edge' },
+  },
+
+  'tomb-tithe': {
+    name:      'Tomb Tithe',
+    rarity:    'merged',
+    icon:      '🪦',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'The dead pay their dues. Every tile you turn, every enemy you slay — the tomb takes its cut and so do you.',
+    details: [
+      { icon: '🪙', label: 'Empty Tiles', desc: 'Revealing an empty tile always yields 1 gold' },
+      { icon: '🪙', label: 'On Kill',     desc: '+1 gold per enemy kill' },
+      { icon: '⚒️', label: 'Forged',      desc: "Scavenger's Bag + Miser's Pouch" },
+    ],
+    effect: { type: 'passive-tomb-tithe' },
+  },
+
+  'fortunes-fool': {
+    name:      "Fortune's Fool",
+    rarity:    'merged',
+    icon:      '🤡',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'The dice always land in your favor — and the enemies never know what they are until it is too late.',
+    details: [
+      { icon: '🪙', label: 'Gold',   desc: 'All gold rewards are always doubled' },
+      { icon: '🎲', label: 'Reveal', desc: 'Enemies are auto-rerolled when revealed (free, no mana cost)' },
+      { icon: '⚒️', label: 'Forged', desc: "Gambler's Mark + Bone Dice" },
+    ],
+    effect: { type: 'passive-fortunes-fool' },
+  },
+
+  'spell-siphon': {
+    name:      'Spell Siphon',
+    rarity:    'merged',
+    icon:      '🩸',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'The stone drinks mana. The pearl drinks blood. Together they make a loop no mortal should survive.',
+    details: [
+      { icon: '🩸', label: 'Passive', desc: 'Each spell costs an additional 2 HP on top of its mana cost' },
+      { icon: '💚', label: 'Refund',  desc: '40% chance after any spell to restore 3 HP' },
+      { icon: '⚒️', label: 'Forged',  desc: 'Witching Stone + Surge Pearl' },
+    ],
+    effect: { type: 'passive-spell-siphon' },
+  },
+
+  'mana-crucible': {
+    name:      'Mana Crucible',
+    rarity:    'merged',
+    icon:      '🫙',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'More mana than you started with. Every swing fills the vessel a little more.',
+    details: [
+      { icon: '🔵', label: 'On Equip', desc: '+15 max mana' },
+      { icon: '🔵', label: 'Passive',  desc: 'Every melee hit restores 1 mana' },
+      { icon: '⚒️', label: 'Forged',   desc: 'Hollowed Acorn + Mana Ring' },
+    ],
+    effect: { type: 'passive-mana-crucible' },
+  },
+
+  'hunters-instinct': {
+    name:      "Hunter's Instinct",
+    rarity:    'merged',
+    icon:      '🐾',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'A kill echoes forward. The instinct reads the trail before the eyes do.',
+    details: [
+      { icon: '👁️', label: 'On Kill', desc: 'Reveals the nearest adjacent hidden tile' },
+      { icon: '🔔', label: 'On Kill', desc: 'All other adjacent hidden tiles receive an echo hint' },
+      { icon: '⚒️', label: 'Forged',  desc: 'Eagle Eye + Echo Charm' },
+    ],
+    effect: { type: 'passive-hunters-instinct' },
+  },
+
+  'delvers-kit': {
+    name:      "Delver's Kit",
+    rarity:    'merged',
+    icon:      '⛏️',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'The right tools for the job. Every door opens; every crack has something behind it.',
+    details: [
+      { icon: '🎁', label: 'Chests',     desc: 'All chest drops are rare or legendary quality' },
+      { icon: '🪙', label: 'Empty Tiles', desc: 'Revealing an empty tile always yields 1 gold' },
+      { icon: '⚒️', label: 'Forged',      desc: "Cursed Lockpick + Scavenger's Bag" },
+    ],
+    effect: { type: 'passive-delvers-kit' },
+  },
+
+  'living-bramble': {
+    name:      'Living Bramble',
+    rarity:    'merged',
+    icon:      '🌿',
+    spriteSrc: null,
+    stackable: false,
+    blurb:     'The moss softens; the thorns answer. A patient armor that heals between the hits.',
+    details: [
+      { icon: '❤️', label: 'Per Floor', desc: 'Restore 3 HP at the start of each floor' },
+      { icon: '🌿', label: 'Passive',   desc: 'Reflect 1 damage to any enemy that hits you' },
+      { icon: '⚒️', label: 'Forged',    desc: 'Mending Moss + Thorn Wrap' },
+    ],
+    effect: { type: 'passive-living-bramble' },
+  },
 }
