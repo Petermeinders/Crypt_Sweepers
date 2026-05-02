@@ -39,6 +39,7 @@
         <div id="header-title-block">
           <div id="title">Crypt Sweepers</div>
           <div id="floor-info">Floor 1 — The Shallow Dark</div>
+          <div id="floor-modifier-badge" class="hidden"></div>
         </div>
         <div class="header-actions">
           <button type="button" id="retreat-btn" class="hidden" title="Flee the dungeon" aria-label="Flee the dungeon">🚪</button>
@@ -229,12 +230,26 @@
     <div class="trap-modal-backdrop" id="rope-modal-backdrop" aria-hidden="true"></div>
     <div class="trap-modal" role="dialog" aria-modal="true" aria-labelledby="rope-modal-title">
       <div class="trap-modal-emoji" aria-hidden="true">🧵</div>
-      <h2 id="rope-modal-title" class="trap-modal-title">Escape Rope</h2>
+      <h2 id="rope-modal-title" class="trap-modal-title">Gold Vault</h2>
       <div id="rope-modal-body" class="trap-modal-body"></div>
-      <div class="trap-modal-actions">
-        <button type="button" id="rope-modal-cancel" class="menu-btn secondary">Cancel</button>
-        <button type="button" id="rope-modal-confirm" class="menu-btn primary">Climb out</button>
+      <div class="rope-modal-bank-btns">
+        <button type="button" id="rope-modal-bank-50" class="menu-btn secondary">Bank 50%</button>
+        <button type="button" id="rope-modal-bank-75" class="menu-btn secondary">Bank 75%</button>
+        <button type="button" id="rope-modal-bank-100" class="menu-btn primary">Bank 100%</button>
       </div>
+      <button type="button" id="rope-modal-cancel" class="menu-btn secondary rope-modal-cancel-btn">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ── Floor modifier announcement ── -->
+  <div id="floor-modifier-overlay" class="trap-modal-overlay hidden" aria-hidden="true">
+    <div class="trap-modal-backdrop" id="floor-modifier-backdrop" aria-hidden="true"></div>
+    <div class="trap-modal floor-modifier-modal" role="dialog" aria-modal="true" aria-labelledby="floor-modifier-title">
+      <div class="floor-modifier-modal-label">Floor Effect</div>
+      <div id="floor-modifier-modal-icon" class="trap-modal-emoji" aria-hidden="true"></div>
+      <h2 id="floor-modifier-title" class="trap-modal-title"></h2>
+      <div id="floor-modifier-modal-desc" class="trap-modal-body"></div>
+      <button type="button" id="floor-modifier-ok" class="menu-btn primary">Got it</button>
     </div>
   </div>
 
@@ -464,12 +479,13 @@
         <img src="assets/ui/diff-shelf.png" id="diff-shelf-img" alt="difficulty shelf">
 
         <!-- Invisible tap targets over each stone slot -->
-        <button class="diff-btn" data-diff="easy"   aria-label="Easy difficulty"></button>
-        <button class="diff-btn" data-diff="normal" aria-label="Normal difficulty"></button>
-        <button class="diff-btn" data-diff="hard"   aria-label="Hard difficulty"></button>
+        <button class="diff-btn" data-diff="easy"   aria-label="Easy difficulty — keep all XP on death"></button>
+        <button class="diff-btn" data-diff="normal" aria-label="Normal difficulty — keep 50% XP on death"></button>
+        <button class="diff-btn" data-diff="hard"   aria-label="Hard difficulty — keep 10% XP on death"></button>
 
         <!-- Skull sits over the active slot -->
         <div id="diff-skull"><img src="assets/ui/skull.png" alt="skull"></div>
+        <div id="diff-label"></div>
 
         <!-- QR overlaid on the parchment area (bottom-left of shelf image) -->
         <div id="diff-qr-area">

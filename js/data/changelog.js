@@ -4,6 +4,40 @@
  */
 export const CHANGELOG = [
   {
+    dateLabel: 'May 2026',
+    dateIso:   '2026-05-02',
+    version:   'v331',
+    title:     'Floor modifiers, gold vault & difficulty stakes',
+    summary:
+      'Each floor can now carry a curse or boon that changes how you play it, gold banking moves to the sanctuary vault rope, and death now costs you a chunk of your XP depending on difficulty.',
+    items: [
+      {
+        tag:  'New',
+        text: 'Floor modifiers — starting from floor 6 a random curse or boon applies for the whole floor (Cursed Fog, Bloodmoon, Mana Spring, The Hunt, Silence, and more). A modal explains the effect when the floor loads.',
+      },
+      {
+        tag:  'New',
+        text: 'Gold Vault — the sanctuary rope is now a banking station. After each boss you choose to bank 50%, 75%, or 100% of your current gold as safe gold. Banked gold is kept on death; unbanked gold is lost.',
+      },
+      {
+        tag:  'Balance',
+        text: 'XP on death now depends on difficulty: Easy keeps 100%, Normal keeps 50%, Hard keeps 10%.',
+      },
+      {
+        tag:  'Balance',
+        text: 'Campfire tiles still restore HP and mana but no longer auto-bank your gold.',
+      },
+      {
+        tag:  'Fix',
+        text: 'Trinket info cards now require a confirmation tap before dropping, preventing accidental losses.',
+      },
+      {
+        tag:  'Balance',
+        text: 'Mirror of Vanity HP bonus reduced from 20% to 5% of current HP — it was too strong.',
+      },
+    ],
+  },
+  {
     dateLabel: 'Apr 2026',
     dateIso:   '2026-04-21',
     version:   'v252',

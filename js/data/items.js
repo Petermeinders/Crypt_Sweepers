@@ -562,7 +562,7 @@ export const ITEMS = {
     details: [
       { icon: '👁️', label: 'Passive',   desc: 'All enemies on each floor are revealed the moment you enter' },
       { icon: '💔', label: 'Curse',     desc: 'Your max HP is permanently halved while you hold this' },
-      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+      { icon: '🌟', label: 'Legendary', desc: 'Rare drop' },
     ],
     effect: { type: 'passive-forsaken-idol' },
   },
@@ -576,7 +576,7 @@ export const ITEMS = {
     blurb:     'Every fifth blow calls the storm down. The dungeon shakes.',
     details: [
       { icon: '⚡', label: 'Passive',   desc: 'Every 5th melee hit, lightning strikes all revealed living enemies for 20% of your damage (min 1)' },
-      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+      { icon: '🌟', label: 'Legendary', desc: 'Rare drop' },
     ],
     effect: { type: 'passive-stormcallers-fist' },
   },
@@ -588,9 +588,9 @@ export const ITEMS = {
     spriteSrc: 'assets/sprites/Items/mirror-of-vanity.png',
     blurb:     'It shows you at your best — and the reflection strikes for you.',
     details: [
-      { icon: '🪞', label: 'Passive',   desc: '+20% of your current HP added as flat bonus damage to every attack and spell' },
+      { icon: '🪞', label: 'Passive',   desc: '+5% of your current HP added as flat bonus damage to every attack and spell' },
       { icon: '📉', label: 'Note',      desc: 'Bonus shrinks as you take damage — stay healthy to hit hard' },
-      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+      { icon: '🌟', label: 'Legendary', desc: 'Rare drop' },
     ],
     effect: { type: 'passive-mirror-of-vanity' },
   },
@@ -605,7 +605,7 @@ export const ITEMS = {
     details: [
       { icon: '💀', label: 'Passive',   desc: 'On kill: 25% chance — the next enemy you reveal is instantly slain (no combat)' },
       { icon: '🪙', label: 'Note',      desc: 'Instant kills still grant gold and XP' },
-      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+      { icon: '🌟', label: 'Legendary', desc: 'Rare drop' },
     ],
     effect: { type: 'passive-deathmask' },
   },
@@ -619,7 +619,7 @@ export const ITEMS = {
     blurb:     'Written in blood on every page: the lower you fall, the louder the words speak.',
     details: [
       { icon: '📖', label: 'Passive',   desc: 'Spell damage scales with missing HP — full HP = 1×, 50% HP = 2×, near death = up to 3×' },
-      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+      { icon: '🌟', label: 'Legendary', desc: 'Rare drop' },
     ],
     effect: { type: 'passive-traded-codex' },
   },
@@ -634,7 +634,7 @@ export const ITEMS = {
     details: [
       { icon: '🥇', label: 'Passive',   desc: 'Potions found are instantly converted to gold instead' },
       { icon: '🪙', label: 'Bonus',     desc: 'All gold tile and enemy gold rewards are worth 5×' },
-      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+      { icon: '🌟', label: 'Legendary', desc: 'Rare drop' },
     ],
     effect: { type: 'passive-philosophers-coin' },
   },
@@ -724,7 +724,7 @@ export const ITEMS = {
     blurb:     'Still festers with something ancient. Your afflictions spread faster and bite harder.',
     details: [
       { icon: '☠️', label: 'Passive', desc: 'All damage-over-time effects (poison, burn) deal +1 damage per tick' },
-      { icon: '🎲', label: 'Rare',    desc: 'Magic chest only' },
+      { icon: '🎲', label: 'Rare',    desc: 'Rare drop' },
     ],
     effect: { type: 'passive-plague-rat-skull' },
   },
@@ -741,7 +741,7 @@ export const ITEMS = {
     details: [
       { icon: '🪙', label: 'Passive',   desc: 'All damage you take drains gold first instead of HP' },
       { icon: '💔', label: 'Cost',      desc: 'When gold runs out, damage hits HP as normal' },
-      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+      { icon: '🌟', label: 'Legendary', desc: 'Rare drop' },
     ],
     effect: { type: 'passive-paupers-crown' },
   },
@@ -755,7 +755,7 @@ export const ITEMS = {
     blurb:     'It grows with each life it takes. The dungeon is its whetstone.',
     details: [
       { icon: '⚔️', label: 'Passive',   desc: 'Each enemy killed permanently adds +0.1 to your base damage this run' },
-      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+      { icon: '🌟', label: 'Legendary', desc: 'Rare drop' },
     ],
     effect: { type: 'passive-soulbound-blade' },
   },
@@ -769,7 +769,7 @@ export const ITEMS = {
     blurb:     'Fortune and ruin walk side by side. Each floor is a coin flip.',
     details: [
       { icon: '🎴', label: 'Passive',   desc: 'At the start of each floor: 50% chance +4 max HP, 50% chance −2 max HP. Compounding.' },
-      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+      { icon: '🌟', label: 'Legendary', desc: 'Rare drop' },
     ],
     effect: { type: 'passive-twin-fates' },
   },
@@ -784,7 +784,7 @@ export const ITEMS = {
     details: [
       { icon: '🔍', label: 'Passive',   desc: 'All tile types are visible before you reveal them' },
       { icon: '⚡', label: 'Cost',      desc: 'Every tile reveal also randomly reveals one other tile. Revealed enemies deal 1 ambush damage; fast enemies deal +1 more' },
-      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+      { icon: '🌟', label: 'Legendary', desc: 'Rare drop' },
     ],
     effect: { type: 'passive-abyssal-lens' },
   },
@@ -798,7 +798,7 @@ export const ITEMS = {
     blurb:     'It pulses faintly in your palm. Once. Then never again.',
     details: [
       { icon: '💎', label: 'Passive',   desc: 'When you would die, survive with half your max HP restored. One time only — the stone then crumbles.' },
-      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+      { icon: '🌟', label: 'Legendary', desc: 'Rare drop' },
     ],
     effect: { type: 'passive-resurrection-stone' },
   },
@@ -812,7 +812,7 @@ export const ITEMS = {
     blurb:     'Burned into the skin of dungeon wardens. Nothing catches you off guard.',
     details: [
       { icon: '🛡️', label: 'Passive',   desc: 'You are never ambushed — enemies deal no damage when first revealed, regardless of type' },
-      { icon: '🌟', label: 'Legendary', desc: 'Magic chest only' },
+      { icon: '🌟', label: 'Legendary', desc: 'Rare drop' },
     ],
     effect: { type: 'passive-wardens-brand' },
   },

@@ -216,9 +216,9 @@ export const CONFIG = {
   },
 
   difficulty: {
-    easy:   { damageTakenMult: 0.70, xpMult: 0.50, goldMult: 0.50, label: 'Easy'   },
-    normal: { damageTakenMult: 1.00, xpMult: 1.00, goldMult: 1.00, label: 'Normal' },
-    hard:   { damageTakenMult: 1.35, xpMult: 1.25, goldMult: 1.25, label: 'Hard'   },
+    easy:   { damageTakenMult: 0.70, xpMult: 0.50, goldMult: 0.50, label: 'Easy',   xpDeathRetain: 1.0 },
+    normal: { damageTakenMult: 1.00, xpMult: 1.00, goldMult: 1.00, label: 'Normal', xpDeathRetain: 0.5 },
+    hard:   { damageTakenMult: 1.35, xpMult: 1.25, goldMult: 1.25, label: 'Hard',   xpDeathRetain: 0.1 },
   },
 
   // Goblin Merchant dice outcomes (d6)

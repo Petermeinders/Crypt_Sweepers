@@ -154,3 +154,26 @@ html, body {
   letter-spacing: 1px;
   font-style: italic;
 }
+
+#floor-modifier-badge {
+  font-size: 0.65rem;
+  color: #e8b84b;
+  margin-top: 2px;
+  letter-spacing: 0.5px;
+  font-style: italic;
+  cursor: default;
+}
+#floor-modifier-badge.hidden { display: none; }
+
+/* The Hunt: faint skull tint on unrevealed enemy tiles */
+.tile.hunt-marked::after {
+  content: '🎯';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  opacity: 0.35;
+  pointer-events: none;
+}

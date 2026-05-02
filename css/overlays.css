@@ -324,6 +324,47 @@
   color: #fff;
 }
 
+.card-drop-confirm-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-dim, #aaa);
+  margin-bottom: 8px;
+  text-align: center;
+  width: 100%;
+}
+
+.card-drop-confirm-btns {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.card-btn-drop-confirm {
+  border-color: rgba(200, 80, 60, 0.8);
+}
+
+.card-btn-drop-confirm:hover {
+  border-color: rgba(220, 100, 80, 1);
+  color: #fff;
+}
+
+.card-btn-drop-cancel {
+  background: linear-gradient(160deg, rgba(40, 40, 50, 0.95), rgba(20, 20, 30, 0.98));
+  border-color: rgba(100, 100, 120, 0.5);
+  color: #ccc;
+}
+
+.card-btn-drop-cancel:hover {
+  border-color: rgba(160, 160, 180, 0.8);
+  color: #fff;
+}
+
+/* card-actions needs column layout when showing confirmation */
+.card-actions:has(.card-drop-confirm-label) {
+  flex-direction: column;
+  align-items: center;
+}
+
 /* ── Attributes ── */
 .card-attrs {
   display: flex;
@@ -364,6 +405,31 @@
   font-size: 0.68rem;
   color: #8a7050;
   font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ── Floor modifier modal ── */
+.floor-modifier-modal {
+  text-align: center;
+}
+
+.floor-modifier-modal-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #f0c060;
+  margin-bottom: 4px;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.floor-modifier-modal .trap-modal-title {
+  color: #ffe080;
+}
+
+.floor-modifier-modal .trap-modal-body {
+  font-size: 1rem;
+  color: #c8b08a;
+  line-height: 1.5;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -1429,6 +1495,18 @@
 #diff-skull.pos-1 { left: 38%; }
 #diff-skull.pos-2 { left: 67%; }
 
+#diff-label {
+  position: absolute;
+  bottom: -1.4em;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--text-secondary, #aaa);
+  font-family: sans-serif;
+  pointer-events: none;
+}
+
 /* ── QR code on the tan parchment (bottom-left) ── */
 #diff-qr-area {
   position: absolute;
@@ -2051,6 +2129,9 @@
   font-size: 0.85rem;
   font-family: sans-serif;
 }
+
+#run-summary .xp-kept { color: #50c878; font-weight: 700; }
+#run-summary .xp-lost { color: #e05050; }
 
 #run-summary button {
   background: var(--color-back);
@@ -3998,6 +4079,26 @@
   flex: 1 1 120px;
   max-width: none;
   min-width: 0;
+}
+
+/* ── Rope / gold vault modal ──────────────────────── */
+.rope-modal-bank-btns {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.rope-modal-bank-btns .menu-btn {
+  flex: 1 1 80px;
+  min-width: 0;
+}
+
+.rope-modal-cancel-btn {
+  font-size: 0.8rem;
+  opacity: 0.65;
+  padding: 6px 16px;
 }
 
 /* ── First-run intro modal ─────────────────────────── */

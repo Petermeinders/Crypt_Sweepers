@@ -399,23 +399,34 @@ function calcRunXP(runStats) {
 
 function endRun(save, runStats, outcome) {
   const xpEarned = calcRunXP(runStats)
+
+  // On death, only a fraction of XP is kept based on difficulty.
+  // Escape and retreat always retain 100% — you earned it by getting out.
+  let xpRetained = xpEarned
+  if (outcome === 'death') {
+    const diff = save.settings?.difficulty ?? 'normal'
+    const retainRate = CONFIG.difficulty[diff]?.xpDeathRetain ?? 0.5
+    xpRetained = Math.floor(xpEarned * retainRate)
+  }
+  const xpLost = xpEarned - xpRetained
+
   // Credit XP to the correct character
   const char = save.selectedCharacter ?? 'warrior'
   if (char === 'ranger') {
-    save.ranger.totalXP += xpEarned
+    save.ranger.totalXP += xpRetained
   } else if (char === 'engineer') {
-    save.engineer.totalXP += xpEarned
+    save.engineer.totalXP += xpRetained
   } else if (char === 'mage') {
     if (!save.mage) save.mage = { totalXP: 0, upgrades: [] }
-    save.mage.totalXP += xpEarned
+    save.mage.totalXP += xpRetained
   } else if (char === 'vampire') {
     if (!save.vampire) save.vampire = { totalXP: 0, upgrades: [] }
-    save.vampire.totalXP += xpEarned
+    save.vampire.totalXP += xpRetained
   } else if (char === 'necromancer') {
     if (!save.necromancer) save.necromancer = { totalXP: 0, upgrades: [] }
-    save.necromancer.totalXP += xpEarned
+    save.necromancer.totalXP += xpRetained
   } else {
-    save.warrior.totalXP += xpEarned
+    save.warrior.totalXP += xpRetained
   }
 
   let goldBanked = 0
@@ -431,8 +442,8 @@ function endRun(save, runStats, outcome) {
   // Clear shop cart — items were consumed this run
   save.warrior.shopCart = []
 
-  Logger.info(`[MetaProgression] Run ended: +${xpEarned} XP, +${goldBanked} gold banked`)
-  return { xpEarned, goldBanked }
+  Logger.info(`[MetaProgression] Run ended: +${xpEarned} XP earned, +${xpRetained} XP retained (${xpLost} lost), +${goldBanked} gold banked`)
+  return { xpEarned, xpRetained, xpLost, goldBanked }
 }
 
 export default {

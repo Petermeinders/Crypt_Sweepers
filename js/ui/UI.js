@@ -210,7 +210,8 @@ const UI = {
     el.hudPortrait = document.getElementById('hud-portrait')
     el.hudPortraitImg = document.getElementById('hud-portrait-img')
     el.xpBar       = document.getElementById('xp-bar')
-    el.floorInfo   = document.getElementById('floor-info')
+    el.floorInfo          = document.getElementById('floor-info')
+    el.floorModifierBadge = document.getElementById('floor-modifier-badge')
     el.messageBox  = document.getElementById('message-box')
     el.actionBtns  = document.getElementById('action-buttons')
     el.spellBtn    = document.getElementById('spell-btn')
@@ -291,11 +292,7 @@ const UI = {
     el.trapModalTitle     = document.getElementById('trap-modal-title')
     el.trapModalOk        = document.getElementById('trap-modal-ok')
     el.ropeModalOverlay   = document.getElementById('rope-modal-overlay')
-    el.ropeModalBackdrop  = document.getElementById('rope-modal-backdrop')
     el.ropeModalBody      = document.getElementById('rope-modal-body')
-    el.ropeModalTitle     = document.getElementById('rope-modal-title')
-    el.ropeModalConfirm   = document.getElementById('rope-modal-confirm')
-    el.ropeModalCancel    = document.getElementById('rope-modal-cancel')
     el.hudSlotA           = document.getElementById('hud-btn-slot-a')
     el.hudSlotB           = document.getElementById('hud-btn-slot-b')
     el.hudSlotC           = document.getElementById('hud-btn-slot-c')
@@ -1272,6 +1269,19 @@ const UI = {
     btn.setAttribute('aria-hidden', show ? 'false' : 'true')
   },
 
+  setFloorModifier(modifier) {
+    if (!el.floorModifierBadge) return
+    el.floorModifierBadge.textContent = `${modifier.icon} ${modifier.name}`
+    el.floorModifierBadge.title       = modifier.description
+    el.floorModifierBadge.classList.remove('hidden')
+  },
+
+  clearFloorModifier() {
+    if (!el.floorModifierBadge) return
+    el.floorModifierBadge.classList.add('hidden')
+    el.floorModifierBadge.textContent = ''
+  },
+
   updateFloor(floor, opts = {}) {
     if (opts.rest) {
       el.floorInfo.textContent = 'Sanctuary — Rest'
@@ -1753,15 +1763,33 @@ const UI = {
       ${detailsHTML ? `<div class="card-attrs">${detailsHTML}</div>` : ''}
       ${attrHTML ? `<div class="card-attrs">${attrHTML}</div>` : ''}
       ${typeof opts.onDrop === 'function'
-        ? `<div class="card-actions"><button type="button" class="card-btn card-btn-drop">Drop</button></div>`
+        ? `<div class="card-actions"></div>`
         : ''}
     `
 
     if (typeof opts.onDrop === 'function') {
-      el.infoCard.querySelector('.card-btn-drop')?.addEventListener('click', (e) => {
-        e.stopPropagation()
-        opts.onDrop()
-      })
+      const _wireDropBtn = (actions) => {
+        actions.innerHTML = `<button type="button" class="card-btn card-btn-drop">Drop</button>`
+        actions.querySelector('.card-btn-drop').addEventListener('click', (e) => {
+          e.stopPropagation()
+          actions.innerHTML = `
+            <span class="card-drop-confirm-label">Drop this item?</span>
+            <div class="card-drop-confirm-btns">
+              <button type="button" class="card-btn card-btn-drop-confirm">Yes, drop</button>
+              <button type="button" class="card-btn card-btn-drop-cancel">Cancel</button>
+            </div>`
+          actions.querySelector('.card-btn-drop-confirm').addEventListener('click', (e2) => {
+            e2.stopPropagation()
+            opts.onDrop()
+          })
+          actions.querySelector('.card-btn-drop-cancel').addEventListener('click', (e2) => {
+            e2.stopPropagation()
+            _wireDropBtn(actions)
+          })
+        })
+      }
+      const actions = el.infoCard.querySelector('.card-actions')
+      if (actions) _wireDropBtn(actions)
     }
 
     el.infoCardOverlay.classList.add('visible')
@@ -1828,53 +1856,76 @@ const UI = {
     backdrop.addEventListener('click', close)
   },
 
-  /** Rope tile: explain escape, then Confirm or Cancel (backdrop = cancel). */
-  showRopeModal(onConfirm, onCancel) {
-    const ov = el.ropeModalOverlay
-    const info = TILE_BLURBS.rope
-    if (!ov || typeof onConfirm !== 'function') {
-      onConfirm?.()
-      return
+  showFloorModifierModal(modifier, onDismiss) {
+    const ov     = document.getElementById('floor-modifier-overlay')
+    const okBtn  = document.getElementById('floor-modifier-ok')
+    const backdrop = document.getElementById('floor-modifier-backdrop')
+    if (!ov) { onDismiss?.(); return }
+    document.getElementById('floor-modifier-modal-icon').textContent = modifier.icon
+    document.getElementById('floor-modifier-title').textContent      = modifier.name
+    document.getElementById('floor-modifier-modal-desc').textContent = modifier.description
+    let done = false
+    const close = () => {
+      if (done) return
+      done = true
+      okBtn.removeEventListener('click', close)
+      backdrop.removeEventListener('click', close)
+      ov.classList.add('hidden')
+      ov.setAttribute('aria-hidden', 'true')
+      onDismiss?.()
     }
-    el.ropeModalTitle.textContent = info.label
-    el.ropeModalBody.textContent = ''
-    const p1 = document.createElement('p')
-    p1.textContent = info.blurb
-    el.ropeModalBody.appendChild(p1)
-    if (info.modalSubtext) {
-      const p2 = document.createElement('p')
-      p2.className = 'trap-modal-sub'
-      p2.textContent = info.modalSubtext
-      el.ropeModalBody.appendChild(p2)
-    }
+    ov.classList.remove('hidden')
+    ov.setAttribute('aria-hidden', 'false')
+    okBtn.addEventListener('click', close)
+    backdrop.addEventListener('click', close)
+  },
+
+  /** Rope tile (sanctuary): choose what % of gold to bank as safe gold. onBank(pct) called with 0.5, 0.75, or 1.0. */
+  showRopeModal(onBank, onCancel) {
+    const ov       = el.ropeModalOverlay
+    if (!ov) { onCancel?.(); return }
+    const btn50    = document.getElementById('rope-modal-bank-50')
+    const btn75    = document.getElementById('rope-modal-bank-75')
+    const btn100   = document.getElementById('rope-modal-bank-100')
+    const btnCancel = document.getElementById('rope-modal-cancel')
+    const backdrop = document.getElementById('rope-modal-backdrop')
+
+    el.ropeModalBody.innerHTML =
+      '<p>Stash gold in the vault before pushing deeper. Banked gold is kept even if you die.</p>'
+
     let done = false
     const close = () => {
       ov.classList.add('hidden')
       ov.setAttribute('aria-hidden', 'true')
     }
-    const finishConfirm = () => {
+    const pick = (pct) => {
       if (done) return
       done = true
-      el.ropeModalConfirm.removeEventListener('click', finishConfirm)
-      el.ropeModalCancel.removeEventListener('click', finishCancel)
-      el.ropeModalBackdrop.removeEventListener('click', finishCancel)
+      ;[btn50, btn75, btn100, btnCancel, backdrop].forEach(b =>
+        b?.removeEventListener('click', b._ropeHandler)
+      )
       close()
-      onConfirm()
+      onBank(pct)
     }
-    const finishCancel = () => {
+    const cancel = () => {
       if (done) return
       done = true
-      el.ropeModalConfirm.removeEventListener('click', finishConfirm)
-      el.ropeModalCancel.removeEventListener('click', finishCancel)
-      el.ropeModalBackdrop.removeEventListener('click', finishCancel)
+      ;[btn50, btn75, btn100, btnCancel, backdrop].forEach(b =>
+        b?.removeEventListener('click', b._ropeHandler)
+      )
       close()
       onCancel?.()
     }
+    btn50._ropeHandler    = () => pick(0.50)
+    btn75._ropeHandler    = () => pick(0.75)
+    btn100._ropeHandler   = () => pick(1.00)
+    btnCancel._ropeHandler = cancel
+    backdrop._ropeHandler  = cancel
+    ;[btn50, btn75, btn100, btnCancel, backdrop].forEach(b =>
+      b?.addEventListener('click', b._ropeHandler)
+    )
     ov.classList.remove('hidden')
     ov.setAttribute('aria-hidden', 'false')
-    el.ropeModalConfirm.addEventListener('click', finishConfirm)
-    el.ropeModalCancel.addEventListener('click', finishCancel)
-    el.ropeModalBackdrop.addEventListener('click', finishCancel)
   },
 
   // ── Backpack ──────────────────────────────────
@@ -2008,9 +2059,14 @@ const UI = {
       retreat: `You fled with ${stats.gold} gold. ${stats.tilesRevealed} tiles revealed.`,
     }
     const t = titles[outcome]
-    const earnedLine = stats.xpEarned != null
-      ? `<div class="stats">+${stats.xpEarned} XP &nbsp;|&nbsp; +${stats.goldBanked} 💰 banked</div>`
-      : ''
+    let earnedLine = ''
+    if (stats.xpEarned != null) {
+      const xpLost = stats.xpLost ?? 0
+      const xpPart = xpLost > 0
+        ? `+${stats.xpEarned} XP earned &nbsp;→&nbsp; <span class="xp-kept">+${stats.xpRetained} kept</span> <span class="xp-lost">(−${xpLost} lost)</span>`
+        : `+${stats.xpEarned} XP`
+      earnedLine = `<div class="stats">${xpPart} &nbsp;|&nbsp; +${stats.goldBanked} 💰 banked</div>`
+    }
 
     let killerHTML = ''
     if (outcome === 'death' && stats.killer) {
@@ -2076,6 +2132,7 @@ const UI = {
 
   setActiveDifficulty(diff) {
     const positions = { easy: 'pos-0', normal: 'pos-1', hard: 'pos-2' }
+    const xpLabels  = { easy: 'Keep all XP on death', normal: 'Keep 50% XP on death', hard: 'Keep 10% XP on death' }
     document.querySelectorAll('.diff-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.diff === diff)
     })
@@ -2084,6 +2141,8 @@ const UI = {
       skull.classList.remove('pos-0', 'pos-1', 'pos-2')
       skull.classList.add(positions[diff] ?? 'pos-1')
     }
+    const label = document.getElementById('diff-label')
+    if (label) label.textContent = xpLabels[diff] ?? ''
   },
 
   // ── XP Tree panel (Warrior or Ranger) ────────

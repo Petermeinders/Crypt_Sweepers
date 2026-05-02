@@ -28,6 +28,7 @@ import { ENEMY_SPRITES, MONSTER_ICONS_BASE, ITEM_ICONS_BASE, TILE_TYPE_ICON_FILE
 import { TILE_BLURBS }       from '../data/tileBlurbs.js'
 import { ITEMS }             from '../data/items.js'
 import { STORY_EVENTS, MERCHANT_ITEMS, rollEventType } from '../data/events.js'
+import { pickModifier } from '../systems/FloorModifiers.js'
 import Bestiary              from '../systems/Bestiary.js'
 import TrinketCodex          from '../systems/TrinketCodex.js'
 import { FORGE_RECIPES }     from '../data/combinations.js'
@@ -1574,6 +1575,7 @@ function strengthenMinionAction() {
 }
 
 function corpseExplosionAction() {
+  if (_isSilenced()) return
   if (_charKey() !== 'necromancer') return
   if (!_isNecroActiveUnlocked('corpse-explosion')) return
   if (_combatBusy) return
@@ -2233,6 +2235,35 @@ function _startFloor() {
   TileEngine.renderGrid(UI.getGridEl(), onTileTap, onTileHold)
   if (run.turret) _syncTurretVisual()
   run.minions = []
+
+  // ── Floor modifier ─────────────────────────────────────────
+  if (run.floorModifier?.clear) {
+    try { run.floorModifier.clear(run, TileEngine.getGrid()) } catch (_) {}
+  }
+  if (!gridRestored) {
+    const isBoss = CONFIG.bossFloors?.includes(run.floor) ?? false
+    run.floorModifier = pickModifier(run.floor, run.atRest, isBoss) ?? null
+    if (run.floorModifier) {
+      try { run.floorModifier.apply(run, TileEngine.getGrid()) } catch (_) {}
+      UI.setFloorModifier(run.floorModifier)
+    } else {
+      UI.clearFloorModifier()
+    }
+  } else {
+    // Resumed run — re-apply The Hunt marks (visual only, tiles already exist)
+    if (run.floorModifier?.id === 'the-hunt') {
+      const grid = TileEngine.getGrid()
+      for (const row of grid) {
+        for (const t of row) {
+          if (t.enemyData && !t.revealed && !t.enemyData._slain && t.element) {
+            t.element.classList.add('hunt-marked')
+          }
+        }
+      }
+    }
+    if (run.floorModifier) UI.setFloorModifier(run.floorModifier)
+    else UI.clearFloorModifier()
+  }
   if (run._resumeEventTile) {
     run.eventTile = TileEngine.getTile(run._resumeEventTile.row, run._resumeEventTile.col)
     run._resumeEventTile = null
@@ -2250,6 +2281,10 @@ function _startFloor() {
   }
   // First-run intro: show once on floor 1 (skipped during bot runs)
   const _isBot = new URLSearchParams(location.search).has('balanceBot') || new URLSearchParams(location.search).has('testBotOngoing')
+  // Floor modifier modal: shown once per new floor when a modifier is active
+  if (!_isBot && !gridRestored && run.floorModifier) {
+    UI.showFloorModifierModal(run.floorModifier, () => {})
+  }
   if (!_isBot && run.floor === 1 && !(_save.settings?.firstRunIntroDismissed)) {
     UI.showFirstRunIntro(() => {
       _save.settings = _save.settings ?? {}
@@ -2410,7 +2445,7 @@ function _startFloor() {
   const isBoss = CONFIG.bossFloors.includes(run.floor) && !run.atRest
   const hasWarBanner = run.warBanner?.active && !run.atRest
   UI.setMessage(run.atRest
-    ? 'A quiet sanctuary. The well restores you; the rope leads out with your gold; the stairs go deeper.'
+    ? 'A quiet sanctuary. The well restores you; the rope lets you bank gold; the stairs go deeper.'
     : isBoss
       ? `⚠️ Floor ${run.floor} — Boss floor! Tread carefully.`
       : hasWarBanner
@@ -4619,6 +4654,7 @@ async function revealTile(tile) {
   UI.setPortraitAnim('idle')
   _gainXP(CONFIG.xp.perTileReveal, tile.element)
   _engineerManaGeneratorOnReveal(tile.element)
+  _checkFloorModifierOnReveal(tile)
   EventBus.emit('tile:revealed', { tile })
   // Deathmask: instant kill on first enemy reveal after a proc
   if (tile.enemyData && !tile.enemyData._slain && run.player.deathmaskPending) {
@@ -4744,7 +4780,7 @@ async function _openChest(tile) {
     UI.spawnFloat(tile.element, `🔧 ${def.name}`, 'xp')
     UI.setMessage(`You pry it open — ${def.name}! +${amt} attack damage for this run.`)
   } else if (loot.type === 'gold') {
-    _gainGold(loot.amount, tile.element)
+    _gainGold(loot.amount, tile.element, false, true)
     UI.setMessage(`You pry it open — +${loot.amount} gold!`)
   } else {
     const def = ITEMS[loot.type]
@@ -4795,6 +4831,11 @@ function _resolveEffect(tile) {
       } else {
         UI.setMessage('Dust, silence, and the distant drip of water.')
       }
+      if (run.floorModifier?.id === 'consecrated-ground') {
+        run.player.hp = Math.min(run.player.maxHp, run.player.hp + 1)
+        UI.updateHP(run.player.hp, run.player.maxHp)
+        UI.spawnFloat(tile.element, '✨ +1', 'heal')
+      }
       UI.showRetreat()
       break
 
@@ -4839,7 +4880,8 @@ function _resolveEffect(tile) {
       } else if (tile._trapDodgeRoll != null) {
         delete tile._trapDodgeRoll
       }
-      const rawDmg = _rand(...CONFIG.trap.damage)
+      let rawDmg = _rand(...CONFIG.trap.damage)
+      if (run.floorModifier?.id === 'haunted-ground') rawDmg *= 2
       let dmg = Math.max(1, rawDmg - (p.trapReduction ?? 0))
       if (p.inventory?.some(e => e.id === 'greed-tooth')) dmg += 1
       const reduced = rawDmg !== dmg ? ` (reduced from ${rawDmg})` : ''
@@ -4851,8 +4893,22 @@ function _resolveEffect(tile) {
       }
       EventBus.emit('audio:play', { sfx: 'trap' })
       _takeDamage(dmg, tile.element, false, null, { deathCause: 'trap' })
-      UI.setMessage(`A trap snaps shut! You take ${dmg} damage${reduced}.${tfNote}`)
-      if (!GameState.is(States.DEATH)) UI.showRetreat()
+      const hauntedNote = run.floorModifier?.id === 'haunted-ground' ? ' 💀 Haunted Ground!' : ''
+      UI.setMessage(`A trap snaps shut! You take ${dmg} damage${reduced}.${tfNote}${hauntedNote}`)
+      if (!GameState.is(States.DEATH)) {
+        if (run.floorModifier?.id === 'haunted-ground') {
+          const hauntedLoot = _rollChestLoot()
+          if (hauntedLoot.type !== 'gold') {
+            _addToBackpack(hauntedLoot.type).then(() => {
+              const def = ITEMS[hauntedLoot.type]
+              if (def) UI.spawnFloat(tile.element, `${def.icon} ${def.name}`, 'xp')
+            }).catch(() => {})
+          } else {
+            _gainGold(hauntedLoot.amount ?? 1, tile.element)
+          }
+        }
+        UI.showRetreat()
+      }
       break
     }
 
@@ -4912,7 +4968,7 @@ function _resolveEffect(tile) {
     case 'rope': {
       tile.ropeResolved = false
       if (tile.element) tile.element.classList.add('rope-pending')
-      UI.setMessage('A rope leads upward. Tap again to climb out with all your gold.')
+      UI.setMessage('🧵 A vault rope. Tap again to bank some gold before pushing deeper.')
       UI.showRetreat()
       break
     }
@@ -4935,15 +4991,14 @@ function _resolveEffect(tile) {
       const manaAmt = CONFIG.checkpoint.manaRestore
       p.hp       = Math.min(p.maxHp,   p.hp   + healAmt)
       p.mana     = Math.min(p.maxMana, p.mana + manaAmt)
-      p.safeGold = p.gold
       UI.spawnFloat(tile.element, `+${healAmt} HP`, 'heal')
       UI.spawnFloat(tile.element, `+${manaAmt} MP`, 'mana')
       UI.updateHP(p.hp, p.maxHp)
       UI.updateMana(p.mana, p.maxMana)
-      UI.setMessage(`🏕️ A hidden camp! You rest and recover. +${healAmt} HP, +${manaAmt} mana. Gold banked!`)
+      UI.setMessage(`🏕️ A hidden camp! You rest and recover. +${healAmt} HP, +${manaAmt} mana.`)
       UI.showRetreat()
       SaveManager.save(_save)
-      EventBus.emit('run:checkpoint', { goldBanked: p.gold })
+      EventBus.emit('run:checkpoint', {})
       break
     }
 
@@ -5111,6 +5166,15 @@ function _resolveEffect(tile) {
 
 function _confirmExit(tile) {
   if (tile.type !== 'exit' || tile.exitResolved) return
+  if (run.floorModifier?.id === 'warded-dungeon') {
+    const grid = TileEngine.getGrid()
+    const total = grid.reduce((s, row) => s + row.length, 0)
+    const threshold = Math.ceil(total * 0.60)
+    if (run.tilesRevealed < threshold) {
+      UI.setMessage(`🔒 Warded Dungeon — the exit won't open until ${threshold} tiles are revealed (${run.tilesRevealed}/${threshold}).`, true)
+      return
+    }
+  }
   tile.exitResolved = true
   tile.element?.classList.remove('exit-pending')
   _handleExit()
@@ -5449,9 +5513,9 @@ function fightAction(tile) {
     playerDmg += 1
     run.player.whettsoneHits--
   }
-  // Mirror of Vanity: +20% of current HP as flat damage bonus
+  // Mirror of Vanity: +5% of current HP as flat damage bonus
   if (run.player.inventory.some(e => e.id === 'mirror-of-vanity')) {
-    playerDmg += Math.max(1, Math.floor(run.player.hp * 0.2))
+    playerDmg += Math.max(1, Math.floor(run.player.hp * 0.05))
   }
   // Ogre: 10% shield block — cancels entire melee attack
   if (_checkShieldBlock(tile)) { _combatBusy = false; return }
@@ -5670,6 +5734,7 @@ function fightAction(tile) {
 // ── Spell ─────────────────────────────────────────────────────
 
 function slamAction() {
+  if (_isSilenced()) return
   if (!(_save.warrior?.upgrades ?? []).includes('slam')) return
   if (_combatBusy) return
   const cost = _stillWaterManaCost(WARRIOR_UPGRADES.slam.manaCost)
@@ -5759,6 +5824,7 @@ function _bloodTitheManaGain() {
 }
 
 function bloodTitheAction() {
+  if (_isSilenced()) return
   if (!_isActiveUnlocked('blood-tithe', 'vampire')) return
   if (_combatBusy) return
   const hpCost  = _bloodTitheHpCost()
@@ -5895,6 +5961,7 @@ function getBloodPactBreakdown() {
 }
 
 function ricochetAction() {
+  if (_isSilenced()) return
   if (!_isRangerActiveUnlocked('ricochet')) return
   if (_combatBusy) return
   const cost = _stillWaterManaCost(RANGER_UPGRADES.ricochet.manaCost + _tearyExtraCost())
@@ -6621,6 +6688,7 @@ function _executePoisonArrowShot(tile) {
 }
 
 function spellAction() {
+  if (_isSilenced()) return
   const effectiveCost = _previewSpellManaCostForUi()
   if (run.player.mana < effectiveCost) {
     UI.setMessage('Not enough mana!', true)
@@ -6781,6 +6849,7 @@ function _useSpyglassOn(tile) {
 }
 
 function blindingLightAction() {
+  if (_isSilenced()) return
   if (!(_save.warrior?.upgrades ?? []).includes('blinding-light')) return
   if (_combatBusy) return
   const cost = _stillWaterManaCost(WARRIOR_UPGRADES['blinding-light'].manaCost + _tearyExtraCost())
@@ -6854,6 +6923,7 @@ function _castBlindingLight(tile) {
 // ── Divine Light ──────────────────────────────────────────────
 
 function divineLightAction() {
+  if (_isSilenced()) return
   if (_charKey() !== 'warrior') return
   const warriorUpgrades = _save.warrior?.upgrades ?? []
   if (!warriorUpgrades.includes('divine-light')) return
@@ -6986,9 +7056,9 @@ function _castSpell(tile) {
   const isBeast  = tile.enemyData?.type === 'beast'
   if (run.player.undeadBonus && isUndead) spellDmg = Math.round(spellDmg * 2)
   if (run.player.beastBonus  && isBeast)  spellDmg = Math.round(spellDmg * 2)
-  // Mirror of Vanity: +20% current HP as flat bonus
+  // Mirror of Vanity: +5% current HP as flat bonus
   if (run.player.inventory.some(e => e.id === 'mirror-of-vanity')) {
-    spellDmg += Math.max(1, Math.floor(run.player.hp * 0.2))
+    spellDmg += Math.max(1, Math.floor(run.player.hp * 0.05))
   }
   // The Traded Codex: spell scales with missing HP (1× full, ~3× near death)
   if (run.player.inventory.some(e => e.id === 'traded-codex') && run.player.maxHp > 0) {
@@ -7211,6 +7281,14 @@ function _endCombatVictory(tile) {
     void _finishTreasureGoblinReward(tile).catch(() => {})
   }
 
+  // Mana Spring modifier: +2 mana per kill
+  if (run.floorModifier?.id === 'mana-spring' && run.player.mana < run.player.maxMana) {
+    const gained = Math.min(2, run.player.maxMana - run.player.mana)
+    run.player.mana += gained
+    UI.spawnFloat(tile.element, `🔮 +${gained} MP`, 'mana')
+    UI.updateMana(run.player.mana, run.player.maxMana)
+  }
+
   EventBus.emit('audio:play', { sfx: 'gold' })
   EventBus.emit('combat:end', { outcome: 'victory' })
   TileEngine.refreshAllThreatClueDisplays()
@@ -7246,7 +7324,7 @@ function doRetreat(reason = 'player') {
     hpAtRetreat,
     goldBeforeRetreat,
   })
-  const { xpEarned, goldBanked } = MetaProgression.endRun(_save, stats, 'retreat')
+  const { xpEarned, xpRetained, xpLost, goldBanked } = MetaProgression.endRun(_save, stats, 'retreat')
 
   // End run immediately so UI/bots do not see an active run while waiting for the summary overlay.
   _clearActiveRun()
@@ -7254,7 +7332,7 @@ function doRetreat(reason = 'player') {
   GameState.set(States.BETWEEN_RUNS)
 
   setTimeout(() => {
-    UI.showRunSummary('retreat', { ...stats, xpEarned, goldBanked })
+    UI.showRunSummary('retreat', { ...stats, xpEarned, xpRetained, xpLost, goldBanked })
     _wireRunSummaryBtn()
   }, 1200)
 }
@@ -7299,31 +7377,38 @@ function _handleExit() {
 }
 
 function _confirmRope(tile) {
-  if (tile.type !== 'rope' || tile.ropeResolved) return
+  if (tile.type !== 'rope' || run._ropeUsedThisSanctuary) return
   UI.showRopeModal(
-    () => {
+    (pct) => {
+      run._ropeUsedThisSanctuary = true
       tile.ropeResolved = true
       tile.element?.classList.remove('rope-pending')
-      const stats = _runStats()
-      _finalizeRunTelemetry('escape', { killerEnemyId: null, retreatReason: 'rope' })
-      const { xpEarned, goldBanked } = MetaProgression.endRun(_save, stats, 'escape')
-      UI.setMessage('You climb the rope and escape with all your gold!')
-      EventBus.emit('run:complete', { outcome: 'escape' })
-      EventBus.emit('audio:play', { sfx: 'retreat' })
-      UI.hideRetreat()
-      UI.hideActionPanel()
-      setTimeout(() => {
-        UI.showRunSummary('escape', { ...stats, xpEarned, goldBanked })
-        _wireRunSummaryBtn()
-      }, 600)
+      const p = run.player
+      const banked = Math.floor(p.gold * pct)
+      p.safeGold = (p.safeGold ?? 0) + banked
+      p.gold     = Math.max(0, p.gold - banked)
+      UI.updateGold(p.gold)
+      UI.spawnFloat(tile.element, `-${banked}🪙`, 'damage')
+      UI.spawnFloat(tile.element, `🔒 +${banked} banked`, 'gold')
+      UI.setMessage(`🧵 You send ${banked} gold to the surface. It's yours even if you fall.`)
+      EventBus.emit('player:goldChange', { amount: -banked, newTotal: p.gold })
+      EventBus.emit('audio:play', { sfx: 'gold' })
+      SaveManager.save(_save)
     },
     () => {
-      UI.setMessage('You leave the rope for now. Tap again when you are ready to climb out.')
+      UI.setMessage('You leave the vault for now. Tap again to bank your gold.')
     }
   )
 }
 
 function _nextFloor() {
+  // Clear modifier before advancing — Glass Cannon/Silence stat reversals happen here
+  if (run.floorModifier?.clear) {
+    try { run.floorModifier.clear(run, TileEngine.getGrid()) } catch (_) {}
+  }
+  run.floorModifier = null
+  UI.clearFloorModifier()
+  run._ropeUsedThisSanctuary = false
   run.floorKeyAwarded = false
   run.floor++
   EventBus.emit('audio:crossfade', { track: _runMusicTrack(), duration: 1500 })
@@ -7502,7 +7587,7 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
   }
 }
 
-function _gainGold(amount, tileEl, fromEnemy = false) {
+function _gainGold(amount, tileEl, fromEnemy = false, fromChest = false) {
   if (!run) return
   let actual = amount
   if (fromEnemy) {
@@ -7512,6 +7597,9 @@ function _gainGold(amount, tileEl, fromEnemy = false) {
     if (run.player.inventory.some(e => e.id === 'vault-key')) actual += 2
     actual = Math.round(actual)
   }
+  // Floor modifiers: Ancient Cache (chest double gold) and Hungry Dungeon (halve enemy/chest gold)
+  if (run.floorModifier?.id === 'ancient-cache' && fromChest) actual *= 2
+  if (run.floorModifier?.id === 'hungry-dungeon' && (fromEnemy || fromChest)) actual = Math.max(0, Math.floor(actual / 2))
   // Vault Key: auto-bank 15% of all earned gold to persistent gold
   if (run.player.inventory.some(e => e.id === 'vault-key') && actual > 0) {
     const bank = Math.floor(actual * 0.15)
@@ -7531,6 +7619,36 @@ function _gainGold(amount, tileEl, fromEnemy = false) {
   UI.spawnFloat(tileEl, `+${actual}🪙`, 'gold')
   UI.updateGold(run.player.gold)
   EventBus.emit('player:goldChange', { amount: actual, newTotal: run.player.gold })
+}
+
+function _isSilenced() {
+  if (!run?.floorModifier || run.floorModifier.id !== 'silence') return false
+  UI.setMessage('🤫 Silence — active abilities are sealed this floor.', true)
+  return true
+}
+
+function _checkFloorModifierOnReveal(tile) {
+  if (!run?.floorModifier) return
+  const mod = run.floorModifier
+  const el  = tile.element
+
+  if (mod.id === 'miasma') {
+    run._miasmaCounter = (run._miasmaCounter ?? 0) + 1
+    if (run._miasmaCounter % 3 === 0) {
+      _takeDamage(1, el, false, null, { deathCause: 'miasma' })
+      UI.spawnFloat(el, '☠️ Miasma!', 'damage')
+    }
+  }
+
+  if (mod.id === 'crumbling-walls' && Math.random() < 0.20) {
+    _takeDamage(1, el, false, null, { deathCause: 'crumbling_walls' })
+    UI.spawnFloat(el, '🪨 Crumble!', 'damage')
+  }
+
+  // Remove hunt-marked class when an enemy tile is revealed
+  if (mod.id === 'the-hunt' && tile.enemyData) {
+    el?.classList.remove('hunt-marked')
+  }
 }
 
 /** +mana on successful melee strike (not on shield block — see fightAction). Mana ring: 10% double. */
@@ -7880,18 +7998,19 @@ function _die(killerData = null, opts = {}) {
   UI.hideActionPanel()
   UI.hideRetreat()
   UI.hideEventOverlays()
+  UI.clearFloorModifier()
   UI.setMessage('💀 You have perished in the depths...', true)
   EventBus.emit('audio:play', { sfx: 'death' })
 
   const stats = _runStats()
-  const { xpEarned, goldBanked } = MetaProgression.endRun(_save, stats, 'death')
+  const { xpEarned, xpRetained, xpLost, goldBanked } = MetaProgression.endRun(_save, stats, 'death')
   EventBus.emit('player:death', { runStats: stats })
 
   // Build killer card data for the summary screen
   const killer = resolved ? _buildKillerCard(resolved) : null
 
   setTimeout(() => {
-    UI.showRunSummary('death', { ...stats, xpEarned, goldBanked, killer })
+    UI.showRunSummary('death', { ...stats, xpEarned, xpRetained, xpLost, goldBanked, killer })
     _wireRunSummaryBtn()
   }, 800)
 }
