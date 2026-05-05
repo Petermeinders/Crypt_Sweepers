@@ -2794,91 +2794,272 @@
 
 #hero-upgrade-detail-cost.hidden { display: none; }
 
+/* ── Upgrade detail: tabbed mastery system ───────────────────── */
+
 #hero-upgrade-detail-masteries {
   width: 100%;
-  border-top: 1px solid rgba(255,255,255,0.1);
-  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding-top: 12px;
   margin-top: 2px;
   text-align: left;
 }
 
 #hero-upgrade-detail-masteries.hidden { display: none; }
 
-.upgrade-masteries-title {
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: rgba(255,255,255,0.4);
-  margin-bottom: 8px;
-}
-
-.upgrade-mastery-row {
+/* Tab strip */
+#upgrade-tab-strip {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 4px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
-.upgrade-mastery-info {
+.upgrade-tab-btn {
   flex: 1;
+  min-width: 0;
+  padding: 5px 5px;
+  font-size: 0.54rem;
+  font-family: sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 5px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.35);
+  border-color: rgba(255,255,255,0.1);
+}
+
+/* Expertise tab — cool silver identity */
+.upgrade-tab-btn.tab-expertise {
+  color: rgba(160,210,255,0.5);
+  border-color: rgba(100,170,255,0.15);
+  background: rgba(100,170,255,0.05);
+}
+.upgrade-tab-btn.tab-expertise.active {
+  color: #9fd4f5;
+  background: rgba(100,170,255,0.14);
+  border-color: rgba(120,190,255,0.5);
+  box-shadow: 0 0 8px rgba(100,170,255,0.2), inset 0 1px 0 rgba(160,210,255,0.2);
+}
+
+/* Mastery tabs — warm amber identity */
+.upgrade-tab-btn.tab-mastery {
+  color: rgba(200,147,60,0.5);
+  border-color: rgba(200,147,10,0.15);
+  background: rgba(200,147,10,0.04);
+}
+.upgrade-tab-btn.tab-mastery.active {
+  color: #e8b84b;
+  background: rgba(200,147,10,0.14);
+  border-color: rgba(220,170,40,0.55);
+  box-shadow: 0 0 8px rgba(200,147,10,0.2), inset 0 1px 0 rgba(240,200,80,0.2);
+}
+
+.upgrade-tab-btn:not(.active):hover {
+  opacity: 0.75;
+  background: rgba(255,255,255,0.07);
+}
+
+/* Mastery path header blurb */
+.upgrade-mastery-blurb {
+  margin-bottom: 10px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  background: rgba(200,147,10,0.06);
+  border: 1px solid rgba(200,147,10,0.18);
+}
+
+.upgrade-mastery-blurb-title {
+  font-size: 0.72rem;
+  font-family: sans-serif;
+  font-weight: 600;
+  color: #e0a830;
+  letter-spacing: 0.03em;
+}
+
+.upgrade-mastery-blurb-note {
+  font-size: 0.62rem;
+  font-family: sans-serif;
+  color: rgba(255,255,255,0.3);
+  margin-top: 2px;
+  line-height: 1.3;
+  font-style: italic;
+}
+
+/* Tab content area */
+#upgrade-tab-content {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 0;
 }
 
-.upgrade-mastery-check {
-  width: 14px;
-  height: 14px;
-  border: 1.5px solid rgba(255,255,255,0.25);
-  border-radius: 3px;
+/* Tier rail — the vertical progression layout */
+.upgrade-tier-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.upgrade-tier-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  position: relative;
+}
+
+/* Left column: badge + connector */
+.upgrade-tier-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: 22px;
+}
+
+.upgrade-tier-badge {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
   font-size: 0.6rem;
-  color: transparent;
+  font-weight: 700;
+  flex-shrink: 0;
+  letter-spacing: 0;
+  font-family: sans-serif;
+  border: 1.5px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.25);
+  background: rgba(0,0,0,0.3);
+  transition: all 0.15s;
 }
 
-.upgrade-mastery-check.owned {
-  background: #c8930a;
+.upgrade-tier-badge.owned {
+  background: rgba(200,147,10,0.25);
   border-color: #c8930a;
-  color: #fff;
+  color: #f0c060;
+  box-shadow: 0 0 6px rgba(200,147,10,0.3);
 }
 
-.upgrade-mastery-name {
-  font-size: 0.78rem;
+/* Expertise badge uses cool blue */
+.tab-expertise-content .upgrade-tier-badge.owned {
+  background: rgba(80,160,240,0.2);
+  border-color: #7ab8f0;
+  color: #9fd4f5;
+  box-shadow: 0 0 6px rgba(80,160,240,0.25);
+}
+
+.upgrade-tier-connector {
+  width: 1.5px;
+  flex: 1;
+  min-height: 10px;
+  background: rgba(255,255,255,0.08);
+  margin: 2px 0;
+}
+
+.upgrade-tier-connector.filled {
+  background: rgba(200,147,10,0.4);
+}
+
+/* Hide connector on last row */
+.upgrade-tier-row:last-child .upgrade-tier-connector {
+  display: none;
+}
+
+/* Right content column */
+.upgrade-tier-body {
+  flex: 1;
+  padding-bottom: 12px;
+  min-width: 0;
+}
+
+.upgrade-tier-row:last-child .upgrade-tier-body {
+  padding-bottom: 4px;
+}
+
+.upgrade-tier-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.upgrade-tier-name {
+  font-size: 0.75rem;
   color: var(--text-dim);
   font-family: sans-serif;
+  font-weight: 600;
 }
 
-.upgrade-mastery-desc {
-  font-size: 0.68rem;
-  color: rgba(255,255,255,0.4);
+.upgrade-tier-name.owned { color: rgba(255,255,255,0.55); }
+.upgrade-tier-name.locked { color: rgba(255,255,255,0.25); }
+
+.upgrade-tier-desc {
+  font-size: 0.67rem;
+  color: rgba(255,255,255,0.35);
   font-family: sans-serif;
-  line-height: 1.3;
+  line-height: 1.35;
 }
 
-.upgrade-mastery-btn {
-  font-size: 0.68rem;
+.upgrade-tier-desc.owned { color: rgba(255,255,255,0.25); }
+
+/* Action buttons */
+.upgrade-tier-btn {
+  font-size: 0.63rem;
   padding: 3px 8px;
-  border-radius: 5px;
-  background: rgba(200,147,10,0.15);
-  border: 1px solid rgba(200,147,10,0.4);
-  color: #c8930a;
+  border-radius: 4px;
   cursor: pointer;
   white-space: nowrap;
+  flex-shrink: 0;
+  font-family: sans-serif;
+  transition: all 0.12s;
+  border: 1px solid transparent;
 }
 
-.upgrade-mastery-btn:disabled {
-  opacity: 0.4;
+.upgrade-tier-btn.btn-buy {
+  background: rgba(200,147,10,0.2);
+  border-color: rgba(200,147,10,0.6);
+  color: #e8b84b;
+}
+.upgrade-tier-btn.btn-buy:hover {
+  background: rgba(200,147,10,0.35);
+  box-shadow: 0 0 6px rgba(200,147,10,0.25);
+}
+
+/* Expertise buy button is blue-tinted */
+.tab-expertise-content .upgrade-tier-btn.btn-buy {
+  background: rgba(80,160,240,0.15);
+  border-color: rgba(100,180,255,0.5);
+  color: #9fd4f5;
+}
+.tab-expertise-content .upgrade-tier-btn.btn-buy:hover {
+  background: rgba(80,160,240,0.28);
+}
+
+.upgrade-tier-btn.btn-owned {
+  background: rgba(60,140,70,0.12);
+  border-color: rgba(80,180,90,0.3);
+  color: rgba(100,200,110,0.65);
   cursor: default;
 }
 
-.upgrade-mastery-btn.is-owned {
-  background: rgba(100,200,100,0.1);
-  border-color: rgba(100,200,100,0.3);
-  color: rgba(100,200,100,0.7);
+.upgrade-tier-btn.btn-locked {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.2);
+  cursor: default;
 }
+
+/* Legacy compat — keep old class names working if referenced elsewhere */
+.upgrade-mastery-btn { display: none; }
+.upgrade-mastery-row { display: none; }
 
 #hero-upgrade-buy-btn {
   margin-top: 4px;

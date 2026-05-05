@@ -2706,31 +2706,34 @@ function _getActiveOrthogonal(row, col) {
 function _syncCombatEngagementDom() {
   const grid = TileEngine.getGrid()
   if (grid) {
+    const hasEngagement = !_isInSubFloor() && !!_combatEngagementTile
     for (const row of grid) {
       for (const t of row) {
         if (!t.element) continue
         const engaged =
-          !_isInSubFloor()
-          && !!_combatEngagementTile
+          hasEngagement
           && t.row === _combatEngagementTile.row
           && t.col === _combatEngagementTile.col
           && t.enemyData
           && !t.enemyData._slain
         UI.setTileCombatEngaged(t.element, engaged)
+        UI.setTileCombatBlocked(t.element, hasEngagement && !engaged)
       }
     }
   }
   if (_isInSubFloor() && run.subFloor?.tiles) {
+    const hasEngagement = !!_combatEngagementTile
     for (const row of run.subFloor.tiles) {
       for (const t of row) {
         if (!t?.element) continue
         const engaged =
-          !!_combatEngagementTile
+          hasEngagement
           && t.row === _combatEngagementTile.row
           && t.col === _combatEngagementTile.col
           && t.enemyData
           && !t.enemyData._slain
         UI.setTileCombatEngaged(t.element, engaged)
+        UI.setTileCombatBlocked(t.element, hasEngagement && !engaged)
       }
     }
   }
@@ -4084,6 +4087,7 @@ function onTileTap(row, col) {
       _setCombatEngagement(tile)
       tile.enemyData.poisonTurns = (tile.enemyData.poisonTurns ?? 0) + 5
       tile.enemyData.nailPoison  = true
+      UI.updateEnemyStatus(tile.element, tile.enemyData)
       UI.spawnFloat(tile.element, '📌 Poisoned!', 'damage')
       UI.setMessage(`📌 Rusty nail lodges deep — ${tile.enemyData.label} will take 1 damage per turn for 5 turns.`)
       EventBus.emit('audio:play', { sfx: 'hit' })
@@ -4577,6 +4581,27 @@ function _tickPoisonArrowDotOnGlobalTurn(opts = {}) {
       UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
     }
   }
+  // Hemorrhage bleed tick: enemies bleeding from Slam → Hemorrhage branch
+  for (const tile of _getActiveTiles()) {
+    if (!tile.revealed || !tile.enemyData || tile.enemyData._slain) continue
+    if ((tile.enemyData.bleedTurns ?? 0) <= 0) continue
+    const bDmg = tile.enemyData.bleedDmg ?? 2
+    tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - bDmg)
+    tile.enemyData.bleedTurns--
+    if (tile.element) {
+      UI.spawnFloat(tile.element, `🩸 ${bDmg}`, 'damage')
+      UI.shakeTile(tile.element)
+    }
+    if (tile.enemyData.currentHP <= 0) {
+      const gold = tile.enemyData.goldDrop ? _rand(...tile.enemyData.goldDrop) : 1
+      _gainGold(gold, tile.element)
+      _gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
+      if (tile.enemyData.bleedBurst) _hemorrhageBurst(tile)
+      _endCombatVictory(tile)
+    } else if (tile.element) {
+      UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
+    }
+  }
   if (!grid) return
   // Harass tick: each revealed living enemy with harassPlayer=true fires at player every global turn
   let totalHarassDmg = 0
@@ -4636,6 +4661,7 @@ function _tickPoisonArrowDotOnGlobalTurn(opts = {}) {
     UI.spawnFloat(document.getElementById('hud-portrait'), `🩹 +${amt} HP`, 'heal')
     UI.updateHP(run.player.hp, run.player.maxHp)
   }
+  _refreshAllEnemyStatusDisplays()
 }
 
 async function revealTile(tile) {
@@ -5547,6 +5573,12 @@ function fightAction(tile) {
   if (_checkShieldBlock(tile)) { _combatBusy = false; return }
 
   playerDmg = _scaleOutgoingDamageToEnemy(playerDmg)
+
+  // Solarflare III: +50% melee damage vs stunned blinded enemies
+  if (tile.enemyData.solarflareVulnerable && (tile.enemyData.stunTurns ?? 0) > 0) {
+    playerDmg = Math.round(playerDmg * 1.5)
+  }
+
   _gainManaFromMeleeHit(tile.element)
 
   run.player.meleeHitCount = (run.player.meleeHitCount ?? 0) + 1
@@ -5569,10 +5601,12 @@ function fightAction(tile) {
   // Infected Blade: every melee hit poisons the enemy (3 turns)
   if (!killsEnemy && run.player.inventory.some(e => e.id === 'infected-blade')) {
     tile.enemyData.poisonTurns = Math.max(tile.enemyData.poisonTurns ?? 0, 3)
+    UI.updateEnemyStatus(tile.element, tile.enemyData)
   }
   // Festering Wound: every melee hit poisons the enemy (8 turns)
   if (!killsEnemy && run.player.inventory.some(e => e.id === 'festering-wound')) {
     tile.enemyData.poisonTurns = Math.max(tile.enemyData.poisonTurns ?? 0, 8)
+    UI.updateEnemyStatus(tile.element, tile.enemyData)
   }
 
   // Stun: enemy is stunned if stunTurns > 0
@@ -5767,7 +5801,11 @@ function slamAction() {
   if (_isSilenced()) return
   if (!(_save.warrior?.upgrades ?? []).includes('slam')) return
   if (_combatBusy) return
-  const cost = _stillWaterManaCost(WARRIOR_UPGRADES.slam.manaCost)
+
+  // Reverberation III: consume free-cast flag before mana check
+  const isFree = run.player.slamFreeNextCast === true
+  if (isFree) run.player.slamFreeNextCast = false
+  const cost = isFree ? 0 : _stillWaterManaCost(WARRIOR_UPGRADES.slam.manaCost)
   if (run.player.mana < cost) {
     UI.setMessage('Not enough mana for Slam!', true)
     return
@@ -5802,9 +5840,11 @@ function slamAction() {
   UI.setPortraitAnim('attack')
   const slamDmg = _scaleOutgoingDamageToEnemy(_slamDamagePerTarget())
   const immuneNote = immuneSkipped ? ` (${immuneSkipped} immune)` : ''
-  UI.setMessage(`💥 Slam! ${targets.length} enem${targets.length > 1 ? 'ies' : 'y'} struck for ${slamDmg} each!${immuneNote}`)
+  const freeNote   = isFree ? ' (free!)' : ''
+  UI.setMessage(`💥 Slam! ${targets.length} enem${targets.length > 1 ? 'ies' : 'y'} struck for ${slamDmg} each!${immuneNote}${freeNote}`)
 
   // Stagger slash effects across targets
+  let slamKillCount = 0
   targets.forEach((target, i) => {
     setTimeout(() => {
       UI.spawnSlash(target.element)
@@ -5812,6 +5852,7 @@ function slamAction() {
       target.enemyData.currentHP = Math.max(0, target.enemyData.currentHP - slamDmg)
       UI.spawnFloat(target.element, `💥 ${slamDmg}`, 'xp')
       if (target.enemyData.currentHP <= 0) {
+        slamKillCount++
         _gainGold(target.enemyData.goldDrop ? _rand(...target.enemyData.goldDrop) : 1, target.element, true)
         _gainXP(target.enemyData.xpDrop ?? 0, target.element)
         _endCombatVictory(target)
@@ -5825,7 +5866,123 @@ function slamAction() {
     UI.setPortraitAnim('idle')
     _combatBusy = false
     _restoreCombatEngagementAfterMultiTargetAbility(savedEngagement)
+    _slamBranchAftereffect(targets, slamDmg, slamKillCount)
   }, targets.length * 120 + 400)
+}
+
+function _slamBranchAftereffect(targets, slamDmg, killCount) {
+  if (!run?.player?.slamBranch) return
+  const { name, tier } = run.player.slamBranch
+
+  if (name === 'hemorrhage') {
+    const [bleedTurns, bleedDmg] = tier >= 2 ? [3, 3] : [2, 2]
+    const burstOnDeath = tier >= 3
+    const survivors = targets.filter(t => t.enemyData && !t.enemyData._slain && t.enemyData.currentHP > 0)
+    for (const t of survivors) {
+      t.enemyData.bleedTurns = (t.enemyData.bleedTurns ?? 0) + bleedTurns
+      t.enemyData.bleedDmg   = bleedDmg
+      t.enemyData.bleedBurst = burstOnDeath
+      if (t.element) UI.spawnFloat(t.element, `🩸 ${bleedTurns}t`, 'damage')
+    }
+    if (survivors.length > 0) UI.setMessage(`🩸 Hemorrhage — ${survivors.length} enem${survivors.length > 1 ? 'ies' : 'y'} bleeding!`)
+    _refreshAllEnemyStatusDisplays()
+  } else if (name === 'seismic') {
+    _slamSeismicReveal(targets, tier)
+  } else if (name === 'reverberation') {
+    const manaPerKill = tier >= 2 ? 2 : 1
+    if (killCount > 0) {
+      const gained = Math.min(killCount * manaPerKill, run.player.maxMana - run.player.mana)
+      if (gained > 0) {
+        run.player.mana += gained
+        UI.updateMana(run.player.mana, run.player.maxMana)
+        UI.spawnFloat(document.getElementById('hud-portrait'), `🔮 +${gained}`, 'mana')
+      }
+    }
+    if (tier >= 3 && killCount >= 2) {
+      run.player.slamFreeNextCast = true
+      UI.setMessage(`⚡ Reverberation — ${killCount} kills! Next Slam costs no mana.`)
+    }
+  }
+}
+
+function _slamSeismicReveal(targets, tier) {
+  const revealCount = tier >= 3 ? 3 : tier >= 2 ? 2 : 1
+  const dealExtraDmg = tier >= 3
+
+  // Collect unrevealed tiles adjacent (Chebyshev ≤1) to any hit target
+  const seen = new Set()
+  const candidates = []
+  for (const t of targets) {
+    for (const tile of _getActiveTiles()) {
+      const key = `${tile.row},${tile.col}`
+      if (seen.has(key) || tile.revealed || tile.locked) continue
+      if (Math.abs(tile.row - t.row) <= 1 && Math.abs(tile.col - t.col) <= 1) {
+        seen.add(key)
+        candidates.push(tile)
+      }
+    }
+  }
+
+  candidates.sort(() => Math.random() - 0.5)
+  const toReveal = candidates.slice(0, revealCount)
+  if (toReveal.length === 0) return
+
+  let extraKills = 0
+  for (const tile of toReveal) {
+    tile.revealed = true
+    run.tilesRevealed++
+    TileEngine.markReachable(tile.row, tile.col, _markReachableUi)
+    if (tile.element) TileEngine.flipTile(tile)
+
+    if (dealExtraDmg && tile.enemyData && !tile.enemyData._slain && !tile.enemyData.spellImmune) {
+      const dmg = _scaleOutgoingDamageToEnemy(_slamDamagePerTarget())
+      tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - dmg)
+      if (tile.element) {
+        UI.spawnFloat(tile.element, `💥 ${dmg}`, 'xp')
+        UI.shakeTile(tile.element)
+      }
+      if (tile.enemyData.currentHP <= 0) {
+        _gainGold(tile.enemyData.goldDrop ? _rand(...tile.enemyData.goldDrop) : 1, tile.element, true)
+        _gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
+        _endCombatVictory(tile)
+        extraKills++
+      } else if (tile.element) {
+        UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
+      }
+    }
+  }
+
+  _syncGridDomClassesFromModel()
+  TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
+  const killNote = extraKills > 0 ? ` (${extraKills} enem${extraKills > 1 ? 'ies' : 'y'} hit!)` : ''
+  UI.setMessage(`🌊 Seismic — shockwave reveals ${toReveal.length} tile${toReveal.length > 1 ? 's' : ''}!${killNote}`)
+}
+
+function _refreshAllEnemyStatusDisplays() {
+  for (const tile of _getActiveTiles()) {
+    if (!tile.revealed || !tile.enemyData || tile.enemyData._slain) continue
+    UI.updateEnemyStatus(tile.element, tile.enemyData)
+  }
+}
+
+function _hemorrhageBurst(sourceTile) {
+  const burstDmg = 2
+  for (const tile of _getActiveTiles()) {
+    if (!tile.revealed || !tile.enemyData || tile.enemyData._slain) continue
+    if (tile === sourceTile) continue
+    tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - burstDmg)
+    if (tile.element) {
+      UI.spawnFloat(tile.element, `🩸💥 ${burstDmg}`, 'damage')
+      UI.shakeTile(tile.element)
+    }
+    if (tile.enemyData.currentHP <= 0) {
+      _gainGold(tile.enemyData.goldDrop ? _rand(...tile.enemyData.goldDrop) : 1, tile.element)
+      _gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
+      _endCombatVictory(tile)
+    } else if (tile.element) {
+      UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
+    }
+  }
 }
 
 function abilitySlotAAction() {
@@ -6709,6 +6866,7 @@ function _executePoisonArrowShot(tile) {
 
   t0.enemyData.poisonTurns = 3
   UI.updateEnemyHP(t0.element, t0.enemyData.currentHP)
+  UI.updateEnemyStatus(t0.element, t0.enemyData)
   UI.setMessage(`☠️ Poison Arrow! The foe is poisoned (${initial} + ${3} ticks on turns — flips or melee).`)
 
   setTimeout(() => {
@@ -6944,10 +7102,87 @@ function _castBlindingLight(tile) {
   setTimeout(() => UI.setPortraitAnim('idle'), 600)
 
   tile.enemyData.stunTurns = (tile.enemyData.stunTurns ?? 0) + stun
+  UI.updateEnemyStatus(tile.element, tile.enemyData)
 
   UI.setMessage(
     `✨ Blinding Light${bonusSuffix} — +${stun} stun turn${stun === 1 ? '' : 's'}! ${tile.enemyData.label} cannot counter-attack (${tile.enemyData.currentHP} HP).`,
   )
+
+  _blindingBranchAftereffect(tile, stun, cost)
+}
+
+function _blindingBranchAftereffect(primaryTile, stun, cost) {
+  if (!run?.player?.blindingBranch) return
+  const { name, tier } = run.player.blindingBranch
+
+  if (name === 'solarflare') {
+    const aoeMult = tier >= 2 ? 2 / 3 : 0.5
+    const aoeStun = Math.max(1, Math.round(stun * aoeMult))
+    const others = _getActiveTiles().filter(t =>
+      t !== primaryTile &&
+      t.revealed && t.enemyData && !t.enemyData._slain &&
+      !t.enemyData.spellImmune,
+    )
+    for (const t of others) {
+      t.enemyData.stunTurns = (t.enemyData.stunTurns ?? 0) + aoeStun
+      if (tier >= 3) t.enemyData.solarflareVulnerable = true
+      if (t.element) UI.spawnFloat(t.element, `⏱️ +${aoeStun}`, 'mana')
+      UI.updateEnemyStatus(t.element, t.enemyData)
+    }
+    if (tier >= 3) primaryTile.enemyData.solarflareVulnerable = true
+    if (others.length > 0) {
+      UI.setMessage(`✨ Solarflare — ${others.length} other enem${others.length > 1 ? 'ies' : 'y'} blinded (+${aoeStun} turns)!`)
+    }
+  } else if (name === 'revelation') {
+    _blindingRevelationReveal(primaryTile, tier, cost)
+  }
+}
+
+function _blindingRevelationReveal(tile, tier, cost) {
+  const revealCount = tier >= 2 ? 3 : 2
+
+  const seen = new Set()
+  const candidates = []
+  for (const t of _getActiveTiles()) {
+    const key = `${t.row},${t.col}`
+    if (seen.has(key) || t.revealed) continue
+    if (Math.abs(t.row - tile.row) <= 1 && Math.abs(t.col - tile.col) <= 1) {
+      seen.add(key)
+      candidates.push(t)
+    }
+  }
+
+  candidates.sort(() => Math.random() - 0.5)
+  const toReveal = candidates.slice(0, revealCount)
+  if (toReveal.length === 0) return
+
+  let enemyFound = false
+  for (const t of toReveal) {
+    t.revealed = true
+    run.tilesRevealed++
+    TileEngine.markReachable(t.row, t.col, _markReachableUi)
+    if (t.element) TileEngine.flipTile(t)
+
+    if (tier >= 3 && t.enemyData && !t.enemyData._slain && !t.enemyData.spellImmune) {
+      t.enemyData.stunTurns = (t.enemyData.stunTurns ?? 0) + 1
+      if (t.element) UI.spawnFloat(t.element, '⏱️ +1', 'mana')
+      UI.updateEnemyStatus(t.element, t.enemyData)
+      enemyFound = true
+    }
+  }
+
+  _syncGridDomClassesFromModel()
+  TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
+
+  if (tier >= 3 && enemyFound) {
+    const refund = Math.floor(cost / 2)
+    run.player.mana = Math.min(run.player.maxMana, run.player.mana + refund)
+    UI.updateMana(run.player.mana, run.player.maxMana)
+    UI.spawnFloat(document.getElementById('hud-portrait'), `🔮 +${refund}`, 'mana')
+    UI.setMessage(`👁️ Revelation — ${toReveal.length} tile${toReveal.length > 1 ? 's' : ''} revealed! +${refund} mana refunded.`)
+  } else {
+    UI.setMessage(`👁️ Revelation — ${toReveal.length} tile${toReveal.length > 1 ? 's' : ''} illuminated!`)
+  }
 }
 
 // ── Divine Light ──────────────────────────────────────────────
@@ -8596,6 +8831,7 @@ function useItem(id) {
     combatTile.enemyData.stunTurns = (combatTile.enemyData.stunTurns ?? 0) + 3
     UI.spawnFloat(combatTile.element, '💨 Stunned 3!', 'xp')
     UI.setMessage('💨 Smoke Bomb — enemy stunned for 3 turns! (5 mana)')
+    UI.updateEnemyStatus(combatTile.element, combatTile.enemyData)
     EventBus.emit('audio:play', { sfx: 'spell' })
     return
   }
@@ -8684,6 +8920,7 @@ function useItem(id) {
     combatTile.enemyData.stunTurns = (combatTile.enemyData.stunTurns ?? 0) + 2
     UI.spawnFloat(combatTile.element, '✨ Stunned!', 'xp')
     UI.setMessage('✨ Flash Powder — enemy stunned for 2 turns! No counter-attacks.')
+    UI.updateEnemyStatus(combatTile.element, combatTile.enemyData)
     entry.qty--
     if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
     EventBus.emit('audio:play', { sfx: 'spell' })

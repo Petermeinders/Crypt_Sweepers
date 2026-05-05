@@ -7,30 +7,73 @@ Each pillar is a self-contained epic with user stories ready for independent imp
 ## Epic A: Choices Matter — Branching Mastery Paths
 
 ### Goal
-Replace the linear per-hero mastery tree with mutually exclusive branches at Tier 2 and Tier 3, so each run's build is a consequence of deliberate decisions rather than additive stat accumulation.
+Give each hero's abilities two divergent upgrade paths that the player unlocks in the meta menu and chooses between during a run. Each branch changes *how* the ability works — not just its numbers — so the choice reflects a playstyle commitment, not a power comparison.
+
+### Design Rules
+
+1. **Per-ability, not per-tier.** Each base ability (Slam, Blinding Light, Divine Light, etc.) has exactly two named branch paths. Base abilities stay linear.
+2. **Meta unlock gates in-run availability.** Branch paths are unlocked in the hero upgrade menu just like any other mastery. A branch only appears in the level-up pool if the player has unlocked it in the meta.
+3. **Branches appear after the base ability.** A branch path can only be offered in a level-up if the player has already chosen the base ability in the current run.
+4. **One path per ability per run.** Once the player picks Branch A for Slam, Branch B is removed from that run's offer pool for the rest of the run. If only one branch is unlocked in the meta, only that one can appear.
+5. **Branches can be multi-level.** A branch path may have 1–3 upgrade tiers of its own (e.g., Slam: Thunderclap I → II → III), each unlockable and purchasable separately in the meta menu.
+6. **Each hero is its own story.** Branch design is greenlit per hero before implementation. Heroes are tackled in order: Paladin → Mage → Ranger → Engineer → Vampire → Necromancer.
+
+### Meta Menu Flow (per branch upgrade)
+```
+Hero Select → [Hero Name] Upgrades
+  └─ Slam                        [unlocked / cost X XP]
+       ├─ Branch A: Thunderclap  [unlocked / cost Y XP]  ← shows once Slam is unlocked
+       │    ├─ Thunderclap I     [unlocked / cost Y XP]
+       │    ├─ Thunderclap II    [locked   / cost Z XP]
+       │    └─ Thunderclap III   [locked   / cost Z XP]
+       └─ Branch B: Cleave       [locked   / cost Y XP]  ← shows once Slam is unlocked
+            ├─ Cleave I          [locked   / cost Y XP]
+            ├─ Cleave II         [locked   / cost Z XP]
+            └─ Cleave III        [locked   / cost Z XP]
+```
+
+### In-Run Level-Up Flow
+```
+Player levels up →
+  If Slam not yet chosen:    offer Slam (base)
+  If Slam chosen, branch not yet chosen:
+    offer Branch A (if meta-unlocked) and/or Branch B (if meta-unlocked)
+  If Branch A chosen:        offer Thunderclap II, Thunderclap III (if meta-unlocked)
+    Branch B is excluded for the rest of this run
+```
 
 ### Scope
 
 **Includes:**
-- Two named branch options presented at Tier 2 and Tier 3 level-up
-- Selecting one branch locks out the other for the remainder of the run
-- Branch options are visible with a clear description of the trade-off before the player chooses
-- All 6 heroes get updated branch definitions **[DISCUSS — design must be greenlit per hero before implementation]**
-- Level-up UI updated to display "Branch A vs Branch B" choice framing when a branch tier is reached
+- Branch path definitions in each hero's ability data file (`conflictsWith` reference, `requiresBranch` prerequisite chain)
+- Level-up pool logic respects branch exclusivity within a run
+- Meta upgrade menu shows branches nested under their parent ability, unlockable independently
+- Each hero's branches designed and greenlit before coding
+- Paladin is the first hero implemented (replaces all "warrior" references throughout the codebase)
 
 **Excludes:**
-- Changes to Tier 1 masteries (those remain linear)
+- Changes to base ability behavior (Slam, Blinding Light, Divine Light remain unchanged until a branch is chosen)
 - Changes to stat pick options (HP, mana, damage up) — those stay in the pool
-- New abilities — branches are remixes of existing mechanics, not new code, until greenlit
+- New abilities that don't already exist — branches modify existing mechanics
+
+### Hero Implementation Order
+| Hero | Status |
+|------|--------|
+| Paladin | In progress — Slam paths next |
+| Mage | Pending design |
+| Ranger | Pending design |
+| Engineer | Pending design |
+| Vampire | Pending design |
+| Necromancer | Pending design |
 
 ### Stories
 
-- As a player, when I reach a branch tier level-up I see two named paths with a short description so I can make an informed strategic choice
-- As a player, choosing one branch permanently locks out the other branch for this run so my decision has lasting consequences
-- As a player, the branch I chose is visible on my character sheet / HUD so I can remember my build
-- As a player, each branch option clearly states what it does (stat effect or passive rule) before I commit so there are no surprises
-- As a developer, each hero's mastery data includes `branch: true` at Tier 2 and Tier 3 nodes with a `conflictsWith` reference so the level-up system can enforce exclusivity
-- As a developer, selecting a branch records it in run state so subsequent level-ups exclude the opposing branch from the offer pool
+- As a player, after I unlock a branch in the meta I can choose it during a run level-up so meta investment shapes my in-run options
+- As a player, once I choose Branch A for an ability, Branch B is no longer offered that run so each path is a real fork, not a menu
+- As a player, each branch path is described clearly at level-up time (what it changes, not just numbers) so I can choose based on strategy not luck
+- As a player, I can unlock both branches for an ability in the meta and choose between them each run so replayability grows with investment
+- As a developer, branch paths in ability data include `conflictsWith: 'branch-id'` and `requiresBase: 'ability-id'` so the level-up pool system can enforce rules without hero-specific code
+- As a developer, chosen branches are stored in `run.chosenBranches` (a map of `abilityId → branchId`) so exclusivity is enforced in a single lookup during pool assembly
 
 ---
 

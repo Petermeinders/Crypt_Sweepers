@@ -1550,10 +1550,45 @@ const UI = {
     tileEl.classList.toggle('combat-engaged', !!isEngaged)
   },
 
+  /** Dim + X overlay — tile is inaccessible while combat commitment is active. */
+  setTileCombatBlocked(tileEl, isBlocked) {
+    tileEl.classList.toggle('combat-blocked', !!isBlocked)
+  },
+
   /**
    * Live enemy HP on the tile. Central place to fix NaN/undefined drift for every enemy type
    * (boss, normal, summons) — callers may pass bad values; we sync `tile.enemyData.currentHP`.
    */
+  updateEnemyStatus(tileEl, enemyData) {
+    if (!tileEl || !enemyData) return
+    const front = tileEl.querySelector('.tile-front')
+    if (!front) return
+
+    let container = front.querySelector('.tile-status-effects')
+
+    const statuses = []
+    if ((enemyData.bleedTurns  ?? 0) > 0) statuses.push({ key: 'bleed',  icon: '🩸', turns: enemyData.bleedTurns })
+    if ((enemyData.poisonTurns ?? 0) > 0) statuses.push({ key: 'poison', icon: '☠️', turns: enemyData.poisonTurns })
+    if ((enemyData.stunTurns   ?? 0) > 0) statuses.push({ key: 'stun',   icon: '💫', turns: enemyData.stunTurns })
+
+    if (statuses.length === 0) {
+      if (container) container.remove()
+      return
+    }
+
+    if (!container) {
+      container = document.createElement('div')
+      container.className = 'tile-status-effects'
+      front.appendChild(container)
+    }
+
+    container.innerHTML = statuses.map(s => `
+      <div class="tile-status-badge status-${s.key}">
+        <span class="status-icon">${s.icon}</span>
+        <span class="status-turns">${s.turns}</span>
+      </div>`).join('')
+  },
+
   updateEnemyHP(tileEl, newHP) {
     const hpEl = tileEl?.querySelector('.stat-hp')
     if (!hpEl) return

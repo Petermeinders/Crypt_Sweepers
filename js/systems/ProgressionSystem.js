@@ -95,6 +95,7 @@ function getChoices(player, charKey = 'warrior', metaUnlockedIds = [], choiceCou
     if (reqAbility && !acquired.has(reqAbility)) continue
     if (reqMeta && !meta.has(reqMeta)) continue
     if (!def.repeatable && acquired.has(id)) continue
+    if (def.conflictsWith?.some(c => acquired.has(c))) continue
     pool.push({ id, kind: 'mastery', weight: WEIGHTS.mastery })
   }
 
@@ -197,6 +198,18 @@ function applyAbility(abilityId, player, charKey = 'warrior', ctx = {}) {
     case 'slam-mult-bonus':
       player.slamMasteryStacks = (player.slamMasteryStacks ?? 0) + (effect.amount ?? 1)
       break
+    case 'slam-branch': {
+      if (!player.slamBranch) player.slamBranch = { name: effect.branch, tier: 0 }
+      player.slamBranch.name = effect.branch
+      player.slamBranch.tier = Math.max(player.slamBranch.tier ?? 0, effect.tier)
+      break
+    }
+    case 'blinding-branch': {
+      if (!player.blindingBranch) player.blindingBranch = { name: effect.branch, tier: 0 }
+      player.blindingBranch.name = effect.branch
+      player.blindingBranch.tier = Math.max(player.blindingBranch.tier ?? 0, effect.tier)
+      break
+    }
     case 'blinding-mult-bonus':
       player.blindingLightMasteryStacks = (player.blindingLightMasteryStacks ?? 0) + (effect.amount ?? 1)
       break

@@ -1571,7 +1571,6 @@ function _renderUpgradeDetail(id, def, isOwned, canAfford) {
   const hintEl       = document.getElementById('hero-upgrade-detail-hint')
   const costEl       = document.getElementById('hero-upgrade-detail-cost')
   const masteriesEl  = document.getElementById('hero-upgrade-detail-masteries')
-  const masteriesListEl = document.getElementById('hero-upgrade-detail-masteries-list')
 
   if (!id || !def) {
     backdrop.classList.add('hidden')
@@ -1617,28 +1616,91 @@ function _renderUpgradeDetail(id, def, isOwned, canAfford) {
     }
   }
 
-  // Masteries section
-  const tiers = Object.entries(map).filter(([, d]) => d.masteryOf === id)
-  if (masteriesEl && masteriesListEl) {
-    if (tiers.length > 0) {
-      masteriesListEl.innerHTML = ''
-      tiers.forEach(([tierId, tierDef]) => {
-        const tierOwned    = owned.includes(tierId)
-        const prereqMet    = !tierDef.requires || owned.includes(tierDef.requires)
-        const tierAfford   = !tierOwned && prereqMet && xp >= tierDef.xpCost
+  // Tabbed mastery + expertise system
+  const allTiers = Object.entries(map).filter(([, d]) => d.masteryOf === id)
+  const tabStrip   = document.getElementById('upgrade-tab-strip')
+  const tabContent = document.getElementById('upgrade-tab-content')
+
+  if (masteriesEl && tabStrip && tabContent && allTiers.length > 0) {
+    // Separate expertise tiers (no branch field) from named mastery branches
+    const expertiseTiers = allTiers.filter(([, d]) => !d.branch)
+    const branchMap = {}  // branch name → [[tierId, tierDef], ...]
+    for (const [tierId, tierDef] of allTiers) {
+      if (!tierDef.branch) continue
+      if (!branchMap[tierDef.branch]) branchMap[tierDef.branch] = []
+      branchMap[tierDef.branch].push([tierId, tierDef])
+    }
+
+    const tabs = []
+    if (expertiseTiers.length > 0) tabs.push({ key: 'expertise', label: 'Expertise', kind: 'expertise', tiers: expertiseTiers })
+    for (const [branchKey, branchTiers] of Object.entries(branchMap)) {
+      const label = branchKey.charAt(0).toUpperCase() + branchKey.slice(1)
+      tabs.push({ key: branchKey, label, kind: 'mastery', tiers: branchTiers })
+    }
+
+    let activeTab = tabs[0]?.key ?? ''
+
+    function _buildTabContent(tabKey) {
+      tabContent.innerHTML = ''
+      const tab = tabs.find(t => t.key === tabKey)
+      if (!tab) return
+
+      // Mastery path header blurb (not shown for Expertise)
+      if (tab.kind === 'mastery') {
+        const blurb = document.createElement('div')
+        blurb.className = 'upgrade-mastery-blurb'
+        blurb.innerHTML = `
+          <div class="upgrade-mastery-blurb-title">Mastery: ${tab.label}</div>
+          <div class="upgrade-mastery-blurb-note">During a run you can only select one mastery path.</div>`
+        tabContent.appendChild(blurb)
+      }
+
+      const rail = document.createElement('div')
+      rail.className = `upgrade-tier-rail${tab.kind === 'expertise' ? ' tab-expertise-content' : ''}`
+
+      tab.tiers.forEach(([tierId, tierDef], idx) => {
+        const tierOwned  = owned.includes(tierId)
+        const prereqMet  = !tierDef.requires || owned.includes(tierDef.requires)
+        const tierAfford = !tierOwned && prereqMet && xp >= tierDef.xpCost
+        const isLast     = idx === tab.tiers.length - 1
+
+        // Roman numerals for the badge
+        const numerals = ['I', 'II', 'III', 'IV', 'V']
+        const numeral  = numerals[idx] ?? (idx + 1)
+
         const row = document.createElement('div')
-        row.className = 'upgrade-mastery-row'
+        row.className = 'upgrade-tier-row'
+
+        // Label for the display name — strip branch prefix if present
+        // e.g. "Hemorrhage I" → show as "Hemorrhage I" (keep full name)
+        const displayName = tierDef.name
+
+        // Button state
+        let btnClass, btnText
+        if (tierOwned)       { btnClass = 'btn-owned'; btnText = '✓ Owned' }
+        else if (tierAfford) { btnClass = 'btn-buy';   btnText = `Unlock: ${tierDef.xpCost} XP` }
+        else if (!prereqMet) { btnClass = 'btn-locked'; btnText = 'Locked' }
+        else                 { btnClass = 'btn-buy';   btnText = `Unlock: ${tierDef.xpCost} XP` }
+
+        // Connector fill: fill if this tier and next are both owned (visual chain)
+        const nextOwned = !isLast && owned.includes(tab.tiers[idx + 1]?.[0])
+        const connectorFilled = tierOwned && nextOwned
+
         row.innerHTML = `
-          <span class="upgrade-mastery-check${tierOwned ? ' owned' : ''}" aria-hidden="true">${tierOwned ? '✓' : ''}</span>
-          <div class="upgrade-mastery-info">
-            <span class="upgrade-mastery-name">${tierDef.name}</span>
-            ${tierDef.desc ? `<span class="upgrade-mastery-desc">${tierDef.desc}</span>` : ''}
+          <div class="upgrade-tier-left">
+            <div class="upgrade-tier-badge${tierOwned ? ' owned' : ''}">${numeral}</div>
+            ${!isLast ? `<div class="upgrade-tier-connector${connectorFilled ? ' filled' : ''}"></div>` : ''}
           </div>
-          <button class="upgrade-mastery-btn${tierOwned ? ' is-owned' : ''}" ${tierOwned || !tierAfford ? 'disabled' : ''}>
-            ${tierOwned ? 'Owned' : tierAfford ? `${tierDef.xpCost} XP` : !prereqMet ? 'Locked' : `${tierDef.xpCost} XP`}
-          </button>`
+          <div class="upgrade-tier-body">
+            <div class="upgrade-tier-header">
+              <span class="upgrade-tier-name${tierOwned ? ' owned' : tierAfford || !prereqMet ? '' : ' locked'}">${displayName}</span>
+              <button class="upgrade-tier-btn ${btnClass}" ${tierOwned || (!tierAfford && prereqMet) || !prereqMet ? 'disabled' : ''}>${btnText}</button>
+            </div>
+            ${tierDef.desc ? `<div class="upgrade-tier-desc${tierOwned ? ' owned' : ''}">${tierDef.desc}</div>` : ''}
+          </div>`
+
         if (!tierOwned && tierAfford) {
-          row.querySelector('.upgrade-mastery-btn').addEventListener('click', () => {
+          row.querySelector('.upgrade-tier-btn').addEventListener('click', () => {
             const sv = GameController.getSave()
             if (_buyUpgradeForChar(sv, char.id, tierId)) {
               SaveManager.save(sv)
@@ -1646,12 +1708,31 @@ function _renderUpgradeDetail(id, def, isOwned, canAfford) {
             }
           })
         }
-        masteriesListEl.appendChild(row)
+        rail.appendChild(row)
       })
-      masteriesEl.classList.remove('hidden')
-    } else {
-      masteriesEl.classList.add('hidden')
+      tabContent.appendChild(rail)
     }
+
+    function _buildTabStrip() {
+      tabStrip.innerHTML = ''
+      tabs.forEach(tab => {
+        const btn = document.createElement('button')
+        btn.className = `upgrade-tab-btn tab-${tab.kind}${tab.key === activeTab ? ' active' : ''}`
+        btn.textContent = tab.label
+        btn.addEventListener('click', () => {
+          activeTab = tab.key
+          _buildTabStrip()
+          _buildTabContent(activeTab)
+        })
+        tabStrip.appendChild(btn)
+      })
+    }
+
+    _buildTabStrip()
+    _buildTabContent(activeTab)
+    masteriesEl.classList.remove('hidden')
+  } else if (masteriesEl) {
+    masteriesEl.classList.add('hidden')
   }
 
   // Base buy button
