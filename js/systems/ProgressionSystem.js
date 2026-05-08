@@ -258,6 +258,24 @@ function applyAbility(abilityId, player, charKey = 'warrior', ctx = {}) {
     case 'blood-tithe-mastery':
       player.bloodTitheMasteryTier = Math.max(player.bloodTitheMasteryTier ?? 1, effect.tier)
       break
+    case 'chain-lightning-shocked':
+      player.chainLightningShockedTier = Math.max(player.chainLightningShockedTier ?? 0, effect.tier)
+      break
+    case 'chain-lightning-overload':
+      player.chainLightningOverloadTier = Math.max(player.chainLightningOverloadTier ?? 0, effect.tier)
+      break
+    case 'telekinetic-gravity-well':
+      player.tkGravityWellTier = Math.max(player.tkGravityWellTier ?? 0, effect.tier)
+      break
+    case 'tesla-superconduction':
+      player.teslaSuperconductionTier = Math.max(player.teslaSuperconductionTier ?? 0, effect.tier)
+      break
+    case 'blood-pact-dominion':
+      player.bloodPactDominionTier = Math.max(player.bloodPactDominionTier ?? 0, effect.tier)
+      break
+    case 'raise-minion-legion':
+      player.minionLegionTier = Math.max(player.minionLegionTier ?? 0, effect.tier)
+      break
   }
 
   if (!Array.isArray(player.abilities)) player.abilities = []

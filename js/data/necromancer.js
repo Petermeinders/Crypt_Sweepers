@@ -69,6 +69,34 @@ export const NECROMANCER_ABILITIES = {
     requiresMeta:    'strengthen-minion-mastery-2',
     requiresAbility: 'strengthen-minion-mastery-1',
   },
+  // ── Raise Minion branch: Undying Legion ───────────────────────────
+  'raise-minion-legion-1': {
+    name:      'Undying Legion I',
+    desc:      'If 2+ enemy corpses are present when you cast Raise Minion, you raise 2 minions simultaneously for the standard cost (10 mana). Single-corpse raises still produce 1 minion.',
+    icon:      '⚰️',
+    effect:    { type: 'raise-minion-legion', tier: 1 },
+    repeatable: false,
+    requiresMeta:  'raise-minion-legion-1',
+    conflictsWith: ['raise-minion-bone-wall-1'],
+  },
+  'raise-minion-legion-2': {
+    name:      'Undying Legion II',
+    desc:      'Each minion now has a once-per-run revive: when it first dies, it rises again at 1 HP. The revived minion cannot be revived again.',
+    icon:      '⚰️',
+    effect:    { type: 'raise-minion-legion', tier: 2 },
+    repeatable: false,
+    requiresMeta:    'raise-minion-legion-2',
+    requiresAbility: 'raise-minion-legion-1',
+  },
+  'raise-minion-legion-3': {
+    name:      'Undying Legion III',
+    desc:      'While you have 3+ active minions, your melee attacks deal +1 bonus damage. This bonus is lost immediately if the count drops below 3.',
+    icon:      '⚰️',
+    effect:    { type: 'raise-minion-legion', tier: 3 },
+    repeatable: false,
+    requiresMeta:    'raise-minion-legion-3',
+    requiresAbility: 'raise-minion-legion-2',
+  },
 }
 
 /** Meta-shop tree. Base actives unlock into the level-up pool; mastery tiers require the base active. */
@@ -164,6 +192,37 @@ export const NECROMANCER_UPGRADES = {
     icon:     '👑',
     xpCost:   80,
     requires: 'raise-minion-mastery-2',
+    effect:   { type: 'mastery-tier-unlock' },
+  },
+  // ── Raise Minion branch: Undying Legion ───────────────────────────
+  'raise-minion-legion-1': {
+    name:     'Undying Legion I',
+    desc:     'If 2+ enemy corpses are present when you cast Raise Minion, you raise 2 minions simultaneously for the standard cost (10 mana).',
+    icon:     '⚰️',
+    xpCost:   60,
+    requires: 'raise-minion-mastery-1',
+    masteryOf:'raise-minion',
+    branch:   'legion',
+    effect:   { type: 'mastery-tier-unlock' },
+  },
+  'raise-minion-legion-2': {
+    name:     'Undying Legion II',
+    desc:     'Each minion has a once-per-run revive: when it first dies, it rises again at 1 HP.',
+    icon:     '⚰️',
+    xpCost:   80,
+    requires: 'raise-minion-legion-1',
+    masteryOf:'raise-minion',
+    branch:   'legion',
+    effect:   { type: 'mastery-tier-unlock' },
+  },
+  'raise-minion-legion-3': {
+    name:     'Undying Legion III',
+    desc:     'While you have 3+ active minions, your melee attacks deal +1 bonus damage.',
+    icon:     '⚰️',
+    xpCost:   100,
+    requires: 'raise-minion-legion-2',
+    masteryOf:'raise-minion',
+    branch:   'legion',
     effect:   { type: 'mastery-tier-unlock' },
   },
 }

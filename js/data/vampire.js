@@ -117,6 +117,37 @@ export const VAMPIRE_UPGRADES = {
     masteryOf:'blood-pact',
     effect:   { type: 'mastery-tier-unlock' },
   },
+  // ── Blood Pact branch: Dominion ───────────────────────────────────
+  'blood-pact-dominion-1': {
+    name:     'Dominion I',
+    desc:     'After Blood Pact equalizes, the lowest-HP revealed enemy (non-boss) is Thralled for 1 turn. It attacks a random adjacent revealed enemy. Expires after 1 attack or 2 flips.',
+    icon:     '🧿',
+    xpCost:   60,
+    requires: 'blood-pact',
+    masteryOf:'blood-pact',
+    branch:   'dominion',
+    effect:   { type: 'mastery-tier-unlock' },
+  },
+  'blood-pact-dominion-2': {
+    name:     'Dominion II',
+    desc:     'Thrall persists for 2 turns (2 attacks or 4 flips). Enemy harass attacks target the Thralled enemy instead of you.',
+    icon:     '🧿',
+    xpCost:   80,
+    requires: 'blood-pact-dominion-1',
+    masteryOf:'blood-pact',
+    branch:   'dominion',
+    effect:   { type: 'mastery-tier-unlock' },
+  },
+  'blood-pact-dominion-3': {
+    name:     'Dominion III',
+    desc:     'Thralled enemy deals double damage while controlled. When thrall expires, the enemy dies (no gold or XP).',
+    icon:     '🧿',
+    xpCost:   100,
+    requires: 'blood-pact-dominion-2',
+    masteryOf:'blood-pact',
+    branch:   'dominion',
+    effect:   { type: 'mastery-tier-unlock' },
+  },
 }
 
 /** In-run mastery picks gated behind their respective active being unlocked this run. */
@@ -207,6 +238,37 @@ export const VAMPIRE_MASTERY_ABILITIES = {
     requiresAbility: 'blood-pact-mastery-2',
     repeatable:      false,
     effect:          { type: 'vampire-active-mastery', ability: 'blood-pact' },
+  },
+  // ── Blood Pact branch: Dominion ───────────────────────────────────
+  'blood-pact-dominion-1': {
+    name:           'Dominion I',
+    desc:           'After Blood Pact equalizes, the lowest-HP revealed enemy (non-boss) is Thralled for 1 turn. It attacks a random adjacent revealed enemy instead of you. The thrall expires after 1 attack or 2 flips.',
+    icon:           '🧿',
+    effect:         { type: 'blood-pact-dominion', tier: 1 },
+    repeatable:     false,
+    requiresActive: 'blood-pact',
+    requiresMeta:   'blood-pact-dominion-1',
+    conflictsWith:  ['blood-pact-extraction-1'],
+  },
+  'blood-pact-dominion-2': {
+    name:            'Dominion II',
+    desc:            'The thrall persists for 2 turns (2 attacks or 4 flips). While a Thrall is active, enemy harass attacks target the Thralled enemy instead of you.',
+    icon:            '🧿',
+    effect:          { type: 'blood-pact-dominion', tier: 2 },
+    repeatable:      false,
+    requiresActive:  'blood-pact',
+    requiresMeta:    'blood-pact-dominion-2',
+    requiresAbility: 'blood-pact-dominion-1',
+  },
+  'blood-pact-dominion-3': {
+    name:            'Dominion III',
+    desc:            'The Thralled enemy deals double its normal damage while controlled. When the thrall expires, the enemy dies (no gold or XP).',
+    icon:            '🧿',
+    effect:          { type: 'blood-pact-dominion', tier: 3 },
+    repeatable:      false,
+    requiresActive:  'blood-pact',
+    requiresMeta:    'blood-pact-dominion-3',
+    requiresAbility: 'blood-pact-dominion-2',
   },
 }
 
