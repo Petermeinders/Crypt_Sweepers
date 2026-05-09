@@ -251,6 +251,13 @@ function _checkShieldBlock(tile) {
   return true
 }
 
+/** Returns true if the enemy telegraphs its counter-attack and the parry window should show. */
+function _shouldShowParryWindow(tile) {
+  if (_save?.settings?.cheats?.godMode) return false
+  const attrs = tile.enemyData?.attributes ?? []
+  return attrs.includes('telegraphs') && !attrs.includes('fast') && tile.enemyData?.behaviour !== 'fast'
+}
+
 /** Apply two Corruption stacks (max 5). Called when Infected Goblin counter-attacks.
  *  Temporarily reduces maxHp and maxMana by 2% per stack; restored as stacks decay. */
 function _applyCorruption() {
@@ -5748,6 +5755,81 @@ function fightAction(tile) {
 
       // Decrement stun
       if (isStunned) tile.enemyData.stunTurns--
+
+      // Enemy counter-attack — telegraphing enemies show a parry window first
+      if (!isStunned && _shouldShowParryWindow(tile)) {
+        UI.showParryWindow(tile.enemyData, (parryResult) => {
+          if (!run || !tile.enemyData || tile.enemyData._slain) { _combatBusy = false; return }
+
+          let finalEnemyDmg = result.enemyDmg
+          let parrySuccessType = null
+
+          if (parryResult === 'block' && (run.player.mana ?? 0) >= 3) {
+            run.player.mana = Math.max(0, (run.player.mana ?? 0) - 3)
+            UI.updateMana(run.player.mana, run.player.maxMana)
+            finalEnemyDmg = Math.max(0, Math.ceil(result.enemyDmg / 2))
+            parrySuccessType = 'block'
+          } else if (parryResult === 'counter' && (run.player.mana ?? 0) >= 2) {
+            run.player.mana = Math.max(0, (run.player.mana ?? 0) - 2)
+            UI.updateMana(run.player.mana, run.player.maxMana)
+            finalEnemyDmg = 0
+            parrySuccessType = 'counter'
+          }
+
+          _setEnemySprite(tile, 'attack')
+          if (tile.enemyData?.freezingHit)   _applyFreezingHit()
+          if (tile.enemyData?.burnHit)        _applyBurnHit(tile.enemyData.burnHitAmount ?? 2)
+          if (tile.enemyData?.poisonHit)      _applyPlayerPoison(tile.enemyData.poisonHitAmount ?? 2)
+          if (tile.enemyData?.corruptionHit)  _applyCorruption()
+          if (tile.enemyData?.demonFlip)      _tryDemonFlip(tile)
+          if (finalEnemyDmg > 0) {
+            _takeDamage(finalEnemyDmg, tile.element, true, tile.enemyData, { enemyAttack: true })
+            UI.shakeTile(tile.element)
+          }
+          if (GameState.is(States.DEATH)) { _combatBusy = false; return }
+
+          if (parrySuccessType === 'counter') {
+            const bonusHitDmg = Math.max(1, Math.ceil(playerDmg * 0.5))
+            tile.enemyData.currentHP = Math.max(0, (tile.enemyData.currentHP ?? 0) - bonusHitDmg)
+            UI.spawnFloat(tile.element, `⚡ ${bonusHitDmg}`, 'xp')
+            UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
+            if (tile.enemyData.currentHP <= 0) {
+              _gainGold(enemyGoldDrop, tile.element, true)
+              _gainXP(result.xpDrop ?? 0, tile.element)
+              _endCombatVictory(tile)
+              afterAttackPortrait(() => UI.setPortraitAnim('idle'))
+              _combatBusy = false
+              return
+            }
+          }
+
+          setTimeout(() => {
+            if (!run || !tile.enemyData || tile.enemyData._slain) { _combatBusy = false; return }
+            _setEnemySprite(tile, 'idle')
+            UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp')
+            EventBus.emit('combat:damage', { amount: playerDmg, target: 'enemy' })
+            let tradeMsg
+            if (parrySuccessType === 'counter') {
+              tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Counter! You deflect the blow and land a bonus hit.`
+            } else if (parrySuccessType === 'block') {
+              const taken = _computeEffectiveDamageTaken(finalEnemyDmg)
+              tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Blocked! You absorb the hit for only ${taken} damage.`
+            } else {
+              const taken = _computeEffectiveDamageTaken(result.enemyDmg)
+              tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! You miss the window — enemy strikes for ${taken} damage.`
+            }
+            UI.setMessage(tradeMsg)
+            UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
+            if (_stormProc) _triggerStormcallerLightning(tile, playerDmg)
+            afterAttackPortrait(() => {
+              if (finalEnemyDmg > 0) UI.setPortraitAnim('hit')
+              setTimeout(() => UI.setPortraitAnim('idle'), finalEnemyDmg > 0 ? 500 : 0)
+            })
+            _combatBusy = false
+          }, 500)
+        })
+        return
+      }
 
       // Enemy counter-attack (skipped if stunned)
       if (!isStunned) {

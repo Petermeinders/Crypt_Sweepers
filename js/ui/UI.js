@@ -301,6 +301,16 @@ const UI = {
     el.msgLogExpanded     = document.getElementById('message-log-expanded')
     el.msgLogScroll       = document.getElementById('message-log-scroll')
     el.hudCharacterId     = 'warrior'
+    el.parryOverlay         = document.getElementById('parry-overlay')
+    el.parryEnemyIcon       = document.getElementById('parry-enemy-icon')
+    el.parryEnemyName       = document.getElementById('parry-enemy-name')
+    el.parryBar             = document.getElementById('parry-bar')
+    el.parryZoneLeft        = document.getElementById('parry-zone-left')
+    el.parryZoneGreen       = document.getElementById('parry-zone-green')
+    el.parryZoneRight       = document.getElementById('parry-zone-right')
+    el.parryIndicator       = document.getElementById('parry-indicator')
+    el.parryTimerFill       = document.getElementById('parry-timer-fill')
+    el.parryDirectionArrow  = document.getElementById('parry-direction-arrow')
 
     // Toggle log on message-box click
     el.messageBox.addEventListener('click', () => {
@@ -1889,6 +1899,138 @@ const UI = {
     ov.setAttribute('aria-hidden', 'false')
     okBtn.addEventListener('click', close)
     backdrop.addEventListener('click', close)
+  },
+
+  showParryWindow(enemyData, onResolve) {
+    if (!el.parryOverlay) { onResolve('miss'); return }
+
+    const dmg     = enemyData.dmg ?? [1, 2]
+    const avgDmg  = (dmg[0] + dmg[1]) / 2
+    const greenFrac = avgDmg <= 2 ? 0.40 : avgDmg <= 4 ? 0.25 : 0.15
+    const cycleDur  = avgDmg <= 2 ? 2200 : avgDmg <= 4 ? 1600 : 1100
+    const windowDur = 2500
+    const sideFrac  = (1 - greenFrac) / 2
+
+    // Random required swipe direction for counter
+    const DIRS = [
+      { label: '→', dx: 1,  dy: 0  },
+      { label: '←', dx: -1, dy: 0  },
+      { label: '↑', dx: 0,  dy: -1 },
+      { label: '↓', dx: 0,  dy: 1  },
+    ]
+    const requiredDir = DIRS[Math.floor(Math.random() * DIRS.length)]
+    if (el.parryDirectionArrow) el.parryDirectionArrow.textContent = requiredDir.label
+
+    el.parryZoneLeft.style.width  = (sideFrac  * 100).toFixed(1) + '%'
+    el.parryZoneGreen.style.width = (greenFrac * 100).toFixed(1) + '%'
+    el.parryZoneRight.style.width = (sideFrac  * 100).toFixed(1) + '%'
+
+    el.parryEnemyIcon.textContent = enemyData.emoji ?? '⚠️'
+    el.parryEnemyName.textContent = `${enemyData.label} winds up a heavy strike!`
+
+    el.parryOverlay.classList.remove('parry-result-block', 'parry-result-counter', 'parry-result-miss')
+    el.parryTimerFill.style.transition = 'none'
+    el.parryTimerFill.style.width = '100%'
+
+    el.parryOverlay.classList.remove('hidden')
+    el.parryOverlay.setAttribute('aria-hidden', 'false')
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        el.parryTimerFill.style.transition = `width ${windowDur}ms linear`
+        el.parryTimerFill.style.width = '0%'
+      })
+    })
+
+    const indicatorEl = el.parryIndicator
+    let rafId = null
+    let startTs = null
+    let resolved = false
+
+    function tick(ts) {
+      if (resolved) return
+      if (!startTs) startTs = ts
+      const phase  = ((ts - startTs) % cycleDur) / cycleDur
+      const bounce = phase < 0.5 ? phase * 2 : 2 - phase * 2
+      indicatorEl.style.left = (bounce * 100).toFixed(2) + '%'
+      rafId = requestAnimationFrame(tick)
+    }
+    rafId = requestAnimationFrame(tick)
+
+    let touchStartX = null, touchStartY = null, mouseStartX = null, mouseStartY = null
+
+    function _indicatorFrac() {
+      const barRect = el.parryBar.getBoundingClientRect()
+      const indRect = indicatorEl.getBoundingClientRect()
+      return (indRect.left + indRect.width / 2 - barRect.left) / barRect.width
+    }
+
+    function _inGreen(frac) {
+      return frac >= sideFrac && frac <= 1 - sideFrac
+    }
+
+    function _swipeDirMatches(dx, dy) {
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        return dx > 0 ? requiredDir.dx === 1 : requiredDir.dx === -1
+      }
+      return dy > 0 ? requiredDir.dy === 1 : requiredDir.dy === -1
+    }
+
+    function resolve(result) {
+      if (resolved) return
+      resolved = true
+      cancelAnimationFrame(rafId)
+      clearTimeout(autoMissTimer)
+      el.parryOverlay.removeEventListener('touchstart', onTouchStart)
+      el.parryOverlay.removeEventListener('touchend',   onTouchEnd)
+      el.parryOverlay.removeEventListener('mousedown',  onMouseDown)
+      el.parryOverlay.removeEventListener('mouseup',    onMouseUp)
+      el.parryTimerFill.style.transition = 'none'
+      el.parryOverlay.classList.add(`parry-result-${result}`)
+      setTimeout(() => {
+        el.parryOverlay.classList.add('hidden')
+        el.parryOverlay.setAttribute('aria-hidden', 'true')
+        el.parryOverlay.classList.remove(`parry-result-${result}`)
+        onResolve(result)
+      }, 300)
+    }
+
+    function onTouchStart(e) {
+      touchStartX = e.touches[0].clientX
+      touchStartY = e.touches[0].clientY
+    }
+    function onTouchEnd(e) {
+      if (touchStartX === null) return
+      const dx = e.changedTouches[0].clientX - touchStartX
+      const dy = e.changedTouches[0].clientY - touchStartY
+      const frac = _indicatorFrac()
+      touchStartX = null; touchStartY = null
+      if (Math.hypot(dx, dy) < 20) {
+        resolve(_inGreen(frac) ? 'block' : 'miss')
+      } else {
+        resolve(_inGreen(frac) && _swipeDirMatches(dx, dy) ? 'counter' : 'miss')
+      }
+    }
+    function onMouseDown(e) { mouseStartX = e.clientX; mouseStartY = e.clientY }
+    function onMouseUp(e) {
+      if (mouseStartX === null) return
+      const dx = e.clientX - mouseStartX
+      const dy = e.clientY - mouseStartY
+      const frac = _indicatorFrac()
+      mouseStartX = null; mouseStartY = null
+      if (Math.abs(dx) < 20 && Math.abs(dy) < 20) {
+        resolve(_inGreen(frac) ? 'block' : 'miss')
+      } else {
+        resolve(_inGreen(frac) && _swipeDirMatches(dx, dy) ? 'counter' : 'miss')
+      }
+    }
+
+    el.parryOverlay.addEventListener('touchstart', onTouchStart, { passive: true })
+    el.parryOverlay.addEventListener('touchend',   onTouchEnd,   { passive: true })
+    el.parryOverlay.addEventListener('mousedown',  onMouseDown)
+    el.parryOverlay.addEventListener('mouseup',    onMouseUp)
+
+    const autoMissTimer = setTimeout(() => resolve('miss'), windowDur)
   },
 
   showFloorModifierModal(modifier, onDismiss) {

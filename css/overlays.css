@@ -5691,3 +5691,115 @@ body.bestiary-detail-open #app {
   .hero-upgrades-col.right { right: 2px; }
   .hero-upgrades-col .hero-upgrade-slot { width: 46px; height: 46px; }
 }
+
+/* ── Parry window ─────────────────────────────────────────────── */
+.parry-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.80);
+  z-index: 300;
+  touch-action: none;
+}
+.parry-overlay.hidden { display: none; }
+
+.parry-modal {
+  background: var(--panel-bg, #1a1a2e);
+  border: 2px solid var(--gold, #d4af37);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem 1rem;
+  width: min(88vw, 340px);
+  text-align: center;
+  user-select: none;
+}
+
+.parry-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.parry-enemy-icon { font-size: 1.75rem; }
+
+.parry-enemy-label {
+  font-family: 'Cinzel', serif;
+  font-size: 0.85rem;
+  color: var(--gold, #d4af37);
+}
+
+.parry-actions-hint {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  font-size: 0.72rem;
+  color: var(--text-muted, #888);
+  margin-bottom: 0.9rem;
+}
+
+.parry-direction-arrow {
+  display: inline-block;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #f1c40f;
+  animation: parry-dir-pulse 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes parry-dir-pulse {
+  from { transform: scale(1);   opacity: 0.8; }
+  to   { transform: scale(1.3); opacity: 1;   }
+}
+
+.parry-bar-container { margin-bottom: 0.6rem; }
+
+.parry-bar {
+  position: relative;
+  height: 44px;
+  border-radius: 6px;
+  overflow: visible;
+  display: flex;
+}
+
+.parry-zone { height: 100%; }
+.parry-zone-left  {
+  background: #c0392b;
+  border-radius: 6px 0 0 6px;
+}
+.parry-zone-right {
+  background: #c0392b;
+  border-radius: 0 6px 6px 0;
+}
+.parry-zone-green { background: #27ae60; }
+
+.parry-indicator {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  width: 4px;
+  background: #fff;
+  border-radius: 2px;
+  transform: translateX(-50%);
+  will-change: left;
+  box-shadow: 0 0 8px 2px rgba(255, 255, 255, 0.85);
+  pointer-events: none;
+}
+
+.parry-timer-wrap {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.parry-timer-fill {
+  height: 100%;
+  background: var(--gold, #d4af37);
+  width: 100%;
+}
+
+.parry-overlay.parry-result-block   .parry-zone-green { background: #2980b9; }
+.parry-overlay.parry-result-counter .parry-zone-green { background: #8e44ad; }
+.parry-overlay.parry-result-miss    .parry-zone-green { background: #7f8c8d; }

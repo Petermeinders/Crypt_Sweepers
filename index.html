@@ -398,6 +398,31 @@
   <!-- ── Run summary overlay ── -->
   <div id="run-summary"></div>
 
+  <!-- ── Parry window ── -->
+  <div id="parry-overlay" class="parry-overlay hidden" aria-hidden="true">
+    <div class="parry-modal" id="parry-modal">
+      <div class="parry-header">
+        <span class="parry-enemy-icon" id="parry-enemy-icon">⚠️</span>
+        <div class="parry-enemy-label" id="parry-enemy-name">Enemy winds up a heavy strike!</div>
+      </div>
+      <div class="parry-actions-hint">
+        <span>Tap — Block <span id="parry-hint-block">(3🔵)</span></span>
+        <span>Swipe <span id="parry-direction-arrow" class="parry-direction-arrow">→</span> — Counter <span id="parry-hint-counter">(2🔵)</span></span>
+      </div>
+      <div class="parry-bar-container">
+        <div class="parry-bar" id="parry-bar">
+          <div class="parry-zone parry-zone-left" id="parry-zone-left"></div>
+          <div class="parry-zone parry-zone-green" id="parry-zone-green"></div>
+          <div class="parry-zone parry-zone-right" id="parry-zone-right"></div>
+          <div class="parry-indicator" id="parry-indicator"></div>
+        </div>
+      </div>
+      <div class="parry-timer-wrap">
+        <div class="parry-timer-fill" id="parry-timer-fill"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Resume run prompt ── -->
   <div id="resume-overlay" class="hidden">
     <div id="resume-card">
