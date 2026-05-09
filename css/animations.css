@@ -437,3 +437,22 @@
     transform: translate3d(0, -11px, 10px) scale(1.22);
   }
 }
+
+/* ── Parry ring result flashes ── */
+@keyframes parry-ring-flash-block {
+  0%   { box-shadow: 0 0 28px 8px rgba(41,128,185,0.85); transform: scale(var(--ring-scale,1)); }
+  40%  { box-shadow: 0 0 44px 14px rgba(41,128,185,1);   transform: scale(calc(var(--ring-scale,1)*1.06)); }
+  100% { opacity: 0.4; box-shadow: 0 0 10px 2px rgba(41,128,185,0.2); transform: scale(var(--ring-scale,1)); }
+}
+@keyframes parry-ring-flash-counter {
+  0%   { box-shadow: 0 0 28px 8px rgba(255,215,0,0.85); transform: scale(var(--ring-scale,1)); }
+  30%  { box-shadow: 0 0 56px 18px rgba(255,215,0,1);   transform: scale(calc(var(--ring-scale,1)*1.10)); }
+  100% { opacity: 0.4; box-shadow: 0 0 10px 2px rgba(255,215,0,0.2); transform: scale(var(--ring-scale,1)); }
+}
+@keyframes parry-ring-flash-miss {
+  0%   { transform: scale(var(--ring-scale,1)); }
+  20%  { transform: translateX(-4px) scale(var(--ring-scale,1)); }
+  40%  { transform: translateX(4px) scale(var(--ring-scale,1)); }
+  70%  { transform: translateX(-3px) scale(var(--ring-scale,1)); }
+  100% { opacity: 0.3; transform: scale(var(--ring-scale,1)); }
+}

@@ -304,13 +304,14 @@ const UI = {
     el.parryOverlay         = document.getElementById('parry-overlay')
     el.parryEnemyIcon       = document.getElementById('parry-enemy-icon')
     el.parryEnemyName       = document.getElementById('parry-enemy-name')
-    el.parryBar             = document.getElementById('parry-bar')
-    el.parryZoneLeft        = document.getElementById('parry-zone-left')
-    el.parryZoneGreen       = document.getElementById('parry-zone-green')
-    el.parryZoneRight       = document.getElementById('parry-zone-right')
-    el.parryIndicator       = document.getElementById('parry-indicator')
-    el.parryTimerFill       = document.getElementById('parry-timer-fill')
     el.parryDirectionArrow  = document.getElementById('parry-direction-arrow')
+    el.parryRingArena  = document.getElementById('parry-ring-arena')
+    el.parryRingOuter  = document.getElementById('parry-ring-outer')
+    el.parryRingTarget = document.getElementById('parry-ring-target')
+    el.parryCompassN   = document.getElementById('parry-compass-n')
+    el.parryCompassE   = document.getElementById('parry-compass-e')
+    el.parryCompassS   = document.getElementById('parry-compass-s')
+    el.parryCompassW   = document.getElementById('parry-compass-w')
 
     // Toggle log on message-box click
     el.messageBox.addEventListener('click', () => {
@@ -1904,70 +1905,76 @@ const UI = {
   showParryWindow(enemyData, onResolve) {
     if (!el.parryOverlay) { onResolve('miss'); return }
 
-    const dmg     = enemyData.dmg ?? [1, 2]
-    const avgDmg  = (dmg[0] + dmg[1]) / 2
-    const greenFrac = avgDmg <= 2 ? 0.40 : avgDmg <= 4 ? 0.25 : 0.15
-    const cycleDur  = avgDmg <= 2 ? 2200 : avgDmg <= 4 ? 1600 : 1100
-    const windowDur = 2500
-    const sideFrac  = (1 - greenFrac) / 2
+    const dmg    = enemyData.dmg ?? [1, 2]
+    const avgDmg = (dmg[0] + dmg[1]) / 2
+
+    // Difficulty tiers
+    let windowDur, sweetSpotFraction
+    if (avgDmg <= 2) {
+      windowDur = 2200; sweetSpotFraction = 0.30
+    } else if (avgDmg <= 4) {
+      windowDur = 1600; sweetSpotFraction = 0.20
+    } else {
+      windowDur = 1100; sweetSpotFraction = 0.12
+    }
+
+    // Target circle is 44px in 180px arena → TARGET_SCALE ≈ 0.244
+    const TARGET_SCALE = 44 / 180
+    const zoneMin = TARGET_SCALE - sweetSpotFraction / 2
+    const zoneMax = TARGET_SCALE + sweetSpotFraction / 2
 
     // Random required swipe direction for counter
     const DIRS = [
-      { label: '→', dx: 1,  dy: 0  },
-      { label: '←', dx: -1, dy: 0  },
-      { label: '↑', dx: 0,  dy: -1 },
-      { label: '↓', dx: 0,  dy: 1  },
+      { label: '→', id: 'e', dx: 1,  dy: 0  },
+      { label: '←', id: 'w', dx: -1, dy: 0  },
+      { label: '↑', id: 'n', dx: 0,  dy: -1 },
+      { label: '↓', id: 's', dx: 0,  dy: 1  },
     ]
     const requiredDir = DIRS[Math.floor(Math.random() * DIRS.length)]
     if (el.parryDirectionArrow) el.parryDirectionArrow.textContent = requiredDir.label
 
-    el.parryZoneLeft.style.width  = (sideFrac  * 100).toFixed(1) + '%'
-    el.parryZoneGreen.style.width = (greenFrac * 100).toFixed(1) + '%'
-    el.parryZoneRight.style.width = (sideFrac  * 100).toFixed(1) + '%'
+    // Highlight the matching compass arrow
+    ;[el.parryCompassN, el.parryCompassE, el.parryCompassS, el.parryCompassW].forEach(a => a?.classList.remove('active'))
+    const activeArrow = { n: el.parryCompassN, e: el.parryCompassE, s: el.parryCompassS, w: el.parryCompassW }[requiredDir.id]
+    activeArrow?.classList.add('active')
 
     el.parryEnemyIcon.textContent = enemyData.emoji ?? '⚠️'
     el.parryEnemyName.textContent = `${enemyData.label} winds up a heavy strike!`
 
-    el.parryOverlay.classList.remove('parry-result-block', 'parry-result-counter', 'parry-result-miss')
-    el.parryTimerFill.style.transition = 'none'
-    el.parryTimerFill.style.width = '100%'
+    // Reset ring to full scale
+    el.parryRingOuter.classList.remove('parry-result-block', 'parry-result-counter', 'parry-result-miss', 'in-zone')
+    el.parryRingOuter.style.setProperty('--ring-scale', '1')
+    el.parryRingOuter.style.transform = 'scale(1)'
+    el.parryRingOuter.style.opacity   = '1'
+    el.parryRingOuter.style.animation = 'none'
+
+    // Remove any leftover feedback icons
+    el.parryRingArena?.querySelectorAll('.parry-feedback-icon').forEach(n => n.remove())
 
     el.parryOverlay.classList.remove('hidden')
     el.parryOverlay.setAttribute('aria-hidden', 'false')
 
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        el.parryTimerFill.style.transition = `width ${windowDur}ms linear`
-        el.parryTimerFill.style.width = '0%'
-      })
-    })
-
-    const indicatorEl = el.parryIndicator
-    let rafId = null
+    let ringScale = 1
     let startTs = null
+    let rafId   = null
     let resolved = false
 
     function tick(ts) {
       if (resolved) return
       if (!startTs) startTs = ts
-      const phase  = ((ts - startTs) % cycleDur) / cycleDur
-      const bounce = phase < 0.5 ? phase * 2 : 2 - phase * 2
-      indicatorEl.style.left = (bounce * 100).toFixed(2) + '%'
-      rafId = requestAnimationFrame(tick)
+      ringScale = Math.max(0, 1 - (ts - startTs) / windowDur)
+      el.parryRingOuter.style.setProperty('--ring-scale', ringScale.toFixed(4))
+      el.parryRingOuter.style.transform = `scale(${ringScale.toFixed(4)})`
+      el.parryRingOuter.classList.toggle('in-zone', ringScale >= zoneMin && ringScale <= zoneMax)
+      if (ringScale > 0) {
+        rafId = requestAnimationFrame(tick)
+      } else {
+        resolve('miss')
+      }
     }
     rafId = requestAnimationFrame(tick)
 
-    let touchStartX = null, touchStartY = null, mouseStartX = null, mouseStartY = null
-
-    function _indicatorFrac() {
-      const barRect = el.parryBar.getBoundingClientRect()
-      const indRect = indicatorEl.getBoundingClientRect()
-      return (indRect.left + indRect.width / 2 - barRect.left) / barRect.width
-    }
-
-    function _inGreen(frac) {
-      return frac >= sideFrac && frac <= 1 - sideFrac
-    }
+    function _inZone() { return ringScale >= zoneMin && ringScale <= zoneMax }
 
     function _swipeDirMatches(dx, dy) {
       if (Math.abs(dx) >= Math.abs(dy)) {
@@ -1985,15 +1992,31 @@ const UI = {
       el.parryOverlay.removeEventListener('touchend',   onTouchEnd)
       el.parryOverlay.removeEventListener('mousedown',  onMouseDown)
       el.parryOverlay.removeEventListener('mouseup',    onMouseUp)
-      el.parryTimerFill.style.transition = 'none'
-      el.parryOverlay.classList.add(`parry-result-${result}`)
+
+      // Freeze scale and play result flash on the ring
+      el.parryRingOuter.style.animation = 'none'
+      el.parryRingOuter.classList.remove('in-zone')
+      ;[el.parryCompassN, el.parryCompassE, el.parryCompassS, el.parryCompassW].forEach(a => a?.classList.remove('active'))
+      void el.parryRingOuter.offsetWidth // force reflow to restart animation
+      el.parryRingOuter.classList.add(`parry-result-${result}`)
+
+      // Spawn feedback icon
+      const icons = { block: '🛡️', counter: '✨', miss: '💨' }
+      const icon = document.createElement('div')
+      icon.className = 'parry-feedback-icon'
+      icon.textContent = icons[result]
+      el.parryRingArena?.appendChild(icon)
+
       setTimeout(() => {
         el.parryOverlay.classList.add('hidden')
         el.parryOverlay.setAttribute('aria-hidden', 'true')
-        el.parryOverlay.classList.remove(`parry-result-${result}`)
+        el.parryRingOuter.classList.remove(`parry-result-${result}`)
+        el.parryRingArena?.querySelectorAll('.parry-feedback-icon').forEach(n => n.remove())
         onResolve(result)
       }, 300)
     }
+
+    let touchStartX = null, touchStartY = null, mouseStartX = null, mouseStartY = null
 
     function onTouchStart(e) {
       touchStartX = e.touches[0].clientX
@@ -2003,12 +2026,11 @@ const UI = {
       if (touchStartX === null) return
       const dx = e.changedTouches[0].clientX - touchStartX
       const dy = e.changedTouches[0].clientY - touchStartY
-      const frac = _indicatorFrac()
       touchStartX = null; touchStartY = null
       if (Math.hypot(dx, dy) < 20) {
-        resolve(_inGreen(frac) ? 'block' : 'miss')
+        resolve(_inZone() ? 'block' : 'miss')
       } else {
-        resolve(_inGreen(frac) && _swipeDirMatches(dx, dy) ? 'counter' : 'miss')
+        resolve(_inZone() && _swipeDirMatches(dx, dy) ? 'counter' : 'miss')
       }
     }
     function onMouseDown(e) { mouseStartX = e.clientX; mouseStartY = e.clientY }
@@ -2016,12 +2038,11 @@ const UI = {
       if (mouseStartX === null) return
       const dx = e.clientX - mouseStartX
       const dy = e.clientY - mouseStartY
-      const frac = _indicatorFrac()
       mouseStartX = null; mouseStartY = null
       if (Math.abs(dx) < 20 && Math.abs(dy) < 20) {
-        resolve(_inGreen(frac) ? 'block' : 'miss')
+        resolve(_inZone() ? 'block' : 'miss')
       } else {
-        resolve(_inGreen(frac) && _swipeDirMatches(dx, dy) ? 'counter' : 'miss')
+        resolve(_inZone() && _swipeDirMatches(dx, dy) ? 'counter' : 'miss')
       }
     }
 

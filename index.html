@@ -409,16 +409,20 @@
         <span>Tap — Block <span id="parry-hint-block">(3🔵)</span></span>
         <span>Swipe <span id="parry-direction-arrow" class="parry-direction-arrow">→</span> — Counter <span id="parry-hint-counter">(2🔵)</span></span>
       </div>
-      <div class="parry-bar-container">
-        <div class="parry-bar" id="parry-bar">
-          <div class="parry-zone parry-zone-left" id="parry-zone-left"></div>
-          <div class="parry-zone parry-zone-green" id="parry-zone-green"></div>
-          <div class="parry-zone parry-zone-right" id="parry-zone-right"></div>
-          <div class="parry-indicator" id="parry-indicator"></div>
+      <div class="parry-ring-arena" id="parry-ring-arena">
+        <div class="parry-ring-outer" id="parry-ring-outer">
+          <span class="parry-bracket parry-bracket--tl"></span>
+          <span class="parry-bracket parry-bracket--tr"></span>
+          <span class="parry-bracket parry-bracket--bl"></span>
+          <span class="parry-bracket parry-bracket--br"></span>
         </div>
-      </div>
-      <div class="parry-timer-wrap">
-        <div class="parry-timer-fill" id="parry-timer-fill"></div>
+        <div class="parry-ring-target" id="parry-ring-target"></div>
+        <div class="parry-compass" id="parry-compass" aria-hidden="true">
+          <div class="parry-compass-arrow parry-compass-n" id="parry-compass-n">↑</div>
+          <div class="parry-compass-arrow parry-compass-e" id="parry-compass-e">→</div>
+          <div class="parry-compass-arrow parry-compass-s" id="parry-compass-s">↓</div>
+          <div class="parry-compass-arrow parry-compass-w" id="parry-compass-w">←</div>
+        </div>
       </div>
     </div>
   </div>
