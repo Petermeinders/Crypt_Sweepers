@@ -5767,7 +5767,7 @@ function fightAction(tile) {
           if (parryResult === 'block' && (run.player.mana ?? 0) >= 3) {
             run.player.mana = Math.max(0, (run.player.mana ?? 0) - 3)
             UI.updateMana(run.player.mana, run.player.maxMana)
-            finalEnemyDmg = Math.max(0, Math.ceil(result.enemyDmg / 2))
+            finalEnemyDmg = Math.floor(result.enemyDmg / 2)
             parrySuccessType = 'block'
           } else if (parryResult === 'counter' && (run.player.mana ?? 0) >= 2) {
             run.player.mana = Math.max(0, (run.player.mana ?? 0) - 2)
@@ -5812,8 +5812,12 @@ function fightAction(tile) {
             if (parrySuccessType === 'counter') {
               tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Counter! You deflect the blow and land a bonus hit.`
             } else if (parrySuccessType === 'block') {
-              const taken = _computeEffectiveDamageTaken(finalEnemyDmg)
-              tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Blocked! You absorb the hit for only ${taken} damage.`
+              if (finalEnemyDmg === 0) {
+                tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Perfect block! You take no damage.`
+              } else {
+                const taken = _computeEffectiveDamageTaken(finalEnemyDmg)
+                tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Blocked! You absorb the hit for only ${taken} damage.`
+              }
             } else {
               const taken = _computeEffectiveDamageTaken(result.enemyDmg)
               tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! You miss the window — enemy strikes for ${taken} damage.`
