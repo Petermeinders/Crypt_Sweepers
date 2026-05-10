@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Parry Test — Ranger Draw</title>
+  <!-- omggif: single-file GIF decoder, exposes GifReader as a global -->
+  <script src="js/lib/omggif.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #050710;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #fff;
+      touch-action: none;
+      user-select: none;
+    }
+    canvas { display: block; cursor: pointer; }
+    #hint {
+      margin-top: 0.9rem;
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.45);
+      text-align: center;
+      letter-spacing: 0.03em;
+    }
+    #replay {
+      margin-top: 0.75rem;
+      padding: 0.35rem 1.1rem;
+      background: rgba(212,175,55,0.12);
+      border: 1px solid rgba(212,175,55,0.45);
+      border-radius: 6px;
+      color: #d4af37;
+      cursor: pointer;
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      display: none;
+    }
+    #replay:hover { background: rgba(212,175,55,0.22); }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <p id="hint">Loading…</p>
+  <button id="replay">↺ RETRY</button>
+
+  <script type="module">
+    // ── Constants ─────────────────────────────────────────────────────────────
+    const W = 360, H = 460
+    const CX = 180, CY = 215            // ring centre
+    const RING_MAX_R = 140              // outer ring radius at ringScale = 1.0
+    const SPRITE_SCALE = 0.46          // 280 → 129px, 376 → 173px
+    const SOUTH_ANGLE  = Math.PI / 2   // direction indicator: south = ↓
+    const ARC_SPAN     = Math.PI * 0.45
+
+    // Zone anchored to the arrow release frame — user-tunable
+    const TOTAL_FRAMES  = 36
+    const RELEASE_FRAME = 15           // frame where arrow leaves the bow
+    // ringScale at the zone centre: as ring shrinks 1→0, progress = 1-ringScale
+    // frame i is at progress i/(n-1), so zone centre ringScale = 1 - i/(n-1)
+    const ZONE_CENTER_RS = 1 - (RELEASE_FRAME / (TOTAL_FRAMES - 1))  // ≈ 0.571
+    const SWEET_SPOT     = 0.16        // zone width in ringScale units
+    const ZONE_MIN = ZONE_CENTER_RS - SWEET_SPOT / 2   // ≈ 0.491
+    const ZONE_MAX = ZONE_CENTER_RS + SWEET_SPOT / 2   // ≈ 0.651
+
+    // Speed randomised heavily each load — breaks muscle memory
+    // Range: 800 ms (very fast) → 3 000 ms (slow) = 3.75× spread
+    const WINDOW_DUR = 800 + Math.random() * 2200
+
+    // ── Canvas — DPR-aware for crisp rendering on retina ─────────────────────
+    const DPR    = Math.min(window.devicePixelRatio || 1, 2)
+    const canvas = document.getElementById('c')
+    const ctx    = canvas.getContext('2d')
+    canvas.width  = W * DPR
+    canvas.height = H * DPR
+    canvas.style.width  = W + 'px'
+    canvas.style.height = H + 'px'
+    ctx.scale(DPR, DPR)
+
+    const hint   = document.getElementById('hint')
+    const replay = document.getElementById('replay')
+    replay.addEventListener('click', () => location.reload())
+
+    // ── State ─────────────────────────────────────────────────────────────────
+    let state     = 'loading'   // loading | ready | active | result
+    let ringScale = 1.0
+    let startTs   = null
+    let rafId     = null
+
+    // GIF data
+    let frames      = []   // ImageBitmap[]  — pre-rendered composite frames
+    let frameDelays = []   // ms per frame   — from GIF metadata
+    let gifW = 0, gifH = 0
+
+    // Result
+    let resultText  = ''
+    let resultColor = ''
+    let flashAlpha  = 0
+    let flashColor  = ''
+
+    // Post-result playback
+    let postIdx  = 0
+    let postTs   = 0
+
+    // Input
+    let ptrDownX = 0, ptrDownY = 0
+
+    // ── GIF pre-rendering ─────────────────────────────────────────────────────
+    // Parse once with omggif, composite each frame into a persistent pixel buffer,
+    // then bake to ImageBitmap for zero-cost drawImage() calls inside the game loop.
+    async function loadGif(url) {
+      const resp   = await fetch(url)
+      const buf    = await resp.arrayBuffer()
+      const uint8  = new Uint8Array(buf)
+      const gr     = new GifReader(uint8)   // omggif global from omggif.js
+
+      gifW = gr.width
+      gifH = gr.height
+      const n = gr.numFrames()
+
+      // Compositing buffer — accumulates pixels across frames (disposal-aware)
+      const composite = new Uint8ClampedArray(gifW * gifH * 4)
+      const offscreen = new OffscreenCanvas(gifW, gifH)
+      const offCtx    = offscreen.getContext('2d')
+
+      for (let i = 0; i < n; i++) {
+        const info = gr.frameInfo(i)
+
+        // Save pre-frame pixels if disposal=3 (restore to previous)
+        const saved = (info.disposal === 3)
+          ? new Uint8ClampedArray(composite)
+          : null
+
+        // Blit this frame's pixels into the composite buffer
+        gr.decodeAndBlitFrameRGBA(i, composite)
+
+        // Snapshot composite → ImageBitmap for fast GPU upload
+        offCtx.putImageData(
+          new ImageData(new Uint8ClampedArray(composite), gifW, gifH), 0, 0
+        )
+        frames.push(await createImageBitmap(offscreen))
+        frameDelays.push((info.delay || 8) * 10)   // centiseconds → ms
+
+        // Apply disposal method for next frame
+        if      (info.disposal === 2) composite.fill(0)    // restore to bg (transparent)
+        else if (info.disposal === 3 && saved) composite.set(saved)
+      }
+    }
+
+    // ── Frame mapping — seekable animation ───────────────────────────────────
+    // frameIndex = floor( (1 - ringScale) × (totalFrames - 1) )
+    // At ringScale=1 (start):          frame  0 — bow at rest
+    // At zone centre (ringScale≈0.57): frame 15 — arrow releases
+    // At ringScale=0 (end/miss):       frame 35 — full follow-through
+    function getDrawFrame() {
+      const progress = 1 - ringScale
+      return Math.min(frames.length - 1, Math.floor(progress * (frames.length - 1)))
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    function roundRect(x, y, w, h, r) {
+      ctx.beginPath()
+      ctx.moveTo(x + r, y)
+      ctx.lineTo(x + w - r, y)
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r)
+      ctx.lineTo(x + w, y + h - r)
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
+      ctx.lineTo(x + r, y + h)
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r)
+      ctx.lineTo(x, y + r)
+      ctx.quadraticCurveTo(x, y, x + r, y)
+      ctx.closePath()
+    }
+
+    function glowArc(x, y, r, a0, a1, color, lw, blur) {
+      ctx.save()
+      ctx.beginPath()
+      ctx.arc(x, y, r, a0, a1)
+      ctx.strokeStyle = color
+      ctx.lineWidth   = lw
+      ctx.lineCap     = 'round'
+      ctx.shadowBlur  = blur
+      ctx.shadowColor = color
+      ctx.stroke()
+      ctx.restore()
+    }
+
+    // ── Render ────────────────────────────────────────────────────────────────
+    function render(frameIdx) {
+      ctx.clearRect(0, 0, W, H)
+
+      // ── Background ──────────────────────────────────────────────────────────
+      ctx.fillStyle = '#0a0c1e'
+      ctx.fillRect(0, 0, W, H)
+
+      // Gold border — matches .parry-modal border
+      ctx.save()
+      roundRect(10, 10, W - 20, H - 20, 14)
+      ctx.strokeStyle = '#d4af37'
+      ctx.lineWidth   = 2
+      ctx.stroke()
+      ctx.restore()
+
+      const inZone   = ringScale >= ZONE_MIN && ringScale <= ZONE_MAX
+      const currentR = RING_MAX_R * ringScale
+      const targetR  = RING_MAX_R * ZONE_CENTER_RS  // ≈ 80px — sits at release frame
+
+      // ── Zone band (subtle green fill between zoneMin and zoneMax radii) ────
+      if (state === 'active') {
+        const zMinR = RING_MAX_R * ZONE_MIN
+        const zMaxR = RING_MAX_R * ZONE_MAX
+        const zGrad = ctx.createRadialGradient(CX, CY, zMinR, CX, CY, zMaxR)
+        zGrad.addColorStop(0,   'rgba(46,204,113,0)')
+        zGrad.addColorStop(0.5, 'rgba(46,204,113,0.10)')
+        zGrad.addColorStop(1,   'rgba(46,204,113,0)')
+        ctx.save()
+        ctx.fillStyle = zGrad
+        ctx.beginPath()
+        ctx.arc(CX, CY, zMaxR, 0, Math.PI * 2)
+        ctx.arc(CX, CY, zMinR, 0, Math.PI * 2, true)
+        ctx.fill()
+        ctx.restore()
+      }
+
+      // ── Inner target ring (gold, static — the "catch point") ────────────────
+      glowArc(CX, CY, targetR, 0, Math.PI * 2, 'rgba(255,215,0,0.85)', 3, 14)
+
+      // ── Ranger sprite ────────────────────────────────────────────────────────
+      if (frames.length > 0) {
+        const sw = Math.round(gifW * SPRITE_SCALE)   // 129px
+        const sh = Math.round(gifH * SPRITE_SCALE)   // 173px
+        ctx.drawImage(frames[frameIdx], CX - sw / 2, CY - sh / 2, sw, sh)
+      }
+
+      // ── Outer ring (shrinks; orange → green in zone) ─────────────────────────
+      if (state === 'active' && currentR > 1) {
+        const ringColor = inZone ? '#2ecc71' : '#ff6000'
+        const ringGlow  = inZone ? 30 : 18
+
+        glowArc(CX, CY, currentR, 0, Math.PI * 2, ringColor, 7, ringGlow)
+
+        // Direction arc — south indicator, rides the outer ring edge
+        glowArc(CX, CY, currentR,
+          SOUTH_ANGLE - ARC_SPAN / 2, SOUTH_ANGLE + ARC_SPAN / 2,
+          'rgba(255,215,0,0.42)', 18, 0)          // soft glow halo
+        glowArc(CX, CY, currentR,
+          SOUTH_ANGLE - ARC_SPAN / 2, SOUTH_ANGLE + ARC_SPAN / 2,
+          '#ffd700', 6, 16)                       // sharp arc
+      }
+
+      // ── Flash overlay (hit/miss feedback) ────────────────────────────────────
+      if (flashAlpha > 0.01) {
+        ctx.save()
+        ctx.globalAlpha = flashAlpha
+        ctx.fillStyle   = flashColor
+        ctx.fillRect(0, 0, W, H)
+        ctx.restore()
+        flashAlpha *= 0.82
+      }
+
+      // ── Result label ─────────────────────────────────────────────────────────
+      if (state === 'result' && resultText) {
+        ctx.save()
+        ctx.font          = 'bold 44px "Segoe UI", system-ui'
+        ctx.textAlign     = 'center'
+        ctx.textBaseline  = 'middle'
+        ctx.shadowBlur    = 28
+        ctx.shadowColor   = resultColor
+        ctx.fillStyle     = resultColor
+        ctx.fillText(resultText, CX, 68)
+        ctx.restore()
+      }
+
+      // ── Frame counter (dev feedback) ─────────────────────────────────────────
+      if (state === 'active') {
+        ctx.save()
+        ctx.font      = '11px monospace'
+        ctx.fillStyle = 'rgba(255,255,255,0.30)'
+        ctx.textAlign = 'right'
+        ctx.fillText(`frame ${frameIdx + 1}/${frames.length}`, W - 18, H - 42)
+        ctx.restore()
+      }
+
+      // ── Progress bar — same visual language as in-game timing window ─────────
+      const barW = W - 40, barH = 6, barX = 20, barY = H - 30
+      ctx.save()
+
+      // Track
+      roundRect(barX, barY, barW, barH, 3)
+      ctx.fillStyle = 'rgba(255,255,255,0.08)'
+      ctx.fill()
+
+      // Zone highlight — bar grows left→right as progress (1-ringScale) increases,
+      // so zone position in progress space = [1-ZONE_MAX, 1-ZONE_MIN]
+      const zoneBarX = barX + (1 - ZONE_MAX) * barW
+      const zoneBarW = (ZONE_MAX - ZONE_MIN) * barW
+      roundRect(zoneBarX, barY, zoneBarW, barH, 3)
+      ctx.fillStyle = 'rgba(46,204,113,0.35)'
+      ctx.fill()
+
+      // Fill — tracks ring progress (grows left→right as ring shrinks)
+      const prog = 1 - ringScale
+      if (prog > 0) {
+        roundRect(barX, barY, prog * barW, barH, 3)
+        const fillColor = inZone ? '#2ecc71' : '#ffd700'
+        ctx.fillStyle   = fillColor
+        ctx.shadowBlur  = 6
+        ctx.shadowColor = fillColor
+        ctx.fill()
+      }
+
+      ctx.restore()
+
+      // Bar label
+      ctx.save()
+      ctx.font      = '11px "Segoe UI", system-ui'
+      ctx.fillStyle = 'rgba(255,255,255,0.30)'
+      ctx.textAlign = 'center'
+      ctx.fillText('DRAW FOCUS', CX, H - 14)
+      ctx.restore()
+    }
+
+    // ── Active tick loop ──────────────────────────────────────────────────────
+    function tick(ts) {
+      if (state !== 'active') return
+      if (!startTs) startTs = ts
+      const elapsed = ts - startTs
+      ringScale = Math.max(0, 1 - elapsed / WINDOW_DUR)
+      render(getDrawFrame())
+      if (ringScale > 0) {
+        rafId = requestAnimationFrame(tick)
+      } else {
+        resolve('miss')
+      }
+    }
+
+    // ── Post-result: play remaining frames at GIF's natural timing ────────────
+    // Gemini's "release" animation tip — let the bow fire after the hit/miss.
+    function playPostFrames(fromIdx) {
+      postIdx = fromIdx
+      postTs  = performance.now()
+      function step(ts) {
+        if (state !== 'result') return
+        if (ts - postTs >= (frameDelays[postIdx] || 80)) {
+          postIdx++
+          postTs = ts
+          if (postIdx >= frames.length) {
+            render(frames.length - 1)
+            return
+          }
+        }
+        render(postIdx)
+        requestAnimationFrame(step)
+      }
+      requestAnimationFrame(step)
+    }
+
+    // ── Resolve ───────────────────────────────────────────────────────────────
+    function resolve(outcome) {
+      if (state === 'result') return
+      state = 'result'
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null }
+
+      const hitFrame = getDrawFrame()
+
+      const speedLabel = WINDOW_DUR < 1200 ? 'fast' : WINDOW_DUR < 2000 ? 'medium' : 'slow'
+      const speedMs    = Math.round(WINDOW_DUR) + ' ms'
+
+      if (outcome === 'counter') {
+        resultText  = '✦ COUNTER'
+        resultColor = '#ffd700'
+        flashAlpha  = 0.55; flashColor = 'rgba(255,215,0,1)'
+        hint.textContent = `Counter strike!  ·  speed: ${speedLabel} (${speedMs})`
+      } else if (outcome === 'block') {
+        resultText  = '◉ BLOCK'
+        resultColor = '#3498db'
+        flashAlpha  = 0.45; flashColor = 'rgba(52,152,219,1)'
+        hint.textContent = `Nice block!  ·  speed: ${speedLabel} (${speedMs})`
+      } else {
+        resultText  = '✕ MISS'
+        resultColor = '#e74c3c'
+        flashAlpha  = 0.40; flashColor = 'rgba(231,76,60,1)'
+        hint.textContent = `Too early or too late  ·  speed: ${speedLabel} (${speedMs})`
+      }
+
+      replay.style.display = 'inline-block'
+      playPostFrames(hitFrame)
+    }
+
+    // ── Input ─────────────────────────────────────────────────────────────────
+    function onDown(x, y) { ptrDownX = x; ptrDownY = y }
+
+    function onUp(x, y) {
+      if (state !== 'active') return
+      const dx = x - ptrDownX, dy = y - ptrDownY
+      const dist = Math.hypot(dx, dy)
+      const inZone = ringScale >= ZONE_MIN && ringScale <= ZONE_MAX
+
+      if (dist < 22) {
+        // Tap → block
+        resolve(inZone ? 'block' : 'miss')
+      } else {
+        // Swipe — check direction matches south indicator
+        const angle  = Math.atan2(dy, dx)
+        const isSouth = Math.abs(angle - Math.PI / 2) < Math.PI / 4
+        resolve(isSouth && inZone ? 'counter' : 'miss')
+      }
+    }
+
+    canvas.addEventListener('mousedown',  e => onDown(e.offsetX, e.offsetY))
+    canvas.addEventListener('mouseup',    e => onUp(e.offsetX,   e.offsetY))
+    canvas.addEventListener('touchstart', e => {
+      e.preventDefault()
+      const t = e.touches[0], r = canvas.getBoundingClientRect()
+      onDown(t.clientX - r.left, t.clientY - r.top)
+    }, { passive: false })
+    canvas.addEventListener('touchend', e => {
+      e.preventDefault()
+      const t = e.changedTouches[0], r = canvas.getBoundingClientRect()
+      onUp(t.clientX - r.left, t.clientY - r.top)
+    }, { passive: false })
+
+    // ── Boot ──────────────────────────────────────────────────────────────────
+    ;(async () => {
+      render(0)
+      hint.textContent = 'Loading ranger…'
+
+      try {
+        await loadGif('assets/sprites/Heroes/Ranger/__Attack.gif')
+      } catch (err) {
+        hint.textContent = 'Error loading GIF — is npm start running?'
+        console.error(err)
+        return
+      }
+
+      state = 'ready'
+      render(0)
+      hint.textContent = 'Click to begin'
+
+      canvas.addEventListener('click', () => {
+        if (state !== 'ready') return
+        state   = 'active'
+        startTs = null
+        hint.textContent = 'TAP to block  ·  SWIPE ↓ to counter'
+        requestAnimationFrame(tick)
+      }, { once: true })
+    })()
+  </script>
+</body>
+</html>

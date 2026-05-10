@@ -5722,6 +5722,14 @@ body.bestiary-detail-open #app {
   display: flex; align-items: center; justify-content: center;
 }
 
+.parry-hero-canvas {
+  position: absolute;
+  top: 0; left: 0;
+  width: 260px; height: 260px;
+  pointer-events: none;
+  z-index: 0;
+}
+
 .parry-ring-outer {
   position: absolute;
   width: 260px; height: 260px;
@@ -5771,12 +5779,16 @@ body.bestiary-detail-open #app {
 .parry-ring-outer.parry-result-miss    { animation: parry-ring-flash-miss    0.35s ease-out forwards; }
 
 .parry-feedback-icon {
-  position: absolute; font-size: 1.8rem;
+  position: absolute; font-size: 1.5rem; font-weight: 800; letter-spacing: 0.04em;
   top: 50%; left: 50%; transform: translate(-50%, -50%);
   pointer-events: none;
-  animation: float-up 0.5s cubic-bezier(0.2,0.8,0.4,1) forwards;
-  z-index: 2;
+  animation: float-up 0.45s cubic-bezier(0.2,0.8,0.4,1) forwards;
+  z-index: 10;
+  white-space: nowrap;
 }
+.parry-text-block   { color: #3498db; text-shadow: 0 0 20px rgba(52,152,219,0.95),  0 0 6px rgba(52,152,219,0.6); }
+.parry-text-counter { color: #ffd700; text-shadow: 0 0 20px rgba(255,215,0,0.95),   0 0 6px rgba(255,200,0,0.6); }
+.parry-text-miss    { color: #e74c3c; text-shadow: 0 0 20px rgba(231,76,60,0.95),   0 0 6px rgba(231,76,60,0.6); }
 
 .parry-arc-canvas {
   position: absolute;

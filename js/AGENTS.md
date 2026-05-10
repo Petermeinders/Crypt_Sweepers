@@ -29,7 +29,7 @@ The `js/` directory contains all game source code. Two files live at this level;
 | `save/` | IndexedDB persistence wrapper |
 | `balance/` | Static analysis, telemetry shapes, balance targets |
 | `dev/` | In-browser balance bot (URL-param activated only) |
-| `lib/` | Third-party vendored libraries (Matter.js) |
+| `lib/` | Third-party vendored libraries (Matter.js, omggif.js) |
 
 ## Context Tree
 

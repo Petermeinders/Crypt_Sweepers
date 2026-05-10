@@ -40,6 +40,8 @@ The core directory contains the game's runtime backbone: the master orchestrator
 
 `_shouldShowParryWindow(tile)` — returns `true` when the enemy has the `telegraphs` attribute AND does not have `fast` behaviour AND `save.settings.parryEnabled` is `true` (defaults `true`) AND god-mode cheat is off. Called in the combat handler before `UI.showParryWindow`.
 
+`UI.showParryWindow` call signature: `UI.showParryWindow(tile.enemyData, callback, _charKey())` — the third argument passes the currently selected hero ID so the UI can display the matching attack animation. `_charKey()` returns `_save?.selectedCharacter ?? 'warrior'`.
+
 **Parry onboarding chain** (floor 1 only): After the first-run intro is dismissed, `GameController` checks `save.settings.parryChoiceDismissed`. If not set, it calls `UI.showParryOnboarding(enabled => { save.settings.parryEnabled = enabled; … })`. Returning players who skipped the intro still see it via an `else if` branch. Both paths save immediately via `SaveManager`.
 
 ## Notes

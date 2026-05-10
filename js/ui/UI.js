@@ -20,6 +20,54 @@ import {
 
 const el = {}  // element cache
 
+// ── Hero attack GIF pre-rendering (parry window sprite) ──────────────────────
+// omggif.js loaded as a plain <script> tag exposes window.GifReader globally.
+// Frames are parsed once per hero and cached as ImageBitmaps for zero-cost draws.
+const _HERO_ATTACK_GIFS = {
+  warrior:     'assets/sprites/Heroes/Warrior/warrior-strike.gif',
+  ranger:      'assets/sprites/Heroes/Ranger/__Attack.gif',
+  mage:        'assets/sprites/Heroes/Mage/blue-mage-hero-attack-small-speed.gif',
+  engineer:    'assets/sprites/Heroes/Engineer/engineer-hero-strike.gif',
+  necromancer: 'assets/sprites/Heroes/Necromancer/necromancer-hero-strike.gif',
+  vampire:     'assets/sprites/effects/VampireAttack.gif',
+}
+const _heroGifCache = {}   // heroId → { frames: ImageBitmap[], gifW, gifH }
+const _heroGifPending = {} // heroId → Promise (deduplicates concurrent loads)
+
+async function _loadHeroParryGif(heroId) {
+  if (_heroGifCache[heroId])  return _heroGifCache[heroId]
+  if (_heroGifPending[heroId]) return _heroGifPending[heroId]
+
+  const url = _HERO_ATTACK_GIFS[heroId] ?? _HERO_ATTACK_GIFS.warrior
+  _heroGifPending[heroId] = (async () => {
+    const resp      = await fetch(url)
+    const buf       = await resp.arrayBuffer()
+    const gr        = new window.GifReader(new Uint8Array(buf))
+    const gifW      = gr.width, gifH = gr.height
+    const n         = gr.numFrames()
+    const composite = new Uint8ClampedArray(gifW * gifH * 4)
+    const offscreen = new OffscreenCanvas(gifW, gifH)
+    const offCtx    = offscreen.getContext('2d')
+    const frames    = []
+
+    for (let i = 0; i < n; i++) {
+      const info  = gr.frameInfo(i)
+      const saved = (info.disposal === 3) ? new Uint8ClampedArray(composite) : null
+      gr.decodeAndBlitFrameRGBA(i, composite)
+      offCtx.putImageData(new ImageData(new Uint8ClampedArray(composite), gifW, gifH), 0, 0)
+      frames.push(await createImageBitmap(offscreen))
+      if      (info.disposal === 2) composite.fill(0)
+      else if (info.disposal === 3 && saved) composite.set(saved)
+    }
+
+    const result = { frames, gifW, gifH }
+    _heroGifCache[heroId] = result
+    delete _heroGifPending[heroId]
+    return result
+  })()
+  return _heroGifPending[heroId]
+}
+
 function _fillBestiaryCreatureParts(parts, def, enemyId) {
   const sprites = ENEMY_SPRITES[enemyId]
   const gifSrc = sprites?.idle ? `${MONSTER_ICONS_BASE}${sprites.idle}` : null
@@ -305,6 +353,7 @@ const UI = {
     el.parryEnemyIcon       = document.getElementById('parry-enemy-icon')
     el.parryEnemyName       = document.getElementById('parry-enemy-name')
     el.parryRingArena  = document.getElementById('parry-ring-arena')
+    el.parryHeroCanvas = document.getElementById('parry-hero-canvas')
     el.parryRingOuter  = document.getElementById('parry-ring-outer')
     el.parryRingTarget = document.getElementById('parry-ring-target')
     el.parryCompassN   = document.getElementById('parry-compass-n')
@@ -1923,13 +1972,13 @@ const UI = {
     noBtn.addEventListener('click',  () => choose(false), { once: true })
   },
 
-  showParryWindow(enemyData, onResolve) {
+  showParryWindow(enemyData, onResolve, heroId = 'warrior') {
     if (!el.parryOverlay) { onResolve('miss'); return }
 
     const dmg    = enemyData.dmg ?? [1, 2]
     const avgDmg = (dmg[0] + dmg[1]) / 2
 
-    // Difficulty tiers with ±25% variance so timing can't be muscle-memorised
+    // Difficulty tiers — wide speed variance (4× spread) so timing can't be muscle-memorised
     let baseWindowDur, sweetSpotFraction
     if (avgDmg <= 2) {
       baseWindowDur = 2200; sweetSpotFraction = 0.30
@@ -1938,7 +1987,7 @@ const UI = {
     } else {
       baseWindowDur = 1100; sweetSpotFraction = 0.12
     }
-    const windowDur = baseWindowDur * (0.75 + Math.random() * 0.50)
+    const windowDur = Math.max(550, baseWindowDur * (0.40 + Math.random() * 1.20))
 
     // Rune ring is 90px in 260px arena; outer edge at 45px radius → scale = 45/130
     const TARGET_SCALE = 45 / 130
@@ -1963,6 +2012,18 @@ const UI = {
     el.parryRingOuter.style.opacity   = '1'
     el.parryRingOuter.style.animation = ''
     el.parryRingArena?.querySelectorAll('.parry-feedback-icon').forEach(n => n.remove())
+
+    // Hero canvas: clear previous frame
+    const heroCtx = el.parryHeroCanvas?.getContext('2d') ?? null
+    if (heroCtx) heroCtx.clearRect(0, 0, 260, 260)
+
+    // Async hero GIF load — frames drawn in tick() once available
+    let heroFrames = [], heroGifW = 0, heroGifH = 0
+    if (window.GifReader) {
+      _loadHeroParryGif(heroId)
+        .then(d => { heroFrames = d.frames; heroGifW = d.gifW; heroGifH = d.gifH })
+        .catch(() => {})
+    }
 
     // Canvas arc: gold direction indicator — scales with the ring
     const arcCtx = el.parryArcCanvas?.getContext('2d') ?? null
@@ -2021,6 +2082,18 @@ const UI = {
       // Scale canvas with ring so arc tracks it exactly
       if (el.parryArcCanvas) el.parryArcCanvas.style.transform = `scale(${ringScale.toFixed(4)})`
       drawArc()
+
+      // Hero attack frame — seekable animation tied to ring progress
+      if (heroCtx && heroFrames.length > 0) {
+        const progress  = 1 - ringScale
+        const frameIdx  = Math.min(heroFrames.length - 1, Math.floor(progress * (heroFrames.length - 1)))
+        heroCtx.clearRect(0, 0, 260, 260)
+        const MAX_PX = 110
+        const scale  = MAX_PX / Math.max(heroGifW, heroGifH)
+        const sw = Math.round(heroGifW * scale), sh = Math.round(heroGifH * scale)
+        heroCtx.drawImage(heroFrames[frameIdx], (260 - sw) / 2, (260 - sh) / 2, sw, sh)
+      }
+
       if (ringScale > 0) {
         rafId = requestAnimationFrame(tick)
       } else {
@@ -2070,19 +2143,20 @@ const UI = {
       void el.parryRingOuter.offsetWidth
       el.parryRingOuter.classList.add(`parry-result-${result}`)
 
-      const icons = { block: '🛡️', counter: '✨', miss: '💨' }
-      const icon = document.createElement('div')
-      icon.className = 'parry-feedback-icon'
-      icon.textContent = icons[result]
-      el.parryRingArena?.appendChild(icon)
+      const resultWords = { block: 'Blocked', counter: 'Countered', miss: 'Missed' }
+      const word = document.createElement('div')
+      word.className = `parry-feedback-icon parry-text-${result}`
+      word.textContent = resultWords[result]
+      el.parryRingArena?.appendChild(word)
 
       setTimeout(() => {
         el.parryOverlay.classList.add('hidden')
         el.parryOverlay.setAttribute('aria-hidden', 'true')
         el.parryRingOuter.classList.remove(`parry-result-${result}`)
         el.parryRingArena?.querySelectorAll('.parry-feedback-icon').forEach(n => n.remove())
+        if (heroCtx) heroCtx.clearRect(0, 0, 260, 260)
         onResolve(result)
-      }, 300)
+      }, 350)
     }
 
     let touchStartX = null, touchStartY = null, mouseStartX = null, mouseStartY = null

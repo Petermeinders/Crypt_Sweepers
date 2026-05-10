@@ -5846,7 +5846,7 @@ function fightAction(tile) {
             })
             _combatBusy = false
           }, 500)
-        })
+        }, _charKey())
         return
       }
 
