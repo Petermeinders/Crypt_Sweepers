@@ -438,6 +438,12 @@
   }
 }
 
+/* ── Parry rune ring slow spin ── */
+@keyframes parry-rune-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 /* ── Screen shake (parry miss) ── */
 @keyframes screen-shake {
   0%   { transform: translateX(0); }
@@ -471,19 +477,19 @@ body.screen-shake { animation: screen-shake 0.45s cubic-bezier(.36,.07,.19,.97) 
 
 /* ── Parry ring result flashes ── */
 @keyframes parry-ring-flash-block {
-  0%   { box-shadow: 0 0 28px 8px rgba(41,128,185,0.85); transform: scale(var(--ring-scale,1)); }
-  40%  { box-shadow: 0 0 44px 14px rgba(41,128,185,1);   transform: scale(calc(var(--ring-scale,1)*1.06)); }
-  100% { opacity: 0.4; box-shadow: 0 0 10px 2px rgba(41,128,185,0.2); transform: scale(var(--ring-scale,1)); }
+  0%   { filter: drop-shadow(0 0 22px rgba(41,128,185,0.90)) drop-shadow(0 0 50px rgba(41,128,185,0.55)); }
+  40%  { filter: drop-shadow(0 0 38px rgba(41,128,185,1))    drop-shadow(0 0 80px rgba(41,128,185,0.80)); }
+  100% { opacity: 0.35; filter: drop-shadow(0 0 8px rgba(41,128,185,0.20)); }
 }
 @keyframes parry-ring-flash-counter {
-  0%   { box-shadow: 0 0 28px 8px rgba(255,215,0,0.85); transform: scale(var(--ring-scale,1)); }
-  30%  { box-shadow: 0 0 56px 18px rgba(255,215,0,1);   transform: scale(calc(var(--ring-scale,1)*1.10)); }
-  100% { opacity: 0.4; box-shadow: 0 0 10px 2px rgba(255,215,0,0.2); transform: scale(var(--ring-scale,1)); }
+  0%   { filter: drop-shadow(0 0 22px rgba(255,215,0,0.90)) drop-shadow(0 0 50px rgba(255,215,0,0.55)); }
+  30%  { filter: drop-shadow(0 0 48px rgba(255,215,0,1))    drop-shadow(0 0 100px rgba(255,200,0,0.85)); }
+  100% { opacity: 0.35; filter: drop-shadow(0 0 8px rgba(255,215,0,0.20)); }
 }
 @keyframes parry-ring-flash-miss {
-  0%   { transform: scale(var(--ring-scale,1)); }
-  20%  { transform: translateX(-4px) scale(var(--ring-scale,1)); }
-  40%  { transform: translateX(4px) scale(var(--ring-scale,1)); }
-  70%  { transform: translateX(-3px) scale(var(--ring-scale,1)); }
-  100% { opacity: 0.3; transform: scale(var(--ring-scale,1)); }
+  0%   { filter: drop-shadow(0 0 12px rgba(120,130,140,0.60)); }
+  20%  { filter: drop-shadow(-4px 0 12px rgba(120,130,140,0.60)); }
+  40%  { filter: drop-shadow(4px 0 12px rgba(120,130,140,0.60)); }
+  70%  { filter: drop-shadow(-3px 0 10px rgba(120,130,140,0.40)); }
+  100% { opacity: 0.30; filter: drop-shadow(0 0 4px rgba(120,130,140,0.10)); }
 }

@@ -1940,8 +1940,8 @@ const UI = {
     }
     const windowDur = baseWindowDur * (0.75 + Math.random() * 0.50)
 
-    // Target circle is 68px in 260px arena → TARGET_SCALE ≈ 0.262
-    const TARGET_SCALE = 68 / 260
+    // Rune ring is 90px in 260px arena; outer edge at 45px radius → scale = 45/130
+    const TARGET_SCALE = 45 / 130
     const zoneMin = TARGET_SCALE - sweetSpotFraction / 2
     const zoneMax = TARGET_SCALE + sweetSpotFraction / 2
 
@@ -1959,10 +1959,9 @@ const UI = {
     activeArrow?.classList.add('active')
 
     el.parryRingOuter.classList.remove('parry-result-block', 'parry-result-counter', 'parry-result-miss', 'in-zone')
-    el.parryRingOuter.style.setProperty('--ring-scale', '1')
-    el.parryRingOuter.style.transform = 'scale(1)'
+    el.parryRingOuter.style.transform = 'scale(1) rotate(0deg)'
     el.parryRingOuter.style.opacity   = '1'
-    el.parryRingOuter.style.animation = 'none'
+    el.parryRingOuter.style.animation = ''
     el.parryRingArena?.querySelectorAll('.parry-feedback-icon').forEach(n => n.remove())
 
     // Canvas arc: gold direction indicator — scales with the ring
@@ -2014,9 +2013,10 @@ const UI = {
     function tick(ts) {
       if (resolved) return
       if (!startTs) startTs = ts
-      ringScale = Math.max(0, 1 - (ts - startTs) / windowDur)
-      el.parryRingOuter.style.setProperty('--ring-scale', ringScale.toFixed(4))
-      el.parryRingOuter.style.transform = `scale(${ringScale.toFixed(4)})`
+      const elapsed = ts - startTs
+      ringScale = Math.max(0, 1 - elapsed / windowDur)
+      const spinDeg = (elapsed / 14000) * 360
+      el.parryRingOuter.style.transform = `scale(${ringScale.toFixed(4)}) rotate(${spinDeg.toFixed(1)}deg)`
       el.parryRingOuter.classList.toggle('in-zone', ringScale >= zoneMin && ringScale <= zoneMax)
       // Scale canvas with ring so arc tracks it exactly
       if (el.parryArcCanvas) el.parryArcCanvas.style.transform = `scale(${ringScale.toFixed(4)})`
@@ -2064,7 +2064,7 @@ const UI = {
         document.body.addEventListener('animationend', () => document.body.classList.remove('screen-shake'), { once: true })
       }
 
-      el.parryRingOuter.style.animation = 'none'
+      el.parryRingOuter.style.animation = ''
       el.parryRingOuter.classList.remove('in-zone')
       ;[el.parryCompassN, el.parryCompassE, el.parryCompassS, el.parryCompassW].forEach(a => a?.classList.remove('active'))
       void el.parryRingOuter.offsetWidth
