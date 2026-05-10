@@ -438,6 +438,37 @@
   }
 }
 
+/* ── Screen shake (parry miss) ── */
+@keyframes screen-shake {
+  0%   { transform: translateX(0); }
+  12%  { transform: translateX(-8px) rotate(-0.4deg); }
+  25%  { transform: translateX(8px)  rotate(0.4deg); }
+  37%  { transform: translateX(-6px); }
+  50%  { transform: translateX(5px); }
+  62%  { transform: translateX(-4px); }
+  75%  { transform: translateX(3px); }
+  87%  { transform: translateX(-2px); }
+  100% { transform: translateX(0); }
+}
+body.screen-shake { animation: screen-shake 0.45s cubic-bezier(.36,.07,.19,.97) both; }
+
+/* ── Parry result screen flashes ── */
+@keyframes screen-flash-blue {
+  0%   { background: rgba(41,128,185,0.55); }
+  100% { background: rgba(41,128,185,0); }
+}
+@keyframes screen-flash-gold {
+  0%   { background: rgba(255,215,0,0.45); }
+  100% { background: rgba(255,215,0,0); }
+}
+@keyframes screen-flash-red {
+  0%   { background: rgba(192,57,43,0.60); }
+  100% { background: rgba(192,57,43,0); }
+}
+.parry-flash-overlay.flash-block   { animation: screen-flash-blue 0.40s ease-out forwards; }
+.parry-flash-overlay.flash-counter { animation: screen-flash-gold 0.40s ease-out forwards; }
+.parry-flash-overlay.flash-miss    { animation: screen-flash-red  0.50s ease-out forwards; }
+
 /* ── Parry ring result flashes ── */
 @keyframes parry-ring-flash-block {
   0%   { box-shadow: 0 0 28px 8px rgba(41,128,185,0.85); transform: scale(var(--ring-scale,1)); }

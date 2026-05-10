@@ -133,6 +133,11 @@ function _tryDismissFloorExploreBlockingUi() {
     document.getElementById('first-run-intro-ok')?.click()
     return true
   }
+  const parryOnboarding = document.getElementById('parry-onboarding-overlay')
+  if (parryOnboarding && !parryOnboarding.classList.contains('hidden')) {
+    document.getElementById('parry-onboarding-no')?.click()
+    return true
+  }
   const rope = document.getElementById('rope-modal-overlay')
   if (rope && !rope.classList.contains('hidden')) {
     document.getElementById('rope-modal-cancel')?.click()

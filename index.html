@@ -401,14 +401,6 @@
   <!-- ── Parry window ── -->
   <div id="parry-overlay" class="parry-overlay hidden" aria-hidden="true">
     <div class="parry-modal" id="parry-modal">
-      <div class="parry-header">
-        <span class="parry-enemy-icon" id="parry-enemy-icon">⚠️</span>
-        <div class="parry-enemy-label" id="parry-enemy-name">Enemy winds up a heavy strike!</div>
-      </div>
-      <div class="parry-actions-hint">
-        <span>Tap — Block <span id="parry-hint-block">(3🔵)</span></span>
-        <span>Swipe <span id="parry-direction-arrow" class="parry-direction-arrow">→</span> — Counter <span id="parry-hint-counter">(2🔵)</span></span>
-      </div>
       <div class="parry-ring-arena" id="parry-ring-arena">
         <div class="parry-ring-outer" id="parry-ring-outer">
           <span class="parry-bracket parry-bracket--tl"></span>
@@ -417,12 +409,43 @@
           <span class="parry-bracket parry-bracket--br"></span>
         </div>
         <div class="parry-ring-target" id="parry-ring-target"></div>
+        <canvas class="parry-arc-canvas" id="parry-arc-canvas" width="260" height="260"></canvas>
         <div class="parry-compass" id="parry-compass" aria-hidden="true">
           <div class="parry-compass-arrow parry-compass-n" id="parry-compass-n">↑</div>
           <div class="parry-compass-arrow parry-compass-e" id="parry-compass-e">→</div>
           <div class="parry-compass-arrow parry-compass-s" id="parry-compass-s">↓</div>
           <div class="parry-compass-arrow parry-compass-w" id="parry-compass-w">←</div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Parry result screen flash ── -->
+  <div id="parry-flash-overlay" class="parry-flash-overlay" aria-hidden="true"></div>
+
+  <!-- ── Block & Parry onboarding (shown once, player chooses mode) ── -->
+  <div id="parry-onboarding-overlay" class="trap-modal-overlay hidden" aria-hidden="true">
+    <div class="trap-modal-backdrop" id="parry-onboarding-backdrop" aria-hidden="true"></div>
+    <div class="trap-modal parry-onboarding-modal" role="dialog" aria-modal="true" aria-labelledby="parry-onboarding-title">
+      <div class="trap-modal-emoji" aria-hidden="true">⚔️</div>
+      <h2 id="parry-onboarding-title" class="trap-modal-title">Block &amp; Parry</h2>
+      <div class="trap-modal-body parry-onboarding-body">
+        <p>Some enemies telegraph their strikes. When they do, you'll have a reaction window.</p>
+        <div class="parry-onboarding-options">
+          <div class="parry-onboarding-option">
+            <span class="parry-onboarding-ic">🛡️</span>
+            <div><strong>Enabled</strong> — A ring shrinks toward a target. Tap when they overlap to <em>block</em> (half damage). Swipe in the indicated direction to <em>counter</em> (no damage + bonus hit).</div>
+          </div>
+          <div class="parry-onboarding-option">
+            <span class="parry-onboarding-ic">⚔️</span>
+            <div><strong>Classic</strong> — Combat resolves automatically. No reaction required.</div>
+          </div>
+        </div>
+        <p class="parry-onboarding-note">You can change this anytime in Settings.</p>
+      </div>
+      <div class="parry-onboarding-btns">
+        <button type="button" id="parry-onboarding-yes" class="menu-btn primary">🛡️ Enable Block &amp; Parry</button>
+        <button type="button" id="parry-onboarding-no" class="menu-btn secondary">⚔️ Classic Combat</button>
       </div>
     </div>
   </div>
@@ -605,6 +628,17 @@
         </div>
         <label class="toggle-switch">
           <input type="checkbox" id="setting-haptic" checked>
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+
+      <div class="settings-row">
+        <div class="settings-label">
+          <span class="settings-label-title">Block &amp; Parry</span>
+          <span class="settings-label-desc">When a powerful enemy attacks, a reaction window appears — tap to block (half damage) or swipe to counter (no damage + bonus hit)</span>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="setting-parry" checked>
           <span class="toggle-track"><span class="toggle-thumb"></span></span>
         </label>
       </div>

@@ -56,6 +56,10 @@ export function defaultSave() {
       warBannerIntroSeen: false,
       /** Shown once on floor 1 of the very first run */
       firstRunIntroDismissed: false,
+      /** Shown once: player chooses whether to use the Block & Parry mechanic */
+      parryChoiceDismissed: false,
+      /** Feature flag: Block & Parry reaction window during enemy counter-attacks */
+      parryEnabled: true,
       /** Auto-use red potions when HP drops below 30% (off by default) */
       autoPotions: false,
     },

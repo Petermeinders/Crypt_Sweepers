@@ -736,6 +736,7 @@ async function boot() {
     document.getElementById('setting-haptic').checked       = s.settings.hapticFeedback ?? true
     document.getElementById('setting-sub-levels').checked   = s.settings.subLevelsEnabled ?? true
     document.getElementById('setting-auto-potions').checked = s.settings.autoPotions ?? false
+    document.getElementById('setting-parry').checked         = s.settings.parryEnabled ?? true
     document.getElementById('cheat-god-mode').checked       = c.godMode      ?? false
     document.getElementById('cheat-instant-kill').checked   = c.instantKill  ?? false
     document.getElementById('cheat-999-gold').checked       = c.gold999      ?? false
@@ -823,6 +824,7 @@ async function boot() {
     document.getElementById('setting-haptic').checked       = s.settings.hapticFeedback ?? true
     document.getElementById('setting-sub-levels').checked   = s.settings.subLevelsEnabled ?? true
     document.getElementById('setting-auto-potions').checked = s.settings.autoPotions ?? false
+    document.getElementById('setting-parry').checked         = s.settings.parryEnabled ?? true
     document.getElementById('cheat-god-mode').checked       = c.godMode      ?? false
     document.getElementById('cheat-instant-kill').checked   = c.instantKill  ?? false
     document.getElementById('cheat-999-gold').checked       = c.gold999      ?? false
@@ -873,6 +875,12 @@ async function boot() {
   document.getElementById('setting-auto-potions').addEventListener('change', e => {
     const s = GameController.getSave()
     s.settings.autoPotions = e.target.checked
+    SaveManager.save(s)
+  })
+
+  document.getElementById('setting-parry').addEventListener('change', e => {
+    const s = GameController.getSave()
+    s.settings.parryEnabled = e.target.checked
     SaveManager.save(s)
   })
 

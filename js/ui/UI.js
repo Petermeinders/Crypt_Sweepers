@@ -304,14 +304,15 @@ const UI = {
     el.parryOverlay         = document.getElementById('parry-overlay')
     el.parryEnemyIcon       = document.getElementById('parry-enemy-icon')
     el.parryEnemyName       = document.getElementById('parry-enemy-name')
-    el.parryDirectionArrow  = document.getElementById('parry-direction-arrow')
     el.parryRingArena  = document.getElementById('parry-ring-arena')
     el.parryRingOuter  = document.getElementById('parry-ring-outer')
     el.parryRingTarget = document.getElementById('parry-ring-target')
     el.parryCompassN   = document.getElementById('parry-compass-n')
     el.parryCompassE   = document.getElementById('parry-compass-e')
     el.parryCompassS   = document.getElementById('parry-compass-s')
-    el.parryCompassW   = document.getElementById('parry-compass-w')
+    el.parryCompassW     = document.getElementById('parry-compass-w')
+    el.parryArcCanvas    = document.getElementById('parry-arc-canvas')
+    el.parryFlashOverlay = document.getElementById('parry-flash-overlay')
 
     // Toggle log on message-box click
     el.messageBox.addEventListener('click', () => {
@@ -1902,62 +1903,113 @@ const UI = {
     backdrop.addEventListener('click', close)
   },
 
+  /** Block & Parry onboarding: shown once so player chooses their preferred mode. */
+  showParryOnboarding(onChoice) {
+    const ov     = document.getElementById('parry-onboarding-overlay')
+    const yesBtn = document.getElementById('parry-onboarding-yes')
+    const noBtn  = document.getElementById('parry-onboarding-no')
+    if (!ov) { onChoice(true); return }
+    let done = false
+    const choose = (enabled) => {
+      if (done) return
+      done = true
+      ov.classList.add('hidden')
+      ov.setAttribute('aria-hidden', 'true')
+      onChoice(enabled)
+    }
+    ov.classList.remove('hidden')
+    ov.setAttribute('aria-hidden', 'false')
+    yesBtn.addEventListener('click', () => choose(true),  { once: true })
+    noBtn.addEventListener('click',  () => choose(false), { once: true })
+  },
+
   showParryWindow(enemyData, onResolve) {
     if (!el.parryOverlay) { onResolve('miss'); return }
 
     const dmg    = enemyData.dmg ?? [1, 2]
     const avgDmg = (dmg[0] + dmg[1]) / 2
 
-    // Difficulty tiers
-    let windowDur, sweetSpotFraction
+    // Difficulty tiers with ±25% variance so timing can't be muscle-memorised
+    let baseWindowDur, sweetSpotFraction
     if (avgDmg <= 2) {
-      windowDur = 2200; sweetSpotFraction = 0.30
+      baseWindowDur = 2200; sweetSpotFraction = 0.30
     } else if (avgDmg <= 4) {
-      windowDur = 1600; sweetSpotFraction = 0.20
+      baseWindowDur = 1600; sweetSpotFraction = 0.20
     } else {
-      windowDur = 1100; sweetSpotFraction = 0.12
+      baseWindowDur = 1100; sweetSpotFraction = 0.12
     }
+    const windowDur = baseWindowDur * (0.75 + Math.random() * 0.50)
 
-    // Target circle is 44px in 180px arena → TARGET_SCALE ≈ 0.244
-    const TARGET_SCALE = 44 / 180
+    // Target circle is 68px in 260px arena → TARGET_SCALE ≈ 0.262
+    const TARGET_SCALE = 68 / 260
     const zoneMin = TARGET_SCALE - sweetSpotFraction / 2
     const zoneMax = TARGET_SCALE + sweetSpotFraction / 2
 
-    // Random required swipe direction for counter
     const DIRS = [
-      { label: '→', id: 'e', dx: 1,  dy: 0  },
-      { label: '←', id: 'w', dx: -1, dy: 0  },
-      { label: '↑', id: 'n', dx: 0,  dy: -1 },
-      { label: '↓', id: 's', dx: 0,  dy: 1  },
+      { id: 'e', dx: 1,  dy: 0  },
+      { id: 'w', dx: -1, dy: 0  },
+      { id: 'n', dx: 0,  dy: -1 },
+      { id: 's', dx: 0,  dy: 1  },
     ]
     const requiredDir = DIRS[Math.floor(Math.random() * DIRS.length)]
-    if (el.parryDirectionArrow) el.parryDirectionArrow.textContent = requiredDir.label
+    const dirAngleDeg = Math.atan2(requiredDir.dy, requiredDir.dx) * 180 / Math.PI
 
-    // Highlight the matching compass arrow
     ;[el.parryCompassN, el.parryCompassE, el.parryCompassS, el.parryCompassW].forEach(a => a?.classList.remove('active'))
     const activeArrow = { n: el.parryCompassN, e: el.parryCompassE, s: el.parryCompassS, w: el.parryCompassW }[requiredDir.id]
     activeArrow?.classList.add('active')
 
-    el.parryEnemyIcon.textContent = enemyData.emoji ?? '⚠️'
-    el.parryEnemyName.textContent = `${enemyData.label} winds up a heavy strike!`
-
-    // Reset ring to full scale
     el.parryRingOuter.classList.remove('parry-result-block', 'parry-result-counter', 'parry-result-miss', 'in-zone')
     el.parryRingOuter.style.setProperty('--ring-scale', '1')
     el.parryRingOuter.style.transform = 'scale(1)'
     el.parryRingOuter.style.opacity   = '1'
     el.parryRingOuter.style.animation = 'none'
-
-    // Remove any leftover feedback icons
     el.parryRingArena?.querySelectorAll('.parry-feedback-icon').forEach(n => n.remove())
+
+    // Canvas arc: gold direction indicator — scales with the ring
+    const arcCtx = el.parryArcCanvas?.getContext('2d') ?? null
+    if (arcCtx) arcCtx.clearRect(0, 0, 260, 260)
+
+    function drawArc() {
+      if (!arcCtx) return
+      arcCtx.clearRect(0, 0, 260, 260)
+      const cx = 130, cy = 130, r = 126
+      const spanRad   = Math.PI * 0.45
+      const centerRad = dirAngleDeg * Math.PI / 180
+      const startRad  = centerRad - spanRad / 2
+      const endRad    = centerRad + spanRad / 2
+      // Soft glow halo
+      arcCtx.save()
+      arcCtx.globalAlpha = 0.38
+      arcCtx.strokeStyle = '#ffd700'
+      arcCtx.lineWidth   = 20
+      arcCtx.shadowBlur  = 28
+      arcCtx.shadowColor = '#ffd700'
+      arcCtx.lineCap     = 'round'
+      arcCtx.beginPath()
+      arcCtx.arc(cx, cy, r, startRad, endRad)
+      arcCtx.stroke()
+      arcCtx.restore()
+      // Sharp arc stroke
+      arcCtx.save()
+      arcCtx.globalAlpha = 0.92
+      arcCtx.strokeStyle = '#ffd700'
+      arcCtx.lineWidth   = 7
+      arcCtx.shadowBlur  = 14
+      arcCtx.shadowColor = '#ffe566'
+      arcCtx.lineCap     = 'round'
+      arcCtx.beginPath()
+      arcCtx.arc(cx, cy, r, startRad, endRad)
+      arcCtx.stroke()
+      arcCtx.restore()
+    }
 
     el.parryOverlay.classList.remove('hidden')
     el.parryOverlay.setAttribute('aria-hidden', 'false')
 
     let ringScale = 1
-    let startTs = null
-    let rafId   = null
-    let resolved = false
+    let startTs   = null
+    let rafId     = null
+    let resolved  = false
 
     function tick(ts) {
       if (resolved) return
@@ -1966,6 +2018,9 @@ const UI = {
       el.parryRingOuter.style.setProperty('--ring-scale', ringScale.toFixed(4))
       el.parryRingOuter.style.transform = `scale(${ringScale.toFixed(4)})`
       el.parryRingOuter.classList.toggle('in-zone', ringScale >= zoneMin && ringScale <= zoneMax)
+      // Scale canvas with ring so arc tracks it exactly
+      if (el.parryArcCanvas) el.parryArcCanvas.style.transform = `scale(${ringScale.toFixed(4)})`
+      drawArc()
       if (ringScale > 0) {
         rafId = requestAnimationFrame(tick)
       } else {
@@ -1993,14 +2048,28 @@ const UI = {
       el.parryOverlay.removeEventListener('mousedown',  onMouseDown)
       el.parryOverlay.removeEventListener('mouseup',    onMouseUp)
 
-      // Freeze scale and play result flash on the ring
+      if (arcCtx) arcCtx.clearRect(0, 0, 260, 260)
+      if (el.parryArcCanvas) el.parryArcCanvas.style.transform = ''
+
+      // Screen flash
+      if (el.parryFlashOverlay) {
+        el.parryFlashOverlay.className = 'parry-flash-overlay'
+        void el.parryFlashOverlay.offsetWidth
+        el.parryFlashOverlay.classList.add(`flash-${result}`)
+      }
+
+      // Screen shake on miss
+      if (result === 'miss') {
+        document.body.classList.add('screen-shake')
+        document.body.addEventListener('animationend', () => document.body.classList.remove('screen-shake'), { once: true })
+      }
+
       el.parryRingOuter.style.animation = 'none'
       el.parryRingOuter.classList.remove('in-zone')
       ;[el.parryCompassN, el.parryCompassE, el.parryCompassS, el.parryCompassW].forEach(a => a?.classList.remove('active'))
-      void el.parryRingOuter.offsetWidth // force reflow to restart animation
+      void el.parryRingOuter.offsetWidth
       el.parryRingOuter.classList.add(`parry-result-${result}`)
 
-      // Spawn feedback icon
       const icons = { block: '🛡️', counter: '✨', miss: '💨' }
       const icon = document.createElement('div')
       icon.className = 'parry-feedback-icon'

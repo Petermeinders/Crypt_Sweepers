@@ -254,6 +254,7 @@ function _checkShieldBlock(tile) {
 /** Returns true if the enemy telegraphs its counter-attack and the parry window should show. */
 function _shouldShowParryWindow(tile) {
   if (_save?.settings?.cheats?.godMode) return false
+  if (!(_save?.settings?.parryEnabled ?? true)) return false
   const attrs = tile.enemyData?.attributes ?? []
   return attrs.includes('telegraphs') && !attrs.includes('fast') && tile.enemyData?.behaviour !== 'fast'
 }
@@ -2302,6 +2303,20 @@ function _startFloor() {
     UI.showFirstRunIntro(() => {
       _save.settings = _save.settings ?? {}
       _save.settings.firstRunIntroDismissed = true
+      SaveManager.save(_save).catch(() => {})
+      if (!(_save.settings?.parryChoiceDismissed)) {
+        UI.showParryOnboarding((enabled) => {
+          _save.settings.parryEnabled = enabled
+          _save.settings.parryChoiceDismissed = true
+          SaveManager.save(_save).catch(() => {})
+        })
+      }
+    })
+  } else if (!_isBot && run.floor === 1 && !(_save.settings?.parryChoiceDismissed)) {
+    UI.showParryOnboarding((enabled) => {
+      _save.settings = _save.settings ?? {}
+      _save.settings.parryEnabled = enabled
+      _save.settings.parryChoiceDismissed = true
       SaveManager.save(_save).catch(() => {})
     })
   }
