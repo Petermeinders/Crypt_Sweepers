@@ -42,6 +42,8 @@ The systems directory contains all stateful and stateless game systems that are 
 - `warrior` / `ranger` / `engineer` / `mage` / `vampire` / `necromancer` — each `{ totalXP, upgrades[] }`
 - `unlockedHeroes[]`, `selectedCharacter`, `globalPassives[]`
 - `settings` — difficulty, tileColors, subLevelsEnabled, autoPotions, etc.
+  - `parryEnabled` *(bool, default `true`)* — gates the Block & Parry reflex mechanic; when `false` combat resolves without player interaction
+  - `parryChoiceDismissed` *(bool, default `false`)* — tracks whether the floor-1 onboarding modal has been shown
 - `bestiarySeen[]`, `trinketsSeen[]`
 
 ## External Dependencies

@@ -36,6 +36,12 @@ The core directory contains the game's runtime backbone: the master orchestrator
 - **Called by:** `js/main.js` (wires events and boots the game); `js/dev/balanceBotAutopilot.js` (calls public GameController methods to simulate play)
 - **EventBus subscribers:** `AudioManager` (audio events), `UI` (some discovery/notification events)
 
+## Block & Parry integration
+
+`_shouldShowParryWindow(tile)` — returns `true` when the enemy has the `telegraphs` attribute AND does not have `fast` behaviour AND `save.settings.parryEnabled` is `true` (defaults `true`) AND god-mode cheat is off. Called in the combat handler before `UI.showParryWindow`.
+
+**Parry onboarding chain** (floor 1 only): After the first-run intro is dismissed, `GameController` checks `save.settings.parryChoiceDismissed`. If not set, it calls `UI.showParryOnboarding(enabled => { save.settings.parryEnabled = enabled; … })`. Returning players who skipped the intro still see it via an `else if` branch. Both paths save immediately via `SaveManager`.
+
 ## Notes
 
 `GameController.js` is the largest file in the codebase (~10k+ lines). When editing it, search for the specific handler method rather than reading top-to-bottom. Loot pools (`COMMON_LOOT_IDS`, `RARE_TRINKET_IDS`, etc.) are defined at the top of the file, not in `js/data/`.

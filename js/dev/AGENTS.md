@@ -15,6 +15,8 @@ The dev directory contains in-browser automation tools for balance testing. Thes
 
 - **Activated by URL params only.** `js/main.js` checks `?balanceBot=1` / `?testBotOngoing=1` and imports these modules dynamically. They are never imported at startup in normal play.
 - **Bot tick interval is 80ms.** Each tick checks `GameState.current()` and takes one action. Deadlock detection counters (`stuckNoTapTicks`, `modalWaitTicks`, etc.) increment when no progress is made and trigger recovery actions (retreat, force-close overlays) after thresholds.
+- **Parry onboarding auto-dismiss.** The bot detects `#parry-onboarding-overlay` and auto-clicks `#parry-onboarding-no` (Classic Combat) so runs are unaffected by the one-time modal.
+- **Parry window auto-miss.** The parry overlay (`#parry-overlay`) is treated as any other modal — the bot does not interact with it. The `windowDur` timeout fires naturally, resolving as `'miss'`, which is the expected bot behaviour (parry skill is irrelevant to balance runs).
 - **Results land on `window.__balanceBotRuns`** (array of run telemetry records) and `window.__balanceBotReport` (aggregate). The headless script (`scripts/balance-bot-batch.mjs`) polls for these via Playwright's `page.evaluate()`.
 - **Console log tags:** `[bot:tick]`, `[bot:tap]`, `[bot:levelup]`, `[bot:stuck]`, `[bot:run]` — filter by these to debug specific phases.
 - **Presets are mutate-in-place.** `applyBalanceBotSavePreset` mutates the save object directly. Call it before `SaveManager.save()` during a run setup; don't call it mid-run.

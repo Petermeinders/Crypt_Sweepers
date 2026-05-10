@@ -5706,7 +5706,7 @@ body.bestiary-detail-open #app {
 .parry-overlay.hidden { display: none; }
 
 .parry-modal {
-  background: rgba(12, 14, 35, 0.90);
+  background: transparent;
   border: 2px solid var(--gold, #d4af37);
   border-radius: 14px;
   padding: 0.65rem;
@@ -5780,8 +5780,8 @@ body.bestiary-detail-open #app {
 
 .parry-arc-canvas {
   position: absolute;
-  top: 0; left: 0;
-  width: 260px; height: 260px;
+  top: -20px; left: -20px;
+  width: 300px; height: 300px;
   transform-origin: center;
   pointer-events: none;
 }

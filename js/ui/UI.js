@@ -1966,12 +1966,12 @@ const UI = {
 
     // Canvas arc: gold direction indicator — scales with the ring
     const arcCtx = el.parryArcCanvas?.getContext('2d') ?? null
-    if (arcCtx) arcCtx.clearRect(0, 0, 260, 260)
+    if (arcCtx) arcCtx.clearRect(0, 0, 300, 300)
 
     function drawArc() {
       if (!arcCtx) return
-      arcCtx.clearRect(0, 0, 260, 260)
-      const cx = 130, cy = 130, r = 126
+      arcCtx.clearRect(0, 0, 300, 300)
+      const cx = 150, cy = 150, r = 126
       const spanRad   = Math.PI * 0.45
       const centerRad = dirAngleDeg * Math.PI / 180
       const startRad  = centerRad - spanRad / 2
@@ -2048,7 +2048,7 @@ const UI = {
       el.parryOverlay.removeEventListener('mousedown',  onMouseDown)
       el.parryOverlay.removeEventListener('mouseup',    onMouseUp)
 
-      if (arcCtx) arcCtx.clearRect(0, 0, 260, 260)
+      if (arcCtx) arcCtx.clearRect(0, 0, 300, 300)
       if (el.parryArcCanvas) el.parryArcCanvas.style.transform = ''
 
       // Screen flash

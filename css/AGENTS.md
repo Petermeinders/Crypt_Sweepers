@@ -20,6 +20,9 @@ The CSS directory contains all visual styling for the game. No CSS modules or pr
 - **Tile flip is CSS-only.** The 3D card-flip reveal animation lives entirely in `tiles.css`. `GameController` adds/removes a class; no JS animation loop is involved.
 - **`floor-transition-active` blocks pointer events.** Set on `#grid-container` during floor slide transitions to prevent tap-through. Always remove it in the `transitionend` callback.
 - **Animation classes are additive.** Damage number overlays, discovery popups, and bounce animations are applied as extra classes and removed after the animation ends (via `animationend` listener in `UI.js`).
+- **Parry ring uses `filter: drop-shadow()`, not `box-shadow`.** The outer ring is an `<img>` element (`rune-ring2.png`), so `box-shadow` has no effect. All glow, in-zone bloom, and result flash effects use `filter: drop-shadow()`. Keyframes in `animations.css` follow the same pattern (`parry-ring-flash-block/counter/miss`).
+- **Screen-shake is a body class.** `body.screen-shake` triggers the `@keyframes screen-shake` translateX wobble. `UI.js` adds it on miss and removes it via `animationend`.
+- **Parry flash overlay** (`#parry-flash-overlay`) is a fixed full-screen div at `z-index: 9990`. Result classes (`flash-block`, `flash-counter`, `flash-miss`) are added/removed by `UI.js` to produce full-screen colour flashes.
 
 ## External Dependencies
 
