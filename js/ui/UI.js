@@ -2097,7 +2097,7 @@ const UI = {
       if (ringScale > 0) {
         rafId = requestAnimationFrame(tick)
       } else {
-        resolve('miss')
+        resolve(_attempted ? 'miss-block' : 'ignore')
       }
     }
     rafId = requestAnimationFrame(tick)
@@ -2111,6 +2111,7 @@ const UI = {
       return dy > 0 ? requiredDir.dy === 1 : requiredDir.dy === -1
     }
 
+    // result: 'block' | 'counter' | 'miss-block' | 'miss-parry' | 'ignore'
     function resolve(result) {
       if (resolved) return
       resolved = true
@@ -2124,15 +2125,17 @@ const UI = {
       if (arcCtx) arcCtx.clearRect(0, 0, 360, 360)
       if (el.parryArcCanvas) el.parryArcCanvas.style.transform = ''
 
-      // Screen flash
-      if (el.parryFlashOverlay) {
+      const isMiss = result === 'miss-block' || result === 'miss-parry'
+      // 'ignore' = ring expired with no input; skip all feedback
+      const visualResult = isMiss ? 'miss' : result === 'ignore' ? null : result
+
+      if (visualResult && el.parryFlashOverlay) {
         el.parryFlashOverlay.className = 'parry-flash-overlay'
         void el.parryFlashOverlay.offsetWidth
-        el.parryFlashOverlay.classList.add(`flash-${result}`)
+        el.parryFlashOverlay.classList.add(`flash-${visualResult}`)
       }
 
-      // Screen shake on miss
-      if (result === 'miss') {
+      if (isMiss) {
         document.body.classList.add('screen-shake')
         document.body.addEventListener('animationend', () => document.body.classList.remove('screen-shake'), { once: true })
       }
@@ -2141,27 +2144,31 @@ const UI = {
       el.parryRingOuter.classList.remove('in-zone')
       ;[el.parryCompassN, el.parryCompassE, el.parryCompassS, el.parryCompassW].forEach(a => a?.classList.remove('active'))
       void el.parryRingOuter.offsetWidth
-      el.parryRingOuter.classList.add(`parry-result-${result}`)
+      if (visualResult) el.parryRingOuter.classList.add(`parry-result-${visualResult}`)
 
-      const resultWords = { block: 'Blocked', counter: 'Countered', miss: 'Missed' }
-      const word = document.createElement('div')
-      word.className = `parry-feedback-icon parry-text-${result}`
-      word.textContent = resultWords[result]
-      el.parryRingArena?.appendChild(word)
+      if (visualResult) {
+        const resultWords = { block: 'Blocked', counter: 'Countered', miss: 'Missed' }
+        const word = document.createElement('div')
+        word.className = `parry-feedback-icon parry-text-${visualResult}`
+        word.textContent = resultWords[visualResult]
+        el.parryRingArena?.appendChild(word)
+      }
 
       setTimeout(() => {
         el.parryOverlay.classList.add('hidden')
         el.parryOverlay.setAttribute('aria-hidden', 'true')
-        el.parryRingOuter.classList.remove(`parry-result-${result}`)
+        if (visualResult) el.parryRingOuter.classList.remove(`parry-result-${visualResult}`)
         el.parryRingArena?.querySelectorAll('.parry-feedback-icon').forEach(n => n.remove())
         if (heroCtx) heroCtx.clearRect(0, 0, 320, 320)
         onResolve(result)
-      }, 350)
+      }, visualResult ? 350 : 0)
     }
 
+    let _attempted = false
     let touchStartX = null, touchStartY = null, mouseStartX = null, mouseStartY = null
 
     function onTouchStart(e) {
+      _attempted = true
       touchStartX = e.touches[0].clientX
       touchStartY = e.touches[0].clientY
     }
@@ -2171,21 +2178,21 @@ const UI = {
       const dy = e.changedTouches[0].clientY - touchStartY
       touchStartX = null; touchStartY = null
       if (Math.hypot(dx, dy) < 20) {
-        resolve(_inZone() ? 'block' : 'miss')
+        resolve(_inZone() ? 'block' : 'miss-block')
       } else {
-        resolve(_inZone() && _swipeDirMatches(dx, dy) ? 'counter' : 'miss')
+        resolve(_inZone() && _swipeDirMatches(dx, dy) ? 'counter' : 'miss-parry')
       }
     }
-    function onMouseDown(e) { mouseStartX = e.clientX; mouseStartY = e.clientY }
+    function onMouseDown(e) { _attempted = true; mouseStartX = e.clientX; mouseStartY = e.clientY }
     function onMouseUp(e) {
       if (mouseStartX === null) return
       const dx = e.clientX - mouseStartX
       const dy = e.clientY - mouseStartY
       mouseStartX = null; mouseStartY = null
       if (Math.abs(dx) < 20 && Math.abs(dy) < 20) {
-        resolve(_inZone() ? 'block' : 'miss')
+        resolve(_inZone() ? 'block' : 'miss-block')
       } else {
-        resolve(_inZone() && _swipeDirMatches(dx, dy) ? 'counter' : 'miss')
+        resolve(_inZone() && _swipeDirMatches(dx, dy) ? 'counter' : 'miss-parry')
       }
     }
 
@@ -2194,7 +2201,7 @@ const UI = {
     el.parryOverlay.addEventListener('mousedown',  onMouseDown)
     el.parryOverlay.addEventListener('mouseup',    onMouseUp)
 
-    const autoMissTimer = setTimeout(() => resolve('miss'), windowDur)
+    const autoMissTimer = setTimeout(() => resolve(_attempted ? 'miss-block' : 'ignore'), windowDur)
   },
 
   showFloorModifierModal(modifier, onDismiss) {

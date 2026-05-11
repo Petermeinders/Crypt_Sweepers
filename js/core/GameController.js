@@ -5780,17 +5780,27 @@ function fightAction(tile) {
           let finalEnemyDmg = result.enemyDmg
           let parrySuccessType = null
 
-          if (parryResult === 'block' && (run.player.mana ?? 0) >= 3) {
-            run.player.mana = Math.max(0, (run.player.mana ?? 0) - 3)
-            UI.updateMana(run.player.mana, run.player.maxMana)
+          if (parryResult === 'block') {
+            // Successful block: free, half damage
             finalEnemyDmg = Math.floor(result.enemyDmg / 2)
             parrySuccessType = 'block'
-          } else if (parryResult === 'counter' && (run.player.mana ?? 0) >= 2) {
-            run.player.mana = Math.max(0, (run.player.mana ?? 0) - 2)
+          } else if (parryResult === 'counter') {
+            // Successful parry: +1 mana, no damage
+            run.player.mana = Math.min(run.player.maxMana, (run.player.mana ?? 0) + 1)
             UI.updateMana(run.player.mana, run.player.maxMana)
             finalEnemyDmg = 0
             parrySuccessType = 'counter'
+          } else if (parryResult === 'miss-block') {
+            // Failed block attempt: -1 mana, full damage
+            run.player.mana = Math.max(0, (run.player.mana ?? 0) - 1)
+            UI.updateMana(run.player.mana, run.player.maxMana)
+          } else if (parryResult === 'miss-parry') {
+            // Failed parry attempt: -2 mana, double damage
+            run.player.mana = Math.max(0, (run.player.mana ?? 0) - 2)
+            UI.updateMana(run.player.mana, run.player.maxMana)
+            finalEnemyDmg = result.enemyDmg * 2
           }
+          // 'ignore': ring expired untouched — full damage, no mana change
 
           _setEnemySprite(tile, 'attack')
           if (tile.enemyData?.freezingHit)   _applyFreezingHit()
