@@ -435,7 +435,8 @@ function endRun(save, runStats, outcome) {
 
   let goldBanked = 0
   if (outcome === 'escape' || outcome === 'retreat') {
-    goldBanked = runStats.gold
+    // safeGold was already deducted from gold when banked at the rope, so add it back
+    goldBanked = runStats.gold + (runStats.safeGold ?? 0)
   } else if (outcome === 'death') {
     // Only safe gold (banked at checkpoints) is kept
     goldBanked = runStats.safeGold ?? 0

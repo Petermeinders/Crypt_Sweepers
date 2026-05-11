@@ -1989,8 +1989,8 @@ const UI = {
     }
     const windowDur = Math.max(550, baseWindowDur * (0.40 + Math.random() * 1.20))
 
-    // Rune ring is 90px in 260px arena; outer edge at 45px radius → scale = 45/130
-    const TARGET_SCALE = 45 / 130
+    // Rune ring is 110px in 320px arena; outer edge at 55px radius → scale = 55/160
+    const TARGET_SCALE = 55 / 160
     const zoneMin = TARGET_SCALE - sweetSpotFraction / 2
     const zoneMax = TARGET_SCALE + sweetSpotFraction / 2
 
@@ -2015,7 +2015,7 @@ const UI = {
 
     // Hero canvas: clear previous frame
     const heroCtx = el.parryHeroCanvas?.getContext('2d') ?? null
-    if (heroCtx) heroCtx.clearRect(0, 0, 260, 260)
+    if (heroCtx) heroCtx.clearRect(0, 0, 320, 320)
 
     // Async hero GIF load — frames drawn in tick() once available
     let heroFrames = [], heroGifW = 0, heroGifH = 0
@@ -2027,12 +2027,12 @@ const UI = {
 
     // Canvas arc: gold direction indicator — scales with the ring
     const arcCtx = el.parryArcCanvas?.getContext('2d') ?? null
-    if (arcCtx) arcCtx.clearRect(0, 0, 300, 300)
+    if (arcCtx) arcCtx.clearRect(0, 0, 360, 360)
 
     function drawArc() {
       if (!arcCtx) return
-      arcCtx.clearRect(0, 0, 300, 300)
-      const cx = 150, cy = 150, r = 126
+      arcCtx.clearRect(0, 0, 360, 360)
+      const cx = 180, cy = 180, r = 155
       const spanRad   = Math.PI * 0.45
       const centerRad = dirAngleDeg * Math.PI / 180
       const startRad  = centerRad - spanRad / 2
@@ -2087,11 +2087,11 @@ const UI = {
       if (heroCtx && heroFrames.length > 0) {
         const progress  = 1 - ringScale
         const frameIdx  = Math.min(heroFrames.length - 1, Math.floor(progress * (heroFrames.length - 1)))
-        heroCtx.clearRect(0, 0, 260, 260)
-        const MAX_PX = 110
+        heroCtx.clearRect(0, 0, 320, 320)
+        const MAX_PX = 160
         const scale  = MAX_PX / Math.max(heroGifW, heroGifH)
         const sw = Math.round(heroGifW * scale), sh = Math.round(heroGifH * scale)
-        heroCtx.drawImage(heroFrames[frameIdx], (260 - sw) / 2, (260 - sh) / 2, sw, sh)
+        heroCtx.drawImage(heroFrames[frameIdx], (320 - sw) / 2, (320 - sh) / 2, sw, sh)
       }
 
       if (ringScale > 0) {
@@ -2121,7 +2121,7 @@ const UI = {
       el.parryOverlay.removeEventListener('mousedown',  onMouseDown)
       el.parryOverlay.removeEventListener('mouseup',    onMouseUp)
 
-      if (arcCtx) arcCtx.clearRect(0, 0, 300, 300)
+      if (arcCtx) arcCtx.clearRect(0, 0, 360, 360)
       if (el.parryArcCanvas) el.parryArcCanvas.style.transform = ''
 
       // Screen flash
@@ -2154,7 +2154,7 @@ const UI = {
         el.parryOverlay.setAttribute('aria-hidden', 'true')
         el.parryRingOuter.classList.remove(`parry-result-${result}`)
         el.parryRingArena?.querySelectorAll('.parry-feedback-icon').forEach(n => n.remove())
-        if (heroCtx) heroCtx.clearRect(0, 0, 260, 260)
+        if (heroCtx) heroCtx.clearRect(0, 0, 320, 320)
         onResolve(result)
       }, 350)
     }

@@ -77,6 +77,23 @@ export const ITEMS = {
     effect: { type: 'lantern' },
   },
 
+  'dowsing-rod': {
+    name:      'Dowsing Rod',
+    icon:      '🪄',
+    spriteSrc: 'assets/sprites/Items/wand.png',
+    rarity:    'common',
+    stackable: true,
+    maxStack:  10,
+    blurb:     'A forked branch that twitches toward hidden danger. One use reveals the nearest trap lurking in the dungeon.',
+    details: [
+      { icon: '🪄', label: 'Use',     desc: 'Instantly reveals the closest unrevealed trap on the floor' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use' },
+      { icon: '📦', label: 'Stack',   desc: 'Stacks up to 10 per slot' },
+      { icon: '🎲', label: 'Common',  desc: 'Drops from chests like a Lantern' },
+    ],
+    effect: { type: 'dowsing-rod' },
+  },
+
   'mana-ring': {
     name:      'Mana Ring',
     icon:      '💍',

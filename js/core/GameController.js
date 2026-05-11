@@ -40,7 +40,7 @@ import {
 // ── Loot pools by rarity ─────────────────────────────────────
 
 const COMMON_LOOT_IDS = [
-  'potion-red', 'potion-blue', 'lantern', 'smiths-tools', 'spyglass', 'scavengers-bag',
+  'potion-red', 'potion-blue', 'lantern', 'dowsing-rod', 'smiths-tools', 'spyglass', 'scavengers-bag',
 ]
 
 const RARE_TRINKET_IDS = [
@@ -158,12 +158,13 @@ function _pickRandom(pool) { return pool[Math.floor(Math.random() * pool.length)
 function hasItem(id) { return run?.player?.inventory?.some(e => e.id === id) ?? false }
 
 function _rollCommonLoot() {
-  // Weighted: potions more likely than lantern/spyglass (smiths-tools removed — ~1% via dedicated band in chest rolls)
+  // Weighted: potions more likely than utility items (smiths-tools removed — ~1% via dedicated band in chest rolls)
   const r = Math.random()
   if (r < 0.32) return { type: 'potion-red' }
   if (r < 0.58) return { type: 'potion-blue' }
-  if (r < 0.74) return { type: 'lantern' }
-  if (r < 0.87) return { type: 'spyglass' }
+  if (r < 0.70) return { type: 'lantern' }
+  if (r < 0.80) return { type: 'dowsing-rod' }
+  if (r < 0.88) return { type: 'spyglass' }
   if (r < 0.95) return { type: 'scavengers-bag' }
   return { type: 'gold', amount: _rand(...CONFIG.chest.goldDrop) }
 }
@@ -7119,6 +7120,60 @@ function _useLanternOn(tile) {
   UI.setMessage('🏮 The lantern burns bright — a tile revealed!')
 }
 
+function dowsingRodAction() {
+  const inv = run.player.inventory
+  const entry = inv.find(e => e.id === 'dowsing-rod')
+  if (!entry) return
+  if (_combatBusy) return
+  if (_isCombatCommitmentLocked()) {
+    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
+    return
+  }
+
+  // Find closest unrevealed trap by Manhattan distance to any revealed tile
+  const tiles = _getActiveTiles()
+  const revealed = tiles.filter(t => t.revealed)
+  const traps = tiles.filter(t => !t.revealed && t.type === 'trap')
+
+  if (traps.length === 0) {
+    UI.setMessage('🪄 The rod is still — no traps lurk nearby.', true)
+    return
+  }
+
+  let best = null
+  let bestDist = Infinity
+  for (const trap of traps) {
+    let minDist = Infinity
+    for (const r of revealed) {
+      const d = Math.abs(trap.row - r.row) + Math.abs(trap.col - r.col)
+      if (d < minDist) minDist = d
+    }
+    if (minDist < bestDist) { bestDist = minDist; best = trap }
+  }
+
+  if (!best) {
+    UI.setMessage('🪄 The rod is still — no traps lurk nearby.', true)
+    return
+  }
+
+  // Consume one charge
+  entry.qty--
+  if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
+
+  // Safe reveal: set flag + patch DOM, do NOT call revealTile() which triggers trap damage
+  best.revealed = true
+  const patched = TileEngine.patchMainGridTileAt(best.row, best.col, UI.getGridEl(), onTileTap, onTileHold)
+  if (!patched) _refreshMainGridDomFromModel()
+  else {
+    TileEngine.refreshAllThreatClueDisplays()
+    _syncGridDomClassesFromModel()
+  }
+
+  UI.setMessage('🪄 The rod twitches — a nearby trap is revealed!')
+  EventBus.emit('audio:play', { sfx: 'spell' })
+  _saveActiveRun()
+}
+
 function _useSpyglassOn(tile) {
   _spyglassTargeting = false
   _lanternTargeting = false
@@ -8845,6 +8900,10 @@ function useItem(id) {
     lanternAction()
     return
   }
+  if (effect.type === 'dowsing-rod') {
+    dowsingRodAction()
+    return
+  }
   if (effect.type === 'spyglass') {
     spyglassAction()
     return
@@ -9931,6 +9990,7 @@ export default {
   divineLightAction,
   divineLightHealAction,
   lanternAction,
+  dowsingRodAction,
   spyglassAction,
   hourglassAction,
   doRetreat,

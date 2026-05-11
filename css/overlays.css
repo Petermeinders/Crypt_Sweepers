@@ -5710,14 +5710,14 @@ body.bestiary-detail-open #app {
   border: 2px solid var(--gold, #d4af37);
   border-radius: 14px;
   padding: 0.65rem;
-  width: min(92vw, 292px);
+  width: min(92vw, 348px);
   text-align: center;
   user-select: none;
 }
 
 .parry-ring-arena {
   position: relative;
-  width: 260px; height: 260px;
+  width: 320px; height: 320px;
   margin: 0 auto;
   display: flex; align-items: center; justify-content: center;
 }
@@ -5725,14 +5725,14 @@ body.bestiary-detail-open #app {
 .parry-hero-canvas {
   position: absolute;
   top: 0; left: 0;
-  width: 260px; height: 260px;
+  width: 320px; height: 320px;
   pointer-events: none;
   z-index: 0;
 }
 
 .parry-ring-outer {
   position: absolute;
-  width: 260px; height: 260px;
+  width: 320px; height: 320px;
   transform-origin: center;
   will-change: transform;
   pointer-events: none;
@@ -5750,7 +5750,7 @@ body.bestiary-detail-open #app {
 
 .parry-rune-ring {
   position: absolute;
-  width: 90px; height: 90px;
+  width: 110px; height: 110px;
   pointer-events: none;
   mix-blend-mode: screen;
   opacity: 0.88;
@@ -5793,7 +5793,7 @@ body.bestiary-detail-open #app {
 .parry-arc-canvas {
   position: absolute;
   top: -20px; left: -20px;
-  width: 300px; height: 300px;
+  width: 360px; height: 360px;
   transform-origin: center;
   pointer-events: none;
 }
