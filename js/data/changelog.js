@@ -5,6 +5,40 @@
 export const CHANGELOG = [
   {
     dateLabel: 'May 2026',
+    dateIso:   '2026-05-12',
+    version:   'v349',
+    title:     'Block & Parry, hero combat canvas & mastery branches',
+    summary:
+      'Telegraphing enemies now trigger a real-time parry ring — tap to block or swipe to counter. Heroes animate in the ring arena, mastery trees branch into specialisations, and a new dowsing rod item reveals nearby traps.',
+    items: [
+      {
+        tag:  'New',
+        text: 'Block & Parry system — when a telegraphing enemy attacks, a shrinking rune ring appears. Tap while the ring is in the golden zone to Block (half damage, mana neutral) or swipe the indicated direction to Counter (no damage, +1 mana). Miss the zone and take amplified damage with a mana penalty.',
+      },
+      {
+        tag:  'New',
+        text: 'Hero combat canvas — your hero\'s attack GIF plays frame-locked to the parry ring as it shrinks, so timing feels connected to the action.',
+      },
+      {
+        tag:  'New',
+        text: 'Parry tutorial — first-time players walk through an interactive onboarding that teaches blocking then countering, with practice rounds that must be completed before moving on.',
+      },
+      {
+        tag:  'New',
+        text: 'Branching mastery trees — Slam now splits into Hemorrhage, Seismic, and Reverberation branches at the first mastery tier. Engineer, Mage, Necromancer, and Vampire each gain new ability branches with tiered upgrades.',
+      },
+      {
+        tag:  'New',
+        text: 'Dowsing Rod item — reveals the category of nearby hidden trap tiles when picked up.',
+      },
+      {
+        tag:  'UI',
+        text: 'Full-screen colour flash and screen-shake on parry results; "Blocked / Countered / Missed" text floats up from the ring arena in colour-coded styles.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'May 2026',
     dateIso:   '2026-05-02',
     version:   'v331',
     title:     'Floor modifiers, gold vault & difficulty stakes',

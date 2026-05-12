@@ -1328,6 +1328,50 @@
 }
 .htp-tip-card strong { color: #f0c060; }
 
+.htp-parry-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  margin: 10px 0 8px;
+}
+.htp-parry-table thead th {
+  text-align: left;
+  color: #f0c060;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(200,160,80,0.3);
+  padding: 4px 6px;
+}
+.htp-parry-table thead th:not(:first-child) { text-align: center; }
+.htp-parry-table tbody td {
+  padding: 5px 6px;
+  color: #ccc;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.htp-parry-table td.htp-good { color: #2ecc71; font-weight: 700; text-align: center; }
+.htp-parry-table td.htp-bad  { color: #e74c3c; font-weight: 700; text-align: center; }
+
+.htp-practice-btn {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 16px;
+  background: rgba(200,140,20,0.18);
+  border: 1px solid rgba(200,160,80,0.5);
+  border-radius: 8px;
+  color: #f0c060;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+.htp-practice-btn:hover { background: rgba(200,140,20,0.30); border-color: rgba(200,160,80,0.8); }
+.htp-practice-btn:active { background: rgba(200,140,20,0.40); }
+
 #menu-secondary {
   display: grid;
   /* minmax(0,…) lets columns shrink below intrinsic content width (avoids clipping in narrow grids) */
@@ -5845,4 +5889,137 @@ body.bestiary-detail-open #app {
   flex-direction: column;
   gap: 0.5rem;
   margin-top: 0.75rem;
+}
+
+/* ── Parry window: enemy display ───────────────────────────── */
+.parry-enemy-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  margin-bottom: 0.5rem;
+}
+.parry-enemy-display.hidden { display: none; }
+.parry-enemy-icon {
+  width: 64px; height: 64px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.parry-enemy-name {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold, #d4af37);
+}
+
+/* ── Parry window: practice mode banner ─────────────────────── */
+.parry-practice-label {
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #a8d8ff;
+  padding: 0.25rem 0 0.35rem;
+}
+.parry-practice-label.hidden { display: none; }
+
+/* ── Parry tutorial overlay ─────────────────────────────────── */
+.parry-tutorial-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.82);
+  z-index: 310;
+  touch-action: none;
+}
+.parry-tutorial-overlay.hidden { display: none; }
+
+.parry-tutorial-modal {
+  background: var(--panel-bg, #1a1a2e);
+  border: 2px solid var(--gold, #d4af37);
+  border-radius: 14px;
+  padding: 1.1rem 1rem 0.85rem;
+  width: min(92vw, 360px);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  user-select: none;
+}
+
+.parry-tutorial-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.parry-tutorial-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--gold, #d4af37);
+  margin: 0;
+}
+
+.parry-tutorial-pips {
+  display: flex;
+  gap: 5px;
+}
+.parry-tutorial-pip {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  transition: background 0.2s;
+}
+.parry-tutorial-pip.active { background: var(--gold, #d4af37); }
+
+.parry-tutorial-body {
+  font-size: 0.82rem;
+  color: var(--text-muted, #b0b0c0);
+  line-height: 1.55;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+.parry-tutorial-body p { margin: 0 0 0.55rem; }
+.parry-tutorial-body p:last-child { margin-bottom: 0; }
+.parry-tutorial-body strong { color: rgba(255, 255, 255, 0.88); }
+
+.parry-tutorial-tip {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.38);
+  font-style: italic;
+}
+
+.parry-tutorial-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  margin-top: 0.55rem;
+}
+.parry-tutorial-table thead th {
+  color: rgba(255, 255, 255, 0.45);
+  font-weight: 600;
+  text-align: left;
+  padding: 0.18rem 0.35rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.parry-tutorial-table thead th:not(:first-child) { text-align: center; }
+.parry-tutorial-table tbody td {
+  padding: 0.22rem 0.35rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  color: var(--text-muted, #b0b0c0);
+}
+.parry-tutorial-table td.good { color: #2ecc71; font-weight: 700; text-align: center; }
+.parry-tutorial-table td.bad  { color: #e74c3c; font-weight: 700; text-align: center; }
+
+.parry-tutorial-footer {
+  display: flex;
+  gap: 0.5rem;
+}
+.parry-tutorial-footer .menu-btn {
+  flex: 1;
+  font-size: 0.82rem;
+  padding: 0.55rem 0.5rem;
 }

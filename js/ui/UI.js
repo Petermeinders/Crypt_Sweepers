@@ -350,8 +350,15 @@ const UI = {
     el.msgLogScroll       = document.getElementById('message-log-scroll')
     el.hudCharacterId     = 'warrior'
     el.parryOverlay         = document.getElementById('parry-overlay')
+    el.parryEnemyDisplay    = document.getElementById('parry-enemy-display')
     el.parryEnemyIcon       = document.getElementById('parry-enemy-icon')
     el.parryEnemyName       = document.getElementById('parry-enemy-name')
+    el.parryPracticeLabel   = document.getElementById('parry-practice-label')
+    el.parryTutorialOverlay = document.getElementById('parry-tutorial-overlay')
+    el.parryTutorialBody    = document.getElementById('parry-tutorial-body')
+    el.parryTutorialPips    = document.getElementById('parry-tutorial-pips')
+    el.parryTutorialNext    = document.getElementById('parry-tutorial-next')
+    el.parryTutorialSkip    = document.getElementById('parry-tutorial-skip')
     el.parryRingArena  = document.getElementById('parry-ring-arena')
     el.parryHeroCanvas = document.getElementById('parry-hero-canvas')
     el.parryRingOuter  = document.getElementById('parry-ring-outer')
@@ -1972,8 +1979,125 @@ const UI = {
     noBtn.addEventListener('click',  () => choose(false), { once: true })
   },
 
-  showParryWindow(enemyData, onResolve, heroId = 'warrior') {
-    if (!el.parryOverlay) { onResolve('miss'); return }
+  /** Interactive block/counter training — shown once before the first real parry window. */
+  showParryTutorial(heroId, onComplete) {
+    const ov = el.parryTutorialOverlay
+    if (!ov) { onComplete(); return }
+
+    const _self = this
+    const _MOCK  = { dmg: [1, 1], label: 'Dummy', enemyId: null }
+
+    const STEPS = [
+      {
+        nextLabel: 'Next',
+        body:
+          '<p>When a <strong>telegraphing enemy</strong> attacks, a glowing ring shrinks toward the center. React before it closes.</p>' +
+          '<table class="parry-tutorial-table">' +
+          '<thead><tr><th>Action</th><th>Mana</th><th>Damage</th></tr></thead>' +
+          '<tbody>' +
+          '<tr><td>🛡️ <strong>Block</strong> — tap in zone</td><td class="good">±0</td><td class="good">½</td></tr>' +
+          '<tr><td>⚡ <strong>Counter</strong> — swipe direction in zone</td><td class="good">+1</td><td class="good">none</td></tr>' +
+          '<tr><td>✗ Miss tap</td><td class="bad">−1</td><td class="bad">full</td></tr>' +
+          '<tr><td>✗ Miss swipe</td><td class="bad">−2</td><td class="bad">×2</td></tr>' +
+          '<tr><td>— Ignore ring</td><td>±0</td><td>full</td></tr>' +
+          '</tbody></table>',
+      },
+      {
+        nextLabel: 'Try Blocking →',
+        isPractice: true,
+        practiceHint: '⚡ PRACTICE — Tap when the ring enters the zone',
+        passCondition: r => r === 'block' || r === 'counter',
+        body:
+          '<p>The ring shrinks toward center. <strong>Tap anywhere</strong> when it overlaps the golden inner ring.</p>' +
+          '<p class="parry-tutorial-tip">The outer ring glows green when you\'re in range.</p>',
+        retryBody:
+          '<p>Not quite! <strong>Tap anywhere</strong> when the ring is inside the glowing zone — don\'t tap early or late.</p>' +
+          '<p class="parry-tutorial-tip">The outer ring glows green when you\'re in range.</p>',
+      },
+      {
+        nextLabel: 'Try Countering →',
+        isPractice: true,
+        practiceHint: '⚡ PRACTICE — Swipe the indicated direction while in the zone',
+        passCondition: r => r === 'counter',
+        body:
+          '<p>A gold arc marks the required direction. <strong>Swipe that way</strong> while the ring is in the zone.</p>' +
+          '<p class="parry-tutorial-tip">A counter restores 1 mana and deals bonus damage — the best outcome.</p>',
+        retryBody:
+          '<p>Not quite! <strong>Swipe in the direction shown</strong> by the gold arc while the ring is in the zone.</p>' +
+          '<p class="parry-tutorial-tip">A counter restores 1 mana and deals bonus damage — the best outcome.</p>',
+      },
+    ]
+
+    let step = 0
+    let _done = false
+    const pips = el.parryTutorialPips
+      ? Array.from(el.parryTutorialPips.querySelectorAll('.parry-tutorial-pip'))
+      : []
+
+    function _renderStep() {
+      const s = STEPS[step]
+      if (el.parryTutorialBody) el.parryTutorialBody.innerHTML = s.body
+      if (el.parryTutorialNext) el.parryTutorialNext.textContent = s.nextLabel
+      pips.forEach((p, i) => p.classList.toggle('active', i === step))
+    }
+
+    function _finish() {
+      if (_done) return
+      _done = true
+      ov.classList.add('hidden')
+      ov.setAttribute('aria-hidden', 'true')
+      el.parryTutorialNext?.removeEventListener('click', _onNext)
+      el.parryTutorialSkip?.removeEventListener('click', _finish)
+      onComplete()
+    }
+
+    function _runPractice() {
+      const s = STEPS[step]
+      ov.classList.add('hidden')
+      ov.setAttribute('aria-hidden', 'true')
+      _self.showParryWindow(_MOCK, (result) => {
+        if (s.passCondition && !s.passCondition(result)) {
+          if (s.retryBody && el.parryTutorialBody) el.parryTutorialBody.innerHTML = s.retryBody
+          ov.classList.remove('hidden')
+          ov.setAttribute('aria-hidden', 'false')
+          return
+        }
+        const next = step + 1
+        if (next < STEPS.length) {
+          step = next
+          ov.classList.remove('hidden')
+          ov.setAttribute('aria-hidden', 'false')
+          _renderStep()
+        } else {
+          _finish()
+        }
+      }, heroId, { practiceMode: true, practiceHint: s.practiceHint })
+    }
+
+    function _onNext() {
+      const s = STEPS[step]
+      if (s.isPractice) {
+        _runPractice()
+      } else {
+        const next = step + 1
+        if (next < STEPS.length) {
+          step = next
+          _renderStep()
+        } else {
+          _finish()
+        }
+      }
+    }
+
+    el.parryTutorialNext?.addEventListener('click', _onNext)
+    el.parryTutorialSkip?.addEventListener('click', _finish)
+    _renderStep()
+    ov.classList.remove('hidden')
+    ov.setAttribute('aria-hidden', 'false')
+  },
+
+  showParryWindow(enemyData, onResolve, heroId = 'warrior', opts = {}) {
+    if (!el.parryOverlay) { onResolve('ignore'); return }
 
     const dmg    = enemyData.dmg ?? [1, 2]
     const avgDmg = (dmg[0] + dmg[1]) / 2
@@ -1987,7 +2111,8 @@ const UI = {
     } else {
       baseWindowDur = 1100; sweetSpotFraction = 0.12
     }
-    const windowDur = Math.max(550, baseWindowDur * (0.40 + Math.random() * 1.20))
+    if (opts.practiceMode) sweetSpotFraction = 0.42
+    const windowDur = opts.practiceMode ? 2500 : Math.max(550, baseWindowDur * (0.40 + Math.random() * 1.20))
 
     // Rune ring is 110px in 320px arena; outer edge at 55px radius → scale = 55/160
     const TARGET_SCALE = 55 / 160
@@ -2012,6 +2137,32 @@ const UI = {
     el.parryRingOuter.style.opacity   = '1'
     el.parryRingOuter.style.animation = ''
     el.parryRingArena?.querySelectorAll('.parry-feedback-icon').forEach(n => n.remove())
+
+    // Practice mode banner
+    if (el.parryPracticeLabel) {
+      if (opts.practiceMode && opts.practiceHint) {
+        el.parryPracticeLabel.textContent = opts.practiceHint
+        el.parryPracticeLabel.classList.remove('hidden')
+      } else {
+        el.parryPracticeLabel.classList.add('hidden')
+      }
+    }
+
+    // Enemy idle display (hidden in practice mode — no real enemy)
+    if (el.parryEnemyDisplay) {
+      if (opts.practiceMode || !enemyData.enemyId) {
+        el.parryEnemyDisplay.classList.add('hidden')
+      } else {
+        el.parryEnemyDisplay.classList.remove('hidden')
+        const _sprites = ENEMY_SPRITES[enemyData.enemyId]
+        const _gifSrc  = _sprites?.idle ? `${MONSTER_ICONS_BASE}${_sprites.idle}` : null
+        if (el.parryEnemyIcon) {
+          el.parryEnemyIcon.src          = _gifSrc ? `${_gifSrc}?t=${Date.now()}` : ''
+          el.parryEnemyIcon.style.display = _gifSrc ? '' : 'none'
+        }
+        if (el.parryEnemyName) el.parryEnemyName.textContent = enemyData.label ?? ''
+      }
+    }
 
     // Hero canvas: clear previous frame
     const heroCtx = el.parryHeroCanvas?.getContext('2d') ?? null

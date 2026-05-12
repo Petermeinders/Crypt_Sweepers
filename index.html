@@ -401,6 +401,11 @@
   <!-- ── Parry window ── -->
   <div id="parry-overlay" class="parry-overlay hidden" aria-hidden="true">
     <div class="parry-modal" id="parry-modal">
+      <div id="parry-practice-label" class="parry-practice-label hidden" aria-live="polite"></div>
+      <div id="parry-enemy-display" class="parry-enemy-display">
+        <img id="parry-enemy-icon" class="parry-enemy-icon" src="" alt="" aria-hidden="true">
+        <div id="parry-enemy-name" class="parry-enemy-name"></div>
+      </div>
       <div class="parry-ring-arena" id="parry-ring-arena">
         <canvas class="parry-hero-canvas" id="parry-hero-canvas" width="320" height="320" aria-hidden="true"></canvas>
         <img class="parry-ring-outer" id="parry-ring-outer" src="assets/ui/rune-ring2.png" alt="" aria-hidden="true">
@@ -418,6 +423,25 @@
 
   <!-- ── Parry result screen flash ── -->
   <div id="parry-flash-overlay" class="parry-flash-overlay" aria-hidden="true"></div>
+
+  <!-- ── Parry tutorial (first-time interactive training, forced unless skipped) ── -->
+  <div id="parry-tutorial-overlay" class="parry-tutorial-overlay hidden" aria-hidden="true">
+    <div class="parry-tutorial-modal" role="dialog" aria-modal="true" aria-labelledby="parry-tutorial-title">
+      <div class="parry-tutorial-header">
+        <h2 id="parry-tutorial-title" class="parry-tutorial-title">Block &amp; Counter</h2>
+        <div class="parry-tutorial-pips" id="parry-tutorial-pips">
+          <span class="parry-tutorial-pip"></span>
+          <span class="parry-tutorial-pip"></span>
+          <span class="parry-tutorial-pip"></span>
+        </div>
+      </div>
+      <div id="parry-tutorial-body" class="parry-tutorial-body"></div>
+      <div class="parry-tutorial-footer">
+        <button id="parry-tutorial-skip" class="menu-btn secondary" type="button">Skip</button>
+        <button id="parry-tutorial-next" class="menu-btn primary" type="button">Next</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ── Block & Parry onboarding (shown once, player chooses mode) ── -->
   <div id="parry-onboarding-overlay" class="trap-modal-overlay hidden" aria-hidden="true">
@@ -859,6 +883,7 @@
         </div>
         <div class="htp-tip">💡 <strong>Kill in one hit</strong> when you can — the enemy doesn’t get a counter. <strong>Fast enemies</strong> ambush on reveal and strike first.</div>
         <div class="htp-tip">🔒 <strong>Combat lock</strong> — once you attack a living foe, you’re committed to that fight until it falls (other actions are limited).</div>
+        <div class="htp-tip">🛡️ <strong>Telegraphing enemies</strong> wind up before striking. A shrinking <strong>parry ring</strong> appears — tap in the zone to <strong>Block</strong> (half damage) or swipe the shown direction to <strong>Counter</strong> (no damage, +1 mana). Miss and take amplified damage. See Block &amp; Parry below to practice.</div>
       </section>
 
       <!-- ESSENTIALS: resources -->
@@ -939,6 +964,25 @@
               <div class="htp-meta-row"><span>📜</span><div><strong>Passive Upgrades</strong> — <em>account-wide</em> bonuses (HP, damage, economy) bought with persistent gold — not the same as per-hero passives.</div></div>
               <div class="htp-meta-row"><span>🛒</span><div><strong>Gold Shop</strong> — spend run gold on consumables and unlocks for the <em>next</em> run.</div></div>
             </div>
+          </div>
+        </details>
+
+        <details class="htp-details">
+          <summary>🛡️ Block &amp; Parry</summary>
+          <div class="htp-details-content">
+            <p class="htp-text--flush">When a <strong>telegraphing enemy</strong> attacks, a glowing ring shrinks toward the center. React before it closes:</p>
+            <table class="htp-parry-table">
+              <thead><tr><th>Action</th><th>Mana</th><th>Damage</th></tr></thead>
+              <tbody>
+                <tr><td>🛡️ <strong>Block</strong> — tap in zone</td><td class="htp-good">±0</td><td class="htp-good">½</td></tr>
+                <tr><td>⚡ <strong>Counter</strong> — swipe direction in zone</td><td class="htp-good">+1</td><td class="htp-good">none</td></tr>
+                <tr><td>✗ Miss tap</td><td class="htp-bad">−1</td><td class="htp-bad">full</td></tr>
+                <tr><td>✗ Miss swipe</td><td class="htp-bad">−2</td><td class="htp-bad">×2</td></tr>
+                <tr><td>— Ignore ring</td><td>±0</td><td>full</td></tr>
+              </tbody>
+            </table>
+            <div class="htp-tip">💡 The outer ring <strong>glows green</strong> when it enters the zone. A gold arc marks the required swipe direction for a Counter.</div>
+            <button type="button" id="htp-practice-parry-btn" class="htp-practice-btn">⚡ Practice Blocking &amp; Parrying</button>
           </div>
         </details>
 

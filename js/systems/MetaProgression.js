@@ -58,6 +58,8 @@ export function defaultSave() {
       firstRunIntroDismissed: false,
       /** Shown once: player chooses whether to use the Block & Parry mechanic */
       parryChoiceDismissed: false,
+      /** Shown once: interactive block/counter training before first parry encounter */
+      parryTutorialSeen: false,
       /** Feature flag: Block & Parry reaction window during enemy counter-attacks */
       parryEnabled: true,
       /** Auto-use red potions when HP drops below 30% (off by default) */

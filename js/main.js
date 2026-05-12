@@ -936,6 +936,10 @@ async function boot() {
   document.getElementById('how-to-play-back')?.addEventListener('click', () => {
     document.getElementById('how-to-play-overlay')?.classList.add('hidden')
   })
+  document.getElementById('htp-practice-parry-btn')?.addEventListener('click', () => {
+    const heroId = (GameController.getSave()?.selectedCharacter) ?? 'warrior'
+    UI.showParryWindow({ dmg: [1, 1], label: 'Dummy', enemyId: null }, () => {}, heroId, { practiceMode: true, practiceHint: '⚡ PRACTICE — Tap or swipe to block / counter' })
+  })
 
   document.getElementById('latest-updates-btn')?.addEventListener('click', () => {
     _renderChangelogEntries()

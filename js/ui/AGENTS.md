@@ -11,22 +11,26 @@ The UI directory contains all DOM interaction code. Game logic never lives here 
 
 ## Block & Parry UI
 
-`showParryWindow(enemyData, onResolve, heroId)` — Momentum Ring mechanic shown when fighting enemies with the `telegraphs` attribute (and `parryEnabled` is true in settings). A fire rune ring (`assets/ui/rune-ring2.png`) shrinks from full arena size toward a fixed inner gold rune ring (`assets/ui/rune-ring.png`). The selected hero's attack GIF plays at the centre, frame-locked to ring progress. Player taps to block or swipes in the indicated direction to counter.
+`showParryWindow(enemyData, onResolve, heroId, opts)` — Momentum Ring mechanic shown when fighting enemies with the `telegraphs` attribute (and `parryEnabled` is true in settings). A fire rune ring (`assets/ui/rune-ring2.png`) shrinks from full arena size toward a fixed inner gold rune ring (`assets/ui/rune-ring.png`). The selected hero's attack GIF plays at the centre, frame-locked to ring progress. Player taps to block or swipes in the indicated direction to counter.
 
-- **Signature**: third param `heroId` (string, e.g. `'ranger'`) is passed by `GameController` via `_charKey()`. Defaults to `'warrior'`.
+- **Signature**: `heroId` (3rd param, string, e.g. `'ranger'`) passed by `GameController` via `_charKey()`. Defaults to `'warrior'`. `opts` (4th param, optional object): `{ practiceMode: bool, practiceHint: string }`.
+- **Enemy display**: `#parry-enemy-display` above the ring arena shows the enemy's idle GIF (`<img>`, native browser animation) and name. Populated from `ENEMY_SPRITES[enemyData.enemyId].idle` + `MONSTER_ICONS_BASE`. Hidden when `opts.practiceMode` is true or when `enemyData.enemyId` is null.
+- **Practice mode** (`opts.practiceMode: true`): overrides timing to fixed 2500 ms, widens sweet zone to 42%, hides enemy display, shows `#parry-practice-label` with `opts.practiceHint` text. Used by `showParryTutorial` for training rounds. Real game never passes `practiceMode`.
 - **Timing**: difficulty-tiered base duration (1100–2200 ms) multiplied by a wide random factor (`0.40–1.60×`, min 550 ms) for a ~4× speed spread that prevents muscle memory. Easy enemies: 880–3520 ms; hard enemies: 550–1760 ms.
-- **Hit zone**: `ringScale` between `zoneMin` and `zoneMax` (calculated from `TARGET_SCALE = 45/130`)
-- **Canvas arc**: `<canvas id="parry-arc-canvas">` (360×360, offset -20 px to centre over the 320 px arena) draws a gold 80° arc on the outer ring edge indicating the required swipe direction; the canvas is scaled identically to the ring via `style.transform` each rAF tick. The larger canvas prevents the glow stroke from being clipped at the edge.
+- **Hit zone**: `ringScale` between `zoneMin` and `zoneMax` (calculated from `TARGET_SCALE = 55/160`)
+- **Canvas arc**: `<canvas id="parry-arc-canvas">` (360×360, offset -20 px to centre over the 320 px arena) draws a gold 80° arc on the outer ring edge indicating the required swipe direction; the canvas is scaled identically to the ring via `style.transform` each rAF tick.
 - **Spin**: outer ring simultaneously rotates clockwise 360° per 14 s via `scale(…) rotate(…deg)` combined in the rAF loop
-- **Hero sprite (seekable animation)**: `<canvas id="parry-hero-canvas">` (320×320, z-index 0, behind both ring images) renders the hero's attack GIF frame-by-frame. Frame index = `floor((1 − ringScale) × (totalFrames − 1))` — the animation is a direct data visualisation of ring progress, not a decoration. Frames are pre-baked to `ImageBitmap[]` once per hero and cached in `_heroGifCache` (module-level). The GIF is loaded asynchronously via `_loadHeroParryGif(heroId)` using `window.GifReader` (from `js/lib/omggif.js`, loaded as a plain `<script>` global in `index.html`).
-- **Hero GIF map** (`_HERO_ATTACK_GIFS`): warrior → `warrior-strike.gif`, ranger → `__Attack.gif`, mage → `blue-mage-hero-attack-small-speed.gif`, engineer → `engineer-hero-strike.gif`, necromancer → `necromancer-hero-strike.gif`, vampire → `VampireAttack.gif`. Falls back to warrior if the heroId is unknown.
-- **Resolve**: `'block'` (tap in zone), `'counter'` (swipe correct direction in zone), `'miss'` (wrong timing or direction). Fires screen flash (`#parry-flash-overlay`) and screen shake on miss. Result feedback is a coloured word — **"Blocked"** (blue `#3498db`), **"Countered"** (gold `#ffd700`), **"Missed"** (red `#e74c3c`) — rendered via `.parry-feedback-icon.parry-text-{result}` with a glow text-shadow, using the existing `float-up` animation. Overlay closes after 350 ms; hero canvas is cleared in the same cleanup callback.
-- **Callback**: `onResolve(result)` — `GameController` acts on this; UI never mutates game state
+- **Hero sprite (seekable animation)**: `<canvas id="parry-hero-canvas">` (320×320, z-index 0) renders the hero's attack GIF frame-by-frame. Frame index = `floor((1 − ringScale) × (totalFrames − 1))`. Frames are pre-baked to `ImageBitmap[]` once per hero and cached in `_heroGifCache`.
+- **Hero GIF map** (`_HERO_ATTACK_GIFS`): warrior → `warrior-strike.gif`, ranger → `__Attack.gif`, mage → `blue-mage-hero-attack-small-speed.gif`, engineer → `engineer-hero-strike.gif`, necromancer → `necromancer-hero-strike.gif`, vampire → `VampireAttack.gif`. Falls back to warrior if heroId is unknown.
+- **Resolve**: `'block'` (tap in zone), `'counter'` (swipe correct direction in zone), `'miss-block'` / `'miss-parry'` (wrong timing/direction), `'ignore'` (ring expired, no input). Fires screen flash + screen shake on miss. Result feedback word rendered via `.parry-feedback-icon.parry-text-{result}`. Overlay closes after 350 ms.
+- **Callback**: `onResolve(result)` — `GameController` acts on this; UI never mutates game state.
+
+`showParryTutorial(heroId, onComplete)` — Interactive 3-step training tutorial shown once before the player's first real parry encounter (gated by `save.settings.parryTutorialSeen`). Step 1: outcome reference table. Steps 2–3: practice rounds using `showParryWindow` with `opts.practiceMode = true` and a mock enemy `{ dmg:[1,1], enemyId:null }`. Tutorial modal hides while each practice ring is active; returns after the result. Skip button exits immediately and calls `onComplete()`. `GameController` sets `parryTutorialSeen = true` before calling this so it only ever fires once.
 
 `showParryOnboarding(onChoice)` — One-time modal shown on floor 1 asking new players whether they want Block & Parry or Classic Combat. Calls `onChoice(true|false)`.
 
 **`el` cache entries for parry**:
-`parryRingArena`, `parryHeroCanvas`, `parryRingOuter`, `parryCompassN/E/S/W`, `parryArcCanvas`, `parryFlashOverlay`
+`parryOverlay`, `parryEnemyDisplay`, `parryEnemyIcon`, `parryEnemyName`, `parryPracticeLabel`, `parryRingArena`, `parryHeroCanvas`, `parryRingOuter`, `parryCompassN/E/S/W`, `parryArcCanvas`, `parryFlashOverlay`, `parryTutorialOverlay`, `parryTutorialBody`, `parryTutorialPips`, `parryTutorialNext`, `parryTutorialSkip`
 
 ## Patterns
 

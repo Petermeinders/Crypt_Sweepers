@@ -40,9 +40,13 @@ The core directory contains the game's runtime backbone: the master orchestrator
 
 `_shouldShowParryWindow(tile)` — returns `true` when the enemy has the `telegraphs` attribute AND does not have `fast` behaviour AND `save.settings.parryEnabled` is `true` (defaults `true`) AND god-mode cheat is off. Called in the combat handler before `UI.showParryWindow`.
 
-`UI.showParryWindow` call signature: `UI.showParryWindow(tile.enemyData, callback, _charKey())` — the third argument passes the currently selected hero ID so the UI can display the matching attack animation. `_charKey()` returns `_save?.selectedCharacter ?? 'warrior'`.
+**Parry window call**: `UI.showParryWindow(tile.enemyData, callback, _charKey())` — third argument passes hero ID for the attack animation; `_charKey()` returns `_save?.selectedCharacter ?? 'warrior'`.
+
+**Tutorial intercept** (first parry only): Before opening the real parry window, `GameController` checks `!_save.settings?.parryTutorialSeen`. If unset (and not a bot run), it sets the flag, saves, then calls `UI.showParryTutorial(_charKey(), _doParryWindow)` where `_doParryWindow` is the real `UI.showParryWindow(...)` call wrapped in a closure. This ensures the tutorial runs exactly once; the real parry fires after `onComplete` resolves.
 
 **Parry onboarding chain** (floor 1 only): After the first-run intro is dismissed, `GameController` checks `save.settings.parryChoiceDismissed`. If not set, it calls `UI.showParryOnboarding(enabled => { save.settings.parryEnabled = enabled; … })`. Returning players who skipped the intro still see it via an `else if` branch. Both paths save immediately via `SaveManager`.
+
+**Save flags for parry**: `settings.parryEnabled` (bool, default true), `settings.parryChoiceDismissed` (bool), `settings.parryTutorialSeen` (bool). All three defined in `MetaProgression.defaultSave()`.
 
 ## Notes
 

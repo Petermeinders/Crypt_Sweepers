@@ -5774,6 +5774,8 @@ function fightAction(tile) {
 
       // Enemy counter-attack — telegraphing enemies show a parry window first
       if (!isStunned && _shouldShowParryWindow(tile)) {
+        const _isBot = new URLSearchParams(location.search).has('balanceBot') || new URLSearchParams(location.search).has('testBotOngoing')
+        const _doParryWindow = () => {
         UI.showParryWindow(tile.enemyData, (parryResult) => {
           if (!run || !tile.enemyData || tile.enemyData._slain) { _combatBusy = false; return }
 
@@ -5858,6 +5860,14 @@ function fightAction(tile) {
             _combatBusy = false
           }, 500)
         }, _charKey())
+        } // end _doParryWindow
+        if (!_isBot && !(_save.settings?.parryTutorialSeen)) {
+          _save.settings.parryTutorialSeen = true
+          SaveManager.save(_save).catch(() => {})
+          UI.showParryTutorial(_charKey(), _doParryWindow)
+        } else {
+          _doParryWindow()
+        }
         return
       }
 
