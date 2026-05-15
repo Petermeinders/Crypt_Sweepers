@@ -36,6 +36,10 @@ const SFX_FILES = {
   // Mage actives — reuse existing SFX until dedicated assets are added (avoids 404 in console).
   zap:             'audio/sfx/spell.ogg',
   telekineticSlam: 'audio/sfx/slam.mp3',
+  // Parry results
+  parryBlock:   'audio/sfx/parry-block.ogg',
+  parryCounter: 'audio/sfx/parry-counter.ogg',
+  parryMiss:    'audio/sfx/parry-miss.ogg',
 }
 
 const MUSIC_FILES = {

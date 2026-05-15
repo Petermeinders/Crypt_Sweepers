@@ -2266,6 +2266,10 @@ const UI = {
     function resolve(result) {
       if (resolved) return
       resolved = true
+      // Play audio immediately on input — before the 350ms visual delay
+      if (result === 'block')                         EventBus.emit('audio:play', { sfx: 'parryBlock' })
+      else if (result === 'counter')                  EventBus.emit('audio:play', { sfx: 'parryCounter' })
+      else if (result === 'miss-block' || result === 'miss-parry') EventBus.emit('audio:play', { sfx: 'parryMiss' })
       cancelAnimationFrame(rafId)
       clearTimeout(autoMissTimer)
       el.parryOverlay.removeEventListener('touchstart', onTouchStart)
