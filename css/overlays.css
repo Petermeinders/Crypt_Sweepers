@@ -1899,7 +1899,7 @@
 
 .hero-passive-builtin-desc {
   font-size: 0.7rem;
-  color: var(--text-dim);
+  color: rgba(221, 216, 200, 0.78);
   font-family: sans-serif;
   line-height: 1.4;
 }

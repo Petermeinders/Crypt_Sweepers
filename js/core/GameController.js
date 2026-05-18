@@ -4049,11 +4049,6 @@ function onTileTap(row, col) {
     _throwingKnifeTargeting = false
     UI.setMessage('')
     if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      if (!_canAttackEnemy(tile)) {
-        UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
-        return
-      }
-      _setCombatEngagement(tile)
       const dmg = 3
       tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - dmg)
       UI.spawnFloat(tile.element, `🗡️ ${dmg}`, 'damage')
@@ -4076,11 +4071,6 @@ function onTileTap(row, col) {
     _twinBladesTargeting = false
     UI.setMessage('')
     if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      if (!_canAttackEnemy(tile)) {
-        UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
-        return
-      }
-      _setCombatEngagement(tile)
       const dmg = 5
       tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - dmg)
       UI.spawnFloat(tile.element, `⚔️ ${dmg}`, 'damage')
@@ -4103,11 +4093,6 @@ function onTileTap(row, col) {
     _rustyNailTargeting = false
     UI.setMessage('')
     if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      if (!_canAttackEnemy(tile)) {
-        UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
-        return
-      }
-      _setCombatEngagement(tile)
       tile.enemyData.poisonTurns = (tile.enemyData.poisonTurns ?? 0) + 5
       tile.enemyData.nailPoison  = true
       UI.updateEnemyStatus(tile.element, tile.enemyData)
@@ -5124,7 +5109,6 @@ function _resolveEffect(tile) {
           const dodgeNote = reflexDodge ? ' Your reflexes kick in — ambush dodged!' : ''
           UI.setMessage(`${label} strikes first!${dodgeNote} Tap it to fight.`, true)
           if (reflexDodge) UI.spawnFloat(tile.element, '⚡ Dodged!', 'heal')
-          _setCombatEngagement(tile, { force: true })
         }
         UI.showRetreat()
         EventBus.emit('tile:locked', {})
@@ -5182,7 +5166,6 @@ function _resolveEffect(tile) {
           const tf = r.proc ? ' Trapfinder!' : ''
           UI.setMessage(`⚡ The ${tile.enemyData.label} strikes first for ${r.dmg}!${tf} Tap to fight back.`)
         }
-        if (!GameState.is(States.DEATH)) _setCombatEngagement(tile, { force: true })
       } else if (hasLens && !tile.enemyData?.isBoss && !p.isVampire) {
         // Abyssal Lens: normal enemies also deal 1 ambush damage
         _takeDamage(1, tile.element, false, tile.enemyData, { enemyAttack: true })
@@ -6967,8 +6950,6 @@ function _executePoisonArrowShot(tile) {
     return
   }
 
-  _setCombatEngagement(t0)
-
   UI.spawnArrow(t0.element)
   EventBus.emit('audio:play', { sfx: 'arrowShot' })
   UI.shakeTile(t0.element)
@@ -7252,12 +7233,6 @@ function _castBlindingLight(tile) {
     return
   }
 
-  if (!_canAttackEnemy(tile)) {
-    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
-    return
-  }
-  _setCombatEngagement(tile)
-
   let stun = _blindingLightStunTurns()
   const isUndead = tile.enemyData?.type === 'undead'
   const isBeast  = tile.enemyData?.type === 'beast'
@@ -7432,12 +7407,6 @@ function _castDivineLightSmite(tile) {
     return
   }
 
-  if (!_canAttackEnemy(tile)) {
-    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
-    return
-  }
-  _setCombatEngagement(tile)
-
   const dmg = _scaleOutgoingDamageToEnemy(Math.max(1, Math.round(_avgMeleeDamage())))
   run.player.mana = Math.max(0, run.player.mana - cost)
   _markStillWaterAbilityUsed()
@@ -7483,12 +7452,6 @@ function _castSpell(tile) {
 
   // Ogre: 10% shield block — cancels spell entirely
   if (_checkShieldBlock(tile)) return
-
-  if (!_canAttackEnemy(tile)) {
-    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
-    return
-  }
-  _setCombatEngagement(tile)
 
   const result = CombatResolver.resolveSpell(run.player, tile.enemyData)
 

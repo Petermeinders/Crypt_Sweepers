@@ -52,7 +52,7 @@ export const ENEMY_DEFS = {
 
   // ── Humanoid ────────────────────────────────────────────────
   archer_goblin: {
-    hp:           3,
+    hp:           1,
     dmg:          [1, 2],
     type:         'humanoid',
     behaviour:    'archer',
