@@ -49,6 +49,7 @@ export function defaultSave() {
     selectedCharacter: 'warrior',
     settings: {
       difficulty:  'normal',
+      childMode:   false,
       tileColors:  false,
       /** Feature flag: hidden passages / sub-floors (default on) */
       subLevelsEnabled: true,
@@ -132,7 +133,8 @@ function removeShopItem(save, itemId) {
 // Called at run start. Mutates player in-place.
 
 function applyToPlayer(player, save) {
-  const diff = save.settings.difficulty
+  // Child Mode overrides difficulty — always use easy damage reduction
+  const diff = save.settings.childMode ? 'easy' : (save.settings.difficulty ?? 'normal')
   const diffMod = CONFIG.difficulty[diff] ?? CONFIG.difficulty.normal
 
   player.damageTakenMult = diffMod.damageTakenMult
@@ -407,9 +409,9 @@ function endRun(save, runStats, outcome) {
   const xpEarned = calcRunXP(runStats)
 
   // On death, only a fraction of XP is kept based on difficulty.
-  // Escape and retreat always retain 100% — you earned it by getting out.
+  // Child Mode and escape/retreat always retain 100%.
   let xpRetained = xpEarned
-  if (outcome === 'death') {
+  if (outcome === 'death' && !save.settings?.childMode) {
     const diff = save.settings?.difficulty ?? 'normal'
     const retainRate = CONFIG.difficulty[diff]?.xpDeathRetain ?? 0.5
     xpRetained = Math.floor(xpEarned * retainRate)
@@ -440,8 +442,10 @@ function endRun(save, runStats, outcome) {
     // safeGold was already deducted from gold when banked at the rope, so add it back
     goldBanked = runStats.gold + (runStats.safeGold ?? 0)
   } else if (outcome === 'death') {
-    // Only safe gold (banked at checkpoints) is kept
-    goldBanked = runStats.safeGold ?? 0
+    // Child Mode: keep all gold on death, same as retreat
+    goldBanked = save.settings?.childMode
+      ? runStats.gold + (runStats.safeGold ?? 0)
+      : (runStats.safeGold ?? 0)
   }
 
   save.persistentGold += goldBanked

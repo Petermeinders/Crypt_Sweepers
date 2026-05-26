@@ -6023,3 +6023,443 @@ body.bestiary-detail-open #app {
   font-size: 0.82rem;
   padding: 0.55rem 0.5rem;
 }
+
+/* ── Equipment drawer ──────────────────────────────────────── */
+
+.equipment-drawer {
+  position: fixed;
+  left: 50%;
+  bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+  width: 100%;
+  max-width: 480px;
+  max-height: min(540px, calc(100dvh - 160px));
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #08080f;
+  border: 1px solid rgba(255,215,0,0.22);
+  border-bottom: none;
+  border-radius: 14px 14px 0 0;
+  box-shadow:
+    0 -12px 40px rgba(0, 0, 0, 0.85),
+    inset 0 1px 0 rgba(255, 200, 120, 0.06);
+  transform: translate(-50%, calc(100% + 24px));
+  visibility: hidden;
+  transition:
+    transform 0.34s cubic-bezier(0.25, 0.85, 0.32, 1),
+    visibility 0s linear 0.34s;
+  pointer-events: none;
+}
+
+.equipment-drawer.is-open {
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+  visibility: visible;
+  transition: transform 0.34s cubic-bezier(0.25, 0.85, 0.32, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .equipment-drawer { transition: none; visibility: hidden; }
+  .equipment-drawer.is-open { visibility: visible; }
+}
+
+/* ── Pull handle ── */
+.equipment-drawer-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.15);
+  margin: 8px auto 0;
+  flex-shrink: 0;
+}
+
+/* ── Hero showcase panel ── */
+.equipment-hero-panel {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: 170px;
+  background: radial-gradient(ellipse at 50% 30%, #1a1430 0%, #060610 70%);
+  overflow: hidden;
+}
+
+.equipment-hero-portrait {
+  display: block;
+  height: 168px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  /* subtle fade at bottom to blend into cards */
+  -webkit-mask-image: linear-gradient(180deg, #000 60%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 60%, transparent 100%);
+}
+
+/* Title overlaid at bottom-left of hero panel */
+.equipment-title-overlay {
+  position: absolute;
+  bottom: 10px;
+  left: 14px;
+  pointer-events: none;
+}
+
+.equipment-drawer-title {
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: var(--gold);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.95), 0 0 24px rgba(255,200,0,0.25);
+}
+
+/* Close button — absolute top-right of hero panel */
+.equipment-close-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(20,18,30,0.72);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: #aaa;
+  font-size: 0.78rem;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2;
+  flex-shrink: 0;
+}
+.equipment-close-btn:active { opacity: 0.55; }
+
+/* ── Gear card row ── */
+.equipment-gear-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 8px 8px 4px;
+  flex-shrink: 0;
+}
+
+/* Individual gear card */
+.eq-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding: 7px 5px 6px;
+  background: #0e0c18;
+  border: 2px solid rgba(255,255,255,0.10);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 0.12s;
+  overflow: hidden;
+}
+.eq-card:active { opacity: 0.7; }
+
+.eq-card-empty {
+  border-style: dashed;
+  border-color: rgba(255,255,255,0.08);
+  opacity: 0.45;
+}
+
+/* Tier border + glow */
+.eq-card.gear-tier-common    { border-color: rgba(160,160,160,0.55); }
+.eq-card.gear-tier-rare      { border-color: #00c8ff; box-shadow: 0 0 10px rgba(0,200,255,0.30); }
+.eq-card.gear-tier-epic      { border-color: #a855f7; box-shadow: 0 0 10px rgba(168,85,247,0.35); }
+.eq-card.gear-tier-legendary { border-color: var(--gold); box-shadow: 0 0 12px rgba(255,215,0,0.35); }
+
+/* Card name */
+.eq-card-name {
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: #ddd;
+  text-align: center;
+  word-break: break-word;
+  line-height: 1.25;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  width: 100%;
+  padding: 0 2px 4px;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Icon art box */
+.eq-card-art {
+  display: flex; align-items: center; justify-content: center;
+  width: 46px; height: 46px;
+  border-radius: 6px;
+  background-size: 100% 100%;
+  background-color: rgba(0,0,0,0.5);
+  margin-bottom: 4px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.eq-card-art-empty { opacity: 0.30; }
+
+/* Slot sprite inside the art box */
+.eq-slot-img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  display: block;
+}
+
+/* Tier label */
+.eq-card-tier-badge {
+  font-size: 0.50rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-bottom: 5px;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+.tier-common    { background: rgba(160,160,160,0.15); color: #aaa; }
+.tier-rare      { background: rgba(0,200,255,0.15);   color: #00c8ff; }
+.tier-epic      { background: rgba(168,85,247,0.18);  color: #c084fc; }
+.tier-legendary { background: rgba(255,215,0,0.18);   color: var(--gold); }
+
+/* Stat rows — dot + label (left) + value (right) */
+.eq-card-stats {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.eq-stat-row {
+  display: grid;
+  grid-template-columns: 7px 1fr auto;
+  align-items: center;
+  gap: 3px;
+  padding: 0 1px;
+}
+
+.eq-stat-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.eq-stat-label {
+  font-size: 0.52rem;
+  color: #7a8a9a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.eq-stat-value {
+  font-size: 0.58rem;
+  font-weight: 700;
+  color: #dde8f0;
+  text-align: right;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  white-space: nowrap;
+}
+.eq-stat-value.bad { color: #e07070; }
+
+/* Empty slot label + tap hint */
+.eq-card-empty-label {
+  font-size: 0.58rem;
+  color: #444;
+  margin-top: 4px;
+  font-style: italic;
+}
+.eq-card-tap {
+  font-size: 0.48rem;
+  color: rgba(255,255,255,0.18);
+  margin-top: auto;
+  padding-top: 4px;
+  font-style: italic;
+}
+
+.equipment-hint {
+  font-size: 0.57rem;
+  color: #444;
+  text-align: center;
+  margin: 4px 0 10px;
+  font-style: italic;
+}
+
+/* ── Gear compare modal ────────────────────────────────────── */
+
+.gear-compare-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 290;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.75);
+}
+
+.gear-compare-modal.hidden {
+  display: none;
+}
+
+.cmp-panel {
+  background: #1a1a2e;
+  border: 2px solid rgba(255,215,0,0.30);
+  border-radius: 14px;
+  padding: 18px 16px 16px;
+  max-width: 320px;
+  width: 90%;
+}
+
+.cmp-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.cmp-candidate, .cmp-equipped {
+  flex: 1;
+  min-width: 0;
+}
+
+.cmp-candidate-name, .cmp-equipped-name {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #ddd;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cmp-candidate-tier {
+  font-size: 0.58rem;
+  color: #888;
+  text-transform: capitalize;
+  display: block;
+}
+
+.cmp-vs {
+  font-size: 0.7rem;
+  color: #666;
+  flex-shrink: 0;
+}
+
+.cmp-stat-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.65rem;
+  margin-bottom: 14px;
+}
+
+.cmp-stat-table th {
+  color: #666;
+  font-weight: 600;
+  padding: 2px 4px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.cmp-stat-table td {
+  padding: 3px 4px;
+  color: #bbb;
+}
+
+.cmp-stat-label { color: #888; }
+.cmp-new-val    { color: #ddd; }
+.cmp-old-val    { color: #666; }
+.delta-pos      { color: #4caf50; font-weight: 700; }
+.delta-neg      { color: #ef5350; font-weight: 700; }
+
+.cmp-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.cmp-actions .menu-btn {
+  flex: 1;
+  font-size: 0.8rem;
+  padding: 0.5rem 0.5rem;
+}
+
+/* ── Gear backpack cells ───────────────────────────────────── */
+
+.backpack-cell-gear {
+  border-width: 2px;
+  border-style: solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 4px;
+  cursor: pointer;
+}
+
+.gear-tier-common    { border-color: #888; }
+.gear-tier-rare      { border-color: #4a9eff; }
+.gear-tier-epic      { border-color: #a855f7; }
+.gear-tier-legendary { border-color: var(--gold); }
+
+.bp-gear-name {
+  font-size: 0.60rem;
+  font-weight: 600;
+  line-height: 1.2;
+  word-break: break-word;
+  text-align: center;
+  color: #ddd;
+}
+
+.bp-gear-slot-img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  display: block;
+  margin-top: auto;
+  opacity: 0.85;
+}
+
+.backpack-cell-empty {
+  background: rgba(255,255,255,0.02);
+  border: 1px dashed rgba(255,255,255,0.10);
+  cursor: default;
+  pointer-events: none;
+}
+
+.backpack-cell-filtered-out {
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+.backpack-filter-label {
+  font-size: 0.68rem;
+  color: #a0aab4;
+  text-align: center;
+  padding: 4px 0 6px;
+  letter-spacing: 0.3px;
+}
+
+.backpack-filter-label.hidden { display: none; }
+
+.backpack-filter-empty {
+  grid-column: 1 / -1;
+  font-size: 0.68rem;
+  color: #555;
+  text-align: center;
+  padding: 10px;
+  pointer-events: none;
+}
+
+/* Float text type: armor */
+.float-text.armor {
+  color: var(--armor-grey, #a0aab4);
+  font-weight: 700;
+  text-shadow: 0 0 8px rgba(160,170,180,0.6);
+}

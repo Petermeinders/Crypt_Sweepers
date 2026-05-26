@@ -341,6 +341,9 @@ const UI = {
     el.trapModalOk        = document.getElementById('trap-modal-ok')
     el.ropeModalOverlay   = document.getElementById('rope-modal-overlay')
     el.ropeModalBody      = document.getElementById('rope-modal-body')
+    el.armorValue         = document.getElementById('armor-value')
+    el.equipmentOverlay   = document.getElementById('equipment-overlay')
+    el.gearCompareModal   = document.getElementById('gear-compare-modal')
     el.hudSlotA           = document.getElementById('hud-btn-slot-a')
     el.hudSlotB           = document.getElementById('hud-btn-slot-b')
     el.hudSlotC           = document.getElementById('hud-btn-slot-c')
@@ -419,6 +422,13 @@ const UI = {
   updateDamageRange(low, high) {
     if (!el.dmgValue) return
     el.dmgValue.textContent = low === high ? String(low) : `${low}–${high}`
+  },
+
+  updateArmor(n) {
+    if (!el.armorValue) return
+    const display = Math.min(Math.max(0, Math.floor(n)), 99)
+    el.armorValue.textContent = display
+    el.armorValue.closest('.hud-armor-wrap')?.classList.toggle('armor-empty', display === 0)
   },
 
   setSlamBtn(visible, manaCost = 10) {
@@ -1437,6 +1447,10 @@ const UI = {
     return el.grid
   },
 
+  getHudCharacterId() {
+    return el.hudCharacterId ?? 'warrior'
+  },
+
   /**
    * Fade the tile grid out, run `mid` (rebuild floor), fade in. Total time = totalMs (half out / half in).
    * If `floorNumber` is set, show a large "Floor N" banner over the grid during fade-in, then fade it out quickly.
@@ -2433,58 +2447,303 @@ const UI = {
 
   // ── Backpack ──────────────────────────────────
 
-  renderBackpack(inventory, itemRegistry, onUse, onHold, replaceMode = false) {
+  renderBackpack(inventory, itemRegistry, onUse, onHold, replaceMode = false, opts = {}) {
     const grid = document.getElementById('backpack-grid')
     if (!grid) return
     const SLOTS = 9
     grid.innerHTML = ''
     grid.classList.toggle('replace-mode', replaceMode)
 
-    // Build a slot for each occupied item, then fill remainder with empty slots
-    const filled = inventory.map(entry => {
-      const item = itemRegistry[entry.id]
-      if (!item) return null
-      const slot = document.createElement('div')
-      const rarity = item.rarity ?? 'common'
-      slot.className = `backpack-slot occupied rarity-${rarity}${replaceMode ? ' replace-target' : ''}`
-      const bpIcon = item.spriteSrc
-        ? `<img class="bp-item-img" src="${item.spriteSrc}" alt="${item.name}">`
-        : `<span class="bp-item-emoji">${item.icon}</span>`
-      slot.innerHTML = `
-        ${bpIcon}
-        ${entry.qty > 1 ? `<span class="bp-item-qty">${entry.qty}</span>` : ''}
-        ${replaceMode ? '<div class="bp-replace-badge">Replace</div>' : ''}
-      `
+    const { filterSlot, onCompare } = opts
 
-      if (replaceMode) {
-        slot.addEventListener('click', () => onUse(entry.id))
+    // Slot label banner when filtered
+    const filterLabel = document.getElementById('backpack-filter-label')
+    if (filterLabel) {
+      if (filterSlot) {
+        const labels = { weapon: 'Weapons', breastplate: 'Breastplates', offhand: 'Offhands' }
+        filterLabel.textContent = `Showing: ${labels[filterSlot] ?? filterSlot}`
+        filterLabel.classList.remove('hidden')
       } else {
-        // Hold-to-inspect
-        let _timer = null, _didHold = false, _sx = 0, _sy = 0
-        slot.addEventListener('pointerdown', e => {
-          _didHold = false; _sx = e.clientX; _sy = e.clientY
-          _timer = setTimeout(() => { _didHold = true; onHold(entry.id) }, 380)
-        })
-        slot.addEventListener('pointermove', e => {
-          if (!_timer) return
-          if (Math.hypot(e.clientX - _sx, e.clientY - _sy) > 8) { clearTimeout(_timer); _timer = null }
-        })
-        const cancel = () => { clearTimeout(_timer); _timer = null }
-        slot.addEventListener('pointerup',     cancel)
-        slot.addEventListener('pointercancel', cancel)
-        slot.addEventListener('contextmenu',   e => e.preventDefault())
-        slot.addEventListener('click', () => { if (!_didHold) onUse(entry.id) })
+        filterLabel.classList.add('hidden')
+      }
+    }
+
+    const isGear    = e => e && typeof e === 'object' && e.slot !== undefined
+    const isTrinket = e => e && typeof e === 'object' && e.id  !== undefined
+    const isEmpty   = e => e === null || e === undefined
+
+    const SLOT_IMGS = {
+      weapon:     'assets/sprites/Items/sword.png',
+      breastplate:'assets/sprites/Items/armor.png',
+      offhand:    'assets/sprites/Items/shield.png',
+    }
+
+    // Pad inventory to SLOTS with null
+    const padded = [...inventory]
+    while (padded.length < SLOTS) padded.push(null)
+
+    padded.slice(0, SLOTS).forEach((entry, index) => {
+      const slot = document.createElement('div')
+
+      if (isEmpty(entry)) {
+        slot.className = 'backpack-slot backpack-cell-empty'
+        slot.setAttribute('aria-hidden', 'true')
+        grid.appendChild(slot)
+        return
       }
 
-      return slot
-    }).filter(Boolean)
+      if (isGear(entry)) {
+        const filteredOut = filterSlot && entry.slot !== filterSlot
+        if (filteredOut) {
+          slot.className = 'backpack-slot backpack-cell-filtered-out'
+          grid.appendChild(slot)
+          return
+        }
+        slot.className = `backpack-slot backpack-cell-gear gear-tier-${entry.tier}`
+        const slotImg = SLOT_IMGS[entry.slot]
+        slot.innerHTML = `
+          <span class="bp-gear-name">${entry.name}</span>
+          ${slotImg ? `<img class="bp-gear-slot-img" src="${slotImg}" alt="">` : ''}
+        `
+        slot.addEventListener('click', () => onCompare?.(index))
+        grid.appendChild(slot)
+        return
+      }
 
-    filled.forEach(s => grid.appendChild(s))
-    for (let i = filled.length; i < SLOTS; i++) {
-      const empty = document.createElement('div')
-      empty.className = 'backpack-slot'
-      grid.appendChild(empty)
+      if (isTrinket(entry)) {
+        if (filterSlot) {
+          slot.className = 'backpack-slot backpack-cell-filtered-out'
+          grid.appendChild(slot)
+          return
+        }
+        const item = itemRegistry[entry.id]
+        if (!item) { grid.appendChild(slot); return }
+        const rarity = item.rarity ?? 'common'
+        slot.className = `backpack-slot occupied rarity-${rarity}${replaceMode ? ' replace-target' : ''}`
+        const bpIcon = item.spriteSrc
+          ? `<img class="bp-item-img" src="${item.spriteSrc}" alt="${item.name}">`
+          : `<span class="bp-item-emoji">${item.icon}</span>`
+        slot.innerHTML = `
+          ${bpIcon}
+          ${entry.qty > 1 ? `<span class="bp-item-qty">${entry.qty}</span>` : ''}
+          ${replaceMode ? '<div class="bp-replace-badge">Replace</div>' : ''}
+        `
+        if (replaceMode) {
+          slot.addEventListener('click', () => onUse(entry.id))
+        } else {
+          let _timer = null, _didHold = false, _sx = 0, _sy = 0
+          slot.addEventListener('pointerdown', e => {
+            _didHold = false; _sx = e.clientX; _sy = e.clientY
+            _timer = setTimeout(() => { _didHold = true; onHold(entry.id) }, 380)
+          })
+          slot.addEventListener('pointermove', e => {
+            if (!_timer) return
+            if (Math.hypot(e.clientX - _sx, e.clientY - _sy) > 8) { clearTimeout(_timer); _timer = null }
+          })
+          const cancel = () => { clearTimeout(_timer); _timer = null }
+          slot.addEventListener('pointerup',     cancel)
+          slot.addEventListener('pointercancel', cancel)
+          slot.addEventListener('contextmenu',   e => e.preventDefault())
+          slot.addEventListener('click', () => { if (!_didHold) onUse(entry.id) })
+        }
+        grid.appendChild(slot)
+        return
+      }
+
+      // Fallback empty
+      slot.className = 'backpack-slot'
+      grid.appendChild(slot)
+    })
+
+    // No-matching-gear message in filtered view
+    if (filterSlot) {
+      const hasMatch = inventory.some(e => isGear(e) && e.slot === filterSlot)
+      if (!hasMatch) {
+        const msg = document.createElement('div')
+        msg.className = 'backpack-filter-empty'
+        const label = { weapon: 'Weapon', breastplate: 'Breastplate', offhand: 'Offhand' }[filterSlot] ?? filterSlot
+        msg.textContent = `No ${label} in backpack`
+        grid.appendChild(msg)
+      }
     }
+  },
+
+  // ── Gear UI ───────────────────────────────────
+
+  showGearFoundToast(piece) {
+    const TIER_LABELS = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' }
+    const SLOT_ICONS  = { weapon: '⚔️', breastplate: '🧥', offhand: '🛡️' }
+    const TIER_COLORS = { common: '#aaa', rare: '#00c8ff', epic: '#c084fc', legendary: '#ffd700' }
+    const icon  = SLOT_ICONS[piece.slot] ?? '🎁'
+    const label = TIER_LABELS[piece.tier] ?? piece.tier
+    this.setMessage(`${icon} ${label} ${piece.name} found! Check your backpack.`)
+
+    // Floating loot badge near the backpack button
+    const anchor = document.getElementById('hud-backpack-btn')
+    if (!anchor) return
+    const rect = anchor.getBoundingClientRect()
+    const div = document.createElement('div')
+    div.className = 'float-text gear-loot'
+    div.textContent = `${icon} ${piece.name}`
+    div.style.color = TIER_COLORS[piece.tier] ?? '#fff'
+    div.style.textShadow = `0 0 8px ${TIER_COLORS[piece.tier] ?? '#fff'}88`
+    div.style.left = (rect.left + rect.width / 2 - 60) + 'px'
+    div.style.top  = (rect.top - 10) + 'px'
+    div.style.fontSize = '0.78rem'
+    document.body.appendChild(div)
+    div.addEventListener('animationend', () => div.remove())
+  },
+
+  renderEquipmentSlots(equippedGear, heroId = 'warrior') {
+    const ov = el.equipmentOverlay
+    if (!ov) return
+
+    const SLOT_LABEL = { weapon: 'Weapon', breastplate: 'Breastplate', offhand: 'Offhand' }
+    const SLOT_IMGS = {
+      weapon:     'assets/sprites/Items/sword.png',
+      breastplate:'assets/sprites/Items/armor.png',
+      offhand:    'assets/sprites/Items/shield.png',
+    }
+    const TIER_LABELS = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' }
+    // Stat definitions: label + colored dot
+    const STAT_DEFS = {
+      damageBonus:     { label: 'ATK',   dot: '#ff6633' },
+      maxHp:           { label: 'HP',    dot: '#e74c3c' },
+      maxMana:         { label: 'MANA',  dot: '#7766ff' },
+      negation:        { label: 'Damage Negation', dot: '#44aaff' },
+      damageReduction: { label: 'DEF',   dot: '#44cc88' },
+      brittleArmor:    { label: 'ARM',   dot: '#ff8833', bad: true },
+      barbedGear:      { label: 'THORNS', dot: '#cc4444', bad: true },
+      manaDrain:       { label: 'DRAIN', dot: '#aa44cc', bad: true },
+    }
+    // Tile-image backgrounds per tier for the icon art box
+    const TIER_ART_BG = {
+      common:    "url('assets/ui/common-tile.png')",
+      rare:      "url('assets/ui/rare-tile.png')",
+      legendary: "url('assets/ui/legendary-tile.png')",
+    }
+
+    // Hero portrait
+    const heroImg = document.getElementById('equipment-hero-img')
+    if (heroImg) heroImg.src = PORTRAIT_ANIM[heroId]?.idle ?? ''
+
+    // Gear cards
+    const gearRow = document.getElementById('equipment-gear-row')
+    if (!gearRow) return
+    gearRow.innerHTML = ''
+
+    const _statHtml = (stat, val) => {
+      const def = STAT_DEFS[stat]
+      if (!def) return ''
+      const isNeg    = stat === 'negation'
+      const isBarbed = stat === 'barbedGear'
+      const isBad    = val < 0 || def.bad
+      const display  = isNeg
+        ? `${Math.round(Math.abs(val) * 100)}%`
+        : isBarbed
+          ? `${val}HP`
+          : (val > 0 ? `+${val}` : `${val}`)
+      return `<div class="eq-stat-row">
+        <span class="eq-stat-dot" style="background:${def.dot}"></span>
+        <span class="eq-stat-label">${def.label}</span>
+        <span class="eq-stat-value${isBad ? ' bad' : ''}">${display}</span>
+      </div>`
+    }
+
+    for (const slotKey of ['weapon', 'breastplate', 'offhand']) {
+      const piece = equippedGear?.[slotKey] ?? null
+      const card  = document.createElement('div')
+      card.className = `eq-card${piece ? ` gear-tier-${piece.tier}` : ' eq-card-empty'}`
+      card.dataset.slot = slotKey
+
+      if (piece) {
+        const statsHtml = Object.entries(piece.stats ?? {}).map(([s, v]) => _statHtml(s, v)).filter(Boolean).join('')
+        const artBg = TIER_ART_BG[piece.tier] ?? ''
+        card.innerHTML = `
+          <div class="eq-card-name">${piece.name}</div>
+          <div class="eq-card-art" style="background-image:${artBg}"><img class="eq-slot-img" src="${SLOT_IMGS[slotKey]}" alt=""></div>
+          <div class="eq-card-tier-badge tier-${piece.tier}">${TIER_LABELS[piece.tier] ?? piece.tier}</div>
+          <div class="eq-card-stats">${statsHtml}</div>
+          <div class="eq-card-tap">Tap to swap</div>
+        `
+      } else {
+        card.innerHTML = `
+          <div class="eq-card-name">${SLOT_LABEL[slotKey]}</div>
+          <div class="eq-card-art eq-card-art-empty"><img class="eq-slot-img" src="${SLOT_IMGS[slotKey]}" alt=""></div>
+          <div class="eq-card-empty-label">Empty</div>
+          <div class="eq-card-tap">Tap to equip</div>
+        `
+      }
+      gearRow.appendChild(card)
+    }
+
+    ov.classList.add('is-open')
+    ov.setAttribute('aria-hidden', 'false')
+  },
+
+  hideEquipmentOverlay() {
+    if (!el.equipmentOverlay) return
+    el.equipmentOverlay.classList.remove('is-open')
+    el.equipmentOverlay.setAttribute('aria-hidden', 'true')
+  },
+
+  renderCompareModal(candidate, equipped, onEquip, onCancel) {
+    const modal = el.gearCompareModal
+    if (!modal) return
+    const STAT_LABELS = {
+      damageBonus: 'Damage',
+      maxHp: 'Max HP',
+      maxMana: 'Max Mana',
+      negation: 'Damage Negation',
+      damageReduction: 'Dmg Reduction',
+      brittleArmor: 'Brittle Armor',
+      barbedGear: 'Thorns',
+      manaDrain: 'Mana Drain',
+    }
+
+    const allStats = new Set([
+      ...Object.keys(candidate.stats ?? {}),
+      ...Object.keys(equipped?.stats ?? {}),
+    ])
+
+    const rows = [...allStats].map(stat => {
+      const newVal = candidate.stats?.[stat] ?? 0
+      const oldVal = equipped?.stats?.[stat]  ?? 0
+      const delta  = newVal - oldVal
+      const sign   = delta > 0 ? '+' : ''
+      const cls    = delta > 0 ? 'delta-pos' : delta < 0 ? 'delta-neg' : ''
+      const label  = STAT_LABELS[stat] ?? stat
+      const fmtVal = v => stat === 'negation' ? `${Math.round(v * 100)}%` : stat === 'barbedGear' ? `${v}HP` : v
+      return `<tr>
+        <td class="cmp-stat-label">${label}</td>
+        <td class="cmp-new-val">${fmtVal(newVal)}</td>
+        <td class="cmp-old-val">${equipped ? fmtVal(oldVal) : '—'}</td>
+        <td class="cmp-delta ${cls}">${delta !== 0 ? sign + fmtVal(delta) : '—'}</td>
+      </tr>`
+    }).join('')
+
+    modal.querySelector('.cmp-candidate-name').textContent = candidate.name ?? ''
+    modal.querySelector('.cmp-candidate-tier').textContent = candidate.tier ?? ''
+    modal.querySelector('.cmp-equipped-name').textContent  = equipped?.name ?? 'Nothing equipped'
+    modal.querySelector('.cmp-stat-table tbody').innerHTML = rows
+
+    const equipBtn  = modal.querySelector('.cmp-equip-btn')
+    const cancelBtn = modal.querySelector('.cmp-cancel-btn')
+    const newEquipBtn  = equipBtn.cloneNode(true)
+    const newCancelBtn = cancelBtn.cloneNode(true)
+    equipBtn.replaceWith(newEquipBtn)
+    cancelBtn.replaceWith(newCancelBtn)
+    newEquipBtn.addEventListener('click',  onEquip)
+    newCancelBtn.addEventListener('click', onCancel)
+
+    modal.classList.remove('hidden')
+    modal.setAttribute('aria-hidden', 'false')
+  },
+
+  hideCompareModal() {
+    if (!el.gearCompareModal) return
+    el.gearCompareModal.classList.add('hidden')
+    el.gearCompareModal.setAttribute('aria-hidden', 'true')
   },
 
   /** @param {Array<{ level: number, name: string, icon?: string }>} entries */

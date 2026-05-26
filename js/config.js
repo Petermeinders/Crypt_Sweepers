@@ -215,6 +215,32 @@ export const CONFIG = {
     return this.biomes[this.biomes.length - 1]
   },
 
+  armor: {
+    negationCap: 1.0,  // Deferred — tighten once gear tier values are tuned
+  },
+
+  gear: {
+    statRanges: {
+      // Primary stats
+      damageBonus:     { common: [1,3],    rare: [3,6],    epic: [5,10],   legendary: [8,15]  },
+      maxHp:           { common: [5,12],   rare: [12,22],  epic: [20,35],  legendary: [30,50] },
+      negation:        { common: [0.05,0.08], rare: [0.08,0.15], epic: [0.12,0.22], legendary: [0.18,0.30] },
+      // Secondary stats
+      maxMana:         { common: [4,8],    rare: [8,16],   epic: [14,25],  legendary: [20,40] },
+      damageReduction: { epic: [1,1],      legendary: [1,2] },
+      // Detriment range sources (rolled negative by the generator)
+      brittleArmor:    { common: [1,3],    rare: [1,6],    epic: [3,8],    legendary: [6,10]  },
+      barbedGear:      { common: [1,5],    rare: [2,7],    epic: [3,12],   legendary: [5,20]  },
+      manaDrain:       { common: [3,5],    rare: [5,8],    epic: [8,12],   legendary: [12,15] },
+    },
+    levelDropTables: {
+      '1-20':   { common: 80, rare: 15, epic: 4,  legendary: 1  },
+      '21-40':  { common: 50, rare: 35, epic: 12, legendary: 3  },
+      '41-60':  { common: 25, rare: 45, epic: 22, legendary: 8  },
+      '61-100': { common: 10, rare: 30, epic: 40, legendary: 20 },
+    },
+  },
+
   difficulty: {
     easy:   { damageTakenMult: 0.70, xpMult: 0.50, goldMult: 0.50, label: 'Easy',   xpDeathRetain: 1.0 },
     normal: { damageTakenMult: 1.00, xpMult: 1.00, goldMult: 1.00, label: 'Normal', xpDeathRetain: 0.5 },
@@ -259,6 +285,7 @@ export const CONFIG = {
 // Player preferences — persisted via SaveManager
 export const SETTINGS = {
   difficulty:  'normal',
+  childMode:   false,
   musicVolume: 0.5,
   sfxVolume:   0.8,
 }

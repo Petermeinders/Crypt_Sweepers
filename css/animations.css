@@ -416,11 +416,13 @@
   white-space: nowrap;
 }
 
-.float-text.damage { color: #ff5555; text-shadow: 0 0 8px rgba(255,0,0,0.7); }
-.float-text.gold   { color: #ffd700; text-shadow: 0 0 8px rgba(255,200,0,0.7); }
-.float-text.xp     { color: #88aaff; text-shadow: 0 0 8px rgba(100,150,255,0.7); }
-.float-text.heal   { color: #55ff99; text-shadow: 0 0 8px rgba(0,220,100,0.7); }
-.float-text.mana   { color: #55aaff; text-shadow: 0 0 8px rgba(0,150,255,0.7); }
+.float-text.damage    { color: #ff5555; text-shadow: 0 0 8px rgba(255,0,0,0.7); }
+.float-text.gold      { color: #ffd700; text-shadow: 0 0 8px rgba(255,200,0,0.7); }
+.float-text.xp        { color: #88aaff; text-shadow: 0 0 8px rgba(100,150,255,0.7); }
+.float-text.heal      { color: #55ff99; text-shadow: 0 0 8px rgba(0,220,100,0.7); }
+.float-text.mana      { color: #55aaff; text-shadow: 0 0 8px rgba(0,150,255,0.7); }
+/* Gear loot drop — slower float so the item name is readable */
+.float-text.gear-loot { animation-duration: 2.2s; font-weight: 700; }
 
 /* ── Tile reveal: soft dust puff (see tiles.css) ── */
 @keyframes tile-reveal-dust {

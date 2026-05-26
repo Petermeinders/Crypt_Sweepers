@@ -318,8 +318,18 @@ async function boot() {
     if (ov?.classList.contains('is-open')) _renderBackpack()
   })
 
-  EventBus.on('backpack:full', ({ id }) => {
-    _openBackpackFull(id)
+  EventBus.on('gear:pickedUp', () => {
+    const ov = document.getElementById('backpack-overlay')
+    // Only show badge if the backpack isn't already open (player can see it directly)
+    if (!ov?.classList.contains('is-open')) _showBackpackBadge()
+  })
+
+  EventBus.on('backpack:full', (payload) => {
+    if (payload.type === 'gear') {
+      _openBackpackFullGear(payload.piece)
+    } else {
+      _openBackpackFull(payload.id ?? payload)
+    }
   })
 
   // ── Audio ────────────────────────────────────────────────
@@ -347,6 +357,21 @@ async function boot() {
   document.getElementById('hud-backpack-btn').addEventListener('click', () => {
     _toggleBackpack()
   })
+  document.getElementById('hud-portrait-wrap')?.addEventListener('click', () => {
+    const ov = document.getElementById('equipment-overlay')
+    if (ov?.classList.contains('is-open')) { _closeEquipment() } else { _openEquipment() }
+  })
+  document.getElementById('equipment-overlay')?.addEventListener('click', (e) => {
+    const slotEl = e.target.closest('[data-slot]')
+    if (slotEl) {
+      const slotType = slotEl.dataset.slot
+      _openBackpackFiltered(slotType)
+      return
+    }
+    // Close on backdrop click
+    if (e.target.id === 'equipment-overlay') _closeEquipment()
+  })
+  document.getElementById('equipment-close-btn')?.addEventListener('click', _closeEquipment)
   document.getElementById('skip-floor-btn')?.addEventListener('click', () => {
     GameController.cheatSkipFloor()
   })
@@ -737,6 +762,7 @@ async function boot() {
     document.getElementById('setting-sub-levels').checked   = s.settings.subLevelsEnabled ?? true
     document.getElementById('setting-auto-potions').checked = s.settings.autoPotions ?? false
     document.getElementById('setting-parry').checked         = s.settings.parryEnabled ?? true
+    document.getElementById('setting-child-mode').checked   = s.settings.childMode    ?? false
     document.getElementById('cheat-god-mode').checked       = c.godMode      ?? false
     document.getElementById('cheat-instant-kill').checked   = c.instantKill  ?? false
     document.getElementById('cheat-999-gold').checked       = c.gold999      ?? false
@@ -825,6 +851,7 @@ async function boot() {
     document.getElementById('setting-sub-levels').checked   = s.settings.subLevelsEnabled ?? true
     document.getElementById('setting-auto-potions').checked = s.settings.autoPotions ?? false
     document.getElementById('setting-parry').checked         = s.settings.parryEnabled ?? true
+    document.getElementById('setting-child-mode').checked   = s.settings.childMode    ?? false
     document.getElementById('cheat-god-mode').checked       = c.godMode      ?? false
     document.getElementById('cheat-instant-kill').checked   = c.instantKill  ?? false
     document.getElementById('cheat-999-gold').checked       = c.gold999      ?? false
@@ -881,6 +908,12 @@ async function boot() {
   document.getElementById('setting-parry').addEventListener('change', e => {
     const s = GameController.getSave()
     s.settings.parryEnabled = e.target.checked
+    SaveManager.save(s)
+  })
+
+  document.getElementById('setting-child-mode').addEventListener('change', e => {
+    const s = GameController.getSave()
+    s.settings.childMode = e.target.checked
     SaveManager.save(s)
   })
 
@@ -1865,7 +1898,7 @@ function _openShop() {
 
 let _pendingPickupId = null  // item waiting to replace a backpack slot
 
-function _renderBackpack() {
+function _renderBackpack(opts = {}) {
   const replaceMode = _pendingPickupId !== null
   UI.renderBackpack(
     GameController.getInventory(),
@@ -1902,6 +1935,7 @@ function _renderBackpack() {
       )
     },
     replaceMode,
+    { ...opts, onCompare: _openCompareModal },
   )
   UI.renderBackpackLevelUpLog(GameController.getLevelUpLog())
 }
@@ -1935,6 +1969,14 @@ function _openBackpackFull(newItemId) {
   UI.setMessage(`Backpack full! Tap a slot to replace it, or trash the new item.`, true)
 }
 
+function _openBackpackFullGear(piece) {
+  const SLOT_ICONS = { weapon: '⚔️', breastplate: '🧥', offhand: '🛡️' }
+  const icon = SLOT_ICONS[piece.slot] ?? '🎁'
+  _renderBackpack({ filterSlot: piece.slot })
+  _setBackpackOpen(true)
+  UI.setMessage(`${icon} ${piece.name} found — backpack full! Swap it with an existing item, or close to discard.`, true)
+}
+
 function _clearPendingPickup() {
   _pendingPickupId = null
   const bar = document.getElementById('backpack-pending-bar')
@@ -1957,8 +1999,26 @@ function _setBackpackOpen(open) {
   el.classList.toggle('is-open', open)
   el.setAttribute('aria-hidden', open ? 'false' : 'true')
   btn?.setAttribute('aria-expanded', open ? 'true' : 'false')
+  // Mutually exclusive: close equipment when backpack opens
+  if (open) UI.hideEquipmentOverlay()
+  // Clear new-item badge when the player opens the backpack
+  if (open) _clearBackpackBadge()
   // If closing while replace mode active, treat as trash
   if (!open && _pendingPickupId) _clearPendingPickup()
+}
+
+function _showBackpackBadge() {
+  const badge = document.getElementById('backpack-new-badge')
+  if (!badge) return
+  // Re-trigger animation by briefly removing and re-adding the element class
+  badge.classList.remove('hidden')
+  badge.style.animation = 'none'
+  void badge.offsetWidth // force reflow
+  badge.style.animation = ''
+}
+
+function _clearBackpackBadge() {
+  document.getElementById('backpack-new-badge')?.classList.add('hidden')
 }
 
 function _toggleBackpack() {
@@ -1970,6 +2030,49 @@ function _toggleBackpack() {
   } else {
     _setBackpackOpen(false)
   }
+}
+
+// ── Equipment overlay & compare modal ───────────────────────
+
+let _comparePendingIndex = null
+
+function _openEquipment() {
+  // Mutually exclusive: close backpack when equipment opens
+  _setBackpackOpen(false)
+  UI.renderEquipmentSlots(GameController.getEquippedGear(), UI.getHudCharacterId())
+}
+
+function _closeEquipment() {
+  UI.hideEquipmentOverlay()
+}
+
+function _openBackpackFiltered(slotType) {
+  _renderBackpack({ filterSlot: slotType })
+  _setBackpackOpen(true)
+}
+
+function _openCompareModal(inventoryIndex) {
+  _comparePendingIndex = inventoryIndex
+  const inventory   = GameController.getInventory()
+  const candidate   = inventory[inventoryIndex]
+  if (!candidate?.slot) return
+  const equippedGear = GameController.getEquippedGear()
+  const equipped     = equippedGear[candidate.slot] ?? null
+  UI.renderCompareModal(
+    candidate,
+    equipped,
+    () => {
+      GameController.equipGear(inventoryIndex)
+      UI.hideCompareModal()
+      _comparePendingIndex = null
+      _renderBackpack()
+      _openEquipment()
+    },
+    () => {
+      UI.hideCompareModal()
+      _comparePendingIndex = null
+    }
+  )
 }
 
 // ── Ability button hold-to-inspect ───────────────────────────

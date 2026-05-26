@@ -36,6 +36,7 @@ import {
   createInitialTelemetry,
   buildLevelSnapshotRecord,
 } from '../balance/runTelemetry.js'
+import * as _gearModule from '../data/gear.js'
 
 // ── Loot pools by rarity ─────────────────────────────────────
 
@@ -155,7 +156,7 @@ function _firefoxPreFlipHapticsIfNeeded(tile) {
 
 function _pickRandom(pool) { return pool[Math.floor(Math.random() * pool.length)] }
 
-function hasItem(id) { return run?.player?.inventory?.some(e => e.id === id) ?? false }
+function hasItem(id) { return run?.player?.inventory?.some(e => e?.id === id) ?? false }
 
 function _rollCommonLoot() {
   // Weighted: potions more likely than utility items (smiths-tools removed — ~1% via dedicated band in chest rolls)
@@ -387,9 +388,9 @@ function _openForge(tile) {
   const recipes = FORGE_RECIPES.map(r => {
     // For duplicate recipes (same ingredient), need two in inventory
     const isDupe = r.ingredientA === r.ingredientB
-    const count  = inv.filter(e => e.id === r.ingredientA).length
-    const hasA   = isDupe ? count >= 2 : inv.some(e => e.id === r.ingredientA)
-    const hasB   = isDupe ? true        : inv.some(e => e.id === r.ingredientB)
+    const count  = inv.filter(e => e?.id === r.ingredientA).length
+    const hasA   = isDupe ? count >= 2 : inv.some(e => e?.id === r.ingredientA)
+    const hasB   = isDupe ? true        : inv.some(e => e?.id === r.ingredientB)
     const canForge = hasA && hasB && _canAddToBackpack(r.result)
     return { ...r, canForge, hasA, hasB, isDupe }
   })
@@ -404,9 +405,9 @@ async function _doForge(tile, recipeId) {
   if (!recipe) return
   const inv    = run.player.inventory
   const isDupe = recipe.ingredientA === recipe.ingredientB
-  const count  = inv.filter(e => e.id === recipe.ingredientA).length
-  const hasA   = isDupe ? count >= 2 : inv.some(e => e.id === recipe.ingredientA)
-  const hasB   = isDupe ? true        : inv.some(e => e.id === recipe.ingredientB)
+  const count  = inv.filter(e => e?.id === recipe.ingredientA).length
+  const hasA   = isDupe ? count >= 2 : inv.some(e => e?.id === recipe.ingredientA)
+  const hasB   = isDupe ? true        : inv.some(e => e?.id === recipe.ingredientB)
   if (!hasA || !hasB) { UI.setMessage('Missing ingredients!', true); return }
 
   dropItem(recipe.ingredientA)
@@ -509,7 +510,7 @@ function _tryDemonFlip(demonTile) {
 /** Still Water Amulet: after 10 turns without spending mana on spells/abilities, next mana cost is 35% less. */
 function _stillWaterManaCost(baseCost) {
   const p = run?.player
-  if (!p?.inventory?.some(e => e.id === 'still-water-amulet')) return baseCost
+  if (!p?.inventory?.some(e => e?.id === 'still-water-amulet')) return baseCost
   if ((p.turnsWithoutSpell ?? 0) < 10) return baseCost
   return Math.max(1, Math.round(baseCost * 0.65))
 }
@@ -1237,9 +1238,16 @@ function buildRunState() {
     corruptionStacks:      0, // Infected Goblin: corruption stacks (max 5)
     corruptionBaseMaxHp:   0, // Uncorrupted maxHp — restored when stacks clear
     corruptionBaseMaxMana: 0, // Uncorrupted maxMana — restored when stacks clear
+    // Gear system
+    armor:        0,
+    negation:     0,
+    damageBonus:  0,
+    damageReduction: 0,
+    equippedGear: { weapon: null, breastplate: null, offhand: null },
   }
 
   MetaProgression.applyToPlayer(p, _save)
+  _applyEquippedGear(p)
 
   return {
     player:           p,
@@ -2068,6 +2076,7 @@ function _serializeGridSnapshot() {
       bannerReady: t.bannerReady ?? null,
       warBannerFlying: t.warBannerFlying ?? null,
       killEchoMarked: !!(t.killEchoMarked || t.senseEvilMarked),
+      armorValue: t.armorValue ?? null,
     })),
   )
 }
@@ -2095,6 +2104,117 @@ function _saveActiveRun() {
     killEchoQuota:   run.killEchoQuota ?? 1,
   }
   SaveManager.save(_save).catch(() => {})
+}
+
+// ── Gear stat helpers ─────────────────────────────────────────────────────────
+
+function _adjustPlayerStat(stat, delta) {
+  if (stat === 'maxHp') {
+    run.player.maxHp += delta
+    run.player.hp    += delta
+  } else if (stat === 'maxMana') {
+    run.player.maxMana += delta
+    run.player.mana    += delta
+  } else if (stat === 'damageBonus') {
+    run.player.damageBonus = (run.player.damageBonus ?? 0) + delta
+  } else if (stat === 'negation') {
+    run.player.negation = (run.player.negation ?? 0) + delta
+  } else if (stat === 'damageReduction') {
+    run.player.damageReduction = (run.player.damageReduction ?? 0) + delta
+  } else if (stat === 'brittleArmor') {
+    run.player.negation = Math.max(0, (run.player.negation ?? 0) + delta / 100)
+  }
+  // Detriment keys stored with negative value — handled by callers passing -value
+}
+
+function _applyGearStats(piece) {
+  for (const [stat, value] of Object.entries(piece.stats)) {
+    _adjustPlayerStat(stat, value)
+  }
+}
+
+function _removeGearStats(piece) {
+  for (const [stat, value] of Object.entries(piece.stats)) {
+    _adjustPlayerStat(stat, -value)
+  }
+}
+
+/** Load persisted equippedGear onto player at run start. */
+function _applyEquippedGear(p) {
+  const saved = _save?.equippedGear
+  if (!saved) return
+  for (const slot of ['weapon', 'breastplate', 'offhand']) {
+    const piece = saved[slot]
+    if (!piece) continue
+    p.equippedGear[slot] = piece
+    for (const [stat, value] of Object.entries(piece.stats)) {
+      if (stat === 'maxHp') {
+        p.maxHp += value; p.hp += value
+      } else if (stat === 'maxMana') {
+        p.maxMana += value; p.mana += value
+      } else if (stat === 'damageBonus') {
+        p.damageBonus = (p.damageBonus ?? 0) + value
+      } else if (stat === 'negation') {
+        p.negation = (p.negation ?? 0) + value
+      } else if (stat === 'damageReduction') {
+        p.damageReduction = (p.damageReduction ?? 0) + value
+      } else if (stat === 'brittleArmor') {
+        p.negation = Math.max(0, (p.negation ?? 0) + value / 100)
+      }
+    }
+  }
+}
+
+function _equipGear(inventoryIndex) {
+  const inventory = run.player.inventory
+  const candidate = inventory[inventoryIndex]
+  if (!candidate || !candidate.slot) return
+
+  const slot = candidate.slot
+  const prev = run.player.equippedGear[slot] ?? null
+
+  inventory[inventoryIndex] = prev
+
+  run.player.equippedGear[slot] = candidate
+
+  if (prev) _removeGearStats(prev)
+  _applyGearStats(candidate)
+
+  run.player.hp   = Math.max(1, Math.min(run.player.hp,   run.player.maxHp))
+  run.player.mana = Math.max(0, Math.min(run.player.mana, run.player.maxMana))
+
+  const [d0, d1] = _playerDamageRange(run.player)
+  UI.updateHP(run.player.hp, run.player.maxHp)
+  UI.updateMana(run.player.mana, run.player.maxMana)
+  UI.updateDamageRange(d0, d1)
+  EventBus.emit('inventory:changed')
+}
+
+/** Push a gear piece into the backpack, or emit backpack:full if no room. */
+function _handleGearPickup(piece) {
+  const inv = run.player.inventory
+  const BACKPACK_MAX_SLOTS = 9
+  const usedSlots = inv.filter(e => e !== null).length
+  if (usedSlots < BACKPACK_MAX_SLOTS) {
+    const nullIdx = inv.indexOf(null)
+    if (nullIdx >= 0) { inv[nullIdx] = piece } else { inv.push(piece) }
+    EventBus.emit('inventory:changed')
+    EventBus.emit('gear:pickedUp')
+    UI.showGearFoundToast(piece)
+  } else {
+    EventBus.emit('backpack:full', { type: 'gear', piece })
+  }
+}
+
+/** Try to drop a gear piece; returns true if a piece was added to backpack. */
+function _tryGearDrop(floor, chance) {
+  if (Math.random() >= chance) return false
+  const { generateGear, pickDropTier, pickDropSlot } = _gearModule
+  const tier  = pickDropTier(floor)
+  const slot  = pickDropSlot()
+  const piece = generateGear(slot, tier)
+  _handleGearPickup(piece)
+  return true
 }
 
 function _clearActiveRun() {
@@ -2226,7 +2346,7 @@ function _startFloor() {
   if (run?.player) run.player.navigatorsChartUsed = false
   const resumeSnapshot = !!(run?._resumeGridSnapshot)
   // Hunger Stone: costs 2 HP and grants +1 max damage each floor (skip sanctuary)
-  if (!resumeSnapshot && run && !run.atRest && run.floor > 1 && run.player.inventory.some(e => e.id === 'hunger-stone')) {
+  if (!resumeSnapshot && run && !run.atRest && run.floor > 1 && run.player.inventory.some(e => e?.id === 'hunger-stone')) {
     run.player.damageBonus = (run.player.damageBonus ?? 0) + 1
     run.player.hp = Math.max(1, run.player.hp - 2)
   }
@@ -2322,7 +2442,7 @@ function _startFloor() {
     })
   }
   // Cracked Compass: reveal exit tile from the start (skip rest floors)
-  if (!gridRestored && !run.atRest && run.player.inventory.some(e => e.id === 'cracked-compass')) {
+  if (!gridRestored && !run.atRest && run.player.inventory.some(e => e?.id === 'cracked-compass')) {
     const grid = TileEngine.getGrid()
     for (const row of grid) {
       for (const t of row) {
@@ -2375,7 +2495,7 @@ function _startFloor() {
   }
 
   // Forsaken Idol: reveal all unrevealed enemy tiles from floor start
-  if (!gridRestored && !run.atRest && run.player.inventory.some(e => e.id === 'forsaken-idol')) {
+  if (!gridRestored && !run.atRest && run.player.inventory.some(e => e?.id === 'forsaken-idol')) {
     const grid = TileEngine.getGrid()
     for (const row of grid) {
       for (const t of row) {
@@ -2396,16 +2516,16 @@ function _startFloor() {
     _paladinKillEchoApplyMarks(run.floorStartRow, run.floorStartCol, run.killEchoQuota)
   }
   // Mending Moss / Living Bramble: restore 3 HP at start of each new floor (skip floor 1 and sanctuary)
-  if (!gridRestored && !run.atRest && run.floor > 1 && (run.player.inventory.some(e => e.id === 'mending-moss') || run.player.inventory.some(e => e.id === 'living-bramble'))) {
+  if (!gridRestored && !run.atRest && run.floor > 1 && (run.player.inventory.some(e => e?.id === 'mending-moss') || run.player.inventory.some(e => e?.id === 'living-bramble'))) {
     run.player.hp = Math.min(run.player.maxHp, run.player.hp + 3)
   }
   // Predator's Edge: +1 max damage per floor, costs 2 HP (same as Hunger Stone)
-  if (!resumeSnapshot && run && !run.atRest && run.floor > 1 && run.player.inventory.some(e => e.id === 'predators-edge')) {
+  if (!resumeSnapshot && run && !run.atRest && run.floor > 1 && run.player.inventory.some(e => e?.id === 'predators-edge')) {
     run.player.damageBonus = (run.player.damageBonus ?? 0) + 1
     run.player.hp = Math.max(1, run.player.hp - 2)
   }
   // Twin Fates: coin flip each floor (skip floor 1 and sanctuary)
-  if (!gridRestored && !run.atRest && run.floor > 1 && run.player.inventory.some(e => e.id === 'twin-fates')) {
+  if (!gridRestored && !run.atRest && run.floor > 1 && run.player.inventory.some(e => e?.id === 'twin-fates')) {
     if (Math.random() < 0.5) {
       run.player.maxHp += 4
       run.player.hp    += 4
@@ -2415,7 +2535,7 @@ function _startFloor() {
     }
   }
   // Abyssal Lens: hint all tile categories on the back of unrevealed tiles
-  if (!gridRestored && !run.atRest && run.player.inventory.some(e => e.id === 'abyssal-lens')) {
+  if (!gridRestored && !run.atRest && run.player.inventory.some(e => e?.id === 'abyssal-lens')) {
     const grid = TileEngine.getGrid()
     for (const row of grid) {
       for (const t of row) {
@@ -2434,6 +2554,7 @@ function _startFloor() {
   UI.updateHP(run.player.hp, run.player.maxHp)
   UI.updateMana(run.player.mana, run.player.maxMana)
   UI.updateGold(run.player.gold)
+  UI.updateArmor(run.player.armor ?? 0)
   UI.updateGoldenKeys(run.player.goldenKeys ?? 0)
   _syncMagicChestKeyGlow()
   UI.setFreezingHit(run.player.freezingHitStacks ?? 0)
@@ -4567,8 +4688,8 @@ function _tickPoisonArrowDotOnGlobalTurn(opts = {}) {
     }
   }
   const grid = TileEngine.getGrid()
-  const plagueBonus    = run.player.inventory?.some(e => e.id === 'plague-rat-skull') ? 1 : 0
-  const festerBonus   = run.player.inventory?.some(e => e.id === 'festering-wound') ? 2 : 0
+  const plagueBonus    = run.player.inventory?.some(e => e?.id === 'plague-rat-skull') ? 1 : 0
+  const festerBonus   = run.player.inventory?.some(e => e?.id === 'festering-wound') ? 2 : 0
   const pDmg = _scaleOutgoingDamageToEnemy(_poisonArrowUnitDamage()) + plagueBonus + festerBonus
   for (const tile of _getActiveTiles()) {
     if (!tile.revealed || !tile.enemyData || tile.enemyData._slain) continue
@@ -4658,7 +4779,7 @@ function _tickPoisonArrowDotOnGlobalTurn(opts = {}) {
     UI.setMessage(parts.join(' ') + ` (${totalHarassDmg} total)`)
   }
 
-  if (run.player.inventory?.some(e => e.id === 'still-water-amulet')) {
+  if (run.player.inventory?.some(e => e?.id === 'still-water-amulet')) {
     run.player.turnsWithoutSpell = (run.player.turnsWithoutSpell ?? 0) + 1
   }
   // Bandage Roll HOT
@@ -4675,7 +4796,7 @@ function _tickPoisonArrowDotOnGlobalTurn(opts = {}) {
 async function revealTile(tile) {
   if (!tile.revealed && _turretDeployedOnTile(tile)) return
   _syncAllUnrevealedLockedDom()
-  if (run.player.inventory.some(e => e.id === 'hourglass-sand')) {
+  if (run.player.inventory.some(e => e?.id === 'hourglass-sand')) {
     run._hourglassSnapshot = _serializeHourglassSnapshot()
   }
   if (tile.element) {
@@ -4748,7 +4869,7 @@ async function revealTile(tile) {
     _mageLifeTapOnFlip(tile.element ?? document.getElementById('hud-portrait'))
   }
   // Abyssal Lens: randomly reveal one additional tile per flip (non-recursive)
-  if (!tile._lensReveal && run.player.inventory.some(e => e.id === 'abyssal-lens')) {
+  if (!tile._lensReveal && run.player.inventory.some(e => e?.id === 'abyssal-lens')) {
     const grid = TileEngine.getGrid()
     const candidates = []
     for (const row of grid) {
@@ -4860,6 +4981,9 @@ async function _openChest(tile) {
     }
   }, GIF_DURATION)
 
+  // 10% chance for an additional gear drop from chests
+  _tryGearDrop(run.floor, 0.10)
+
   tile.chestLooted = true
 }
 
@@ -4871,10 +4995,10 @@ function _resolveEffect(tile) {
   switch (tile.type) {
 
     case 'empty':
-      if (run.player.inventory.some(e => e.id === 'tomb-tithe') || run.player.inventory.some(e => e.id === 'delvers-kit')) {
+      if (run.player.inventory.some(e => e?.id === 'tomb-tithe') || run.player.inventory.some(e => e?.id === 'delvers-kit')) {
         _gainGold(1, tile.element)
         UI.setMessage('🪦 The tomb pays its tithe — +1 gold.')
-      } else if (run.player.inventory.some(e => e.id === 'scavengers-bag') && Math.random() < 0.05) {
+      } else if (run.player.inventory.some(e => e?.id === 'scavengers-bag') && Math.random() < 0.05) {
         _gainGold(1, tile.element)
         UI.setMessage("Your scavenger's bag catches a glint — +1 gold!")
       } else {
@@ -4932,7 +5056,7 @@ function _resolveEffect(tile) {
       let rawDmg = _rand(...CONFIG.trap.damage)
       if (run.floorModifier?.id === 'haunted-ground') rawDmg *= 2
       let dmg = Math.max(1, rawDmg - (p.trapReduction ?? 0))
-      if (p.inventory?.some(e => e.id === 'greed-tooth')) dmg += 1
+      if (p.inventory?.some(e => e?.id === 'greed-tooth')) dmg += 1
       const reduced = rawDmg !== dmg ? ` (reduced from ${rawDmg})` : ''
       let tfNote = ''
       if (p.isRanger && (p.trapfinderStacks ?? 0) > 0) {
@@ -4990,9 +5114,9 @@ function _resolveEffect(tile) {
       const inv = run.player.inventory
       const hasMatch = FORGE_RECIPES.some(r => {
         const isDupe = r.ingredientA === r.ingredientB
-        const count  = inv.filter(e => e.id === r.ingredientA).length
-        const hasA   = isDupe ? count >= 2 : inv.some(e => e.id === r.ingredientA)
-        const hasB   = isDupe ? true        : inv.some(e => e.id === r.ingredientB)
+        const count  = inv.filter(e => e?.id === r.ingredientA).length
+        const hasA   = isDupe ? count >= 2 : inv.some(e => e?.id === r.ingredientA)
+        const hasB   = isDupe ? true        : inv.some(e => e?.id === r.ingredientB)
         return hasA && hasB
       })
       if (hasMatch) {
@@ -5031,6 +5155,17 @@ function _resolveEffect(tile) {
       UI.spawnFloat(tile.element, `+${healAmt} HP`, 'heal')
       UI.updateHP(p.hp, p.maxHp)
       UI.setMessage(`✨ A sacred heart! Your max HP grows. +${bonus} max HP, +${healAmt} HP restored.`)
+      UI.showRetreat()
+      break
+    }
+
+    case 'armor': {
+      const av = tile.armorValue ?? 1
+      p.armor = (p.armor ?? 0) + av
+      EventBus.emit('audio:play', { sfx: 'armor_pickup' })
+      UI.spawnFloat(tile.element, `+${av} Armor`, 'armor')
+      UI.updateArmor(p.armor)
+      UI.setMessage(`🛡️ You pick up a piece of armor. +${av} Armor.`)
       UI.showRetreat()
       break
     }
@@ -5076,14 +5211,14 @@ function _resolveEffect(tile) {
       let reflexDodge = false
       if (!isBossTile && !skipFastAmbushForVampire) {
         const { dmg } = CombatResolver.resolveFastReveal(tile.enemyData)
-        const wardensBlock = p.inventory.some(e => e.id === 'wardens-brand')
+        const wardensBlock = p.inventory.some(e => e?.id === 'wardens-brand')
         reflexDodge =
           !wardensBlock
           && !tile.enemyData?.isBoss
           && (p.reflexDodgeChance ?? 0) > 0
           && Math.random() < p.reflexDodgeChance
         if (!wardensBlock && !reflexDodge) {
-          const baseDmg = dmg + (p.inventory.some(e => e.id === 'abyssal-lens') ? 1 : 0)
+          const baseDmg = dmg + (p.inventory.some(e => e?.id === 'abyssal-lens') ? 1 : 0)
           const r = _applyRangerTrapfinderMitigation(baseDmg, p)
           _takeDamage(r.dmg, tile.element, false, null, { enemyAttack: true, deathCause: 'fast_enemy' })
         }
@@ -5126,7 +5261,7 @@ function _resolveEffect(tile) {
       UI.markTileEnemyAlive(tile.element)
 
       // Fortune's Fool: auto-reroll enemy stats on reveal (free, no mana cost)
-      if (run.player.inventory.some(e => e.id === 'fortunes-fool')) {
+      if (run.player.inventory.some(e => e?.id === 'fortunes-fool')) {
         TileEngine.refreshEnemyDamageOnTile(tile, run.floor)
         UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
         UI.spawnFloat(tile.element, '🤡 Rerolled!', 'xp')
@@ -5147,9 +5282,9 @@ function _resolveEffect(tile) {
       }
 
       // Fast enemies get a free strike the moment they're revealed (bosses never ambush)
-      const hasWardenBrand = p.inventory.some(e => e.id === 'wardens-brand')
+      const hasWardenBrand = p.inventory.some(e => e?.id === 'wardens-brand')
       const hasWarden = hasWardenBrand
-      const hasLens   = p.inventory.some(e => e.id === 'abyssal-lens')
+      const hasLens   = p.inventory.some(e => e?.id === 'abyssal-lens')
       if (tile.enemyData?.attributes?.includes('fast') && !tile.enemyData?.isBoss && !p.isVampire) {
         const d = tile.enemyData.dmg
         const ambushDmg  = tile.enemyData.hitDamage ?? (Array.isArray(d) ? d[0] : d)
@@ -5557,12 +5692,12 @@ function fightAction(tile) {
   if (run.player.undeadBonus && isUndead) playerDmg = Math.round(playerDmg * 2)
   if (run.player.beastBonus  && isBeast)  playerDmg = Math.round(playerDmg * 2)
 
-  if (run.player.inventory.some(e => e.id === 'duelists-glove') && !tile.enemyData._duelistFirstMeleeDone) {
+  if (run.player.inventory.some(e => e?.id === 'duelists-glove') && !tile.enemyData._duelistFirstMeleeDone) {
     playerDmg += 1
     tile.enemyData._duelistFirstMeleeDone = true
   }
   // Predator's Edge: first hit on each enemy deals double damage
-  if (run.player.inventory.some(e => e.id === 'predators-edge') && !tile.enemyData._predatorFirstHitDone) {
+  if (run.player.inventory.some(e => e?.id === 'predators-edge') && !tile.enemyData._predatorFirstHitDone) {
     playerDmg = playerDmg * 2
     tile.enemyData._predatorFirstHitDone = true
   }
@@ -5572,7 +5707,7 @@ function fightAction(tile) {
     run.player.whettsoneHits--
   }
   // Mirror of Vanity: +5% of current HP as flat damage bonus
-  if (run.player.inventory.some(e => e.id === 'mirror-of-vanity')) {
+  if (run.player.inventory.some(e => e?.id === 'mirror-of-vanity')) {
     playerDmg += Math.max(1, Math.floor(run.player.hp * 0.05))
   }
   // Ogre: 10% shield block — cancels entire melee attack
@@ -5588,7 +5723,7 @@ function fightAction(tile) {
   _gainManaFromMeleeHit(tile.element)
 
   run.player.meleeHitCount = (run.player.meleeHitCount ?? 0) + 1
-  const _stormProc = run.player.inventory.some(e => e.id === 'stormcallers-fist') && run.player.meleeHitCount % 5 === 0
+  const _stormProc = run.player.inventory.some(e => e?.id === 'stormcallers-fist') && run.player.meleeHitCount % 5 === 0
 
   const bonusSuffix = (run.player.undeadBonus && isUndead) || (run.player.beastBonus && isBeast) ? ' (2×!)' : ''
   const curHp = Number(tile.enemyData.currentHP)
@@ -5601,16 +5736,16 @@ function fightAction(tile) {
   const killsEnemy = newEnemyHP <= 0
 
   // Fire Ring: 10% chance to ignite on hit
-  const hasFireRing = run.player.inventory.some(e => e.id === 'fire-ring')
+  const hasFireRing = run.player.inventory.some(e => e?.id === 'fire-ring')
   const ignite = hasFireRing && !killsEnemy && Math.random() < 0.10
 
   // Infected Blade: every melee hit poisons the enemy (3 turns)
-  if (!killsEnemy && run.player.inventory.some(e => e.id === 'infected-blade')) {
+  if (!killsEnemy && run.player.inventory.some(e => e?.id === 'infected-blade')) {
     tile.enemyData.poisonTurns = Math.max(tile.enemyData.poisonTurns ?? 0, 3)
     UI.updateEnemyStatus(tile.element, tile.enemyData)
   }
   // Festering Wound: every melee hit poisons the enemy (8 turns)
-  if (!killsEnemy && run.player.inventory.some(e => e.id === 'festering-wound')) {
+  if (!killsEnemy && run.player.inventory.some(e => e?.id === 'festering-wound')) {
     tile.enemyData.poisonTurns = Math.max(tile.enemyData.poisonTurns ?? 0, 8)
     UI.updateEnemyStatus(tile.element, tile.enemyData)
   }
@@ -5647,7 +5782,7 @@ function fightAction(tile) {
   // Firefox: counter-attack and spiked-collar damage run inside setTimeout — vibrate must happen now, in the gesture turn.
   if (_vibrationRequiresSyncUserActivation() && !killsEnemy && !canSplit) {
     let ms = 0
-    if (run.player.inventory.some(e => e.id === 'spiked-collar')) ms += 18
+    if (run.player.inventory.some(e => e?.id === 'spiked-collar')) ms += 18
     if (!isStunned && result.enemyDmg > 0) ms += 48
     if (ms > 0) _hapticFromUserGesture(Math.min(90, ms))
   }
@@ -5723,7 +5858,7 @@ function fightAction(tile) {
 
       // Tick burn damage if active
       if ((tile.enemyData.burnTurns ?? 0) > 0) {
-        const burnPlagueBonus = run.player.inventory.some(e => e.id === 'plague-rat-skull') ? 1 : 0
+        const burnPlagueBonus = run.player.inventory.some(e => e?.id === 'plague-rat-skull') ? 1 : 0
         const chp0 = Number(tile.enemyData.currentHP)
         const chp = Number.isFinite(chp0) ? chp0 : Number(tile.enemyData.hp ?? 0)
         const burnDmg = chp > 0
@@ -5747,7 +5882,7 @@ function fightAction(tile) {
       }
 
       // Spiked Collar: deal 1 self-damage on every melee hit
-      if (run.player.inventory.some(e => e.id === 'spiked-collar')) {
+      if (run.player.inventory.some(e => e?.id === 'spiked-collar')) {
         _takeDamage(1, tile.element, true, null, { deathCause: 'spiked_collar' })
         if (GameState.is(States.DEATH)) { _combatBusy = false; return }
       }
@@ -7003,7 +7138,7 @@ function spellAction() {
 
 function lanternAction() {
   const inv = run.player.inventory
-  const entry = inv.find(e => e.id === 'lantern')
+  const entry = inv.find(e => e?.id === 'lantern')
   if (!entry) return
   if (_combatBusy) return
   if (_isCombatCommitmentLocked()) {
@@ -7026,7 +7161,7 @@ function lanternAction() {
 
 function spyglassAction() {
   const inv = run.player.inventory
-  const entry = inv.find(e => e.id === 'spyglass')
+  const entry = inv.find(e => e?.id === 'spyglass')
   if (!entry) return
   if (_combatBusy) return
   if (_isCombatCommitmentLocked()) {
@@ -7110,7 +7245,7 @@ function _useLanternOn(tile) {
   UI.setLanternTargeting(false)
 
   const inv   = run.player.inventory
-  const entry = inv.find(e => e.id === 'lantern')
+  const entry = inv.find(e => e?.id === 'lantern')
   if (!entry) return
 
   // Consume lantern
@@ -7123,7 +7258,7 @@ function _useLanternOn(tile) {
 
 function dowsingRodAction() {
   const inv = run.player.inventory
-  const entry = inv.find(e => e.id === 'dowsing-rod')
+  const entry = inv.find(e => e?.id === 'dowsing-rod')
   if (!entry) return
   if (_combatBusy) return
   if (_isCombatCommitmentLocked()) {
@@ -7181,7 +7316,7 @@ function _useSpyglassOn(tile) {
   UI.setLanternTargeting(false)
 
   const inv   = run.player.inventory
-  const entry = inv.find(e => e.id === 'spyglass')
+  const entry = inv.find(e => e?.id === 'spyglass')
   if (!entry) return
 
   entry.qty--
@@ -7461,11 +7596,11 @@ function _castSpell(tile) {
   if (run.player.undeadBonus && isUndead) spellDmg = Math.round(spellDmg * 2)
   if (run.player.beastBonus  && isBeast)  spellDmg = Math.round(spellDmg * 2)
   // Mirror of Vanity: +5% current HP as flat bonus
-  if (run.player.inventory.some(e => e.id === 'mirror-of-vanity')) {
+  if (run.player.inventory.some(e => e?.id === 'mirror-of-vanity')) {
     spellDmg += Math.max(1, Math.floor(run.player.hp * 0.05))
   }
   // The Traded Codex: spell scales with missing HP (1× full, ~3× near death)
-  if (run.player.inventory.some(e => e.id === 'traded-codex') && run.player.maxHp > 0) {
+  if (run.player.inventory.some(e => e?.id === 'traded-codex') && run.player.maxHp > 0) {
     const missingRatio = 1 - (run.player.hp / run.player.maxHp)
     const codexMult = 1 + 2 * missingRatio
     spellDmg = Math.round(spellDmg * codexMult)
@@ -7475,14 +7610,14 @@ function _castSpell(tile) {
   UI.setPortraitAnim('attack')
   run.player.mana -= effectiveCost
   // Witching Stone: each spell costs 1 additional HP
-  if (run.player.inventory.some(e => e.id === 'witching-stone')) {
+  if (run.player.inventory.some(e => e?.id === 'witching-stone')) {
     run.player.hp = Math.max(0, run.player.hp - 1)
     UI.updateHP(run.player.hp, run.player.maxHp)
     UI.spawnFloat(document.getElementById('hud-portrait'), '🔮 -1 HP', 'damage')
     if (run.player.hp <= 0) { _die(null, { deathCause: 'witching_stone' }); return }
   }
   // Spell Siphon: each spell costs +2 HP; 40% chance to restore 3 HP
-  if (run.player.inventory.some(e => e.id === 'spell-siphon')) {
+  if (run.player.inventory.some(e => e?.id === 'spell-siphon')) {
     run.player.hp = Math.max(0, run.player.hp - 2)
     UI.updateHP(run.player.hp, run.player.maxHp)
     UI.spawnFloat(document.getElementById('hud-portrait'), '🩸 -2 HP', 'damage')
@@ -7494,14 +7629,14 @@ function _castSpell(tile) {
     }
   }
   _markStillWaterAbilityUsed()
-  if (run.player.inventory.some(e => e.id === 'surge-pearl') && Math.random() < 0.20) {
+  if (run.player.inventory.some(e => e?.id === 'surge-pearl') && Math.random() < 0.20) {
     const refund = Math.floor(effectiveCost / 2)
     if (refund > 0) {
       run.player.mana = Math.min(run.player.maxMana, run.player.mana + refund)
       UI.spawnFloat(document.getElementById('hud-portrait'), `⚪ +${refund} MP`, 'mana')
     }
   }
-  if (run.player.inventory.some(e => e.id === 'resonance-core') && Math.random() < 0.30) {
+  if (run.player.inventory.some(e => e?.id === 'resonance-core') && Math.random() < 0.30) {
     const refund = effectiveCost
     if (refund > 0) {
       run.player.mana = Math.min(run.player.maxMana, run.player.mana + refund)
@@ -7557,7 +7692,7 @@ function _endCombatVictory(tile) {
       UI.spawnFloat(tile.element, `+${run.player.onKillHeal} HP`, 'heal')
       UI.updateHP(run.player.hp, run.player.maxHp)
     }
-    if (run.player.inventory.some(e => e.id === 'vampire-fang')) {
+    if (run.player.inventory.some(e => e?.id === 'vampire-fang')) {
       run.player.hp = Math.min(run.player.maxHp, run.player.hp + 1)
       UI.spawnFloat(tile.element, '+1 HP', 'heal')
       UI.updateHP(run.player.hp, run.player.maxHp)
@@ -7569,6 +7704,7 @@ function _endCombatVictory(tile) {
   }
 
   _telemetryBumpKill(run.floor)
+  const wasBoss = !!tile.enemyData?.isBoss
   const killEchoKill = _charKey() === 'warrior' && !!(tile.killEchoMarked || tile.senseEvilMarked)
   tile.enemyData._slain = true
   _clearCombatEngagementForTile(tile)
@@ -7629,27 +7765,27 @@ function _endCombatVictory(tile) {
     }
   }
 
-  if (run.player.inventory.some(e => e.id === 'vampire-fang')) {
+  if (run.player.inventory.some(e => e?.id === 'vampire-fang')) {
     run.player.hp = Math.min(run.player.maxHp, run.player.hp + 1)
     UI.spawnFloat(tile.element, '+1 HP', 'heal')
     UI.updateHP(run.player.hp, run.player.maxHp)
   }
-  if (run.player.inventory.some(e => e.id === 'sanguine-covenant')) {
+  if (run.player.inventory.some(e => e?.id === 'sanguine-covenant')) {
     run.player.hp = Math.min(run.player.maxHp, run.player.hp + 2)
     UI.spawnFloat(tile.element, '⚗️ +2 HP', 'heal')
     UI.updateHP(run.player.hp, run.player.maxHp)
   }
-  if (run.player.inventory.some(e => e.id === 'soul-candle') && Math.random() < 0.20) {
+  if (run.player.inventory.some(e => e?.id === 'soul-candle') && Math.random() < 0.20) {
     run.player.mana = Math.min(run.player.maxMana, run.player.mana + 1)
     UI.spawnFloat(tile.element, '🕯️ +1 MP', 'mana')
     UI.updateMana(run.player.mana, run.player.maxMana)
   }
-  if (run.player.inventory.some(e => e.id === 'temporal-wick') && Math.random() < 0.30) {
+  if (run.player.inventory.some(e => e?.id === 'temporal-wick') && Math.random() < 0.30) {
     run.player.mana = Math.min(run.player.maxMana, run.player.mana + 1)
     UI.spawnFloat(tile.element, '⏳ +1 MP', 'mana')
     UI.updateMana(run.player.mana, run.player.maxMana)
   }
-  if (run.player.inventory.some(e => e.id === 'resonance-core')) {
+  if (run.player.inventory.some(e => e?.id === 'resonance-core')) {
     for (const adj of TileEngine.getOrthogonalTiles(tile.row, tile.col)) {
       if (!adj.revealed && adj.element) {
         const cat = _echoCharmCategoryForTileType(adj.type)
@@ -7660,14 +7796,14 @@ function _endCombatVictory(tile) {
     }
   }
   // Deathmask: 25% chance next reveal is an instant kill
-  if (!run.player.deathmaskPending && run.player.inventory.some(e => e.id === 'deathmask') && Math.random() < 0.25) {
+  if (!run.player.deathmaskPending && run.player.inventory.some(e => e?.id === 'deathmask') && Math.random() < 0.25) {
     run.player.deathmaskPending = true
     UI.spawnFloat(tile.element, '💀 Marked!', 'xp')
   }
-  if (run.player.inventory.some(e => e.id === 'greed-tooth')) {
+  if (run.player.inventory.some(e => e?.id === 'greed-tooth')) {
     _gainGold(1, tile.element, true)
   }
-  if (run.player.inventory.some(e => e.id === 'echo-charm')) {
+  if (run.player.inventory.some(e => e?.id === 'echo-charm')) {
     for (const adj of TileEngine.getOrthogonalTiles(tile.row, tile.col)) {
       if (!adj.revealed && adj.element) {
         const cat = _echoCharmCategoryForTileType(adj.type)
@@ -7679,12 +7815,12 @@ function _endCombatVictory(tile) {
   }
 
   // Eagle Eye: grant free flip (any tile, ignores adjacency)
-  if (run.player.inventory.some(e => e.id === 'eagle-eye')) {
+  if (run.player.inventory.some(e => e?.id === 'eagle-eye')) {
     run.player.eagleEyeFreeFlip = true
     UI.spawnFloat(tile.element, '🦅 Free flip!', 'xp')
   }
   // Hunter's Instinct: reveal nearest adjacent hidden tile + echo hint all other adjacent tiles
-  if (run.player.inventory.some(e => e.id === 'hunters-instinct')) {
+  if (run.player.inventory.some(e => e?.id === 'hunters-instinct')) {
     const adjs = TileEngine.getOrthogonalTiles(tile.row, tile.col).filter(t => !t.revealed)
     if (adjs.length > 0) {
       const nearest = adjs[0]
@@ -7704,7 +7840,7 @@ function _endCombatVictory(tile) {
     }
   }
   // Soulbound Blade: +0.1 permanent damage per kill
-  if (run.player.inventory.some(e => e.id === 'soulbound-blade')) {
+  if (run.player.inventory.some(e => e?.id === 'soulbound-blade')) {
     run.player.soulboundBonus = (run.player.soulboundBonus ?? 0) + 0.1
     if (Math.floor(run.player.soulboundBonus) > Math.floor(run.player.soulboundBonus - 0.1)) {
       const [d0, d1] = _playerDamageRange(run.player)
@@ -7725,6 +7861,9 @@ function _endCombatVictory(tile) {
     UI.updateMana(run.player.mana, run.player.maxMana)
   }
 
+  // Gear drop: boss = guaranteed, normal enemy = 5% chance
+  _tryGearDrop(run.floor, wasBoss ? 1.0 : 0.05)
+
   EventBus.emit('audio:play', { sfx: 'gold' })
   EventBus.emit('combat:end', { outcome: 'victory' })
   TileEngine.refreshAllThreatClueDisplays()
@@ -7743,7 +7882,7 @@ function doRetreat(reason = 'player') {
 
   const hpAtRetreat = run?.player?.hp ?? null
   const goldBeforeRetreat = run?.player?.gold ?? null
-  const pct      = run.player.retreatPercent ?? CONFIG.retreat.goldKeepPercent
+  const pct      = _save.settings?.childMode ? 1.0 : (run.player.retreatPercent ?? CONFIG.retreat.goldKeepPercent)
   const keptGold = Math.floor(run.player.gold * pct)
   run.player.gold = keptGold
   UI.updateGold(keptGold)
@@ -7762,6 +7901,7 @@ function doRetreat(reason = 'player') {
   })
   const { xpEarned, xpRetained, xpLost, goldBanked } = MetaProgression.endRun(_save, stats, 'retreat')
 
+  if (run?.player?.equippedGear) _save.equippedGear = structuredClone(run.player.equippedGear)
   // End run immediately so UI/bots do not see an active run while waiting for the summary overlay.
   _clearActiveRun()
   run = null
@@ -7863,8 +8003,8 @@ function _nextFloor() {
 function _computeEffectiveDamageTaken(rawAmount) {
   if (!run) return rawAmount
   const scaled = Math.round(rawAmount * (run.player.damageTakenMult ?? 1))
-  const maskReduction   = run.player.inventory.some(e => e.id === 'plague-mask')    ? 1 : 0
-  const bladeReduction  = run.player.inventory.some(e => e.id === 'infected-blade') ? 1 : 0
+  const maskReduction   = run.player.inventory.some(e => e?.id === 'plague-mask')    ? 1 : 0
+  const bladeReduction  = run.player.inventory.some(e => e?.id === 'infected-blade') ? 1 : 0
   return Math.max(1, scaled - (run.player.damageReduction ?? 0) - maskReduction - bladeReduction)
 }
 
@@ -7931,8 +8071,31 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
       return
     }
   }
+  // Armor / Negation — combat hits only (traps and self-damage bypass armor)
+  if (enemyAttack && effective > 0 && (run.player.armor ?? 0) > 0) {
+    const negation = Math.min(run.player.negation ?? 0, CONFIG.armor.negationCap)
+    if (negation > 0 && Math.random() < negation) {
+      // Negation proc: armor preserved, hit fully blocked
+      UI.spawnFloat(tileEl, '🛡️ Negated!', 'armor')
+      UI.setMessage('The blow glances off your armor — negated!')
+      UI.updateHP(run.player.hp, run.player.maxHp)
+      return
+    }
+    // Armor absorption: absorbs the entire hit, costs 1 armor point
+    run.player.armor -= 1
+    UI.updateArmor(run.player.armor)
+    if (run.player.armor === 0) {
+      UI.spawnFloat(tileEl, '🛡️ Shattered!', 'damage')
+      UI.setMessage('Your armor shatters under the blow!')
+    } else {
+      UI.spawnFloat(tileEl, '🛡️ -1 Armor', 'armor')
+    }
+    UI.updateHP(run.player.hp, run.player.maxHp)
+    return
+  }
+
   // Pauper's Crown: drain gold before HP
-  if (run.player.inventory?.some(e => e.id === 'paupers-crown')) {
+  if (run.player.inventory?.some(e => e?.id === 'paupers-crown')) {
     const goldDrained = Math.min(run.player.gold, effective)
     run.player.gold  -= goldDrained
     UI.updateGold(run.player.gold)
@@ -7965,7 +8128,7 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
   EventBus.emit('player:hpChange', { amount: -effective, newHP: run.player.hp })
   // Resurrection Stone: prevent death once, restore half max HP
   if (run.player.hp <= 0 && !run.player.resurrectionUsed &&
-      run.player.inventory?.some(e => e.id === 'resurrection-stone')) {
+      run.player.inventory?.some(e => e?.id === 'resurrection-stone')) {
     run.player.resurrectionUsed = true
     run.player.hp = Math.max(1, Math.floor(run.player.maxHp / 2))
     UI.updateHP(run.player.hp, run.player.maxHp)
@@ -7984,7 +8147,7 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
     const ratio = run.player.hp / run.player.maxHp
     if (ratio < 0.30) {
       const inv = run.player.inventory
-      const potEntry = inv.find(e => e.id === 'potion-red' && e.qty > 0)
+      const potEntry = inv.find(e => e?.id === 'potion-red' && e.qty > 0)
       if (potEntry) {
         const healed = Math.min(ITEMS['potion-red'].effect.amount, run.player.maxHp - run.player.hp)
         if (healed > 0) {
@@ -7999,10 +8162,10 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
     }
   }
   // Thorn Wrap / Inferno Barbs / Barbed Mantle / Living Bramble: reflect damage to attacker
-  const hasThorn        = run.player.inventory.some(e => e.id === 'thorn-wrap')
-  const hasInferno      = run.player.inventory.some(e => e.id === 'inferno-barbs')
-  const hasBarbedMantle = run.player.inventory.some(e => e.id === 'barbed-mantle')
-  const hasLivingBramble = run.player.inventory.some(e => e.id === 'living-bramble')
+  const hasThorn        = run.player.inventory.some(e => e?.id === 'thorn-wrap')
+  const hasInferno      = run.player.inventory.some(e => e?.id === 'inferno-barbs')
+  const hasBarbedMantle = run.player.inventory.some(e => e?.id === 'barbed-mantle')
+  const hasLivingBramble = run.player.inventory.some(e => e?.id === 'living-bramble')
   if (killerData && !killerData._slain && (hasThorn || hasInferno || hasBarbedMantle || hasLivingBramble)) {
     const reflectDmg = hasInferno ? 2 : hasBarbedMantle ? 3 : 1
     killerData.currentHP = Math.max(0, killerData.currentHP - reflectDmg)
@@ -8030,21 +8193,21 @@ function _gainGold(amount, tileEl, fromEnemy = false, fromChest = false) {
   if (!run) return
   let actual = amount
   if (fromEnemy) {
-    if (run.player.inventory.some(e => e.id === 'misers-pouch')) actual += 1
-    if (run.player.inventory.some(e => e.id === 'tomb-tithe')) actual += 1
-    if (run.player.inventory.some(e => e.id === 'gamblers-mark')) actual = Math.random() < 0.5 ? 0 : actual * 2
-    if (run.player.inventory.some(e => e.id === 'fortunes-fool')) actual *= 2
-    if (run.player.inventory.some(e => e.id === 'devils-gambit') && Math.random() < 0.20) actual *= 2
-    if (run.player.inventory.some(e => e.id === 'vault-key')) actual += 2
+    if (run.player.inventory.some(e => e?.id === 'misers-pouch')) actual += 1
+    if (run.player.inventory.some(e => e?.id === 'tomb-tithe')) actual += 1
+    if (run.player.inventory.some(e => e?.id === 'gamblers-mark')) actual = Math.random() < 0.5 ? 0 : actual * 2
+    if (run.player.inventory.some(e => e?.id === 'fortunes-fool')) actual *= 2
+    if (run.player.inventory.some(e => e?.id === 'devils-gambit') && Math.random() < 0.20) actual *= 2
+    if (run.player.inventory.some(e => e?.id === 'vault-key')) actual += 2
     actual = Math.round(actual)
   }
   // Fortune's Fool: also doubles chest gold
-  if (fromChest && run.player.inventory.some(e => e.id === 'fortunes-fool')) actual *= 2
+  if (fromChest && run.player.inventory.some(e => e?.id === 'fortunes-fool')) actual *= 2
   // Floor modifiers: Ancient Cache (chest double gold) and Hungry Dungeon (halve enemy/chest gold)
   if (run.floorModifier?.id === 'ancient-cache' && fromChest) actual *= 2
   if (run.floorModifier?.id === 'hungry-dungeon' && (fromEnemy || fromChest)) actual = Math.max(0, Math.floor(actual / 2))
   // Vault Key: auto-bank 15% of all earned gold to persistent gold
-  if (run.player.inventory.some(e => e.id === 'vault-key') && actual > 0) {
+  if (run.player.inventory.some(e => e?.id === 'vault-key') && actual > 0) {
     const bank = Math.floor(actual * 0.15)
     if (bank > 0) {
       _save.persistentGold = (_save.persistentGold ?? 0) + bank
@@ -8052,7 +8215,7 @@ function _gainGold(amount, tileEl, fromEnemy = false, fromChest = false) {
     }
   }
   // Philosopher's Coin: all gold × 5
-  if (run.player.inventory.some(e => e.id === 'philosophers-coin')) actual *= 5
+  if (run.player.inventory.some(e => e?.id === 'philosophers-coin')) actual *= 5
   if (actual <= 0) {
     UI.spawnFloat(tileEl, '♠️ No gold!', 'damage')
     return
@@ -8098,8 +8261,8 @@ function _checkFloorModifierOnReveal(tile) {
 function _gainManaFromMeleeHit(tileEl) {
   if (!run?.player) return
   const add = CONFIG.player.manaPerMeleeHit ?? 0
-  const hasManaRing     = run.player.inventory.some(e => e.id === 'mana-ring')
-  const hasCrucible     = run.player.inventory.some(e => e.id === 'mana-crucible')
+  const hasManaRing     = run.player.inventory.some(e => e?.id === 'mana-ring')
+  const hasCrucible     = run.player.inventory.some(e => e?.id === 'mana-crucible')
   let gain = 0
   if (add > 0) {
     gain += (hasManaRing && Math.random() < 0.10) ? add * 2 : add
@@ -8254,10 +8417,10 @@ function _xpNeeded() {
 
 function _playerDamageRange(player) {
   const bonus       = player.damageBonus ?? 0
-  const maskPenalty = player.inventory?.some(e => e.id === 'plague-mask')    ? 1 : 0
-  const collarBonus = player.inventory?.some(e => e.id === 'spiked-collar')  ? 3 : 0
+  const maskPenalty = player.inventory?.some(e => e?.id === 'plague-mask')    ? 1 : 0
+  const collarBonus = player.inventory?.some(e => e?.id === 'spiked-collar')  ? 3 : 0
   const soulBonus   = Math.floor(player.soulboundBonus ?? 0)
-  const hasRazor    = player.inventory?.some(e => e.id === 'razors-edge')
+  const hasRazor    = player.inventory?.some(e => e?.id === 'razors-edge')
   if (player.isRanger) {
     const [lo, hi] = RANGER_BASE.damage
     const max = Math.max(1, hi + bonus + collarBonus + soulBonus - maskPenalty)
@@ -8442,6 +8605,7 @@ function _die(killerData = null, opts = {}) {
   }
   if (killerInferred && !killerData?.enemyId) deathExtras.killerInferred = true
   _finalizeRunTelemetry('death', deathExtras)
+  if (run?.player?.equippedGear) _save.equippedGear = structuredClone(run.player.equippedGear)
   _clearActiveRun()
   UI.setPortraitAnim('death')
   GameState.transition(States.DEATH)
@@ -8622,7 +8786,7 @@ async function _addToBackpack(id) {
   const item  = ITEMS[id]
   if (!item) return
   // Philosopher's Coin: potions become gold instead
-  if ((id === 'potion-red' || id === 'potion-blue') && inv.some(e => e.id === 'philosophers-coin')) {
+  if ((id === 'potion-red' || id === 'potion-blue') && inv.some(e => e?.id === 'philosophers-coin')) {
     const goldAmt = id === 'potion-red' ? 3 : 5
     run.player.gold += goldAmt
     UI.updateGold(run.player.gold)
@@ -8631,18 +8795,25 @@ async function _addToBackpack(id) {
   }
   if (item.stackable) {
     const maxS = item.maxStack ?? Number.POSITIVE_INFINITY
-    const existing = inv.find(e => e.id === id && e.qty < maxS)
+    const existing = inv.find(e => e?.id === id && e.qty < maxS)
     if (existing) {
       existing.qty++
       return
     }
   }
-  // Full backpack — let the UI handle replace/trash flow; do NOT add the item yet
-  if (inv.length >= BACKPACK_MAX_SLOTS) {
+  // Count only real items (nulls are empty slots left by gear swaps)
+  const usedSlots = inv.filter(e => e !== null).length
+  if (usedSlots >= BACKPACK_MAX_SLOTS) {
     EventBus.emit('backpack:full', { id })
     return
   }
-  inv.push({ id, qty: 1 })
+  // Fill a vacated null slot before growing the array
+  const nullIdx = inv.indexOf(null)
+  if (nullIdx >= 0) {
+    inv[nullIdx] = { id, qty: 1 }
+  } else {
+    inv.push({ id, qty: 1 })
+  }
   // Trinket Codex: show discovery card first time this trinket is seen
   if (TrinketCodex.registerIfNew(_save, id)) {
     Logger.info(`[GameController] New trinket discovered: ${id} (floor ${run?.floor})`)
@@ -8712,9 +8883,9 @@ function _canAddToBackpack(id) {
   if (!item) return false
   if (item.stackable) {
     const maxS = item.maxStack ?? Number.POSITIVE_INFINITY
-    if (inv.some(e => e.id === id && e.qty < maxS)) return true
+    if (inv.some(e => e?.id === id && e.qty < maxS)) return true
   }
-  return inv.length < BACKPACK_MAX_SLOTS
+  return inv.filter(e => e !== null).length < BACKPACK_MAX_SLOTS
 }
 
 function _triggerStormcallerLightning(sourceTile, playerDmg) {
@@ -8867,7 +9038,7 @@ function _animateMagicChestOpenClose(tile, floatText) {
 
 function useItem(id) {
   const inv   = run.player.inventory
-  const entry = inv.find(e => e.id === id)
+  const entry = inv.find(e => e?.id === id)
   if (!entry) return
   const item = ITEMS[id]
   if (!item) return
@@ -9128,7 +9299,7 @@ function useItem(id) {
   } else if (effect.type === 'mana') {
     const missing = run.player.maxMana - run.player.mana
     if (missing <= 0) { UI.setMessage('Already at full mana!', true); return }
-    const hasAcorn  = run.player.inventory.some(e => e.id === 'hollowed-acorn')
+    const hasAcorn  = run.player.inventory.some(e => e?.id === 'hollowed-acorn')
     const baseAmt   = hasAcorn ? Math.max(1, Math.floor(effect.amount / 2)) : effect.amount
     const restored  = Math.min(baseAmt, missing)
     run.player.mana += restored
@@ -9436,8 +9607,8 @@ function balanceBotTryOpenRevealTool() {
   if (!hasHiddenUnlocked) return false
 
   const inv = run.player.inventory ?? []
-  const hasLantern = inv.some(e => e.id === 'lantern' && e.qty > 0)
-  const hasSpy = inv.some(e => e.id === 'spyglass' && e.qty > 0)
+  const hasLantern = inv.some(e => e?.id === 'lantern' && e.qty > 0)
+  const hasSpy = inv.some(e => e?.id === 'spyglass' && e.qty > 0)
   if (hasLantern) {
     lanternAction()
     return true
@@ -9753,7 +9924,7 @@ function balanceBotTryAbilitiesPolicy(abilityWeights = {}) {
 function dropItem(id) {
   if (!run) return
   const inv = run.player.inventory
-  const entry = inv.find(e => e.id === id)
+  const entry = inv.find(e => e?.id === id)
   if (!entry) return
   const item = ITEMS[id]
   entry.qty--
@@ -9984,6 +10155,10 @@ export default {
   dropItem,
   forceReplaceItem,
   getInventory,
+  getArmor()        { return run?.player?.armor    ?? 0 },
+  getNegation()     { return run?.player?.negation  ?? 0 },
+  getEquippedGear() { return run?.player?.equippedGear ?? { weapon: null, breastplate: null, offhand: null } },
+  equipGear(inventoryIndex) { _equipGear(inventoryIndex) },
   openForge: _openForge,
   getLevelUpLog,
   getPlayerHpRatio,

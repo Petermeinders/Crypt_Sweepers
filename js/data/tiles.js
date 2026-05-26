@@ -41,4 +41,6 @@ export const TILE_DEFS = {
   map:    { emoji: '🗺️', label: 'Map',    cssClass: 'type-map',    weight: 0, isEnemy: false },
   /** Sub-floor only — rubble (inert) in cartographer's cache / toxic gas chamber */
   rubble: { emoji: '🪨', label: 'Rubble', cssClass: 'type-rubble', weight: 0, isEnemy: false },
+  /** Dungeon floor — awards +1/+2/+3 armor on reveal; weight tuned by TileEngine per floor */
+  armor:  { emoji: '🛡️',  label: 'Armor',  cssClass: 'type-armor',  weight: 5, isEnemy: false },
 }

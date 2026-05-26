@@ -793,6 +793,13 @@ body.tile-colors .tile-front.type-rope {
   cursor: pointer;
 }
 
+/* Armor tile — steel-blue border glow */
+.tile.revealed.tile-type-armor {
+  pointer-events: all;
+  cursor: pointer;
+  box-shadow: 0 0 8px 2px rgba(160, 170, 180, 0.4);
+}
+
 /* Deadlock escape: pulsing amber outline so the player notices the climbable / clearable hazard */
 .tile.revealed.tile-type-hole.deadlock-escape,
 .tile.revealed.tile-type-blockage.deadlock-escape {

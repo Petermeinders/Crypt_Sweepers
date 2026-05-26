@@ -29,15 +29,15 @@ function resolveFight(player, enemyData) {
     ? enemyData.hitDamage
     : rand(dmgMin, dmgMax)
   const bonus       = player.damageBonus ?? 0
-  const maskPenalty = player.inventory?.some(e => e.id === 'plague-mask')   ? 1 : 0
-  const collarBonus = player.inventory?.some(e => e.id === 'spiked-collar') ? 3 : 0
+  const maskPenalty = player.inventory?.some(e => e?.id === 'plague-mask')   ? 1 : 0
+  const collarBonus = player.inventory?.some(e => e?.id === 'spiked-collar') ? 3 : 0
   const soulBonus   = Math.floor(player.soulboundBonus ?? 0)
   const totalBonus  = bonus + collarBonus + soulBonus - maskPenalty
 
   let playerDmg
   if (player.isRanger) {
     const [lo, hi] = RANGER_BASE.damage
-    const hasRazor = player.inventory?.some(e => e.id === 'razors-edge')
+    const hasRazor = player.inventory?.some(e => e?.id === 'razors-edge')
     const max = Math.max(1, hi + totalBonus)
     playerDmg = hasRazor ? max : rand(Math.max(1, lo + totalBonus), max)
   } else if (player.isEngineer) {

@@ -674,6 +674,7 @@ function importGridFromSnapshot(snapshot, floor, opts = {}) {
           ?? ((st.killEchoMarked || st.senseEvilMarked) ? '⚔️' : null),
         darkEyesHint: !!st.darkEyesHint,
         killEchoMarked: !!(st.killEchoMarked || st.senseEvilMarked),
+        armorValue: st.armorValue ?? null,
         bannerReady: st.bannerReady ?? null,
         warBannerFlying: st.type === 'war_banner' ? (st.warBannerFlying !== false) : null,
         element: null,
@@ -703,7 +704,7 @@ function _createTileWithEnemy(type, row, col, floor) {
     enemyData = createEnemy(enemyType, floor)
   }
 
-  return {
+  const tile = {
     row,
     col,
     type,
@@ -714,6 +715,14 @@ function _createTileWithEnemy(type, row, col, floor) {
     itemData:  null,
     element:   null,
   }
+
+  if (type === 'armor') {
+    // +3 (10%), +2 (30%), +1 (60%)
+    const r = Math.random()
+    tile.armorValue = r < 0.10 ? 3 : r < 0.40 ? 2 : 1
+  }
+
+  return tile
 }
 
 // ── Tile face icons (Items/) ─────────────────────────────────

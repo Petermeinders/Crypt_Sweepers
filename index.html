@@ -113,7 +113,7 @@
 
     <!-- Bottom HUD: portrait | stats | key items (backpack, keys) | 6 ability slots -->
     <div id="hud-bar">
-      <div id="hud-portrait-wrap">
+      <div id="hud-portrait-wrap" role="button" tabindex="0" aria-label="Equipment" title="Tap to manage equipment">
         <div id="hud-portrait" class="hud-portrait" aria-hidden="true">
           <img id="hud-portrait-img" src="assets/sprites/Heroes/Warrior/__Idle.gif" alt="Paladin">
         </div>
@@ -143,13 +143,17 @@
           </div>
           <span class="hud-stat-num" id="mana-value">60/60</span>
         </div>
+        <div class="hud-armor-wrap" data-hud-cheat-target="armor" title="Armor — absorbs combat hits">
+          <span class="hud-stat-ic">🛡️</span>
+          <span class="hud-armor-num" id="armor-value">0</span>
+        </div>
         <div class="hud-meta" data-hud-cheat-target="gold">
           <span class="hud-gold-inline"><span class="gold-icon">🪙</span> <span id="gold-value">0</span></span>
         </div>
       </div>
 
       <div id="hud-keys" class="hud-keys" aria-label="Key items">
-        <button type="button" class="hud-key-slot hud-key-backpack" id="hud-backpack-btn" title="Backpack" aria-label="Backpack" aria-expanded="false" aria-controls="backpack-overlay"><img src="assets/sprites/Items/backpack.png" alt="" class="hud-key-slot-img"></button>
+        <button type="button" class="hud-key-slot hud-key-backpack" id="hud-backpack-btn" title="Backpack" aria-label="Backpack" aria-expanded="false" aria-controls="backpack-overlay"><img src="assets/sprites/Items/backpack.png" alt="" class="hud-key-slot-img"><span id="backpack-new-badge" class="backpack-new-badge hidden" aria-label="New item">!</span></button>
         <div class="hud-key-slot hud-key-golden-slot" id="hud-golden-key-slot" data-hud-cheat-target="goldenkey" title="Golden Keys — spend at the Magic Chest in sanctuary">
           <span class="hud-key-ghost" id="hud-key-slot-placeholder">🔑</span>
           <span class="hud-key-display hud-key-display--slot hidden" id="hud-key-display"><span class="key-icon">🗝️</span><span id="key-value">0</span></span>
@@ -186,6 +190,7 @@
       <button type="button" id="backpack-pending-trash" class="backpack-pending-trash-btn">🗑️ Trash</button>
     </div>
     <div class="backpack-content">
+      <div id="backpack-filter-label" class="backpack-filter-label hidden"></div>
       <div id="backpack-grid">
         <div class="backpack-slot"></div>
         <div class="backpack-slot"></div>
@@ -205,6 +210,48 @@
         <div class="backpack-accordion-body" id="backpack-levelup-body">
           <div id="backpack-levelup-list" class="backpack-levelup-list"></div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Equipment drawer (slides up like backpack) ── -->
+  <div id="equipment-overlay" class="equipment-drawer" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Equipment">
+    <div class="equipment-drawer-handle" aria-hidden="true"></div>
+    <!-- Hero showcase — portrait fills this panel, title + close overlaid -->
+    <div class="equipment-hero-panel">
+      <button type="button" id="equipment-close-btn" class="equipment-close-btn" aria-label="Close">✕</button>
+      <img id="equipment-hero-img" class="equipment-hero-portrait" src="" alt="" aria-hidden="true">
+      <div class="equipment-title-overlay">
+        <span class="equipment-drawer-title">Equipment</span>
+      </div>
+    </div>
+    <!-- Gear cards — filled by JS -->
+    <div class="equipment-gear-row" id="equipment-gear-row"></div>
+    <p class="equipment-hint">Tap a card to swap gear from your backpack</p>
+  </div>
+
+  <!-- ── Gear compare modal ── -->
+  <div id="gear-compare-modal" class="gear-compare-modal hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Compare gear">
+    <div class="cmp-panel">
+      <div class="cmp-header">
+        <div class="cmp-candidate">
+          <span class="cmp-candidate-name"></span>
+          <span class="cmp-candidate-tier"></span>
+        </div>
+        <span class="cmp-vs">vs</span>
+        <div class="cmp-equipped">
+          <span class="cmp-equipped-name"></span>
+        </div>
+      </div>
+      <table class="cmp-stat-table">
+        <thead>
+          <tr><th>Stat</th><th>New</th><th>Cur</th><th>Δ</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="cmp-actions">
+        <button type="button" class="cmp-equip-btn menu-btn primary">Equip</button>
+        <button type="button" class="cmp-cancel-btn menu-btn">Cancel</button>
       </div>
     </div>
   </div>
@@ -596,6 +643,17 @@
       <div class="panel-title">Settings</div>
     </div>
     <div class="panel-list">
+
+      <div class="settings-row settings-row-child-mode">
+        <div class="settings-label">
+          <span class="settings-label-title">🧒 Child Mode</span>
+          <span class="settings-label-desc">Overrides difficulty — reduced damage taken, and 100% gold &amp; XP kept on death or retreat</span>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="setting-child-mode">
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
 
       <div class="settings-row">
         <div class="settings-label">
