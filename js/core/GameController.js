@@ -41,7 +41,7 @@ import * as _gearModule from '../data/gear.js'
 // ── Loot pools by rarity ─────────────────────────────────────
 
 const COMMON_LOOT_IDS = [
-  'potion-red', 'potion-blue', 'lantern', 'dowsing-rod', 'smiths-tools', 'spyglass', 'scavengers-bag',
+  'potion-red', 'potion-blue', 'potion-mystery', 'lantern', 'dowsing-rod', 'smiths-tools', 'spyglass', 'scavengers-bag',
 ]
 
 const RARE_TRINKET_IDS = [
@@ -161,8 +161,9 @@ function hasItem(id) { return run?.player?.inventory?.some(e => e?.id === id) ??
 function _rollCommonLoot() {
   // Weighted: potions more likely than utility items (smiths-tools removed — ~1% via dedicated band in chest rolls)
   const r = Math.random()
-  if (r < 0.32) return { type: 'potion-red' }
-  if (r < 0.58) return { type: 'potion-blue' }
+  if (r < 0.28) return { type: 'potion-red' }
+  if (r < 0.50) return { type: 'potion-blue' }
+  if (r < 0.58) return { type: 'potion-mystery' }
   if (r < 0.70) return { type: 'lantern' }
   if (r < 0.80) return { type: 'dowsing-rod' }
   if (r < 0.88) return { type: 'spyglass' }
@@ -2508,6 +2509,7 @@ function _startFloor() {
   if (!gridRestored && !run.atRest && !CONFIG.bossFloors.includes(run.floor)
       && Math.random() < (CONFIG.mouse?.spawnChance ?? 0.20)) {
     _spawnMouse(specialSpawnUsed)
+    _maybeMouseIntro()
   }
 
   // Forsaken Idol: reveal all unrevealed enemy tiles from floor start
@@ -4921,6 +4923,17 @@ async function _maybeWarBannerIntro() {
   }
 }
 
+async function _maybeMouseIntro() {
+  if (_save.settings.mouseTutorialSeen) return
+  try {
+    await UI.showMouseIntro()
+    _save.settings.mouseTutorialSeen = true
+    await SaveManager.save(_save).catch(() => {})
+  } catch (e) {
+    Logger.debug('[GameController] mouse intro', e)
+  }
+}
+
 async function _maybeBestiaryDiscovery(tile) {
   const id = tile.enemyData?.enemyId
   if (!id) return
@@ -5183,6 +5196,8 @@ function _resolveEffect(tile) {
       UI.updateArmor(p.armor)
       UI.setMessage(`🛡️ You pick up a piece of armor. +${av} Armor.`)
       UI.showRetreat()
+      const iconWrap = tile.element?.querySelector('.tile-icon-wrap')
+      if (iconWrap) iconWrap.classList.add('collecting-spin')
       break
     }
 
@@ -5407,6 +5422,8 @@ function _closeEventSession(tile) {
   if (tile) {
     tile.eventResolved = true
     tile.element?.classList.remove('event-pending')
+    const iconWrap = tile.element?.querySelector('.tile-icon-wrap')
+    if (iconWrap) iconWrap.classList.add('collecting')
   }
   run.eventTile = null
   UI.hideEventOverlays()
@@ -5464,13 +5481,27 @@ async function _doMerchantBuy(tile, itemId, items) {
   const def = items.find(i => i.id === itemId)
   if (!def) return
   if (p.gold < def.price) { UI.setMessage('Not enough gold!', true); return }
+
+  const hasCoin = p.inventory.some(e => e?.id === 'philosophers-coin')
+  const isCoinConvert = hasCoin && (itemId === 'potion-red' || itemId === 'potion-blue' || itemId === 'potion-mystery')
+  // Pre-check backpack room so gold is never deducted for an item that can't be received
+  if (!isCoinConvert && !_canFitInBackpack(itemId)) {
+    UI.setMessage("Backpack is full — make room before buying!", true)
+    return
+  }
+
   p.gold -= def.price
   UI.updateGold(p.gold)
   await _addToBackpack(itemId)
   EventBus.emit('inventory:changed')
   EventBus.emit('audio:play', { sfx: 'chest' })
-  UI.setMessage(`You purchase the ${def.label}.`)
-  // Refresh shop display with updated gold (no-op if backpack:full already closed it)
+  if (isCoinConvert) {
+    const goldBack = itemId === 'potion-red' ? 3 : itemId === 'potion-mystery' ? 2 : 5
+    UI.setMessage(`🪙 Philosopher's Coin converts your ${def.label} to +${goldBack} gold!`)
+  } else {
+    UI.setMessage(`You purchase the ${def.label}.`)
+  }
+  // Refresh shop display with updated gold
   UI.refreshMerchantShopGold(p.gold)
 }
 
@@ -5642,6 +5673,15 @@ function _applyStoryOutcome(outcome, tile) {
       UI.updateGoldenKeys(p.goldenKeys)
       UI.spawnFloat(tile.element, `🗝️ +${outcome.effectValue}`, 'xp')
       break
+    case 'random-potion': {
+      const rr = Math.random()
+      const potionId = rr < 1/3 ? 'potion-red' : rr < 2/3 ? 'potion-blue' : 'potion-mystery'
+      _addToBackpack(potionId)
+      EventBus.emit('inventory:changed')
+      const potionFloat = potionId === 'potion-red' ? '🧪 +Potion' : potionId === 'potion-blue' ? '🔵 +Potion' : '🤍 +Potion'
+      UI.spawnFloat(tile.element, potionFloat, 'heal')
+      break
+    }
     case 'nothing':
     default:
       break
@@ -9322,6 +9362,46 @@ function useItem(id) {
     UI.updateMana(run.player.mana, run.player.maxMana)
     UI.spawnFloat(document.getElementById('hud-portrait'), `+${restored} MP`, 'mana')
     UI.setMessage(`🔵 You drink a ${item.name} and restore ${restored} mana.${hasAcorn ? ' (Hollowed Acorn halved)' : ''}`)
+  } else if (effect.type === 'mystery-potion') {
+    const roll = Math.random()
+    entry.qty--
+    if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
+    if (roll < 1 / 3) {
+      // Heal (same as red potion)
+      const missing = run.player.maxHp - run.player.hp
+      if (missing <= 0) {
+        UI.setMessage("🤍 The mystery potion fizzes... but you're already at full health.")
+      } else {
+        const healed = Math.min(5, missing)
+        run.player.hp += healed
+        UI.updateHP(run.player.hp, run.player.maxHp)
+        UI.spawnFloat(document.getElementById('hud-portrait'), `+${healed} HP`, 'heal')
+        UI.setMessage(`🤍 The mystery potion tastes sweet — it heals ${healed} HP.`)
+      }
+    } else if (roll < 2 / 3) {
+      // Mana (same as blue potion)
+      const missing = run.player.maxMana - run.player.mana
+      if (missing <= 0) {
+        UI.setMessage("🤍 The mystery potion crackles... but your mana is already full.")
+      } else {
+        const hasAcorn = run.player.inventory.some(e => e?.id === 'hollowed-acorn')
+        const baseAmt  = hasAcorn ? Math.max(1, Math.floor(20 / 2)) : 20
+        const restored = Math.min(baseAmt, missing)
+        run.player.mana += restored
+        UI.updateMana(run.player.mana, run.player.maxMana)
+        UI.spawnFloat(document.getElementById('hud-portrait'), `+${restored} MP`, 'mana')
+        UI.setMessage(`🤍 The mystery potion hums with energy — restores ${restored} mana.${hasAcorn ? ' (Hollowed Acorn halved)' : ''}`)
+      }
+    } else {
+      // Damage — same magnitude as the heal case
+      const dmg = 5
+      run.player.hp = Math.max(0, run.player.hp - dmg)
+      UI.updateHP(run.player.hp, run.player.maxHp)
+      UI.spawnFloat(document.getElementById('hud-portrait'), `-${dmg} HP`, 'damage')
+      UI.setMessage(`🤍 The mystery potion turns bitter — it burns for ${dmg} damage!`, true)
+      if (run.player.hp <= 0) { _die(null, { deathCause: 'mystery_potion' }); return }
+    }
+    return  // qty already decremented above
   }
 
   entry.qty--

@@ -1147,6 +1147,7 @@
   margin: 0 auto 14px;
 }
 .htp-tile {
+  position: relative;
   background: rgba(30,20,10,0.85);
   border: 1px solid rgba(180,140,60,0.25);
   border-radius: 6px;
@@ -1163,6 +1164,19 @@
 .htp-tile--revealed { border-color: rgba(200,160,80,0.4); }
 .htp-tile--start { border-color: rgba(80,200,80,0.5); background: rgba(20,40,20,0.85); }
 .htp-tile--locked { background: rgba(10,8,5,0.95); color: #333; border-color: rgba(60,50,30,0.3); }
+.htp-tile .htp-tile-clue {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.htp-tile-clue--0 { color: #555; }
+.htp-tile-clue--1 { color: #6bb5ff; }
+.htp-tile-clue--2 { color: #ffd966; }
 
 /* Tile legend */
 .htp-tile-legend {
@@ -2268,6 +2282,7 @@
 }
 
 #hero-select-title-main {
+  display: none;
   font-family: 'Cinzel', Georgia, 'Times New Roman', serif;
   font-size: 1.55rem;
   font-weight: 700;
@@ -2279,8 +2294,8 @@
 
 #hero-select-subtitle {
   font-family: ui-sans-serif, system-ui, sans-serif;
-  font-size: 0.62rem;
-  letter-spacing: 0.5em;
+  font-size: 0.82rem;
+  letter-spacing: 0.45em;
   font-weight: 600;
   text-transform: uppercase;
   margin-top: -2px;
@@ -2290,7 +2305,7 @@
 }
 
 .hero-select-back-pill {
-  margin: 6px auto 0;
+  margin: 0;
   padding: 4px 14px;
   border-radius: 999px;
   background: rgba(0,0,0,0.55);
@@ -2311,7 +2326,7 @@
 /* Scrollable body — horizontal snap carousel */
 #hero-select-body {
   flex: 1;
-  min-height: 0;
+  min-height: 320px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -2596,6 +2611,19 @@
 .hero-upgrade-slot.selected {
   border-color: #88aaff;
   box-shadow: 0 0 8px rgba(136,170,255,0.4);
+}
+
+.hero-upgrade-slot.has-upgrades-available {
+  animation: upgrade-pulse-glow 2.4s ease-in-out infinite;
+}
+
+.hero-upgrade-slot.has-upgrades-available.selected {
+  animation: none;
+}
+
+@keyframes upgrade-pulse-glow {
+  0%, 100% { box-shadow: 0 0 0px 0px rgba(255,200,60,0); }
+  50%       { box-shadow: 0 0 10px 3px rgba(255,200,60,0.45); }
 }
 
 .hero-upgrade-icon {
@@ -3515,6 +3543,17 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+.trinket-trader-card-desc {
+  font-size: 0.67rem;
+  color: #8a7a65;
+  line-height: 1.4;
+  margin-top: 3px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .trinket-trader-card-action {
@@ -5668,6 +5707,16 @@ body.bestiary-detail-open #app {
   padding: 14px 16px 22px;
   background: transparent;
   border-top: none;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#hero-select-footer .hero-select-back-pill {
+  position: absolute;
+  left: 16px;
+  bottom: 22px;
 }
 
 .hero-select-btn--circle {

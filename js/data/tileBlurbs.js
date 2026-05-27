@@ -43,4 +43,12 @@ export const TILE_BLURBS = {
     /** Appended on long-press info cards */
     holdHint: 'Tap the banner tile again to destroy it. That removes the bonus from every living enemy on this floor.',
   },
+  mouse: {
+    label: 'Dungeon Mouse',
+    emoji: '🐭',
+    blurb: 'A crafty dungeon mouse skitters through the shadows, unflipping tiles you have already revealed.',
+    introBlurb:
+      'A dungeon mouse has crept onto this floor! Every time you reveal a tile, it has a chance to sneak back and re-hide one you already uncovered — resetting whatever was beneath it.\n\n'
+      + 'You must find it and fight your way to it. Navigate toward the 🐭 tile and tap it to end its mischief.',
+  },
 }

@@ -266,6 +266,7 @@ const UI = {
     el.fleeBtn     = document.getElementById('flee-btn')
     el.retreatBtn  = document.getElementById('retreat-btn')
     el.hudSettingsBtn = document.getElementById('hud-settings-btn')
+    el.hudHowToPlayBtn = document.getElementById('hud-how-to-play-btn')
     el.grid        = document.getElementById('grid')
     el.skipFloorBtn = document.getElementById('skip-floor-btn')
     el.floorBanner = document.getElementById('floor-banner')
@@ -428,7 +429,7 @@ const UI = {
     if (!el.armorValue) return
     const display = Math.min(Math.max(0, Math.floor(n)), 99)
     el.armorValue.textContent = display
-    el.armorValue.closest('.hud-armor-wrap')?.classList.toggle('armor-empty', display === 0)
+    el.armorValue.closest('.hud-stat-armor')?.classList.toggle('armor-empty', display === 0)
   },
 
   setSlamBtn(visible, manaCost = 10) {
@@ -1395,6 +1396,13 @@ const UI = {
     el.messageBox.classList.toggle('alert', isAlert)
     _logHistory.unshift({ msg, isAlert })
     if (_logHistory.length > 80) _logHistory.pop()
+    if (isAlert) {
+      el.messageBox.classList.remove('message-shake')
+      void el.messageBox.offsetWidth
+      el.messageBox.classList.add('message-shake')
+    } else {
+      el.messageBox.classList.remove('message-shake')
+    }
   },
 
   clearLog() {
@@ -1433,11 +1441,13 @@ const UI = {
   showRetreat() {
     el.retreatBtn.classList.remove('hidden')
     el.hudSettingsBtn?.classList.remove('hidden')
+    el.hudHowToPlayBtn?.classList.remove('hidden')
   },
 
   hideRetreat() {
     el.retreatBtn.classList.add('hidden')
     el.hudSettingsBtn?.classList.add('hidden')
+    el.hudHowToPlayBtn?.classList.add('hidden')
     document.getElementById('retreat-confirm').classList.add('hidden')
   },
 
@@ -3086,6 +3096,41 @@ const UI = {
     })
   },
 
+  /** First-time dungeon mouse tutorial — same shell as war banner intro. */
+  showMouseIntro() {
+    return new Promise((resolve) => {
+      const info = TILE_BLURBS.mouse
+      if (!info || !el.bestiaryDiscoveryOverlay) { resolve(); return }
+      if (el.bestiaryDiscoveryGif) {
+        el.bestiaryDiscoveryGif.removeAttribute('src')
+        el.bestiaryDiscoveryGif.classList.add('hidden')
+      }
+      if (el.bestiaryDiscoveryEmoji) {
+        el.bestiaryDiscoveryEmoji.textContent = info.emoji ?? '🐭'
+        el.bestiaryDiscoveryEmoji.classList.remove('hidden')
+      }
+      if (el.bestiaryDiscoveryName) el.bestiaryDiscoveryName.textContent = info.label
+      if (el.bestiaryDiscoveryType) el.bestiaryDiscoveryType.textContent = 'Dungeon hazard'
+      if (el.bestiaryDiscoveryBlurb) el.bestiaryDiscoveryBlurb.textContent = info.introBlurb ?? info.blurb
+
+      const close = () => {
+        el.bestiaryDiscoveryOverlay.classList.add('hidden')
+        el.bestiaryDiscoveryOverlay.setAttribute('aria-hidden', 'true')
+        document.body.classList.remove('bestiary-discovery-open')
+        el.bestiaryDiscoveryOk?.removeEventListener('click', close)
+        el.bestiaryDiscoveryBackdrop?.removeEventListener('click', close)
+        resolve()
+      }
+
+      el.bestiaryDiscoveryOverlay.classList.remove('hidden')
+      el.bestiaryDiscoveryOverlay.setAttribute('aria-hidden', 'false')
+      document.body.classList.add('bestiary-discovery-open')
+      el.bestiaryDiscoveryOk?.addEventListener('click', close)
+      el.bestiaryDiscoveryBackdrop?.addEventListener('click', close)
+      EventBus.emit('audio:play', { sfx: 'levelup' })
+    })
+  },
+
   /** Full-size creature card from Bestiary menu (above list). */
   showBestiaryDetail(enemyId) {
     const def = ENEMY_DEFS[enemyId]
@@ -3651,11 +3696,15 @@ const UI = {
           const btn = document.createElement('button')
           btn.type = 'button'
           btn.className = `trinket-trader-card trinket-rarity-border-${rarity}`
+          const descHtml = item.blurb
+            ? `<div class="trinket-trader-card-desc">${item.blurb}</div>`
+            : ''
           btn.innerHTML = `
             <div class="trinket-trader-card-art">${artHtml}</div>
             <div class="trinket-trader-card-info">
               <div class="trinket-trader-card-name">${item.name}</div>
               <div class="trinket-trader-card-rarity trinket-rarity-${rarity}">${rarity.charAt(0).toUpperCase() + rarity.slice(1)}</div>
+              ${descHtml}
             </div>
             <div class="trinket-trader-card-action">Trade →</div>`
           btn.addEventListener('click', () => onTrade(entry.id), { once: true })

@@ -78,12 +78,13 @@
 }
 
 #message-box::after {
-  content: '▲';
-  font-size: 0.48rem;
-  opacity: 0.5;
-  margin-left: 7px;
+  content: '▲ Expand Log ▲';
+  font-size: 0.55rem;
+  opacity: 0.75;
+  margin-left: 8px;
   vertical-align: middle;
-  color: rgba(210,165,65,0.8);
+  color: rgba(210,165,65,0.9);
+  letter-spacing: 0.03em;
 }
 
 #message-box.alert {
@@ -353,7 +354,7 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
   flex-direction: row;
   align-items: stretch;
   gap: 8px;
-  padding: 10px 10px 12px;
+  padding: 10px 10px calc(12px + env(safe-area-inset-bottom, 0px));
   flex-shrink: 0;
   overflow: visible;
   background: var(--hud-bar-bg);
@@ -613,15 +614,16 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
     0 1px 0 rgba(255,255,255,0.07);
 }
 
-.hud-stat-row.hud-stat-dmg {
-  background: rgba(0,0,0,0.48);
-  border-radius: 7px;
-  padding: 3px 7px;
-  border: 1px solid rgba(0,0,0,0.7);
-  box-shadow:
-    inset 0 2px 4px rgba(0,0,0,0.55),
-    inset 0 1px 0 rgba(0,0,0,0.4),
-    0 1px 0 rgba(255,255,255,0.07);
+/* Damage + Armor share one row, split 50/50 */
+.hud-stat-dmg-pair {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+}
+
+.hud-stat-dmg-pair .hud-stat-row {
+  flex: 1;
+  min-width: 0;
 }
 
 .hud-stat-ic {
@@ -688,29 +690,21 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
   font-size: 0.75rem;
 }
 
-/* Armor counter row */
-.hud-armor-wrap {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 1px;
-}
-
+/* Armor — mirrors damage row inside the pair */
 .hud-armor-num {
-  font-size: 0.62rem;
+  flex-shrink: 1;
+  font-size: 0.68rem;
   font-family: ui-sans-serif, system-ui, sans-serif;
-  font-weight: 700;
-  color: var(--armor-grey, #aaa);
-  background: rgba(0,0,0,0.48);
-  border-radius: 7px;
-  padding: 2px 7px;
-  border: 1px solid rgba(0,0,0,0.7);
-  min-width: 28px;
-  text-align: center;
+  font-weight: 600;
+  color: var(--armor-grey, #c8d8e8);
+  text-align: left;
+  flex: 1;
+  min-width: 0;
   transition: color 0.2s;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.85);
 }
 
-.hud-armor-wrap.armor-empty .hud-armor-num {
+.hud-stat-armor.armor-empty .hud-armor-num {
   color: var(--armor-muted, #555);
 }
 

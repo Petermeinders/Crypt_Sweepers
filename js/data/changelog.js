@@ -5,6 +5,36 @@
 export const CHANGELOG = [
   {
     dateLabel: 'May 2026',
+    dateIso:   '2026-05-26',
+    version:   'v352',
+    title:     'Hero equipment system, Slam starter unlock & UI polish',
+    summary:
+      'Heroes now carry gear in three dedicated slots, new players start with Slam already unlocked, and several HUD and How to Play improvements round out the update.',
+    items: [
+      {
+        tag:  'New',
+        text: 'Equipment system — tap your hero portrait to open the equipment screen. Three slots (Weapon, Breastplate, Offhand) accept gear found in chests and drops. A comparison modal shows stat changes before you commit to equipping an item.',
+      },
+      {
+        tag:  'New',
+        text: 'Slam unlocked by default for new Warriors — no XP spend required to get your first ability. Mastery branches still require XP as before.',
+      },
+      {
+        tag:  'UI',
+        text: 'Ability icons on the hero select screen now pulse-glow while there are upgrades still available to purchase. The glow stops once the ability is fully maxed.',
+      },
+      {
+        tag:  'UI',
+        text: 'Armor now displays alongside Attack Damage in a paired HUD row, matching the same socket style.',
+      },
+      {
+        tag:  'UI',
+        text: 'How to Play — new Equipment and Trinkets sections explain gear slots, stat comparisons, and passive trinket effects.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'May 2026',
     dateIso:   '2026-05-12',
     version:   'v349',
     title:     'Block & Parry, hero combat canvas & mastery branches',

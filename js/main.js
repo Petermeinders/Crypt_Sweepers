@@ -265,6 +265,12 @@ async function boot() {
     save.selectedCharacter = 'warrior'
   }
 
+  // Ensure warrior always has the base Slam unlock (retroactive for existing saves)
+  if (!save.warrior.upgrades.includes('slam')) {
+    save.warrior.upgrades.push('slam')
+    await SaveManager.save(save)
+  }
+
   MetaProgression.normalizeUnlockedHeroes(save)
   {
     const selId = save.selectedCharacter ?? 'warrior'
@@ -969,6 +975,9 @@ async function boot() {
   document.getElementById('how-to-play-btn')?.addEventListener('click', () => {
     document.getElementById('how-to-play-overlay')?.classList.remove('hidden')
   })
+  document.getElementById('hud-how-to-play-btn')?.addEventListener('click', () => {
+    document.getElementById('how-to-play-overlay')?.classList.remove('hidden')
+  })
   document.getElementById('how-to-play-back')?.addEventListener('click', () => {
     document.getElementById('how-to-play-overlay')?.classList.add('hidden')
   })
@@ -1418,10 +1427,16 @@ function _renderHeroUpgradeSimpleSlot(grid, char, id, def, ownedList, xp, isLock
   const prereqOk   = !def.requires || ownedList.includes(def.requires)
   const isSelected = id === _selectedUpgradeId
 
+  // Glow while the ability or any of its mastery upgrades can still be purchased
+  const hasUpgradesAvailable = !isOwned || Object.entries(char.upgrades).some(
+    ([uid, udef]) => udef.masteryOf === id && !ownedList.includes(uid)
+  )
+
   const btn = document.createElement('button')
   btn.className = 'hero-upgrade-slot'
-    + (isOwned    ? ' owned'    : '')
-    + (isSelected ? ' selected' : '')
+    + (isOwned              ? ' owned'              : '')
+    + (isSelected           ? ' selected'           : '')
+    + (hasUpgradesAvailable ? ' has-upgrades-available' : '')
   const iconHTML = def.iconBgSrc && def.iconSrc
     ? `<span class="hero-upgrade-icon-stack">
          <img class="hero-upgrade-icon-bg" src="${def.iconBgSrc}" alt="" draggable="false"/>

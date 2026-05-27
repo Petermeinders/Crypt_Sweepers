@@ -20,7 +20,7 @@ export function defaultSave() {
     globalPassives: [],
     warrior: {
       totalXP:   0,
-      upgrades:  [],
+      upgrades:  ['slam'],
       shopCart:  [],
     },
     /** Hero IDs unlocked for selection (always includes warrior). Ranger syncs with ranger.unlocked. */
@@ -61,6 +61,8 @@ export function defaultSave() {
       parryChoiceDismissed: false,
       /** Shown once: interactive block/counter training before first parry encounter */
       parryTutorialSeen: false,
+      /** Shown once: first time a dungeon mouse spawns on a floor */
+      mouseTutorialSeen: false,
       /** Feature flag: Block & Parry reaction window during enemy counter-attacks */
       parryEnabled: true,
       /** Auto-use red potions when HP drops below 30% (off by default) */
@@ -442,10 +444,13 @@ function endRun(save, runStats, outcome) {
     // safeGold was already deducted from gold when banked at the rope, so add it back
     goldBanked = runStats.gold + (runStats.safeGold ?? 0)
   } else if (outcome === 'death') {
-    // Child Mode: keep all gold on death, same as retreat
-    goldBanked = save.settings?.childMode
-      ? runStats.gold + (runStats.safeGold ?? 0)
-      : (runStats.safeGold ?? 0)
+    if (save.settings?.childMode) {
+      goldBanked = runStats.gold + (runStats.safeGold ?? 0)
+    } else {
+      const diff = save.settings?.difficulty ?? 'normal'
+      const deathGoldRate = diff === 'easy' ? 0.20 : diff === 'normal' ? 0.10 : 0.0
+      goldBanked = Math.floor(runStats.gold * deathGoldRate) + (runStats.safeGold ?? 0)
+    }
   }
 
   save.persistentGold += goldBanked

@@ -32,6 +32,21 @@ export const ITEMS = {
     effect: { type: 'heal', amount: 5 },
   },
 
+  'potion-mystery': {
+    name:      'Mystery Potion',
+    icon:      '🤍',
+    spriteSrc: 'assets/sprites/Items/potionGreen.png',
+    rarity:    'common',
+    stackable: true,
+    maxStack:  5,
+    blurb:     'An unlabelled vial of murky liquid. No smell, no colour you recognise. Could be a cure — or a curse.',
+    details: [
+      { icon: '🎲', label: 'Unknown',   desc: 'Randomly heals 5 HP, restores 20 mana, or deals 5 HP damage' },
+      { icon: '📦', label: 'Stackable', desc: 'Multiple potions share a slot'                               },
+    ],
+    effect: { type: 'mystery-potion' },
+  },
+
   'smiths-tools': {
     name:      "Smith's Tools",
     icon:      '🔧',

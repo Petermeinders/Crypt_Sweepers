@@ -22,6 +22,31 @@
   animation: coin-collect 0.55s cubic-bezier(0.2, 0.8, 0.4, 1) forwards;
 }
 
+/* ── Shield collect (spin + float) ── */
+@keyframes shield-collect {
+  0%   { transform: translateY(0)     scale(1)    rotate(0deg);   opacity: 1; }
+  40%  { transform: translateY(-18px) scale(1.3)  rotate(180deg); opacity: 1; }
+  100% { transform: translateY(-40px) scale(0.4)  rotate(360deg); opacity: 0; }
+}
+
+.tile-icon-wrap.collecting-spin {
+  animation: shield-collect 0.55s cubic-bezier(0.2, 0.8, 0.4, 1) forwards;
+}
+
+/* ── Alert message shake ── */
+@keyframes message-shake {
+  0%, 100% { transform: translateX(0); }
+  15%  { transform: translateX(-5px); }
+  30%  { transform: translateX(4px); }
+  45%  { transform: translateX(-3px); }
+  60%  { transform: translateX(2px); }
+  75%  { transform: translateX(-1px); }
+}
+
+.message-shake {
+  animation: message-shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
 /* ── Icon bob ── */
 @keyframes icon-bob {
   0%, 100% { transform: translateY(0);    }

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#0f0f1a">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -35,6 +35,7 @@
       <div id="header-row">
         <div class="header-spacer">
           <button type="button" id="hud-settings-btn" class="hidden" title="Settings" aria-label="Settings">⚙️</button>
+          <button type="button" id="hud-how-to-play-btn" class="hidden" title="How to Play" aria-label="How to Play">❓</button>
         </div>
         <div id="header-title-block">
           <div id="title">Crypt Sweepers</div>
@@ -132,9 +133,15 @@
           </div>
           <span class="hud-stat-num" id="hp-value">100/100</span>
         </div>
-        <div class="hud-stat-row hud-stat-dmg" data-hud-cheat-target="dmg">
-          <span class="hud-stat-ic" title="Attack">⚔️</span>
-          <span class="hud-stat-num hud-dmg-num" id="dmg-value">10–22</span>
+        <div class="hud-stat-dmg-pair">
+          <div class="hud-stat-row hud-stat-dmg" data-hud-cheat-target="dmg">
+            <span class="hud-stat-ic" title="Attack">⚔️</span>
+            <span class="hud-stat-num hud-dmg-num" id="dmg-value">10–22</span>
+          </div>
+          <div class="hud-stat-row hud-stat-armor" data-hud-cheat-target="armor" title="Armor — absorbs combat hits">
+            <span class="hud-stat-ic">🛡️</span>
+            <span class="hud-armor-num" id="armor-value">0</span>
+          </div>
         </div>
         <div class="hud-stat-row" data-hud-cheat-target="mana">
           <span class="hud-stat-ic" title="Mana">🔵</span>
@@ -142,10 +149,6 @@
             <div class="stat-fill mana-fill" id="mana-bar"></div>
           </div>
           <span class="hud-stat-num" id="mana-value">60/60</span>
-        </div>
-        <div class="hud-armor-wrap" data-hud-cheat-target="armor" title="Armor — absorbs combat hits">
-          <span class="hud-stat-ic">🛡️</span>
-          <span class="hud-armor-num" id="armor-value">0</span>
         </div>
         <div class="hud-meta" data-hud-cheat-target="gold">
           <span class="hud-gold-inline"><span class="gold-icon">🪙</span> <span id="gold-value">0</span></span>
@@ -605,9 +608,9 @@
         <img src="assets/ui/diff-shelf.png" id="diff-shelf-img" alt="difficulty shelf">
 
         <!-- Invisible tap targets over each stone slot -->
-        <button class="diff-btn" data-diff="easy"   aria-label="Easy difficulty — keep all XP on death"></button>
-        <button class="diff-btn" data-diff="normal" aria-label="Normal difficulty — keep 50% XP on death"></button>
-        <button class="diff-btn" data-diff="hard"   aria-label="Hard difficulty — keep 10% XP on death"></button>
+        <button class="diff-btn" data-diff="easy"   aria-label="Easy difficulty — keep all XP and 20% gold on death"></button>
+        <button class="diff-btn" data-diff="normal" aria-label="Normal difficulty — keep 50% XP and 10% gold on death"></button>
+        <button class="diff-btn" data-diff="hard"   aria-label="Hard difficulty — keep 10% XP, no gold on death"></button>
 
         <!-- Skull sits over the active slot -->
         <div id="diff-skull"><img src="assets/ui/skull.png" alt="skull"></div>
@@ -834,9 +837,7 @@
   <!-- ── Hero Select overlay ── -->
   <div id="hero-select-overlay" class="hidden">
     <div id="hero-select-header">
-      <div id="hero-select-title-main">CRYPT SWEEPERS</div>
       <div id="hero-select-subtitle">CHOOSE YOUR HERO</div>
-      <button id="hero-select-back" class="hero-select-back-pill">← Back</button>
       <div id="hero-select-gold" class="hidden">💰 <span id="hero-select-gold-val">0</span></div>
     </div>
 
@@ -851,8 +852,9 @@
       </div>
     </div>
 
-    <!-- Footer: circular CTA -->
+    <!-- Footer: circular CTA + back button -->
     <div id="hero-select-footer">
+      <button id="hero-select-back" class="hero-select-back-pill">← Back</button>
       <button id="hero-select-btn" class="hero-select-btn--circle" type="button">
         <span class="hero-cta-label">Select</span>
         <span class="hero-cta-sub"></span>
@@ -907,6 +909,7 @@
     <div class="htp-body">
 
       <p class="htp-lead"><strong>Start here.</strong> The essentials are up top. Open a section below when you want detail — you don’t need it all on your first run.</p>
+      <p class="htp-lead">💡 <strong>Hold (long-press) any tile, item, or enemy</strong> to pop up an info card about it — monsters show stats, items describe what they do, and tiles explain their effects.</p>
 
       <!-- ESSENTIALS: loop -->
       <section class="htp-section">
@@ -914,15 +917,15 @@
         <p class="htp-text"><strong>Crypt Sweepers</strong> is a roguelike tile-flipper: each floor is a hidden grid. You start on one revealed tile and expand by flipping <strong>orthogonally adjacent</strong> hidden tiles (north, south, east, west — not diagonals). Only tiles marked as reachable can be flipped.</p>
         <p class="htp-text"><strong>Threat clues</strong> — small numbers on revealed tiles (where enabled) sum the <strong>threat level</strong> of living enemies and certain hazards in the four orthogonal directions, similar to Minesweeper. Use them to guess where danger is clustered before you commit.</p>
         <div class="htp-grid-demo" aria-hidden="true">
-          <div class="htp-tile htp-tile--revealed">🪙<span>Gold</span></div>
+          <div class="htp-tile htp-tile--hidden">?</div>
           <div class="htp-tile htp-tile--revealed">💀<span>Enemy</span></div>
-          <div class="htp-tile htp-tile--hidden">?</div>
-          <div class="htp-tile htp-tile--revealed">📦<span>Chest</span></div>
-          <div class="htp-tile htp-tile--revealed htp-tile--start">🟢<span>Start</span></div>
-          <div class="htp-tile htp-tile--locked">🔒</div>
           <div class="htp-tile htp-tile--revealed">🕸️<span>Trap</span></div>
+          <div class="htp-tile htp-tile--revealed">💀<span>Enemy</span></div>
+          <div class="htp-tile htp-tile--revealed htp-tile--start">🟢<span>Start</span><span class="htp-tile-clue htp-tile-clue--2">2</span></div>
+          <div class="htp-tile htp-tile--revealed">🏕️<span>Camp</span><span class="htp-tile-clue htp-tile-clue--1">1</span></div>
           <div class="htp-tile htp-tile--hidden">?</div>
-          <div class="htp-tile htp-tile--revealed">🏕️<span>Camp</span></div>
+          <div class="htp-tile htp-tile--revealed">🪙<span>Gold</span><span class="htp-tile-clue htp-tile-clue--0">0</span></div>
+          <div class="htp-tile htp-tile--revealed">📦<span>Chest</span></div>
         </div>
         <p class="htp-text htp-text--flush">Death ends the run, but meta progress and knowledge carry over. <strong>Expect to die often</strong> — the goal is to go a little deeper each time.</p>
       </section>
@@ -1017,6 +1020,33 @@
               <div class="htp-rarity htp-rarity--legendary">🟡 <strong>Legendary</strong> — run-defining relics</div>
             </div>
             <div class="htp-tip">Read trinket text — many trigger on equip or in specific situations.</div>
+          </div>
+        </details>
+
+        <details class="htp-details">
+          <summary>⚔️ Equipment</summary>
+          <div class="htp-details-content">
+            <p class="htp-text--flush"><strong>Tap your hero portrait</strong> (bottom-left of the HUD) to open the equipment screen. Three dedicated slots hold your gear:</p>
+            <div class="htp-meta-list">
+              <div class="htp-meta-row"><span>⚔️</span><div><strong>Weapon</strong> — raises your damage range.</div></div>
+              <div class="htp-meta-row"><span>🧥</span><div><strong>Breastplate</strong> — adds base armor that absorbs hits.</div></div>
+              <div class="htp-meta-row"><span>🛡️</span><div><strong>Offhand</strong> — shields, orbs, and secondary weapons with mixed stat bonuses.</div></div>
+            </div>
+            <p class="htp-text--flush" style="margin-top:8px">Gear is found in chests, as drops, and in shops. When you pick up an item that can go in a slot, a <strong>compare card</strong> appears showing the stat change — green means improvement. You can also drag gear from your backpack directly into a slot.</p>
+            <div class="htp-tip">💡 Unequipped gear stays in your backpack. If your backpack is full and you find a new piece, you'll be asked to swap or drop.</div>
+          </div>
+        </details>
+
+        <details class="htp-details">
+          <summary>🪬 Trinkets</summary>
+          <div class="htp-details-content">
+            <p class="htp-text--flush"><strong>Trinkets</strong> are passive items that apply their effect automatically — no activation required. They sit in your backpack and work as long as they're carried.</p>
+            <div class="htp-meta-list">
+              <div class="htp-meta-row"><span>🔷</span><div><strong>Rare trinkets</strong> — strong run-shaping passives. Found in chests, rare drops, and the shop.</div></div>
+              <div class="htp-meta-row"><span>🟡</span><div><strong>Legendary trinkets</strong> — run-defining relics with powerful or unusual effects. Very rare.</div></div>
+            </div>
+            <p class="htp-text--flush" style="margin-top:8px"><strong>Hold (long-press) any trinket</strong> in your backpack to read its full effect. Some trigger on specific events (on kill, on level up, on low HP), others modify a stat permanently for the run.</p>
+            <div class="htp-tip">💡 Trinkets are <strong>not</strong> equipped in gear slots — they take up backpack space. Managing backpack inventory becomes a core decision as you go deeper.</div>
           </div>
         </details>
 

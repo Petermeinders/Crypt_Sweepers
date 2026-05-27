@@ -197,7 +197,7 @@ export const STORY_EVENTS = [
       {
         label: 'Pocket it for later',
         outcomes: [
-          { weight: 100, effect: 'nothing', text: 'You tuck it away but find no opportunity to use it. It evaporates.' },
+          { weight: 100, effect: 'random-potion', text: 'You tuck it into your belt. It holds together — a useful find.' },
         ],
       },
     ],
