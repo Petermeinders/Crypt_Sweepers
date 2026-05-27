@@ -177,6 +177,7 @@
     <div class="backpack-drawer-handle" aria-hidden="true"></div>
     <div class="backpack-drawer-header">
       <span class="backpack-drawer-title">Backpack</span>
+      <button type="button" id="backpack-close-btn" class="backpack-close-btn" aria-label="Close">✕</button>
     </div>
     <!-- Shown only when backpack is full and a new item is pending -->
     <div id="backpack-pending-bar" class="backpack-pending-bar hidden">
@@ -220,11 +221,14 @@
     <!-- Hero showcase — portrait fills this panel, title + close overlaid -->
     <div class="equipment-hero-panel">
       <button type="button" id="equipment-close-btn" class="equipment-close-btn" aria-label="Close">✕</button>
+      <div class="hero-particles" id="equipment-hero-particles" aria-hidden="true"></div>
       <img id="equipment-hero-img" class="equipment-hero-portrait" src="" alt="" aria-hidden="true">
       <div class="equipment-title-overlay">
         <span class="equipment-drawer-title">Equipment</span>
       </div>
     </div>
+    <!-- Gear stat totals summary — filled by JS -->
+    <div id="equipment-stats-summary" class="equipment-stats-summary"></div>
     <!-- Gear cards — filled by JS -->
     <div class="equipment-gear-row" id="equipment-gear-row"></div>
     <p class="equipment-hint">Tap a card to swap gear from your backpack</p>
@@ -252,6 +256,9 @@
       <div class="cmp-actions">
         <button type="button" class="cmp-equip-btn menu-btn primary">Equip</button>
         <button type="button" class="cmp-cancel-btn menu-btn">Cancel</button>
+      </div>
+      <div class="cmp-trash-row">
+        <button type="button" class="cmp-trash-btn">🗑 Trash this item</button>
       </div>
     </div>
   </div>

@@ -359,6 +359,8 @@ async function boot() {
   })
   document.getElementById('hud-portrait-wrap')?.addEventListener('click', () => {
     const ov = document.getElementById('equipment-overlay')
+    GameController.uiButtonHaptic()
+    EventBus.emit('audio:play', { sfx: 'menu' })
     if (ov?.classList.contains('is-open')) { _closeEquipment() } else { _openEquipment() }
   })
   document.getElementById('equipment-overlay')?.addEventListener('click', (e) => {
@@ -371,6 +373,7 @@ async function boot() {
     // Close on backdrop click
     if (e.target.id === 'equipment-overlay') _closeEquipment()
   })
+  document.getElementById('backpack-close-btn')?.addEventListener('click', () => _setBackpackOpen(false))
   document.getElementById('equipment-close-btn')?.addEventListener('click', _closeEquipment)
   document.getElementById('skip-floor-btn')?.addEventListener('click', () => {
     GameController.cheatSkipFloor()
@@ -2047,7 +2050,15 @@ function _closeEquipment() {
 }
 
 function _openBackpackFiltered(slotType) {
-  _renderBackpack({ filterSlot: slotType })
+  const _rerender = () => _renderBackpack({
+    filterSlot: slotType,
+    onUnequip: (inventoryIndex) => {
+      GameController.unequipGear(slotType, inventoryIndex)
+      _rerender()
+      UI.renderEquipmentSlots(GameController.getEquippedGear(), UI.getHudCharacterId())
+    },
+  })
+  _rerender()
   _setBackpackOpen(true)
 }
 
@@ -2071,6 +2082,12 @@ function _openCompareModal(inventoryIndex) {
     () => {
       UI.hideCompareModal()
       _comparePendingIndex = null
+    },
+    () => {
+      GameController.trashGear(inventoryIndex)
+      UI.hideCompareModal()
+      _comparePendingIndex = null
+      _renderBackpack()
     }
   )
 }

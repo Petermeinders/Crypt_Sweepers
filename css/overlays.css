@@ -3880,7 +3880,25 @@
   flex-shrink: 0;
   padding: 2px 12px 8px;
   text-align: center;
+  position: relative;
 }
+
+.backpack-close-btn {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  background: rgba(20,18,30,0.72);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: #aaa;
+  font-size: 0.78rem;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.backpack-close-btn:active { opacity: 0.55; }
 
 .backpack-drawer-title {
   font-size: 0.78rem;
@@ -6026,6 +6044,15 @@ body.bestiary-detail-open #app {
 
 /* ── Equipment drawer ──────────────────────────────────────── */
 
+/* Per-hero accent vars for equipment drawer */
+#equipment-overlay[data-hero="warrior"]     { --hero-color: #f0b94a; --hero-glow: rgba(240,185,74,.55); }
+#equipment-overlay[data-hero="ranger"]      { --hero-color: #4ade80; --hero-glow: rgba(74,222,128,.55); }
+#equipment-overlay[data-hero="vampire"]     { --hero-color: #ef3a4a; --hero-glow: rgba(239,58,74,.55); }
+#equipment-overlay[data-hero="mage"]        { --hero-color: #5aa9ff; --hero-glow: rgba(90,169,255,.55); }
+#equipment-overlay[data-hero="engineer"]    { --hero-color: #facc15; --hero-glow: rgba(250,204,21,.55); }
+#equipment-overlay[data-hero="necromancer"] { --hero-color: #a855f7; --hero-glow: rgba(168,85,247,.55); }
+#equipment-overlay[data-hero="druid"]       { --hero-color: #2f7d4f; --hero-glow: rgba(47,125,79,.55); }
+
 .equipment-drawer {
   position: fixed;
   left: 50%;
@@ -6036,8 +6063,12 @@ body.bestiary-detail-open #app {
   z-index: 55;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  background: #08080f;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Hero color radiates from top, fades to dark throughout the whole drawer */
+  background:
+    radial-gradient(ellipse 160% 55% at 50% 0%, var(--hero-glow, rgba(60,30,100,0.42)) 0%, transparent 65%),
+    linear-gradient(180deg, #18102a 0%, #09070f 35%);
   border: 1px solid rgba(255,215,0,0.22);
   border-bottom: none;
   border-radius: 14px 14px 0 0;
@@ -6082,8 +6113,26 @@ body.bestiary-detail-open #app {
   align-items: flex-end;
   justify-content: center;
   min-height: 170px;
-  background: radial-gradient(ellipse at 50% 30%, #1a1430 0%, #060610 70%);
+  background: transparent;
   overflow: hidden;
+}
+/* Tight spotlight glow directly behind the hero sprite */
+.equipment-hero-panel::before {
+  content: '';
+  position: absolute;
+  left: 50%; top: 0px;
+  transform: translateX(-50%);
+  width: 280px; height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 40%, var(--hero-glow, rgba(140,70,220,0.28)) 0%, transparent 65%);
+  pointer-events: none;
+}
+
+/* Particle animation — active whenever drawer is open */
+#equipment-overlay.is-open .hero-particle {
+  animation-name: hero-particle-rise;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
 }
 
 .equipment-hero-portrait {
@@ -6138,120 +6187,168 @@ body.bestiary-detail-open #app {
 .equipment-gear-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-  padding: 8px 8px 4px;
+  gap: 8px;
+  padding: 10px 10px 0;
   flex-shrink: 0;
 }
 
-/* Individual gear card */
+/* Individual gear card — Arcane Glass style */
 .eq-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0;
-  padding: 7px 5px 6px;
-  background: #0e0c18;
-  border: 2px solid rgba(255,255,255,0.10);
-  border-radius: 8px;
+  padding: 8px 6px 8px;
+  background: linear-gradient(180deg, rgba(30,20,50,0.80) 0%, rgba(8,6,16,0.96) 100%);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 14px;
   cursor: pointer;
   transition: opacity 0.12s;
   overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 6px 14px rgba(0,0,0,0.60);
 }
-.eq-card:active { opacity: 0.7; }
+.eq-card:active { opacity: 0.70; }
+
+/* Rarity strip at top */
+.eq-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--card-color, #888), transparent);
+  box-shadow: 0 0 10px var(--card-glow, rgba(128,128,128,0.3));
+  z-index: 1;
+}
+
+/* Ambient halo behind art */
+.eq-card::after {
+  content: '';
+  position: absolute;
+  left: 50%; top: -40px;
+  transform: translateX(-50%);
+  width: 110px; height: 110px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--card-glow, rgba(128,128,128,0.08)) 0%, transparent 65%);
+  pointer-events: none;
+}
 
 .eq-card-empty {
   border-style: dashed;
-  border-color: rgba(255,255,255,0.08);
-  opacity: 0.45;
+  border-color: rgba(255,255,255,0.07);
+  opacity: 0.38;
+  background: rgba(8,6,16,0.60);
 }
 
-/* Tier border + glow */
-.eq-card.gear-tier-common    { border-color: rgba(160,160,160,0.55); }
-.eq-card.gear-tier-rare      { border-color: #00c8ff; box-shadow: 0 0 10px rgba(0,200,255,0.30); }
-.eq-card.gear-tier-epic      { border-color: #a855f7; box-shadow: 0 0 10px rgba(168,85,247,0.35); }
-.eq-card.gear-tier-legendary { border-color: var(--gold); box-shadow: 0 0 12px rgba(255,215,0,0.35); }
+/* Per-tier CSS variables + glow */
+.eq-card.gear-tier-common    { --card-color: #a8a8a8; --card-glow: rgba(160,160,160,0.22); border-color: rgba(160,160,160,0.28); }
+.eq-card.gear-tier-rare      { --card-color: #00c8ff; --card-glow: rgba(0,200,255,0.28); border-color: rgba(0,200,255,0.32); box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 0 20px rgba(0,200,255,0.16), 0 6px 14px rgba(0,0,0,0.55); }
+.eq-card.gear-tier-epic      { --card-color: #b06ef7; --card-glow: rgba(168,85,247,0.32); border-color: rgba(168,85,247,0.38); box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 0 22px rgba(168,85,247,0.20), 0 6px 14px rgba(0,0,0,0.55); }
+.eq-card.gear-tier-legendary { --card-color: #ffd700; --card-glow: rgba(255,215,0,0.28); border-color: rgba(255,215,0,0.38); box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 0 22px rgba(255,215,0,0.18), 0 6px 14px rgba(0,0,0,0.55); }
 
-/* Card name */
+/* Card name — below art in flex order */
 .eq-card-name {
-  font-size: 0.55rem;
-  font-weight: 700;
-  color: #ddd;
+  order: 2;
+  font-size: 0.58rem;
+  font-weight: 600;
+  color: #f0eef8;
   text-align: center;
   word-break: break-word;
-  line-height: 1.25;
+  line-height: 1.2;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   width: 100%;
-  padding: 0 2px 4px;
+  padding: 0 2px 6px;
+  min-height: 22px;
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
 
-/* Icon art box */
+/* Icon art — rounded square, first in visual order */
 .eq-card-art {
+  order: 1;
   display: flex; align-items: center; justify-content: center;
-  width: 46px; height: 46px;
-  border-radius: 6px;
-  background-size: 100% 100%;
-  background-color: rgba(0,0,0,0.5);
-  margin-bottom: 4px;
+  width: 58px; height: 58px;
+  border-radius: 25%;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-color: rgba(0,0,0,0.55);
+  border: 1px solid var(--card-color, rgba(255,255,255,0.15));
+  box-shadow: 0 0 16px var(--card-glow, transparent), inset 0 1px 0 rgba(255,255,255,0.10);
+  margin: 12px auto 6px;
   flex-shrink: 0;
   overflow: hidden;
 }
-.eq-card-art-empty { opacity: 0.30; }
+.eq-card-art-empty { opacity: 0.22; }
 
-/* Slot sprite inside the art box */
 .eq-slot-img {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   object-fit: contain;
   image-rendering: pixelated;
   display: block;
+  filter: drop-shadow(0 0 7px var(--card-glow, transparent));
 }
 
-/* Tier label */
+/* Tier badge — absolute top-right corner */
 .eq-card-tier-badge {
-  font-size: 0.50rem;
+  position: absolute;
+  top: 9px; right: 7px;
+  z-index: 4;
+  font-size: 0.44rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 1px 5px;
-  border-radius: 3px;
-  margin-bottom: 5px;
+  letter-spacing: 0.28em;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid var(--card-color, #888);
+  color: var(--card-color, #888);
+  text-shadow: 0 0 6px var(--card-glow, transparent);
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
-.tier-common    { background: rgba(160,160,160,0.15); color: #aaa; }
-.tier-rare      { background: rgba(0,200,255,0.15);   color: #00c8ff; }
-.tier-epic      { background: rgba(168,85,247,0.18);  color: #c084fc; }
-.tier-legendary { background: rgba(255,215,0,0.18);   color: var(--gold); }
+/* Tier colors — shared with compare modal and elsewhere */
+.tier-common    { color: #a8a8a8; }
+.tier-rare      { color: #00c8ff; }
+.tier-epic      { color: #c084fc; }
+.tier-legendary { color: var(--gold); }
 
-/* Stat rows — dot + label (left) + value (right) */
+/* Stats block — grouped dark container */
 .eq-card-stats {
+  order: 3;
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 0;
+  background: rgba(0,0,0,0.42);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  padding: 3px 6px;
 }
 
 .eq-stat-row {
   display: grid;
   grid-template-columns: 7px 1fr auto;
   align-items: center;
-  gap: 3px;
-  padding: 0 1px;
+  gap: 4px;
+  padding: 2px 0;
 }
+.eq-stat-row + .eq-stat-row { border-top: 1px solid rgba(255,255,255,0.05); }
 
 .eq-stat-dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
 .eq-stat-label {
-  font-size: 0.52rem;
-  color: #7a8a9a;
+  font-size: 0.47rem;
+  color: rgba(255,255,255,0.44);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   font-family: ui-sans-serif, system-ui, sans-serif;
   white-space: nowrap;
   overflow: hidden;
@@ -6259,14 +6356,15 @@ body.bestiary-detail-open #app {
 }
 
 .eq-stat-value {
-  font-size: 0.58rem;
+  font-size: 0.64rem;
   font-weight: 700;
-  color: #dde8f0;
+  color: #ffffff;
   text-align: right;
   font-family: ui-sans-serif, system-ui, sans-serif;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
-.eq-stat-value.bad { color: #e07070; }
+.eq-stat-value.bad { color: #f07070; }
 
 /* Empty slot label + tap hint */
 .eq-card-empty-label {
@@ -6276,19 +6374,58 @@ body.bestiary-detail-open #app {
   font-style: italic;
 }
 .eq-card-tap {
-  font-size: 0.48rem;
-  color: rgba(255,255,255,0.18);
+  order: 4;
+  font-size: 0.44rem;
+  color: rgba(255,255,255,0.15);
   margin-top: auto;
-  padding-top: 4px;
+  padding-top: 5px;
   font-style: italic;
 }
+
+/* Gear totals summary strip — between hero panel and cards */
+.equipment-stats-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 4px 12px 2px;
+  min-height: 20px;
+  flex-shrink: 0;
+}
+.equip-sum-stat {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.equip-sum-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.equip-sum-label {
+  font-size: 0.48rem;
+  color: rgba(255,255,255,0.40);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+.equip-sum-val {
+  font-size: 0.58rem;
+  font-weight: 700;
+  color: #e8e8f0;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.equip-sum-val.bad { color: #f07070; }
 
 .equipment-hint {
   font-size: 0.57rem;
   color: #444;
   text-align: center;
-  margin: 4px 0 10px;
+  margin: 6px 0;
+  padding-bottom: max(18px, env(safe-area-inset-bottom, 18px));
   font-style: italic;
+  flex-shrink: 0;
 }
 
 /* ── Gear compare modal ────────────────────────────────────── */
@@ -6388,6 +6525,26 @@ body.bestiary-detail-open #app {
   padding: 0.5rem 0.5rem;
 }
 
+.cmp-trash-row {
+  margin-top: 8px;
+  display: flex;
+  justify-content: center;
+}
+
+.cmp-trash-btn {
+  background: none;
+  border: none;
+  color: rgba(255,80,80,0.55);
+  font-size: 0.70rem;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+.cmp-trash-btn:hover { color: #ff5050; background: rgba(255,50,50,0.10); }
+.cmp-trash-btn:active { color: #ff3030; }
+
 /* ── Gear backpack cells ───────────────────────────────────── */
 
 .backpack-cell-gear {
@@ -6432,6 +6589,19 @@ body.bestiary-detail-open #app {
   cursor: default;
   pointer-events: none;
 }
+
+.backpack-cell-unequip-target {
+  border: 1px dashed rgba(255,200,80,0.35);
+  background: rgba(255,200,80,0.04);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background 0.12s, border-color 0.12s;
+}
+.backpack-cell-unequip-target:hover {
+  background: rgba(255,200,80,0.12);
+  border-color: rgba(255,200,80,0.65);
+}
+.backpack-cell-unequip-target:active { background: rgba(255,200,80,0.20); }
 
 .backpack-cell-filtered-out {
   opacity: 0.2;

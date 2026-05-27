@@ -2190,6 +2190,22 @@ function _equipGear(inventoryIndex) {
   EventBus.emit('inventory:changed')
 }
 
+function _unequipGear(slot, inventoryIndex) {
+  if (!run) return
+  const piece = run.player.equippedGear[slot]
+  if (!piece) return
+  run.player.inventory[inventoryIndex] = piece
+  run.player.equippedGear[slot] = null
+  _removeGearStats(piece)
+  run.player.hp   = Math.max(1, Math.min(run.player.hp,   run.player.maxHp))
+  run.player.mana = Math.max(0, Math.min(run.player.mana, run.player.maxMana))
+  const [d0, d1] = _playerDamageRange(run.player)
+  UI.updateHP(run.player.hp, run.player.maxHp)
+  UI.updateMana(run.player.mana, run.player.maxMana)
+  UI.updateDamageRange(d0, d1)
+  EventBus.emit('inventory:changed')
+}
+
 /** Push a gear piece into the backpack, or emit backpack:full if no room. */
 function _handleGearPickup(piece) {
   const inv = run.player.inventory
@@ -10158,7 +10174,13 @@ export default {
   getArmor()        { return run?.player?.armor    ?? 0 },
   getNegation()     { return run?.player?.negation  ?? 0 },
   getEquippedGear() { return run?.player?.equippedGear ?? { weapon: null, breastplate: null, offhand: null } },
-  equipGear(inventoryIndex) { _equipGear(inventoryIndex) },
+  equipGear(inventoryIndex)            { _equipGear(inventoryIndex) },
+  unequipGear(slot, inventoryIndex)    { _unequipGear(slot, inventoryIndex) },
+  trashGear(inventoryIndex)  {
+    if (!run) return
+    run.player.inventory[inventoryIndex] = null
+    EventBus.emit('inventory:changed')
+  },
   openForge: _openForge,
   getLevelUpLog,
   getPlayerHpRatio,

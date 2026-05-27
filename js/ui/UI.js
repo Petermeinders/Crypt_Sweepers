@@ -2454,7 +2454,7 @@ const UI = {
     grid.innerHTML = ''
     grid.classList.toggle('replace-mode', replaceMode)
 
-    const { filterSlot, onCompare } = opts
+    const { filterSlot, onCompare, onUnequip } = opts
 
     // Slot label banner when filtered
     const filterLabel = document.getElementById('backpack-filter-label')
@@ -2486,8 +2486,14 @@ const UI = {
       const slot = document.createElement('div')
 
       if (isEmpty(entry)) {
-        slot.className = 'backpack-slot backpack-cell-empty'
-        slot.setAttribute('aria-hidden', 'true')
+        if (filterSlot && onUnequip) {
+          slot.className = 'backpack-slot backpack-cell-empty backpack-cell-unequip-target'
+          slot.setAttribute('title', 'Move equipped item here')
+          slot.addEventListener('click', () => onUnequip(index))
+        } else {
+          slot.className = 'backpack-slot backpack-cell-empty'
+          slot.setAttribute('aria-hidden', 'true')
+        }
         grid.appendChild(slot)
         return
       }
@@ -2598,6 +2604,26 @@ const UI = {
     const ov = el.equipmentOverlay
     if (!ov) return
 
+    ov.dataset.hero = heroId
+    const particlesEl = document.getElementById('equipment-hero-particles')
+    if (particlesEl && particlesEl.dataset.forHero !== heroId) {
+      particlesEl.innerHTML = ''
+      particlesEl.dataset.forHero = heroId
+      for (let p = 0; p < 16; p++) {
+        const mote = document.createElement('span')
+        mote.className = 'hero-particle'
+        const size = 1 + Math.random() * 3
+        mote.style.left              = (Math.random() * 100) + '%'
+        mote.style.width             = size + 'px'
+        mote.style.height            = size + 'px'
+        mote.style.animationDuration = (6 + Math.random() * 10) + 's'
+        mote.style.animationDelay    = (-Math.random() * 12) + 's'
+        mote.style.setProperty('--dx', ((Math.random() - 0.5) * 60) + 'px')
+        mote.style.opacity           = String(0.4 + Math.random() * 0.55)
+        particlesEl.appendChild(mote)
+      }
+    }
+
     const SLOT_LABEL = { weapon: 'Weapon', breastplate: 'Breastplate', offhand: 'Offhand' }
     const SLOT_IMGS = {
       weapon:     'assets/sprites/Items/sword.png',
@@ -2607,14 +2633,14 @@ const UI = {
     const TIER_LABELS = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' }
     // Stat definitions: label + colored dot
     const STAT_DEFS = {
-      damageBonus:     { label: 'ATK',   dot: '#ff6633' },
-      maxHp:           { label: 'HP',    dot: '#e74c3c' },
-      maxMana:         { label: 'MANA',  dot: '#7766ff' },
-      negation:        { label: 'Damage Negation', dot: '#44aaff' },
-      damageReduction: { label: 'DEF',   dot: '#44cc88' },
-      brittleArmor:    { label: 'ARM',   dot: '#ff8833', bad: true },
-      barbedGear:      { label: 'THORNS', dot: '#cc4444', bad: true },
-      manaDrain:       { label: 'DRAIN', dot: '#aa44cc', bad: true },
+      damageBonus:     { label: 'Attack',    dot: '#ff6633' },
+      maxHp:           { label: 'HP',        dot: '#e74c3c' },
+      maxMana:         { label: 'MANA',      dot: '#7766ff' },
+      negation:        { label: 'Dmg Neg',   dot: '#44aaff' },
+      damageReduction: { label: 'DEF',       dot: '#44cc88' },
+      brittleArmor:    { label: 'Neg Drain', dot: '#ff8833', bad: true },
+      barbedGear:      { label: 'THORNS',    dot: '#cc4444', bad: true },
+      manaDrain:       { label: 'DRAIN',     dot: '#aa44cc', bad: true },
     }
     // Tile-image backgrounds per tier for the icon art box
     const TIER_ART_BG = {
@@ -2635,14 +2661,14 @@ const UI = {
     const _statHtml = (stat, val) => {
       const def = STAT_DEFS[stat]
       if (!def) return ''
-      const isNeg    = stat === 'negation'
-      const isBarbed = stat === 'barbedGear'
-      const isBad    = val < 0 || def.bad
-      const display  = isNeg
-        ? `${Math.round(Math.abs(val) * 100)}%`
-        : isBarbed
-          ? `${val}HP`
-          : (val > 0 ? `+${val}` : `${val}`)
+      const isNeg     = stat === 'negation'
+      const isBarbed  = stat === 'barbedGear'
+      const isBrittle = stat === 'brittleArmor'
+      const isBad     = val < 0 || def.bad
+      const display   = isNeg     ? `${Math.round(Math.abs(val) * 100)}%`
+                      : isBarbed  ? `${val}HP`
+                      : isBrittle ? `${val}%`
+                      : (val > 0 ? `+${val}` : `${val}`)
       return `<div class="eq-stat-row">
         <span class="eq-stat-dot" style="background:${def.dot}"></span>
         <span class="eq-stat-label">${def.label}</span>
@@ -2677,6 +2703,34 @@ const UI = {
       gearRow.appendChild(card)
     }
 
+    // Summary: HP+Thorns collapsed → Health; NegDrain+DmgNeg collapsed → Dmg Neg
+    const summaryEl = document.getElementById('equipment-stats-summary')
+    if (summaryEl) {
+      const totals = {}
+      for (const piece of Object.values(equippedGear ?? {})) {
+        if (!piece) continue
+        for (const [stat, val] of Object.entries(piece.stats ?? {})) {
+          totals[stat] = (totals[stat] ?? 0) + val
+        }
+      }
+      const _chip = (label, dot, display, bad) =>
+        `<span class="equip-sum-stat"><span class="equip-sum-dot" style="background:${dot}"></span><span class="equip-sum-label">${label}</span><span class="equip-sum-val${bad ? ' bad' : ''}">${display}</span></span>`
+      const parts = []
+      const atk = totals.damageBonus ?? 0
+      if (atk !== 0) parts.push(_chip('Attack', '#ff6633', atk > 0 ? `+${atk}` : `${atk}`, atk < 0))
+      const hp = (totals.maxHp ?? 0) + (totals.barbedGear ?? 0)
+      if (hp !== 0) parts.push(_chip('Health', '#e74c3c', `${hp > 0 ? '+' : ''}${hp}HP`, hp < 0))
+      const neg = Math.round((totals.negation ?? 0) * 100) + (totals.brittleArmor ?? 0)
+      if (neg !== 0) parts.push(_chip('Dmg Neg', '#44aaff', `${neg > 0 ? '+' : ''}${neg}%`, neg < 0))
+      const mana = totals.maxMana ?? 0
+      if (mana !== 0) parts.push(_chip('Mana', '#7766ff', mana > 0 ? `+${mana}` : `${mana}`, mana < 0))
+      const def = totals.damageReduction ?? 0
+      if (def !== 0) parts.push(_chip('Def', '#44cc88', def > 0 ? `+${def}` : `${def}`, def < 0))
+      const drain = totals.manaDrain ?? 0
+      if (drain !== 0) parts.push(_chip('Drain', '#aa44cc', `${drain}`, true))
+      summaryEl.innerHTML = parts.join('')
+    }
+
     ov.classList.add('is-open')
     ov.setAttribute('aria-hidden', 'false')
   },
@@ -2687,18 +2741,18 @@ const UI = {
     el.equipmentOverlay.setAttribute('aria-hidden', 'true')
   },
 
-  renderCompareModal(candidate, equipped, onEquip, onCancel) {
+  renderCompareModal(candidate, equipped, onEquip, onCancel, onTrash) {
     const modal = el.gearCompareModal
     if (!modal) return
     const STAT_LABELS = {
-      damageBonus: 'Damage',
-      maxHp: 'Max HP',
-      maxMana: 'Max Mana',
-      negation: 'Damage Negation',
+      damageBonus:     'Attack',
+      maxHp:           'Max HP',
+      maxMana:         'Max Mana',
+      negation:        'Damage Negation',
       damageReduction: 'Dmg Reduction',
-      brittleArmor: 'Brittle Armor',
-      barbedGear: 'Thorns',
-      manaDrain: 'Mana Drain',
+      brittleArmor:    'Neg. Drain',
+      barbedGear:      'Thorns',
+      manaDrain:       'Mana Drain',
     }
 
     const allStats = new Set([
@@ -2713,7 +2767,7 @@ const UI = {
       const sign   = delta > 0 ? '+' : ''
       const cls    = delta > 0 ? 'delta-pos' : delta < 0 ? 'delta-neg' : ''
       const label  = STAT_LABELS[stat] ?? stat
-      const fmtVal = v => stat === 'negation' ? `${Math.round(v * 100)}%` : stat === 'barbedGear' ? `${v}HP` : v
+      const fmtVal = v => stat === 'negation' ? `${Math.round(v * 100)}%` : stat === 'barbedGear' ? `${v}HP` : stat === 'brittleArmor' ? `${v}%` : v
       return `<tr>
         <td class="cmp-stat-label">${label}</td>
         <td class="cmp-new-val">${fmtVal(newVal)}</td>
@@ -2729,12 +2783,16 @@ const UI = {
 
     const equipBtn  = modal.querySelector('.cmp-equip-btn')
     const cancelBtn = modal.querySelector('.cmp-cancel-btn')
+    const trashBtn  = modal.querySelector('.cmp-trash-btn')
     const newEquipBtn  = equipBtn.cloneNode(true)
     const newCancelBtn = cancelBtn.cloneNode(true)
+    const newTrashBtn  = trashBtn.cloneNode(true)
     equipBtn.replaceWith(newEquipBtn)
     cancelBtn.replaceWith(newCancelBtn)
+    trashBtn.replaceWith(newTrashBtn)
     newEquipBtn.addEventListener('click',  onEquip)
     newCancelBtn.addEventListener('click', onCancel)
+    newTrashBtn.addEventListener('click',  onTrash ?? onCancel)
 
     modal.classList.remove('hidden')
     modal.setAttribute('aria-hidden', 'false')
