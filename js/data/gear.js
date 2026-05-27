@@ -23,22 +23,22 @@ const GEAR_NOUNS = {
 export const GEAR_SLOT_DEFS = {
   weapon: {
     primaryStat: 'damageBonus',
-    secondaryPool: ['maxMana', 'damageReduction'],
+    secondaryPool: ['maxManaPct', 'damageReduction'],
     detrimentPool: ['barbedGear', 'manaDrain'],
   },
   breastplate: {
-    primaryStat: 'maxHp',
-    secondaryPool: ['maxMana', 'damageReduction'],
+    primaryStat: 'maxHpPct',
+    secondaryPool: ['maxManaPct', 'damageReduction'],
     detrimentPool: ['brittleArmor', 'manaDrain'],
   },
   offhand: {
     primaryStat: 'negation',
-    secondaryPool: ['maxHp', 'maxMana'],
+    secondaryPool: ['maxHpPct', 'maxManaPct'],
     detrimentPool: ['brittleArmor', 'barbedGear'],
   },
 }
 
-export const GEAR_UPGRADE_MAX = { common: 1, rare: 2, epic: 3, legendary: 3 }
+export const GEAR_UPGRADE_MAX = { common: 3, rare: 3, epic: 3, legendary: 3 }
 
 // Detriment stats are stored in piece.stats with negative sign applied at roll time.
 // These keys map to the CONFIG.gear.statRanges keys used for rolling.

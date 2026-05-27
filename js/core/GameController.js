@@ -604,6 +604,7 @@ function _restoreHourglassSnapshot(snap) {
   UI.updateHP(run.player.hp, run.player.maxHp)
   UI.updateMana(run.player.mana, run.player.maxMana)
   UI.updateGold(run.player.gold)
+  UI.updateScrap(_save?.scrap ?? 0)
   UI.updateGoldenKeys(run.player.goldenKeys ?? 0)
   _syncMagicChestKeyGlow()
   UI.setFreezingHit(run.player.freezingHitStacks ?? 0)
@@ -1248,6 +1249,8 @@ function buildRunState() {
   }
 
   MetaProgression.applyToPlayer(p, _save)
+  p.baseMaxHp   = p.maxHp    // pre-gear base — used for maxHpPct calculations
+  p.baseMaxMana = p.maxMana  // pre-gear base — used for maxManaPct calculations
   _applyEquippedGear(p)
 
   return {
@@ -2110,22 +2113,39 @@ function _saveActiveRun() {
 // ── Gear stat helpers ─────────────────────────────────────────────────────────
 
 function _adjustPlayerStat(stat, delta) {
-  if (stat === 'maxHp') {
-    run.player.maxHp += delta
-    run.player.hp    += delta
-  } else if (stat === 'maxMana') {
-    run.player.maxMana += delta
-    run.player.mana    += delta
+  const p = run.player
+  if (stat === 'maxHpPct') {
+    const flatDelta = Math.round((p.baseMaxHp ?? p.maxHp) * delta / 100)
+    p.maxHp = Math.max(1, p.maxHp + flatDelta)
+    p.hp    = Math.max(1, Math.min(p.hp + flatDelta, p.maxHp))
+  } else if (stat === 'maxManaPct') {
+    const flatDelta = Math.round((p.baseMaxMana ?? p.maxMana) * delta / 100)
+    p.maxMana = Math.max(0, p.maxMana + flatDelta)
+    p.mana    = Math.max(0, Math.min(p.mana + flatDelta, p.maxMana))
+  } else if (stat === 'barbedGear') {
+    // Detriment: reduces maxHp by N% of base max HP (delta is negative e.g. -5)
+    const flatDelta = Math.round((p.baseMaxHp ?? p.maxHp) * delta / 100)
+    p.maxHp = Math.max(1, p.maxHp + flatDelta)
+    p.hp    = Math.min(p.hp, p.maxHp)
+  } else if (stat === 'manaDrain') {
+    // Detriment: reduces maxMana by N% of base max mana (delta is negative)
+    const flatDelta = Math.round((p.baseMaxMana ?? p.maxMana) * delta / 100)
+    p.maxMana = Math.max(0, p.maxMana + flatDelta)
+    p.mana    = Math.min(p.mana, p.maxMana)
   } else if (stat === 'damageBonus') {
-    run.player.damageBonus = (run.player.damageBonus ?? 0) + delta
+    p.damageBonus = (p.damageBonus ?? 0) + delta
   } else if (stat === 'negation') {
-    run.player.negation = (run.player.negation ?? 0) + delta
+    p.negation = (p.negation ?? 0) + delta
   } else if (stat === 'damageReduction') {
-    run.player.damageReduction = (run.player.damageReduction ?? 0) + delta
+    p.damageReduction = (p.damageReduction ?? 0) + delta
   } else if (stat === 'brittleArmor') {
-    run.player.negation = Math.max(0, (run.player.negation ?? 0) + delta / 100)
+    p.negation = Math.max(0, (p.negation ?? 0) + delta / 100)
+  } else if (stat === 'maxHp') {
+    // Legacy flat stat — kept for backward-compat with pre-rename saves
+    p.maxHp += delta; p.hp += delta
+  } else if (stat === 'maxMana') {
+    p.maxMana += delta; p.mana += delta
   }
-  // Detriment keys stored with negative value — handled by callers passing -value
 }
 
 function _applyGearStats(piece) {
@@ -2144,15 +2164,25 @@ function _removeGearStats(piece) {
 function _applyEquippedGear(p) {
   const saved = _save?.equippedGear
   if (!saved) return
+  const baseHp   = p.baseMaxHp   ?? p.maxHp
+  const baseMana = p.baseMaxMana ?? p.maxMana
   for (const slot of ['weapon', 'breastplate', 'offhand']) {
     const piece = saved[slot]
     if (!piece) continue
     p.equippedGear[slot] = piece
     for (const [stat, value] of Object.entries(piece.stats)) {
-      if (stat === 'maxHp') {
-        p.maxHp += value; p.hp += value
-      } else if (stat === 'maxMana') {
-        p.maxMana += value; p.mana += value
+      if (stat === 'maxHpPct') {
+        const d = Math.round(baseHp * value / 100)
+        p.maxHp = Math.max(1, p.maxHp + d); p.hp = Math.max(1, Math.min(p.hp + d, p.maxHp))
+      } else if (stat === 'maxManaPct') {
+        const d = Math.round(baseMana * value / 100)
+        p.maxMana = Math.max(0, p.maxMana + d); p.mana = Math.max(0, Math.min(p.mana + d, p.maxMana))
+      } else if (stat === 'barbedGear') {
+        const d = Math.round(baseHp * value / 100)
+        p.maxHp = Math.max(1, p.maxHp + d); p.hp = Math.min(p.hp, p.maxHp)
+      } else if (stat === 'manaDrain') {
+        const d = Math.round(baseMana * value / 100)
+        p.maxMana = Math.max(0, p.maxMana + d); p.mana = Math.min(p.mana, p.maxMana)
       } else if (stat === 'damageBonus') {
         p.damageBonus = (p.damageBonus ?? 0) + value
       } else if (stat === 'negation') {
@@ -2161,6 +2191,11 @@ function _applyEquippedGear(p) {
         p.damageReduction = (p.damageReduction ?? 0) + value
       } else if (stat === 'brittleArmor') {
         p.negation = Math.max(0, (p.negation ?? 0) + value / 100)
+      } else if (stat === 'maxHp') {
+        // Legacy flat stat — backward-compat for pre-rename saves
+        p.maxHp += value; p.hp += value
+      } else if (stat === 'maxMana') {
+        p.maxMana += value; p.mana += value
       }
     }
   }
@@ -2572,6 +2607,7 @@ function _startFloor() {
   UI.updateHP(run.player.hp, run.player.maxHp)
   UI.updateMana(run.player.mana, run.player.maxMana)
   UI.updateGold(run.player.gold)
+  UI.updateScrap(_save?.scrap ?? 0)
   UI.updateArmor(run.player.armor ?? 0)
   UI.updateGoldenKeys(run.player.goldenKeys ?? 0)
   _syncMagicChestKeyGlow()
@@ -8610,6 +8646,92 @@ function getPoisonArrowShotBreakdown() {
   return { perHit: per, initial: per, flipTicks: 3, dotTotal: per * 3 }
 }
 
+// ── Blacksmith ───────────────────────────────────────────────
+
+function _adjustScrap(delta) {
+  _save.scrap = Math.max(0, (_save.scrap ?? 0) + delta)
+}
+
+function _applyGearUpgrade(piece) {
+  for (const key of Object.keys(piece.stats)) {
+    const val = piece.stats[key]
+    if (val <= 0) continue
+    if (key === 'negation') {
+      piece.stats[key] = Math.round(val * 1.25 * 1000) / 1000
+    } else {
+      piece.stats[key] = Math.round(val * 1.25)
+    }
+  }
+  piece.upgradeCount++
+}
+
+/** Between-runs only. Upgrades the gear in the given slot. Returns { success, failed, noGear, maxed, cantAfford }. */
+function _upgradeGear(slot) {
+  const gear = _save.equippedGear
+  if (!gear) return { noGear: true }
+  const piece = gear[slot]
+  if (!piece) return { noGear: true }
+  if (piece.upgradeCount >= 3) return { maxed: true }
+
+  const upgradeNum = piece.upgradeCount + 1
+  const cost = CONFIG.blacksmith.upgradeCosts[piece.tier]?.[upgradeNum]
+  if (!cost) return { noGear: true }
+
+  if ((_save.persistentGold ?? 0) < cost.gold || (_save.scrap ?? 0) < cost.scrap) return { cantAfford: true }
+
+  _save.persistentGold -= cost.gold
+  _adjustScrap(-cost.scrap)
+
+  if (Math.random() < cost.rate) {
+    _applyGearUpgrade(piece)
+    SaveManager.save(_save).catch(() => {})
+    return { success: true, piece }
+  }
+
+  SaveManager.save(_save).catch(() => {})
+  return { failed: true, piece }
+}
+
+/** Between-runs only. Destroys the gear in the given slot and yields scrap. */
+function _disassembleGear(slot) {
+  const gear = _save.equippedGear
+  if (!gear) return { noGear: true }
+  const piece = gear[slot]
+  if (!piece) return { noGear: true }
+
+  const [lo, hi] = CONFIG.blacksmith.scrapYield[piece.tier] ?? [2, 4]
+  const yield_ = _rand(lo, hi)
+  _adjustScrap(yield_)
+  gear[slot] = null
+  SaveManager.save(_save).catch(() => {})
+  return { success: true, scrapGained: yield_, piece }
+}
+
+/** Between-runs only. Reduces a detriment stat on the piece by 25%, floored at -1. */
+function _reduceDetriment(slot, statKey) {
+  const gear = _save.equippedGear
+  if (!gear) return { noGear: true }
+  const piece = gear[slot]
+  if (!piece) return { noGear: true }
+  if (piece.upgradeCount < 3) return { notUnlocked: true }
+
+  const val = piece.stats[statKey]
+  if (val === undefined || val >= 0) return { notDetriment: true }
+  if (val === -1) return { atFloor: true }
+
+  const cost = CONFIG.blacksmith.detrimentReduceCost[piece.tier]
+  if (!cost) return { noGear: true }
+  if ((_save.persistentGold ?? 0) < cost.gold || (_save.scrap ?? 0) < cost.scrap) return { cantAfford: true }
+
+  _save.persistentGold -= cost.gold
+  _adjustScrap(-cost.scrap)
+
+  const newVal = Math.min(-1, Math.ceil(val * 0.75))  // min keeps value ≤ -1 (stays a detriment)
+  piece.stats[statKey] = newVal
+  SaveManager.save(_save).catch(() => {})
+  return { success: true, piece, statKey, newVal }
+}
+
 // ── Death ────────────────────────────────────────────────────
 
 function _die(killerData = null, opts = {}) {
@@ -10254,6 +10376,11 @@ export default {
   getArmor()        { return run?.player?.armor    ?? 0 },
   getNegation()     { return run?.player?.negation  ?? 0 },
   getEquippedGear() { return run?.player?.equippedGear ?? { weapon: null, breastplate: null, offhand: null } },
+  getScrap()        { return _save?.scrap ?? 0 },
+  getSavedEquippedGear() { return _save?.equippedGear ?? { weapon: null, breastplate: null, offhand: null } },
+  upgradeGear(slot)                    { return _upgradeGear(slot) },
+  disassembleGear(slot)                { return _disassembleGear(slot) },
+  reduceDetriment(slot, statKey)       { return _reduceDetriment(slot, statKey) },
   equipGear(inventoryIndex)            { _equipGear(inventoryIndex) },
   unequipGear(slot, inventoryIndex)    { _unequipGear(slot, inventoryIndex) },
   trashGear(inventoryIndex)  {

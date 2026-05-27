@@ -251,6 +251,7 @@ const UI = {
     el.manaValue   = document.getElementById('mana-value')
     el.dmgValue    = document.getElementById('dmg-value')
     el.goldValue   = document.getElementById('gold-value')
+    el.scrapValue  = document.getElementById('scrap-value')
     el.keyDisplay        = document.getElementById('hud-key-display')
     el.keyValue          = document.getElementById('key-value')
     el.keySlotPlaceholder = document.getElementById('hud-key-slot-placeholder')
@@ -1318,6 +1319,10 @@ const UI = {
 
   updateGold(amount) {
     el.goldValue.textContent = amount
+  },
+
+  updateScrap(amount) {
+    if (el.scrapValue) el.scrapValue.textContent = amount
   },
 
   updateGoldenKeys(count) {
@@ -2644,8 +2649,8 @@ const UI = {
     // Stat definitions: label + colored dot
     const STAT_DEFS = {
       damageBonus:     { label: 'Attack',    dot: '#ff6633' },
-      maxHp:           { label: 'HP',        dot: '#e74c3c' },
-      maxMana:         { label: 'MANA',      dot: '#7766ff' },
+      maxHpPct:        { label: 'HP',        dot: '#e74c3c' },
+      maxManaPct:      { label: 'MANA',      dot: '#7766ff' },
       negation:        { label: 'Dmg Neg',   dot: '#44aaff' },
       damageReduction: { label: 'DEF',       dot: '#44cc88' },
       brittleArmor:    { label: 'Neg Drain', dot: '#ff8833', bad: true },
@@ -2674,10 +2679,12 @@ const UI = {
       const isNeg     = stat === 'negation'
       const isBarbed  = stat === 'barbedGear'
       const isBrittle = stat === 'brittleArmor'
+      const isPct     = stat === 'maxHpPct' || stat === 'maxManaPct'
       const isBad     = val < 0 || def.bad
       const display   = isNeg     ? `${Math.round(Math.abs(val) * 100)}%`
                       : isBarbed  ? `${val}HP`
                       : isBrittle ? `${val}%`
+                      : isPct     ? (val > 0 ? `+${val}%` : `${val}%`)
                       : (val > 0 ? `+${val}` : `${val}`)
       return `<div class="eq-stat-row">
         <span class="eq-stat-dot" style="background:${def.dot}"></span>
@@ -2693,7 +2700,10 @@ const UI = {
       card.dataset.slot = slotKey
 
       if (piece) {
-        const statsHtml = Object.entries(piece.stats ?? {}).map(([s, v]) => _statHtml(s, v)).filter(Boolean).join('')
+        const DETRIM_SET = new Set(['brittleArmor', 'barbedGear', 'manaDrain'])
+        const statsHtml = Object.entries(piece.stats ?? {})
+          .sort(([a], [b]) => (DETRIM_SET.has(a) ? 1 : 0) - (DETRIM_SET.has(b) ? 1 : 0))
+          .map(([s, v]) => _statHtml(s, v)).filter(Boolean).join('')
         const artBg = TIER_ART_BG[piece.tier] ?? ''
         card.innerHTML = `
           <div class="eq-card-name">${piece.name}</div>
@@ -2728,12 +2738,12 @@ const UI = {
       const parts = []
       const atk = totals.damageBonus ?? 0
       if (atk !== 0) parts.push(_chip('Attack', '#ff6633', atk > 0 ? `+${atk}` : `${atk}`, atk < 0))
-      const hp = (totals.maxHp ?? 0) + (totals.barbedGear ?? 0)
-      if (hp !== 0) parts.push(_chip('Health', '#e74c3c', `${hp > 0 ? '+' : ''}${hp}HP`, hp < 0))
+      const hp = (totals.maxHpPct ?? 0) + (totals.barbedGear ?? 0)
+      if (hp !== 0) parts.push(_chip('Health', '#e74c3c', `${hp > 0 ? '+' : ''}${hp}%`, hp < 0))
       const neg = Math.round((totals.negation ?? 0) * 100) + (totals.brittleArmor ?? 0)
       if (neg !== 0) parts.push(_chip('Dmg Neg', '#44aaff', `${neg > 0 ? '+' : ''}${neg}%`, neg < 0))
-      const mana = totals.maxMana ?? 0
-      if (mana !== 0) parts.push(_chip('Mana', '#7766ff', mana > 0 ? `+${mana}` : `${mana}`, mana < 0))
+      const mana = totals.maxManaPct ?? 0
+      if (mana !== 0) parts.push(_chip('Mana', '#7766ff', mana > 0 ? `+${mana}%` : `${mana}%`, mana < 0))
       const def = totals.damageReduction ?? 0
       if (def !== 0) parts.push(_chip('Def', '#44cc88', def > 0 ? `+${def}` : `${def}`, def < 0))
       const drain = totals.manaDrain ?? 0
@@ -2756,8 +2766,8 @@ const UI = {
     if (!modal) return
     const STAT_LABELS = {
       damageBonus:     'Attack',
-      maxHp:           'Max HP',
-      maxMana:         'Max Mana',
+      maxHpPct:        'Max HP',
+      maxManaPct:      'Max Mana',
       negation:        'Damage Negation',
       damageReduction: 'Dmg Reduction',
       brittleArmor:    'Neg. Drain',
@@ -3020,6 +3030,139 @@ const UI = {
 
   hideGoldShop() {
     el.goldShopOverlay.classList.add('hidden')
+  },
+
+  updateScrap(n) {
+    const el2 = document.getElementById('blacksmith-resource-display')
+    if (el2) el2.textContent = `💰 ${n}`
+  },
+
+  renderBlacksmithScreen(equippedGear, gold, scrap, callbacks) {
+    const overlay = document.getElementById('blacksmith-overlay')
+    const list    = document.getElementById('blacksmith-gear-list')
+    const resEl   = document.getElementById('blacksmith-resource-display')
+    if (!overlay || !list) return
+
+    if (resEl) resEl.textContent = `💰 ${gold}  ⚙️ ${scrap} Scrap`
+    overlay.classList.remove('hidden')
+    list.innerHTML = ''
+
+    const TIER_COLOR = { common: '#888', rare: '#4a9eff', epic: '#a855f7', legendary: '#ffd700' }
+    const STAT_LABELS = {
+      damageBonus: '⚔️ Damage',
+      maxHpPct:    '❤️ Max HP',
+      maxManaPct:  '💎 Max Mana',
+      negation:    '🛡️ Negation',
+      damageReduction: '🪨 Dmg Reduction',
+      brittleArmor: '💔 Negation Drain',
+      barbedGear:   '🩸 Barbed Gear',
+      manaDrain:    '🌀 Mana Drain',
+    }
+    const DETRIMENT_KEYS = new Set(['brittleArmor', 'barbedGear', 'manaDrain'])
+
+    for (const slot of ['weapon', 'breastplate', 'offhand']) {
+      const piece = equippedGear[slot]
+      const card  = document.createElement('div')
+      card.className = 'blacksmith-card'
+
+      if (!piece) {
+        card.innerHTML = `<div class="bs-slot-name">${slot.charAt(0).toUpperCase() + slot.slice(1)}</div>
+          <div class="bs-empty">Empty — no gear equipped</div>`
+        list.appendChild(card)
+        continue
+      }
+
+      const tierColor = TIER_COLOR[piece.tier] ?? '#888'
+      card.style.borderColor = tierColor
+
+      // Build stat lines
+      const statLines = Object.entries(piece.stats).map(([k, v]) => {
+        const label = STAT_LABELS[k] ?? k
+        const isDetrim = DETRIMENT_KEYS.has(k)
+        const isNeg = v < 0
+        const display = k === 'negation' ? `${(v * 100).toFixed(0)}%` : k.endsWith('Pct') ? `${v}%` : v
+        const cls = isNeg ? 'bs-stat-neg' : 'bs-stat-pos'
+        const sign = v > 0 ? '+' : ''
+        return `<span class="${cls}">${label}: ${sign}${display}${isDetrim && !k.endsWith('Armor') && k !== 'manaDrain' && k !== 'barbedGear' ? '' : ''}</span>`
+      }).join('')
+
+      // Upgrade button
+      const upgradeNum = piece.upgradeCount + 1
+      const cost = CONFIG?.blacksmith?.upgradeCosts?.[piece.tier]?.[upgradeNum]
+      const atMax = piece.upgradeCount >= 3
+      const canAffordUpg = cost && gold >= cost.gold && scrap >= cost.scrap
+      const upgBtnLabel  = atMax ? '✓ Fully Upgraded' : cost
+        ? `Upgrade T${upgradeNum} — 💰${cost.gold} ⚙️${cost.scrap} (${Math.round(cost.rate * 100)}%)`
+        : 'Upgrade'
+      const upgDisabled  = atMax || !cost || !canAffordUpg ? 'disabled' : ''
+
+      // Detriment reduction rows (post-T3)
+      const detrimRows = atMax
+        ? Object.entries(piece.stats)
+            .filter(([k, v]) => DETRIMENT_KEYS.has(k) && v < -1)
+            .map(([k, v]) => {
+              const label   = STAT_LABELS[k] ?? k
+              const dcost   = CONFIG?.blacksmith?.detrimentReduceCost?.[piece.tier]
+              const canAff  = dcost && gold >= dcost.gold && scrap >= dcost.scrap
+              const dis     = !canAff ? 'disabled' : ''
+              return `<div class="bs-detrim-row">
+                <span>${label}: ${v}</span>
+                <button class="bs-btn bs-reduce-btn" data-slot="${slot}" data-stat="${k}" ${dis}>
+                  Reduce Curse — 💰${dcost?.gold ?? '?'} ⚙️${dcost?.scrap ?? '?'}
+                </button>
+              </div>`
+            }).join('')
+        : ''
+
+      const pips = '◆'.repeat(piece.upgradeCount) + '◇'.repeat(3 - piece.upgradeCount)
+
+      card.innerHTML = `
+        <div class="bs-card-header">
+          <span class="bs-slot-name">${slot.charAt(0).toUpperCase() + slot.slice(1)}</span>
+          <span class="bs-tier" style="color:${tierColor}">${piece.tier.charAt(0).toUpperCase() + piece.tier.slice(1)}</span>
+          <span class="bs-pips">${pips}</span>
+        </div>
+        <div class="bs-piece-name">${piece.name}</div>
+        <div class="bs-stats">${statLines}</div>
+        <div class="bs-actions">
+          <button class="bs-btn bs-upgrade-btn" data-slot="${slot}" ${upgDisabled}>${upgBtnLabel}</button>
+          <button class="bs-btn bs-disassemble-btn" data-slot="${slot}">Disassemble — ⚙️${
+            (() => { const [lo, hi] = CONFIG?.blacksmith?.scrapYield?.[piece.tier] ?? [0, 0]; return `${lo}–${hi}` })()
+          } Scrap</button>
+        </div>
+        ${detrimRows ? `<div class="bs-detrim-section">${detrimRows}</div>` : ''}
+      `
+      list.appendChild(card)
+    }
+
+    // Wire up action buttons
+    list.querySelectorAll('.bs-upgrade-btn:not([disabled])').forEach(btn => {
+      btn.addEventListener('click', () => callbacks.onUpgrade(btn.dataset.slot))
+    })
+    list.querySelectorAll('.bs-disassemble-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const slot2 = btn.dataset.slot
+        const piece2 = equippedGear[slot2]
+        if (!piece2) return
+        if (!confirm(`Destroy ${piece2.name} for scrap? This cannot be undone.`)) return
+        callbacks.onDisassemble(slot2)
+      })
+    })
+    list.querySelectorAll('.bs-reduce-btn:not([disabled])').forEach(btn => {
+      btn.addEventListener('click', () => callbacks.onReduceDetriment(btn.dataset.slot, btn.dataset.stat))
+    })
+  },
+
+  showBlacksmithResult(success, piece) {
+    const el2 = document.getElementById('blacksmith-result-msg')
+    if (!el2) return
+    el2.textContent = success
+      ? `✅ ${piece?.name ?? 'Gear'} upgraded successfully!`
+      : `❌ Upgrade failed — materials lost.`
+    el2.className = `blacksmith-result ${success ? 'success' : 'fail'}`
+    el2.classList.remove('hidden')
+    clearTimeout(el2._timeout)
+    el2._timeout = setTimeout(() => el2.classList.add('hidden'), 3000)
   },
 
   /** First-time enemy discovery — Pokémon-style card; resolves when dismissed. */

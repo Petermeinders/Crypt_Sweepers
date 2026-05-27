@@ -217,6 +217,18 @@ async function boot() {
     await SaveManager.save(save)
   }
   // Migrate old saves missing keys
+  if (save.scrap == null) save.scrap = 0
+  // Migrate gear stats from pre-rename saves (maxHp flat → maxHpPct %, maxMana flat → maxManaPct %)
+  if (save.equippedGear) {
+    let _gearMigrated = false
+    for (const slot of ['weapon', 'breastplate', 'offhand']) {
+      const piece = save.equippedGear[slot]
+      if (!piece?.stats) continue
+      if ('maxHp' in piece.stats)   { piece.stats.maxHpPct  = piece.stats.maxHp;   delete piece.stats.maxHp;   _gearMigrated = true }
+      if ('maxMana' in piece.stats) { piece.stats.maxManaPct = piece.stats.maxMana; delete piece.stats.maxMana; _gearMigrated = true }
+    }
+    if (_gearMigrated) await SaveManager.save(save)
+  }
   if (save.settings.tileColors === undefined) save.settings.tileColors = false
   if (save.settings.musicOn === undefined)    save.settings.musicOn    = true
   if (save.settings.sfxOn   === undefined)    save.settings.sfxOn      = true
@@ -967,6 +979,8 @@ async function boot() {
   })
 
   document.getElementById('gold-shop-btn').addEventListener('click', _openShop)
+  document.getElementById('blacksmith-btn')?.addEventListener('click', _openBlacksmith)
+  document.getElementById('blacksmith-close')?.addEventListener('click', _closeBlacksmith)
   document.getElementById('passive-upgrades-btn').addEventListener('click', _openPassiveUpgrades)
   document.getElementById('passive-upgrades-back').addEventListener('click', () => {
     document.getElementById('passive-upgrades-overlay').classList.add('hidden')
@@ -1910,6 +1924,37 @@ function _openShop() {
     (id) => { MetaProgression.buyShopItem(s, id); SaveManager.save(s); _openShop() },
     (id) => { MetaProgression.removeShopItem(s, id); SaveManager.save(s); _openShop() },
   )
+}
+
+// ── Blacksmith panel ─────────────────────────────────────────
+
+function _openBlacksmith() {
+  const s = GameController.getSave()
+  UI.renderBlacksmithScreen(
+    s.equippedGear ?? { weapon: null, breastplate: null, offhand: null },
+    s.persistentGold,
+    s.scrap ?? 0,
+    {
+      onUpgrade(slot) {
+        const result = GameController.upgradeGear(slot)
+        if (result.success)       UI.showBlacksmithResult(true,  result.piece)
+        else if (result.failed)   UI.showBlacksmithResult(false, result.piece)
+        _openBlacksmith()
+      },
+      onDisassemble(slot) {
+        GameController.disassembleGear(slot)
+        _openBlacksmith()
+      },
+      onReduceDetriment(slot, statKey) {
+        GameController.reduceDetriment(slot, statKey)
+        _openBlacksmith()
+      },
+    },
+  )
+}
+
+function _closeBlacksmith() {
+  document.getElementById('blacksmith-overlay')?.classList.add('hidden')
 }
 
 // ── Backpack panel ───────────────────────────────────────────

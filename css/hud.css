@@ -662,6 +662,8 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
 .hud-meta {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 4px;
   margin-top: 1px;
 }
 
@@ -670,7 +672,7 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
   display: flex;
   align-items: center;
   gap: 5px;
-  width: 100%;
+  flex: 1;
   font-size: 0.62rem;
   color: var(--gold);
   font-family: ui-sans-serif, system-ui, sans-serif;
@@ -687,6 +689,29 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
 }
 
 .hud-gold-inline .gold-icon {
+  font-size: 0.75rem;
+}
+
+.hud-scrap-inline {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  font-size: 0.62rem;
+  color: #aab8cc;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-weight: 700;
+  background: rgba(0,0,0,0.48);
+  border-radius: 7px;
+  padding: 3px 7px;
+  border: 1px solid rgba(0,0,0,0.7);
+  box-shadow:
+    inset 0 2px 4px rgba(0,0,0,0.55),
+    inset 0 1px 0 rgba(0,0,0,0.4),
+    0 1px 0 rgba(255,255,255,0.07);
+}
+
+.hud-scrap-inline .scrap-icon {
   font-size: 0.75rem;
 }
 
@@ -711,6 +736,23 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
 /* Portrait tappable — cursor feedback */
 #hud-portrait-wrap {
   cursor: pointer;
+}
+
+.hud-portrait-gear-tab {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 21;
+  text-align: center;
+  font-size: 0.5rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #e8d8a0;
+  background: rgba(0,0,0,0.6);
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(255,210,80,0.25);
+  pointer-events: none;
 }
 
 /* Golden keys — middle HUD slot when count > 0 */

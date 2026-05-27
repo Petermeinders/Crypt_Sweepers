@@ -116,6 +116,7 @@
     <div id="hud-bar">
       <div id="hud-portrait-wrap" role="button" tabindex="0" aria-label="Equipment" title="Tap to manage equipment">
         <div id="hud-portrait" class="hud-portrait" aria-hidden="true">
+          <div class="hud-portrait-gear-tab">⚔ GEAR</div>
           <img id="hud-portrait-img" src="assets/sprites/Heroes/Warrior/__Idle.gif" alt="Paladin">
         </div>
         <button id="hud-teary-eyes" class="hud-debuff-btn hidden" title="Teary Eyes debuff">💧</button>
@@ -152,6 +153,7 @@
         </div>
         <div class="hud-meta" data-hud-cheat-target="gold">
           <span class="hud-gold-inline"><span class="gold-icon">🪙</span> <span id="gold-value">0</span></span>
+          <span class="hud-scrap-inline"><span class="scrap-icon">⚙️</span> <span id="scrap-value">0</span></span>
         </div>
       </div>
 
@@ -587,6 +589,10 @@
           <span class="menu-btn-line">Shop</span>
         </span>
       </button>
+      <button id="blacksmith-btn" class="menu-btn secondary menu-btn--split" type="button">
+        <span class="menu-btn-ic" aria-hidden="true">🔨</span>
+        <span class="menu-btn-label menu-btn-label--single">Blacksmith</span>
+      </button>
       <button id="passive-upgrades-btn" class="menu-btn secondary menu-btn--split" type="button">
         <span class="menu-btn-ic" aria-hidden="true">📜</span>
         <span class="menu-btn-label">
@@ -900,6 +906,17 @@
     <div id="shop-list" class="panel-list"></div>
   </div>
 
+  <!-- ── Blacksmith ── -->
+  <div id="blacksmith-overlay" class="panel-overlay hidden" role="dialog" aria-modal="true" aria-label="Blacksmith">
+    <div class="panel-header">
+      <button class="panel-back-btn" id="blacksmith-close">← Back</button>
+      <div class="panel-title">🔨 Blacksmith</div>
+      <div class="panel-resource" id="blacksmith-resource-display">💰 0 &nbsp; ⚙️ 0</div>
+    </div>
+    <div id="blacksmith-gear-list" class="blacksmith-gear-list"></div>
+    <div id="blacksmith-result-msg" class="blacksmith-result hidden"></div>
+  </div>
+
   <!-- ── How to Play ── -->
   <div id="how-to-play-overlay" class="panel-overlay hidden">
     <div class="panel-header">
@@ -954,15 +971,22 @@
         <div class="htp-tip">🛡️ <strong>Telegraphing enemies</strong> wind up before striking. A shrinking <strong>parry ring</strong> appears — tap in the zone to <strong>Block</strong> (half damage) or swipe the shown direction to <strong>Counter</strong> (no damage, +1 mana). Miss and take amplified damage. See Block &amp; Parry below to practice.</div>
       </section>
 
-      <!-- ESSENTIALS: resources -->
+      <!-- ESSENTIALS: HUD -->
       <section class="htp-section">
-        <h2 class="htp-heading">📊 Resources</h2>
+        <h2 class="htp-heading">🖥️ Player HUD</h2>
+        <img src="assets/ui/hud-diagram.png" alt="Player HUD" class="htp-hud-img">
         <div class="htp-resource-list">
-          <div class="htp-resource"><span class="htp-res-icon">❤️</span><div><strong>HP</strong> — at 0, the run ends. Heal with potions, hearts, camps, and effects.</div></div>
-          <div class="htp-resource"><span class="htp-res-icon">🔵</span><div><strong>Mana</strong> — powers spells and actives; regenerates as you reveal tiles. <em>Mana and ability buttons only appear once you've unlocked them in your hero's upgrade tree between runs.</em></div></div>
-          <div class="htp-resource"><span class="htp-res-icon">⚔️</span><div><strong>Damage</strong> — your attack band; improves from levels, trinkets, and shop.</div></div>
-          <div class="htp-resource"><span class="htp-res-icon">🪙</span><div><strong>Gold</strong> — in-run shops and main-menu <strong>Gold Shop</strong> unlocks.</div></div>
-          <div class="htp-resource"><span class="htp-res-icon">✨</span><div><strong>XP</strong> — from reveals and kills; level-ups strengthen your hero this run.</div></div>
+          <div class="htp-resource"><span class="htp-res-icon">⚔</span><div><strong>GEAR tab / Portrait</strong> — tap the hero portrait to open the Equipment screen and manage your Weapon, Breastplate, and Offhand slots.</div></div>
+          <div class="htp-resource"><span class="htp-res-icon">❤️</span><div><strong>HP bar</strong> — your current / maximum health. Reach 0 and the run ends. Restore with potions, hearts, camps, and spells.</div></div>
+          <div class="htp-resource"><span class="htp-res-icon">⚔️</span><div><strong>Attack</strong> — your damage per strike. Rises with level-ups, trinkets, gear, and shop upgrades.</div></div>
+          <div class="htp-resource"><span class="htp-res-icon">🛡️</span><div><strong>Armor</strong> — absorbs incoming damage before HP is reduced. Gained from gear and certain abilities.</div></div>
+          <div class="htp-resource"><span class="htp-res-icon">🔵</span><div><strong>Mana bar</strong> — powers spells and active abilities. Regenerates as you reveal tiles. Only appears once unlocked in your hero's upgrade tree.</div></div>
+          <div class="htp-resource"><span class="htp-res-icon">🪙</span><div><strong>Gold</strong> — earned from enemies and chests; spent at in-run events and the main-menu Gold Shop.</div></div>
+          <div class="htp-resource"><span class="htp-res-icon">⚙️</span><div><strong>Scrap</strong> — persistent currency used at the Blacksmith between runs to upgrade or disassemble gear.</div></div>
+          <div class="htp-resource"><span class="htp-res-icon">🎒</span><div><strong>Backpack</strong> — holds up to 9 items. Tap to open and use consumables or manage gear mid-run.</div></div>
+          <div class="htp-resource"><span class="htp-res-icon">🗝️</span><div><strong>Golden Key</strong> — awarded for clearing every enemy on a floor. Spend it at a <strong>Magic Chest</strong> in a sanctuary sub-floor for powerful loot.</div></div>
+          <div class="htp-resource"><span class="htp-res-icon">⚡</span><div><strong>Ability slots</strong> — up to 6 active abilities appear to the right of the backpack. Abilities are unlocked through your hero's upgrade tree and cost Mana to use. Each has its own cooldown shown beneath the button.</div></div>
+          <div class="htp-resource"><span class="htp-res-icon">✨</span><div><strong>XP bar</strong> — fills from reveals and kills. Level up to gain a permanent stat boost for the current run.</div></div>
         </div>
       </section>
 

@@ -219,14 +219,46 @@ export const CONFIG = {
     negationCap: 1.0,  // Deferred — tighten once gear tier values are tuned
   },
 
+  blacksmith: {
+    // upgradeCosts[tier][upgradeNumber] — upgradeNumber is 1, 2, or 3
+    upgradeCosts: {
+      common:    { 1: { gold: 10,  scrap: 5,   rate: 1.00 },
+                   2: { gold: 20,  scrap: 10,  rate: 0.95 },
+                   3: { gold: 30,  scrap: 20,  rate: 0.85 } },
+      rare:      { 1: { gold: 30,  scrap: 15,  rate: 1.00 },
+                   2: { gold: 40,  scrap: 30,  rate: 0.85 },
+                   3: { gold: 60,  scrap: 60,  rate: 0.70 } },
+      epic:      { 1: { gold: 60,  scrap: 30,  rate: 1.00 },
+                   2: { gold: 90,  scrap: 60,  rate: 0.85 },
+                   3: { gold: 150, scrap: 90,  rate: 0.75 } },
+      legendary: { 1: { gold: 200, scrap: 90,  rate: 0.95 },
+                   2: { gold: 400, scrap: 200, rate: 0.85 },
+                   3: { gold: 600, scrap: 400, rate: 0.70 } },
+    },
+    // Scrap yield range when disassembling a piece [min, max]
+    scrapYield: {
+      common:    [3,  5],
+      rare:      [10, 18],
+      epic:      [25, 40],
+      legendary: [60, 100],
+    },
+    // Cost per post-T3 detriment reduction application (placeholder = T3 cost)
+    detrimentReduceCost: {
+      common:    { gold: 30,  scrap: 20  },
+      rare:      { gold: 60,  scrap: 60  },
+      epic:      { gold: 150, scrap: 90  },
+      legendary: { gold: 600, scrap: 400 },
+    },
+  },
+
   gear: {
     statRanges: {
       // Primary stats
       damageBonus:     { common: [1,3],    rare: [3,6],    epic: [5,10],   legendary: [8,15]  },
-      maxHp:           { common: [5,12],   rare: [12,22],  epic: [20,35],  legendary: [30,50] },
+      maxHpPct:        { common: [5,12],   rare: [12,22],  epic: [20,35],  legendary: [30,50] },
       negation:        { common: [0.05,0.08], rare: [0.08,0.15], epic: [0.12,0.22], legendary: [0.18,0.30] },
       // Secondary stats
-      maxMana:         { common: [4,8],    rare: [8,16],   epic: [14,25],  legendary: [20,40] },
+      maxManaPct:      { common: [4,8],    rare: [8,16],   epic: [14,25],  legendary: [20,40] },
       damageReduction: { epic: [1,1],      legendary: [1,2] },
       // Detriment range sources (rolled negative by the generator)
       brittleArmor:    { common: [1,3],    rare: [1,6],    epic: [3,8],    legendary: [6,10]  },
