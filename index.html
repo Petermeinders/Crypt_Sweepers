@@ -860,7 +860,7 @@
 
     <!-- Footer: circular CTA + back button -->
     <div id="hero-select-footer">
-      <button id="hero-select-back" class="hero-select-back-pill">← Back</button>
+      <button id="hero-select-back" class="panel-back-btn">← Back</button>
       <button id="hero-select-btn" class="hero-select-btn--circle" type="button">
         <span class="hero-cta-label">Select</span>
         <span class="hero-cta-sub"></span>
@@ -908,12 +908,66 @@
 
   <!-- ── Blacksmith ── -->
   <div id="blacksmith-overlay" class="panel-overlay hidden" role="dialog" aria-modal="true" aria-label="Blacksmith">
-    <div class="panel-header">
+    <div class="bs-embers" aria-hidden="true"></div>
+
+    <!-- Banner: forge scene art (image placeholder) + back + currencies -->
+    <div class="bs-banner">
       <button class="panel-back-btn" id="blacksmith-close">← Back</button>
-      <div class="panel-title">🔨 Blacksmith</div>
-      <div class="panel-resource" id="blacksmith-resource-display">💰 0 &nbsp; ⚙️ 0</div>
+      <div class="bs-currencies">
+        <div class="bs-currency" id="bs-gold-display">🪙 0</div>
+        <div class="bs-currency" id="bs-scrap-display">⚙️ 0</div>
+      </div>
     </div>
-    <div id="blacksmith-gear-list" class="blacksmith-gear-list"></div>
+
+    <!-- Item to Forge -->
+    <div class="bs-forge-section">
+      <p class="bs-section-label">Item to Forge</p>
+      <div class="bs-forge-slot" id="bs-forge-slot">
+        <img id="bs-forge-img" src="" alt="" class="bs-forge-img" style="display:none">
+        <span id="bs-forge-hint" class="bs-forge-hint">Select a piece below</span>
+      </div>
+      <div class="bs-gems" id="bs-gems">
+        <div class="bs-gem locked" data-gem="1">
+          <div class="bs-gem-icon"></div>
+          <span class="bs-gem-label">T1</span>
+        </div>
+        <div class="bs-gem locked" data-gem="2">
+          <div class="bs-gem-icon"></div>
+          <span class="bs-gem-label">T2</span>
+        </div>
+        <div class="bs-gem locked" data-gem="3">
+          <div class="bs-gem-icon"></div>
+          <span class="bs-gem-label">T3</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Item Details -->
+    <div class="bs-panel bs-details-panel">
+      <div class="bs-divider-hdr">Item Details</div>
+      <div id="bs-detail-content">
+        <p class="bs-detail-hint">Select a gear piece to view details</p>
+      </div>
+    </div>
+
+    <!-- Available Gear -->
+    <div class="bs-panel bs-gear-panel">
+      <div class="bs-divider-hdr">Available Gear</div>
+      <div class="bs-gear-row" id="bs-gear-row"></div>
+    </div>
+
+    <!-- Action bar -->
+    <div class="bs-action-bar">
+      <button class="bs-act-btn bs-act-upgrade" id="bs-upgrade-btn" disabled>
+        <span class="bs-act-name">Upgrade</span>
+        <span class="bs-act-cost" id="bs-upgrade-cost"></span>
+      </button>
+      <button class="bs-act-btn bs-act-refine" id="bs-refine-btn" disabled>
+        <span class="bs-act-name">Refine</span>
+      </button>
+
+    </div>
+
     <div id="blacksmith-result-msg" class="blacksmith-result hidden"></div>
   </div>
 

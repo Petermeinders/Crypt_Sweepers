@@ -26,7 +26,7 @@ const SFX_FILES = {
   trap:     'audio/sfx/trap.ogg',
   slam:     'audio/sfx/slam.mp3',
   heal:     'audio/sfx/heal.ogg',
-  divineLight: 'audio/sfx/divine-light.mp3',
+  divineLight: 'audio/sfx/spell.ogg',
   menu:     'audio/sfx/menu.ogg',
   footsteps:'audio/sfx/footsteps.mp3',
   /** Multi-step confirms: turret place/upgrade, Ranger actives, etc. */

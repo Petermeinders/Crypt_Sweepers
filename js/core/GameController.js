@@ -5521,7 +5521,7 @@ async function _doMerchantBuy(tile, itemId, items) {
   const hasCoin = p.inventory.some(e => e?.id === 'philosophers-coin')
   const isCoinConvert = hasCoin && (itemId === 'potion-red' || itemId === 'potion-blue' || itemId === 'potion-mystery')
   // Pre-check backpack room so gold is never deducted for an item that can't be received
-  if (!isCoinConvert && !_canFitInBackpack(itemId)) {
+  if (!isCoinConvert && !_canAddToBackpack(itemId)) {
     UI.setMessage("Backpack is full — make room before buying!", true)
     return
   }
@@ -8168,8 +8168,8 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
     const negation = Math.min(run.player.negation ?? 0, CONFIG.armor.negationCap)
     if (negation > 0 && Math.random() < negation) {
       // Negation proc: armor preserved, hit fully blocked
-      UI.spawnFloat(tileEl, '🛡️ Negated!', 'armor')
-      UI.setMessage('The blow glances off your armor — negated!')
+      UI.spawnFloat(tileEl, '🛡️ Blocked!', 'armor')
+      UI.setMessage('The blow glances off your armor — blocked!')
       UI.updateHP(run.player.hp, run.player.maxHp)
       return
     }
@@ -10385,6 +10385,10 @@ export default {
   unequipGear(slot, inventoryIndex)    { _unequipGear(slot, inventoryIndex) },
   trashGear(inventoryIndex)  {
     if (!run) return
+    const piece = run.player.inventory[inventoryIndex]
+    if (piece?.uid) {
+      _adjustScrap(CONFIG.blacksmith.trashScrapYield[piece.tier] ?? 1)
+    }
     run.player.inventory[inventoryIndex] = null
     EventBus.emit('inventory:changed')
   },

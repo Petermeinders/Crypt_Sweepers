@@ -2487,11 +2487,12 @@ const UI = {
     const isTrinket = e => e && typeof e === 'object' && e.id  !== undefined
     const isEmpty   = e => e === null || e === undefined
 
-    const SLOT_IMGS = {
-      weapon:     'assets/sprites/Items/sword.png',
-      breastplate:'assets/sprites/Items/armor.png',
-      offhand:    'assets/sprites/Items/shield.png',
+    const GEAR_IMGS = {
+      weapon:     { default: 'assets/sprites/Items/sword.png', common: 'assets/sprites/gear/weapon/common.webp', rare: 'assets/sprites/gear/weapon/rare.webp', epic: 'assets/sprites/gear/weapon/epic.webp', legendary: 'assets/sprites/gear/weapon/legendary.webp' },
+      breastplate:{ default: 'assets/sprites/Items/armor.png', common: 'assets/sprites/gear/breastplate/common.webp', rare: 'assets/sprites/gear/breastplate/rare.webp', epic: 'assets/sprites/gear/breastplate/epic.webp', legendary: 'assets/sprites/gear/breastplate/legendary.webp' },
+      offhand:    { default: 'assets/sprites/Items/shield.png', common: 'assets/sprites/gear/offhand/common.webp', rare: 'assets/sprites/gear/offhand/rare.webp', epic: 'assets/sprites/gear/offhand/epic.webp', legendary: 'assets/sprites/gear/offhand/legendary.webp' },
     }
+    const _gImg = (slot, tier) => GEAR_IMGS[slot]?.[tier] ?? GEAR_IMGS[slot]?.default ?? ''
 
     // Pad inventory to SLOTS with null
     const padded = [...inventory]
@@ -2521,7 +2522,7 @@ const UI = {
           return
         }
         slot.className = `backpack-slot backpack-cell-gear gear-tier-${entry.tier}`
-        const slotImg = SLOT_IMGS[entry.slot]
+        const slotImg = _gImg(entry.slot, entry.tier)
         slot.innerHTML = `
           <span class="bp-gear-name">${entry.name}</span>
           ${slotImg ? `<img class="bp-gear-slot-img" src="${slotImg}" alt="">` : ''}
@@ -2640,20 +2641,21 @@ const UI = {
     }
 
     const SLOT_LABEL = { weapon: 'Weapon', breastplate: 'Breastplate', offhand: 'Offhand' }
-    const SLOT_IMGS = {
-      weapon:     'assets/sprites/Items/sword.png',
-      breastplate:'assets/sprites/Items/armor.png',
-      offhand:    'assets/sprites/Items/shield.png',
+    const GEAR_IMGS = {
+      weapon:     { default: 'assets/sprites/Items/sword.png', common: 'assets/sprites/gear/weapon/common.webp', rare: 'assets/sprites/gear/weapon/rare.webp', epic: 'assets/sprites/gear/weapon/epic.webp', legendary: 'assets/sprites/gear/weapon/legendary.webp' },
+      breastplate:{ default: 'assets/sprites/Items/armor.png', common: 'assets/sprites/gear/breastplate/common.webp', rare: 'assets/sprites/gear/breastplate/rare.webp', epic: 'assets/sprites/gear/breastplate/epic.webp', legendary: 'assets/sprites/gear/breastplate/legendary.webp' },
+      offhand:    { default: 'assets/sprites/Items/shield.png', common: 'assets/sprites/gear/offhand/common.webp', rare: 'assets/sprites/gear/offhand/rare.webp', epic: 'assets/sprites/gear/offhand/epic.webp', legendary: 'assets/sprites/gear/offhand/legendary.webp' },
     }
+    const _gImg = (slot, tier) => GEAR_IMGS[slot]?.[tier] ?? GEAR_IMGS[slot]?.default ?? ''
     const TIER_LABELS = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' }
     // Stat definitions: label + colored dot
     const STAT_DEFS = {
       damageBonus:     { label: 'Attack',    dot: '#ff6633' },
       maxHpPct:        { label: 'HP',        dot: '#e74c3c' },
       maxManaPct:      { label: 'MANA',      dot: '#7766ff' },
-      negation:        { label: 'Dmg Neg',   dot: '#44aaff' },
-      damageReduction: { label: 'DEF',       dot: '#44cc88' },
-      brittleArmor:    { label: 'Neg Drain', dot: '#ff8833', bad: true },
+      negation:        { label: 'Block',        dot: '#44aaff' },
+      damageReduction: { label: 'DEF',         dot: '#44cc88' },
+      brittleArmor:    { label: 'Brittle Guard', dot: '#ff8833', bad: true },
       barbedGear:      { label: 'THORNS',    dot: '#cc4444', bad: true },
       manaDrain:       { label: 'DRAIN',     dot: '#aa44cc', bad: true },
     }
@@ -2707,7 +2709,7 @@ const UI = {
         const artBg = TIER_ART_BG[piece.tier] ?? ''
         card.innerHTML = `
           <div class="eq-card-name">${piece.name}</div>
-          <div class="eq-card-art" style="background-image:${artBg}"><img class="eq-slot-img" src="${SLOT_IMGS[slotKey]}" alt=""></div>
+          <div class="eq-card-art" style="background-image:${artBg}"><img class="eq-slot-img" src="${_gImg(slotKey, piece.tier)}" alt=""></div>
           <div class="eq-card-tier-badge tier-${piece.tier}">${TIER_LABELS[piece.tier] ?? piece.tier}</div>
           <div class="eq-card-stats">${statsHtml}</div>
           <div class="eq-card-tap">Tap to swap</div>
@@ -2715,7 +2717,7 @@ const UI = {
       } else {
         card.innerHTML = `
           <div class="eq-card-name">${SLOT_LABEL[slotKey]}</div>
-          <div class="eq-card-art eq-card-art-empty"><img class="eq-slot-img" src="${SLOT_IMGS[slotKey]}" alt=""></div>
+          <div class="eq-card-art eq-card-art-empty"><img class="eq-slot-img" src="${_gImg(slotKey, 'default')}" alt=""></div>
           <div class="eq-card-empty-label">Empty</div>
           <div class="eq-card-tap">Tap to equip</div>
         `
@@ -2741,7 +2743,7 @@ const UI = {
       const hp = (totals.maxHpPct ?? 0) + (totals.barbedGear ?? 0)
       if (hp !== 0) parts.push(_chip('Health', '#e74c3c', `${hp > 0 ? '+' : ''}${hp}%`, hp < 0))
       const neg = Math.round((totals.negation ?? 0) * 100) + (totals.brittleArmor ?? 0)
-      if (neg !== 0) parts.push(_chip('Dmg Neg', '#44aaff', `${neg > 0 ? '+' : ''}${neg}%`, neg < 0))
+      if (neg !== 0) parts.push(_chip('Block', '#44aaff', `${neg > 0 ? '+' : ''}${neg}%`, neg < 0))
       const mana = totals.maxManaPct ?? 0
       if (mana !== 0) parts.push(_chip('Mana', '#7766ff', mana > 0 ? `+${mana}%` : `${mana}%`, mana < 0))
       const def = totals.damageReduction ?? 0
@@ -2768,9 +2770,9 @@ const UI = {
       damageBonus:     'Attack',
       maxHpPct:        'Max HP',
       maxManaPct:      'Max Mana',
-      negation:        'Damage Negation',
+      negation:        'Block Chance',
       damageReduction: 'Dmg Reduction',
-      brittleArmor:    'Neg. Drain',
+      brittleArmor:    'Brittle Guard',
       barbedGear:      'Thorns',
       manaDrain:       'Mana Drain',
     }
@@ -2809,6 +2811,8 @@ const UI = {
     const newTrashBtn  = trashBtn.cloneNode(true)
     equipBtn.replaceWith(newEquipBtn)
     cancelBtn.replaceWith(newCancelBtn)
+    const scrapGain = CONFIG?.blacksmith?.trashScrapYield?.[candidate?.tier] ?? 1
+    newTrashBtn.textContent = `🗑 Trash (+${scrapGain} ⚙️ scrap)`
     trashBtn.replaceWith(newTrashBtn)
     newEquipBtn.addEventListener('click',  onEquip)
     newCancelBtn.addEventListener('click', onCancel)
@@ -3032,125 +3036,181 @@ const UI = {
     el.goldShopOverlay.classList.add('hidden')
   },
 
-  updateScrap(n) {
-    const el2 = document.getElementById('blacksmith-resource-display')
-    if (el2) el2.textContent = `💰 ${n}`
-  },
-
-  renderBlacksmithScreen(equippedGear, gold, scrap, callbacks) {
+  renderBlacksmithScreen(equippedGear, gold, scrap, selectedSlot, callbacks) {
     const overlay = document.getElementById('blacksmith-overlay')
-    const list    = document.getElementById('blacksmith-gear-list')
-    const resEl   = document.getElementById('blacksmith-resource-display')
-    if (!overlay || !list) return
-
-    if (resEl) resEl.textContent = `💰 ${gold}  ⚙️ ${scrap} Scrap`
+    if (!overlay) return
     overlay.classList.remove('hidden')
-    list.innerHTML = ''
 
-    const TIER_COLOR = { common: '#888', rare: '#4a9eff', epic: '#a855f7', legendary: '#ffd700' }
+    // Currencies
+    const goldEl  = document.getElementById('bs-gold-display')
+    const scrapEl = document.getElementById('bs-scrap-display')
+    if (goldEl)  goldEl.textContent  = `🪙 ${gold}`
+    if (scrapEl) scrapEl.textContent = `⚙️ ${scrap}`
+
+    const GEAR_IMGS = {
+      weapon:     { default: 'assets/sprites/Items/sword.png', common: 'assets/sprites/gear/weapon/common.webp', rare: 'assets/sprites/gear/weapon/rare.webp', epic: 'assets/sprites/gear/weapon/epic.webp', legendary: 'assets/sprites/gear/weapon/legendary.webp' },
+      breastplate:{ default: 'assets/sprites/Items/armor.png', common: 'assets/sprites/gear/breastplate/common.webp', rare: 'assets/sprites/gear/breastplate/rare.webp', epic: 'assets/sprites/gear/breastplate/epic.webp', legendary: 'assets/sprites/gear/breastplate/legendary.webp' },
+      offhand:    { default: 'assets/sprites/Items/shield.png', common: 'assets/sprites/gear/offhand/common.webp', rare: 'assets/sprites/gear/offhand/rare.webp', epic: 'assets/sprites/gear/offhand/epic.webp', legendary: 'assets/sprites/gear/offhand/legendary.webp' },
+    }
+    const _gImg = (slot, tier) => GEAR_IMGS[slot]?.[tier] ?? GEAR_IMGS[slot]?.default ?? ''
+
     const STAT_LABELS = {
-      damageBonus: '⚔️ Damage',
-      maxHpPct:    '❤️ Max HP',
-      maxManaPct:  '💎 Max Mana',
-      negation:    '🛡️ Negation',
-      damageReduction: '🪨 Dmg Reduction',
-      brittleArmor: '💔 Negation Drain',
-      barbedGear:   '🩸 Barbed Gear',
-      manaDrain:    '🌀 Mana Drain',
+      damageBonus:     'Attack',
+      maxHpPct:        'Max HP',
+      maxManaPct:      'Max Mana',
+      negation:        'Block Chance',
+      damageReduction: 'Dmg Reduction',
+      brittleArmor:    'Brittle Guard',
+      barbedGear:      'Barbed Gear',
+      manaDrain:       'Mana Drain',
     }
+    const STAT_SHORT = {
+      damageBonus: 'Atk', maxHpPct: 'HP', maxManaPct: 'Mana',
+      negation: 'Block', damageReduction: 'Def',
+      brittleArmor: 'BG', barbedGear: 'Thorns', manaDrain: 'Drain',
+    }
+    const PCT_KEYS      = new Set(['maxHpPct', 'maxManaPct', 'xpPct', 'goldPct', 'brittleArmor', 'barbedGear', 'manaDrain'])
     const DETRIMENT_KEYS = new Set(['brittleArmor', 'barbedGear', 'manaDrain'])
+    const TIER_COLOR    = { common: '#888', rare: '#4a9eff', epic: '#a855f7', legendary: '#ffd700' }
+    const TIER_LABELS   = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' }
 
-    for (const slot of ['weapon', 'breastplate', 'offhand']) {
-      const piece = equippedGear[slot]
-      const card  = document.createElement('div')
-      card.className = 'blacksmith-card'
-
-      if (!piece) {
-        card.innerHTML = `<div class="bs-slot-name">${slot.charAt(0).toUpperCase() + slot.slice(1)}</div>
-          <div class="bs-empty">Empty — no gear equipped</div>`
-        list.appendChild(card)
-        continue
-      }
-
-      const tierColor = TIER_COLOR[piece.tier] ?? '#888'
-      card.style.borderColor = tierColor
-
-      // Build stat lines
-      const statLines = Object.entries(piece.stats).map(([k, v]) => {
-        const label = STAT_LABELS[k] ?? k
-        const isDetrim = DETRIMENT_KEYS.has(k)
-        const isNeg = v < 0
-        const display = k === 'negation' ? `${(v * 100).toFixed(0)}%` : k.endsWith('Pct') ? `${v}%` : v
-        const cls = isNeg ? 'bs-stat-neg' : 'bs-stat-pos'
-        const sign = v > 0 ? '+' : ''
-        return `<span class="${cls}">${label}: ${sign}${display}${isDetrim && !k.endsWith('Armor') && k !== 'manaDrain' && k !== 'barbedGear' ? '' : ''}</span>`
-      }).join('')
-
-      // Upgrade button
-      const upgradeNum = piece.upgradeCount + 1
-      const cost = CONFIG?.blacksmith?.upgradeCosts?.[piece.tier]?.[upgradeNum]
-      const atMax = piece.upgradeCount >= 3
-      const canAffordUpg = cost && gold >= cost.gold && scrap >= cost.scrap
-      const upgBtnLabel  = atMax ? '✓ Fully Upgraded' : cost
-        ? `Upgrade T${upgradeNum} — 💰${cost.gold} ⚙️${cost.scrap} (${Math.round(cost.rate * 100)}%)`
-        : 'Upgrade'
-      const upgDisabled  = atMax || !cost || !canAffordUpg ? 'disabled' : ''
-
-      // Detriment reduction rows (post-T3)
-      const detrimRows = atMax
-        ? Object.entries(piece.stats)
-            .filter(([k, v]) => DETRIMENT_KEYS.has(k) && v < -1)
-            .map(([k, v]) => {
-              const label   = STAT_LABELS[k] ?? k
-              const dcost   = CONFIG?.blacksmith?.detrimentReduceCost?.[piece.tier]
-              const canAff  = dcost && gold >= dcost.gold && scrap >= dcost.scrap
-              const dis     = !canAff ? 'disabled' : ''
-              return `<div class="bs-detrim-row">
-                <span>${label}: ${v}</span>
-                <button class="bs-btn bs-reduce-btn" data-slot="${slot}" data-stat="${k}" ${dis}>
-                  Reduce Curse — 💰${dcost?.gold ?? '?'} ⚙️${dcost?.scrap ?? '?'}
-                </button>
-              </div>`
-            }).join('')
-        : ''
-
-      const pips = '◆'.repeat(piece.upgradeCount) + '◇'.repeat(3 - piece.upgradeCount)
-
-      card.innerHTML = `
-        <div class="bs-card-header">
-          <span class="bs-slot-name">${slot.charAt(0).toUpperCase() + slot.slice(1)}</span>
-          <span class="bs-tier" style="color:${tierColor}">${piece.tier.charAt(0).toUpperCase() + piece.tier.slice(1)}</span>
-          <span class="bs-pips">${pips}</span>
-        </div>
-        <div class="bs-piece-name">${piece.name}</div>
-        <div class="bs-stats">${statLines}</div>
-        <div class="bs-actions">
-          <button class="bs-btn bs-upgrade-btn" data-slot="${slot}" ${upgDisabled}>${upgBtnLabel}</button>
-          <button class="bs-btn bs-disassemble-btn" data-slot="${slot}">Disassemble — ⚙️${
-            (() => { const [lo, hi] = CONFIG?.blacksmith?.scrapYield?.[piece.tier] ?? [0, 0]; return `${lo}–${hi}` })()
-          } Scrap</button>
-        </div>
-        ${detrimRows ? `<div class="bs-detrim-section">${detrimRows}</div>` : ''}
-      `
-      list.appendChild(card)
+    function fmtVal(key, val) {
+      if (val === 0 || val == null) return '—'
+      if (key === 'negation') return `${Math.round(val * 100)}%`
+      const sign = val > 0 ? '+' : ''
+      return PCT_KEYS.has(key) ? `${sign}${val}%` : `${sign}${val}`
+    }
+    function projectVal(key, val) {
+      if (val < 0) return val
+      if (key === 'negation') return Math.round(val * 1.25 * 1000) / 1000
+      return Math.max(1, Math.round(val * 1.25))
     }
 
-    // Wire up action buttons
-    list.querySelectorAll('.bs-upgrade-btn:not([disabled])').forEach(btn => {
-      btn.addEventListener('click', () => callbacks.onUpgrade(btn.dataset.slot))
+    const piece = selectedSlot ? (equippedGear[selectedSlot] ?? null) : null
+
+    // ── Forge slot ──────────────────────────────────
+    const forgeSlot = document.getElementById('bs-forge-slot')
+    const forgeImg  = document.getElementById('bs-forge-img')
+    const forgeHint = document.getElementById('bs-forge-hint')
+    if (forgeSlot) {
+      if (piece) {
+        forgeSlot.classList.add('has-piece')
+        if (forgeImg) { forgeImg.src = _gImg(piece.slot, piece.tier); forgeImg.style.display = 'block' }
+        if (forgeHint) forgeHint.textContent = ''
+      } else {
+        forgeSlot.classList.remove('has-piece')
+        if (forgeImg) forgeImg.style.display = 'none'
+        if (forgeHint) forgeHint.textContent = 'Select a piece below'
+      }
+    }
+
+    // ── Upgrade gems ────────────────────────────────
+    const upgradeCount = piece?.upgradeCount ?? 0
+    document.getElementById('bs-gems')?.querySelectorAll('.bs-gem').forEach(gem => {
+      const n = parseInt(gem.dataset.gem)
+      gem.classList.remove('done', 'next', 'locked')
+      if (n <= upgradeCount)           gem.classList.add('done')
+      else if (n === upgradeCount + 1) gem.classList.add('next')
+      else                             gem.classList.add('locked')
     })
-    list.querySelectorAll('.bs-disassemble-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const slot2 = btn.dataset.slot
-        const piece2 = equippedGear[slot2]
-        if (!piece2) return
-        if (!confirm(`Destroy ${piece2.name} for scrap? This cannot be undone.`)) return
-        callbacks.onDisassemble(slot2)
-      })
-    })
-    list.querySelectorAll('.bs-reduce-btn:not([disabled])').forEach(btn => {
-      btn.addEventListener('click', () => callbacks.onReduceDetriment(btn.dataset.slot, btn.dataset.stat))
-    })
+
+    // ── Item details ────────────────────────────────
+    const detailEl = document.getElementById('bs-detail-content')
+    if (detailEl) {
+      if (!piece) {
+        detailEl.innerHTML = '<p class="bs-detail-hint">Select a gear piece to view details</p>'
+      } else {
+        const atMax     = piece.upgradeCount >= 3
+        const tierLabel = TIER_LABELS[piece.tier] ?? piece.tier
+        const curHdr    = piece.upgradeCount === 0 ? 'Base' : `Current (T${piece.upgradeCount})`
+        const newHdr    = atMax ? 'MAX' : `New (T${piece.upgradeCount + 1})`
+        const newColor  = atMax ? 'rgba(255,255,255,0.3)' : '#ffd070'
+        const statRows  = Object.entries(piece.stats).map(([k, v]) => {
+          const label  = STAT_LABELS[k] ?? k
+          const curFmt = fmtVal(k, v)
+          const newFmt = fmtVal(k, projectVal(k, v))
+          const curCls = v < 0 ? 'bs-val-neg' : 'bs-val-pos'
+          const newCls = v < 0 ? 'bs-val-same' : (atMax ? 'bs-val-same' : 'bs-val-upg')
+          return `<tr><td>${label}</td><td class="${curCls}">${curFmt}</td><td class="${newCls}">${newFmt}</td></tr>`
+        }).join('')
+        detailEl.innerHTML = `
+          <p class="bs-detail-title">${piece.name} <span style="color:${TIER_COLOR[piece.tier] ?? '#888'};font-size:0.8em">(${tierLabel})</span></p>
+          <table class="bs-stat-tbl">
+            <thead><tr>
+              <th>Stat</th><th>${curHdr}</th><th style="color:${newColor}">${newHdr}</th>
+            </tr></thead>
+            <tbody>${statRows}</tbody>
+          </table>`
+      }
+    }
+
+    // ── Gear cards ──────────────────────────────────
+    const gearRow = document.getElementById('bs-gear-row')
+    if (gearRow) {
+      gearRow.innerHTML = ''
+      for (const slot of ['weapon', 'breastplate', 'offhand']) {
+        const p   = equippedGear[slot]
+        const card = document.createElement('div')
+        const isSelected = slot === selectedSlot
+        card.className = `bs-gear-card${isSelected ? ' bs-selected' : ''}${!p ? ' bs-empty' : ` bs-tier-${p.tier}`}`
+        const lbl = slot.charAt(0).toUpperCase() + slot.slice(1)
+        if (!p) {
+          card.innerHTML = `<span class="bs-card-slot-lbl">${lbl}</span>
+            <div style="flex:1;display:flex;align-items:center;justify-content:center;opacity:0.3;font-size:1.6rem">–</div>
+            <span class="bs-card-stats" style="color:rgba(255,255,255,0.2);font-style:italic">Empty</span>`
+        } else {
+          const statLines = Object.entries(p.stats).slice(0, 3).map(([k, v]) => {
+            const s = STAT_SHORT[k] ?? k
+            const neg = v < 0
+            const d = k === 'negation' ? `${Math.round(v*100)}%` : PCT_KEYS.has(k) ? `${v>0?'+':''}${v}%` : `${v>0?'+':''}${v}`
+            return `<span class="${neg ? 'bs-card-stat-neg' : ''}">${s}: ${d}</span>`
+          }).join('<br>')
+          card.innerHTML = `<span class="bs-card-slot-lbl">${lbl}</span>
+            <img class="bs-card-img" src="${_gImg(p.slot, p.tier)}" alt="${p.name}">
+            <div class="bs-card-stats">${statLines}</div>`
+          card.addEventListener('click', () => callbacks.onSelectSlot(slot))
+        }
+        gearRow.appendChild(card)
+      }
+    }
+
+    // ── Action buttons ──────────────────────────────
+    const upgradeBtn  = document.getElementById('bs-upgrade-btn')
+    const upgradeCost = document.getElementById('bs-upgrade-cost')
+    const refineBtn   = document.getElementById('bs-refine-btn')
+    if (!upgradeBtn || !refineBtn) return
+
+    if (!piece) {
+      upgradeBtn.disabled = true
+      refineBtn.disabled  = true
+      if (upgradeCost) upgradeCost.textContent = ''
+      upgradeBtn.onclick = null
+      refineBtn.onclick  = null
+      return
+    }
+
+    const atMax   = piece.upgradeCount >= 3
+    const nextNum = piece.upgradeCount + 1
+    const cost    = CONFIG?.blacksmith?.upgradeCosts?.[piece.tier]?.[nextNum]
+    const canUpg  = !atMax && cost && gold >= cost.gold && scrap >= cost.scrap
+    upgradeBtn.disabled = !canUpg
+    if (upgradeCost) {
+      upgradeCost.textContent = atMax
+        ? '✓ Fully Upgraded'
+        : cost ? `🪙${cost.gold}  ⚙️${cost.scrap}  (${Math.round(cost.rate * 100)}%)` : ''
+    }
+    upgradeBtn.onclick = canUpg ? () => callbacks.onUpgrade(selectedSlot) : null
+
+    // Refine = reduce first eligible detriment (post-T3)
+    const firstDetrim = atMax
+      ? Object.entries(piece.stats).find(([k, v]) => DETRIMENT_KEYS.has(k) && v < -1)
+      : null
+    const dcost    = firstDetrim ? CONFIG?.blacksmith?.detrimentReduceCost?.[piece.tier] : null
+    const canRefine = !!(firstDetrim && dcost && gold >= dcost.gold && scrap >= dcost.scrap)
+    refineBtn.disabled = !canRefine
+    refineBtn.onclick  = canRefine
+      ? () => callbacks.onReduceDetriment(selectedSlot, firstDetrim[0])
+      : null
   },
 
   showBlacksmithResult(success, piece) {

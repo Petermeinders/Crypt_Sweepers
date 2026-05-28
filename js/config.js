@@ -242,6 +242,13 @@ export const CONFIG = {
       epic:      [25, 40],
       legendary: [60, 100],
     },
+    // Fixed scrap yield when trashing gear from the in-run inventory
+    trashScrapYield: {
+      common:    1,
+      rare:      5,
+      epic:      10,
+      legendary: 30,
+    },
     // Cost per post-T3 detriment reduction application (placeholder = T3 cost)
     detrimentReduceCost: {
       common:    { gold: 30,  scrap: 20  },

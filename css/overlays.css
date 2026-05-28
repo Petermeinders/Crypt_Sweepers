@@ -5723,7 +5723,7 @@ body.bestiary-detail-open #app {
   justify-content: center;
 }
 
-#hero-select-footer .hero-select-back-pill {
+#hero-select-footer .panel-back-btn {
   position: absolute;
   left: 16px;
   bottom: 22px;
@@ -6697,124 +6697,447 @@ body.bestiary-detail-open #app {
    BLACKSMITH
    ═══════════════════════════════════════════════════ */
 
-.blacksmith-gear-list {
-  padding: 12px;
+#blacksmith-overlay {
+  background: #130f08;
+  -webkit-text-stroke: 0.2px black;
+  text-shadow: 0 -1px 1px black;
+}
+#blacksmith-overlay:not(.hidden) {
   display: flex;
   flex-direction: column;
-  gap: 14px;
 }
 
-.blacksmith-card {
-  background: linear-gradient(135deg, #13131f, #1a1a2e);
-  border: 2px solid #444;
-  border-radius: 12px;
-  padding: 14px 16px;
+/* ── Ember particles ────────────────────────────── */
+
+.bs-embers {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.bs-ember {
+  position: absolute;
+  border-radius: 50%;
+  box-shadow: 0 0 5px 1px rgba(255, 130, 0, 0.75);
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: bs-ember-fall linear infinite;
+}
+
+@keyframes bs-ember-fall {
+  0%   { opacity: 0;   transform: translateY(0)                              translateX(0); }
+  10%  { opacity: 0.9; }
+  80%  { opacity: 0.7; }
+  100% { opacity: 0;   transform: translateY(var(--dy, 90px)) translateX(var(--dx, 8px)); }
+}
+
+/* ── Banner ─────────────────────────────────────── */
+
+.bs-banner {
+  position: relative;
+  min-height: 175px;
+  background-image:
+    linear-gradient(to bottom, rgba(0,0,0,0.28) 0%, rgba(0,0,0,0.1) 55%, rgba(13,9,4,0.85) 100%),
+    url('../assets/ui/blacksmith-banner.png');
+  background-size: cover, cover;
+  background-position: center, center 20%;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 14px;
+  flex-shrink: 0;
+  border-bottom: 2px solid #3a2810;
 }
 
-.bs-card-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.bs-slot-name {
-  font-size: 0.7rem;
+.bs-back-btn {
+  background: rgba(0,0,0,0.65);
+  border: 1px solid #5a3c15;
+  color: #d4a855;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 0.82rem;
   font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.45);
-}
-
-.bs-tier {
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.bs-pips {
-  margin-left: auto;
-  font-size: 0.9rem;
-  letter-spacing: 0.1em;
-  color: var(--gold);
-}
-
-.bs-piece-name {
-  font-size: 1rem;
-  font-weight: 700;
-  color: #e8d8ff;
-}
-
-.bs-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  font-size: 0.8rem;
-}
-
-.bs-stat-pos { color: #7be87b; }
-.bs-stat-neg { color: #e87b7b; }
-
-.bs-empty {
-  font-size: 0.85rem;
-  color: rgba(255,255,255,0.3);
-  font-style: italic;
-}
-
-.bs-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 4px;
-}
-
-.bs-btn {
-  font-size: 0.78rem;
-  font-weight: 600;
-  padding: 6px 12px;
-  border-radius: 8px;
-  border: none;
   cursor: pointer;
-  transition: opacity 0.15s;
+  font-family: inherit;
+  z-index: 1;
+  transition: background 0.15s;
 }
-.bs-btn:disabled { opacity: 0.35; cursor: default; }
+.bs-back-btn:active { background: rgba(90,60,21,0.5); }
 
-.bs-upgrade-btn   { background: #3a6fd4; color: #fff; }
-.bs-upgrade-btn:not([disabled]):hover { background: #4a80e8; }
-
-.bs-disassemble-btn { background: #5a2020; color: #ffaaaa; }
-.bs-disassemble-btn:hover { background: #722828; }
-
-.bs-detrim-section {
+.bs-currencies {
+  position: absolute;
+  top: 14px;
+  right: 14px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  border-top: 1px solid rgba(255,255,255,0.08);
-  padding-top: 8px;
+  align-items: flex-end;
+  z-index: 1;
 }
 
-.bs-detrim-row {
+.bs-currency {
+  background: url('../assets/ui/bs-currency-plaque.png') center/cover no-repeat;
+  border: none;
+  border-radius: 0;
+  padding: 6px 20px 11px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #fff8e8;
+  min-width: 120px;
+  text-align: center;
+}
+
+/* ── Forge section ──────────────────────────────── */
+
+.bs-forge-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 16px 12px;
+  gap: 10px;
+  border: 16px solid transparent;
+  border-image-source: url('../assets/ui/blacksmith-wood-bg.webp');
+  border-image-slice: 30 fill;
+  border-image-repeat: round;
+}
+
+.bs-section-label {
+  font-size: 0.72rem;
+  color: #c9933a;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  margin: 0;
+}
+
+.bs-forge-slot {
+  position: relative;
+  width: 112px;
+  height: 112px;
+  background: url('../assets/ui/forge-slot-stone.webp') center/100% 100% no-repeat;
+  border: none;
+  border-radius: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 0.8rem;
-  color: #e87b7b;
+  justify-content: center;
+  box-shadow: none;
+  overflow: hidden;
+  transition: filter 0.2s;
+}
+.bs-forge-slot.has-piece {
+  filter: drop-shadow(0 0 10px rgba(201,147,58,0.7));
 }
 
-.bs-reduce-btn { background: #4a3060; color: #d0a8ff; font-size: 0.74rem; }
-.bs-reduce-btn:not([disabled]):hover { background: #5c3a7a; }
+.bs-forge-img {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.bs-forge-hint {
+  font-size: 0.7rem;
+  color: rgba(255,255,255,0.25);
+  text-align: center;
+  padding: 0 8px;
+  line-height: 1.4;
+}
+
+/* ── Upgrade gems ───────────────────────────────── */
+
+.bs-gems {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.bs-gem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.bs-gem-icon {
+  width: 58px;
+  height: 58px;
+  border: none;
+  border-radius: 0;
+  background: url('../assets/ui/jewel-empty.webp') center/contain no-repeat;
+  background-color: transparent;
+  box-shadow: none;
+  transition: filter 0.2s, opacity 0.2s;
+}
+
+.bs-gem.done .bs-gem-icon {
+  background-image: url('../assets/ui/jewel-filled.webp');
+  filter: drop-shadow(0 0 8px rgba(200, 40, 40, 0.7));
+  opacity: 1;
+}
+.bs-gem.next .bs-gem-icon {
+  background-image: url('../assets/ui/jewel-empty.webp');
+  filter: drop-shadow(0 0 6px rgba(201, 147, 58, 0.65));
+  opacity: 1;
+}
+.bs-gem.locked .bs-gem-icon {
+  background-image: url('../assets/ui/jewel-empty.webp');
+  filter: grayscale(1) brightness(0.5);
+  opacity: 0.5;
+}
+
+.bs-gem-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: rgba(255,255,255,0.4);
+}
+.bs-gem.done .bs-gem-label,
+.bs-gem.next .bs-gem-label { color: rgba(255,255,255,0.75); }
+
+/* ── Section divider header ─────────────────────── */
+
+.bs-divider-hdr {
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #c9933a;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  position: relative;
+  margin-bottom: 10px;
+}
+.bs-divider-hdr::before,
+.bs-divider-hdr::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: calc(50% - 56px);
+  height: 1px;
+  background: #5a3c15;
+}
+.bs-divider-hdr::before { left: 0; }
+.bs-divider-hdr::after  { right: 0; }
+
+/* ── Shared panel shell ─────────────────────────── */
+
+.bs-panel {
+  margin: 0 0 2px;
+  border: 16px solid transparent;
+  border-image-source: url('../assets/ui/blacksmith-wood-bg.webp');
+  border-image-slice: 30 fill;
+  border-image-repeat: round;
+  border-radius: 0;
+  padding: 10px 14px;
+}
+
+/* ── Item details ───────────────────────────────── */
+
+.bs-detail-title {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #e8d090;
+  margin: 0 0 8px;
+  text-align: center;
+}
+
+.bs-stat-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  border: 1px solid rgba(255,200,80,0.15);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.bs-stat-tbl thead tr {
+  background: rgba(0,0,0,0.55);
+  border-bottom: 1px solid rgba(255,200,80,0.25);
+}
+.bs-stat-tbl th {
+  color: rgba(255,210,100,0.7);
+  font-weight: 700;
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 5px 8px 5px;
+  text-align: left;
+}
+.bs-stat-tbl th:not(:first-child) {
+  text-align: right;
+  border-left: 1px solid rgba(255,200,80,0.12);
+}
+.bs-stat-tbl tbody tr:nth-child(odd)  { background: rgba(0,0,0,0.35); }
+.bs-stat-tbl tbody tr:nth-child(even) { background: rgba(0,0,0,0.18); }
+.bs-stat-tbl tbody tr {
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.bs-stat-tbl td {
+  padding: 6px 8px;
+  vertical-align: middle;
+}
+.bs-stat-tbl td:first-child  { color: rgba(255,255,255,0.82); }
+.bs-stat-tbl td:not(:first-child) {
+  text-align: right;
+  font-weight: 600;
+  border-left: 1px solid rgba(255,200,80,0.12);
+}
+
+.bs-val-pos  { color: #7be87b; }
+.bs-val-neg  { color: #e87b7b; }
+.bs-val-upg  { color: #ffd070; }
+.bs-val-same { color: rgba(255,255,255,0.35); }
+
+.bs-detail-hint {
+  text-align: center;
+  color: rgba(255,255,255,0.28);
+  font-style: italic;
+  font-size: 0.78rem;
+  padding: 6px 0;
+  margin: 0;
+}
+
+/* ── Gear cards ─────────────────────────────────── */
+
+.bs-gear-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.bs-gear-card {
+  border: 20px solid transparent;
+  border-image-source: url('../assets/ui/gear-card-frame.png');
+  border-image-slice: 200 fill;
+  border-image-repeat: stretch;
+  border-radius: 0;
+  padding: 4px 4px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: filter 0.15s;
+  min-height: 130px;
+  text-align: center;
+}
+.bs-gear-card:active { opacity: 0.75; }
+.bs-gear-card.bs-selected {
+  filter: drop-shadow(0 0 8px rgba(201,147,58,0.8));
+}
+.bs-gear-card.bs-empty {
+  opacity: 0.32;
+  cursor: default;
+  pointer-events: none;
+}
+
+.bs-gear-card.bs-selected.bs-tier-common    { filter: drop-shadow(0 0 10px rgba(200,200,200,0.9)); }
+.bs-gear-card.bs-selected.bs-tier-rare      { filter: drop-shadow(0 0 12px rgba(60,140,255,1.0)); }
+.bs-gear-card.bs-selected.bs-tier-epic      { filter: drop-shadow(0 0 12px rgba(255,140,30,1.0)); }
+.bs-gear-card.bs-selected.bs-tier-legendary { filter: drop-shadow(0 0 14px rgba(220,40,40,1.0)); }
+
+.bs-card-slot-lbl {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #c9933a;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.bs-selected .bs-card-slot-lbl { color: #ffd070; }
+
+.bs-card-img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  flex: 1;
+  image-rendering: pixelated;
+}
+
+.bs-card-stats {
+  font-size: 0.6rem;
+  color: rgba(255,255,255,0.6);
+  line-height: 1.45;
+  width: 100%;
+}
+.bs-card-stat-neg { color: #e87b7b; }
+
+/* ── Action bar ─────────────────────────────────── */
+
+.bs-action-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px 12px 16px;
+  background: #130f08;
+  border-top: 1px solid #3a2810;
+  margin-top: auto;
+}
+
+.bs-act-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 11px 8px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.bs-act-btn:disabled { opacity: 0.38; cursor: default; }
+.bs-act-btn:not([disabled]):active { transform: scale(0.97); }
+
+.bs-act-upgrade {
+  background: linear-gradient(to bottom, #c9933a 0%, #7a5010 100%);
+  border-color: #e0b060;
+  color: #fff8e0;
+}
+.bs-act-upgrade:not([disabled]):hover {
+  background: linear-gradient(to bottom, #d4a845 0%, #8a5c18 100%);
+}
+
+.bs-act-refine {
+  background: linear-gradient(to bottom, #2e2e2e, #1a1a1a);
+  border-color: #444;
+  color: rgba(255,255,255,0.38);
+}
+.bs-act-refine:not([disabled]) {
+  background: linear-gradient(to bottom, #3a2060, #1e1030);
+  border-color: #7744aa;
+  color: #d0a8ff;
+}
+
+.bs-act-name {
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.bs-act-cost {
+  font-size: 0.64rem;
+  font-weight: 600;
+  margin-top: 2px;
+  opacity: 0.88;
+}
+
+
+/* ── Result message ─────────────────────────────── */
 
 .blacksmith-result {
-  margin: 8px 12px;
+  margin: 0 12px 10px;
   padding: 10px 14px;
   border-radius: 8px;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 600;
   text-align: center;
 }
-.blacksmith-result.hidden { display: none; }
+.blacksmith-result.hidden  { display: none; }
 .blacksmith-result.success { background: rgba(100,200,100,0.15); color: #7be87b; border: 1px solid #4a8a4a; }
-.blacksmith-result.fail    { background: rgba(200,80,80,0.15);  color: #e87b7b; border: 1px solid #8a4a4a; }
+.blacksmith-result.fail    { background: rgba(200,80,80,0.15);   color: #e87b7b; border: 1px solid #8a4a4a; }
