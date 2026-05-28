@@ -1,18 +1,6 @@
-import { CONFIG } from '../config.js'
 import { GLOBAL_PASSIVE_IDS } from '../data/passives.js'
+import { SELECTABLE_HEROES } from '../data/characters.js'
 import MetaProgression from '../systems/MetaProgression.js'
-
-/** Hero selection guard — mirrors CHARACTERS fields used in main.js boot migration. */
-const SELECTABLE_HEROES = [
-  { id: 'warrior', unlockCost: null, comingSoon: false },
-  { id: 'ranger', unlockCost: CONFIG.rangerUnlockCost, comingSoon: false },
-  { id: 'mage', unlockCost: CONFIG.mageUnlockCost, comingSoon: false },
-  { id: 'vampire', unlockCost: CONFIG.vampireUnlockCost, comingSoon: false },
-  { id: 'engineer', unlockCost: CONFIG.engineerUnlockCost, comingSoon: false },
-  { id: 'necromancer', unlockCost: CONFIG.necromancerUnlockCost, comingSoon: false },
-  { id: 'druid', unlockCost: null, comingSoon: true },
-  { id: 'drone', unlockCost: null, comingSoon: true },
-]
 
 /**
  * Migrate old saves missing keys. Returns the (possibly mutated) save and whether

@@ -37,458 +37,145 @@ import {
   buildLevelSnapshotRecord,
 } from '../balance/runTelemetry.js'
 import * as _gearModule from '../data/gear.js'
+import {
+  COMMON_LOOT_IDS,
+  RARE_TRINKET_IDS,
+  MAGIC_CHEST_EXCLUSIVE_IDS,
+  LEGENDARY_TRINKET_IDS,
+  BACKPACK_MAX_SLOTS,
+  pickRandom as _pickRandom,
+  rollCommonLoot as _rollCommonLootFromTable,
+  rollChestLoot as _rollChestLootFromTable,
+  rollMagicChestLoot as _rollMagicChestLootFromTable,
+} from '../systems/LootTables.js'
+import * as Haptics from '../systems/Haptics.js'
+import * as CheatController from '../controllers/CheatController.js'
+import * as BalanceBotBridge from '../controllers/BalanceBotBridge.js'
+import { session, charKey as runCharKey } from './RunContext.js'
+import * as GSH from './GameStateHandlers.js'
+import * as TapRouter from '../controllers/TileTapRouter.js'
+import * as RevealController from '../controllers/TileRevealController.js'
+import * as CombatController from '../controllers/CombatController.js'
+import * as FloorController from '../controllers/FloorController.js'
+import * as GearController from '../controllers/GearController.js'
+import * as InventoryController from '../controllers/InventoryController.js'
+import * as Warrior from '../heroes/warrior.js'
+import * as Ranger from '../heroes/ranger.js'
+import * as Mage from '../heroes/mage.js'
+import * as Engineer from '../heroes/engineer.js'
+import * as Necromancer from '../heroes/necromancer.js'
+import * as Vampire from '../heroes/vampire.js'
+import * as PlayerStats from '../systems/PlayerStats.js'
+import * as EnemyMechanics from '../systems/EnemyMechanics.js'
+import * as ForgeController from '../controllers/ForgeController.js'
+import * as EventTileController from '../controllers/EventTileController.js'
+import * as SubFloorController from '../controllers/SubFloorController.js'
+import * as TargetingController from '../controllers/TargetingController.js'
+import * as SpecialSpawnController from '../controllers/SpecialSpawnController.js'
 
-// ── Loot pools by rarity ─────────────────────────────────────
 
-const COMMON_LOOT_IDS = [
-  'potion-red', 'potion-blue', 'potion-mystery', 'lantern', 'dowsing-rod', 'smiths-tools', 'spyglass', 'scavengers-bag',
-]
-
-const RARE_TRINKET_IDS = [
-  'fire-ring', 'mana-ring', 'echo-charm', 'vampire-fang', 'glass-cannon-shard',
-  'duelists-glove', 'surge-pearl', 'still-water-amulet', 'greed-tooth',
-  'lucky-rabbit-foot', 'cursed-lockpick',
-  'spiked-collar', 'eagle-eye', 'mending-moss', 'hollowed-acorn',
-]
-
-// Rare trinkets available only from the magic chest
-const MAGIC_CHEST_EXCLUSIVE_IDS = [
-  'thorn-wrap', 'misers-pouch', 'cracked-compass', 'plague-mask', 'soul-candle',
-  'blood-pact', 'bone-dice', 'hunger-stone', 'gamblers-mark', 'witching-stone',
-  'plague-rat-skull',
-]
-
-const LEGENDARY_TRINKET_IDS = [
-  'hourglass-sand', 'forsaken-idol', 'stormcallers-fist', 'mirror-of-vanity',
-  'deathmask', 'traded-codex', 'philosophers-coin',
-  'paupers-crown', 'soulbound-blade', 'twin-fates', 'abyssal-lens',
-  'resurrection-stone', 'wardens-brand',
-]
 
 const MSG_COMBAT_ACTION_BLOCKED = 'Cannot perform action when in combat with enemy'
 
-/** Browsers block vibrate until the user has interacted with the page (avoids console intervention spam). */
-let _hapticUserGestureOk = false
-if (typeof document !== 'undefined') {
-  const arm = () => { _hapticUserGestureOk = true }
-  document.addEventListener('pointerdown', arm, { capture: true, passive: true })
-  document.addEventListener('touchstart', arm, { capture: true, passive: true })
-  document.addEventListener('keydown', arm, { capture: true, passive: true })
-}
+const _vibrationRequiresSyncUserActivation = Haptics.vibrationRequiresSyncUserActivation
+const _hapticFromUserGesture = Haptics.hapticFromUserGesture
+const _hapticFromAsyncTask = Haptics.hapticFromAsyncTask
+const _firefoxPreFlipHapticsIfNeeded = Haptics.firefoxPreFlipHapticsIfNeeded
 
-/** Firefox enforces sticky user activation: vibrate() is ignored after await/setTimeout/microtasks. */
-function _vibrationRequiresSyncUserActivation() {
-  if (typeof navigator === 'undefined') return false
-  return /Firefox/i.test(navigator.userAgent || '')
-}
+function hasItem(id) { return session.run?.player?.inventory?.some(e => e?.id === id) ?? false }
 
-function _hapticApplyPattern(pattern) {
-  if (typeof pattern === 'number' && Number.isFinite(pattern)) {
-    navigator.vibrate(Math.max(0, Math.min(400, Math.round(pattern))))
-  } else if (Array.isArray(pattern) && pattern.length) {
-    const capped = pattern.map(n => Math.max(0, Math.min(400, Math.round(Number(n) || 0))))
-    const ok = navigator.vibrate(capped)
-    if (ok === false && capped[0] > 0) {
-      navigator.vibrate(Math.min(capped[0], 80))
-    }
+// ── Player stats + enemy mechanics (extracted) ───────────────
+const _statsCtx = () => ({ hasItem })
+const _playerOutgoingDamageMult = () => PlayerStats.playerOutgoingDamageMult(_statsCtx())
+const _scaleOutgoingDamageToEnemy = (dmg) => PlayerStats.scaleOutgoingDamageToEnemy(_statsCtx(), dmg)
+const _xpNeeded = () => PlayerStats.xpNeeded()
+const _computeEffectiveDamageTaken = (raw) => PlayerStats.computeEffectiveDamageTaken(raw)
+const _playerDamageRange = (p) => PlayerStats.playerDamageRange(p)
+const _applyFreezingHit = () => EnemyMechanics.applyFreezingHit()
+const _applyCorruption = () => EnemyMechanics.applyCorruption()
+const _applyBurnHit = (amt) => EnemyMechanics.applyBurnHit(amt)
+const _applyPlayerPoison = (amt) => EnemyMechanics.applyPlayerPoison(amt)
+const _findLiveHulk = () => EnemyMechanics.findLiveHulk()
+const _applyHulkBuffToTile = (t) => EnemyMechanics.applyHulkBuffToTile(t)
+const _removeHulkBuffFromAll = () => EnemyMechanics.removeHulkBuffFromAll()
+const _applyHulkBuffToAll = () => EnemyMechanics.applyHulkBuffToAll()
+
+function _forgeCtx() {
+  return {
+    dropItem,
+    canAddToBackpack: _canAddToBackpack,
+    addToBackpack: _addToBackpack,
   }
 }
+const _openForge = (tile) => ForgeController.openForge(_forgeCtx(), tile)
 
-/** Call only from the same synchronous stack as pointerdown/click (tile tap, melee start, settings). */
-function _hapticFromUserGesture(pattern) {
-  if (!_hapticUserGestureOk || typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return
-  if (!(_save?.settings?.hapticFeedback ?? true)) return
-  try {
-    _hapticApplyPattern(pattern)
-  } catch (_) { /* ignore */ }
-}
-
-/** After async work (damage ticks, setTimeout combat). Silently skipped on Firefox — use _hapticFromUserGesture earlier if possible. */
-function _hapticFromAsyncTask(pattern) {
-  if (_vibrationRequiresSyncUserActivation()) return
-  _hapticFromUserGesture(pattern)
-}
-
-/** Light buzz for menu/settings/chrome buttons (main wires delegated click). */
-function uiButtonHaptic() {
-  _hapticFromUserGesture(10)
-}
-
-/** Read-only: would harass damage the player this global tick (matches tick loop + engineer/necro absorb rules)? */
-function _previewHarassDamageThisTurn() {
-  const grid = TileEngine.getGrid()
-  if (!grid || !run) return false
-  if (_charKey() === 'engineer' && run.turret?.hp > 0) return false
-  if (_charKey() === 'necromancer' && run.minions?.some(m => m.hp > 0)) return false
-  let total = 0
-  for (const row of grid) {
-    for (const t of row) {
-      if (!t.revealed || !t.enemyData || t.enemyData._slain) continue
-      if (!t.enemyData.harassPlayer) continue
-      const rawDmg = t.enemyData.harassDmg ?? 1
-      total += _computeEffectiveDamageTaken(rawDmg)
-    }
+function _eventCtx() {
+  return {
+    pickRandom: _pickRandom,
+    rollCommonLoot: _rollCommonLoot,
+    addToBackpack: _addToBackpack,
+    canAddToBackpack: _canAddToBackpack,
+    dropItem,
+    gainGold: _gainGold,
+    takeDamage: _takeDamage,
+    flushDeferredLevelUpXp: _flushDeferredLevelUpXp,
   }
-  return total > 0
 }
+const _openEvent = (tile) => EventTileController.openEvent(_eventCtx(), tile)
+const _closeEventSession = (tile) => EventTileController.closeEventSession(_eventCtx(), tile)
 
-/**
- * Firefox: vibrate in the user-gesture turn before the first await in revealTile.
- * One short pulse if trap (hurt path), DoT tick, or harass will apply. Sets tile._trapDodgeRoll for trap dodge sync with _resolveEffect.
- */
-function _firefoxPreFlipHapticsIfNeeded(tile) {
-  if (!_vibrationRequiresSyncUserActivation() || !run || !tile) return
-  const p = run.player
-  let shouldPulse = false
-
-  if (tile.type === 'trap' && !p.trapImmune) {
-    tile._trapDodgeRoll = Math.random()
-    const chance = p.trapDodgeChance ?? 0
-    const dodged = chance > 0 && tile._trapDodgeRoll < chance
-    if (!dodged) shouldPulse = true
+function _subFloorCtx() {
+  return {
+    charKey: _charKey,
+    rand: _rand,
+    gainGold: _gainGold,
+    gainXP: _gainXP,
+    takeDamage: _takeDamage,
+    computeEffectiveDamageTaken: _computeEffectiveDamageTaken,
+    playerDamageRange: _playerDamageRange,
+    rollChestLoot: _rollChestLoot,
+    addToBackpack: _addToBackpack,
+    forcePlayChestGif: _forcePlayChestGif,
+    saveActiveRun: _saveActiveRun,
+    refreshMainGridDomFromModel: _refreshMainGridDomFromModel,
+    syncGridDomClassesFromModel: _syncGridDomClassesFromModel,
+    tryConsumeTargetingTap: _tryConsumeTargetingTap,
+    isInSubFloor: _isInSubFloor,
+    onTileTap,
+    onTileHold,
   }
-
-  if ((p.poisonStacks ?? 0) > 0 || (p.burnStacks ?? 0) > 0) shouldPulse = true
-  if (_previewHarassDamageThisTurn()) shouldPulse = true
-
-  if (shouldPulse) _hapticFromUserGesture(20)
 }
+const _spawnSubFloorEntry = () => SubFloorController.spawnSubFloorEntry()
+const _applyWarBannerBuffToEnemyGrid = (m) => SubFloorController.applyWarBannerBuffToEnemyGrid(m)
+const _stripWarBannerBuff = (m) => SubFloorController.stripWarBannerBuff(m)
+const _syncWarBannerCoordsFromGrid = () => SubFloorController.syncWarBannerCoordsFromGrid()
+const _spawnWarBannerEntry = () => SubFloorController.spawnWarBannerEntry()
+const _destroyWarBanner = (t) => SubFloorController.destroyWarBanner(_subFloorCtx(), t)
+const _enterSubFloor = (t) => SubFloorController.enterSubFloor(_subFloorCtx(), t)
+const _exitSubFloor = () => SubFloorController.exitSubFloor()
+const _onSubFloorTileTap = (r, c) => SubFloorController.onSubFloorTileTap(_subFloorCtx(), r, c)
+const _onSubFloorTileHold = (r, c) => SubFloorController.onSubFloorTileHold(r, c)
+const _recomputeSubFloorEnemyLocks = () => SubFloorController.recomputeSubFloorEnemyLocks()
+const _patchActiveTileDom = (r, c) => SubFloorController.patchActiveTileDom(_subFloorCtx(), r, c)
+const _sfUnlockAdjacent = (t) => SubFloorController.sfUnlockAdjacent(t)
 
-function _pickRandom(pool) { return pool[Math.floor(Math.random() * pool.length)] }
 
-function hasItem(id) { return run?.player?.inventory?.some(e => e?.id === id) ?? false }
+function _lootRollCtx() {
+  return { hasItem, rand: _rand }
+}
 
 function _rollCommonLoot() {
-  // Weighted: potions more likely than utility items (smiths-tools removed — ~1% via dedicated band in chest rolls)
-  const r = Math.random()
-  if (r < 0.28) return { type: 'potion-red' }
-  if (r < 0.50) return { type: 'potion-blue' }
-  if (r < 0.58) return { type: 'potion-mystery' }
-  if (r < 0.70) return { type: 'lantern' }
-  if (r < 0.80) return { type: 'dowsing-rod' }
-  if (r < 0.88) return { type: 'spyglass' }
-  if (r < 0.95) return { type: 'scavengers-bag' }
-  return { type: 'gold', amount: _rand(...CONFIG.chest.goldDrop) }
+  return _rollCommonLootFromTable(_lootRollCtx())
 }
 
-/** Normal chest: 1% legendary, 2% rare, 1% Smith's Tools, 96% common (no smiths in common pool). */
 function _rollChestLoot() {
-  if (hasItem('misers-pouch')) {
-    return { type: 'gold', amount: _rand(...CONFIG.chest.goldDrop) }
-  }
-  // Delver's Kit: always rare or legendary
-  if (hasItem('delvers-kit')) {
-    return Math.random() < 0.15
-      ? { type: _pickRandom(LEGENDARY_TRINKET_IDS) }
-      : { type: _pickRandom(RARE_TRINKET_IDS) }
-  }
-  let r = Math.random()
-  // Cursed lockpick: bias toward rare/legendary
-  if (hasItem('cursed-lockpick') && r < 0.15) {
-    r = Math.random() * 0.06  // forces into rare or legendary band
-  }
-  if (r < 0.01) return { type: _pickRandom(LEGENDARY_TRINKET_IDS) }
-  if (r < 0.03) return { type: _pickRandom(RARE_TRINKET_IDS) }
-  if (r < 0.04) return { type: 'smiths-tools' }
-  return _rollCommonLoot()
+  return _rollChestLootFromTable(_lootRollCtx())
 }
 
-const BACKPACK_MAX_SLOTS = 9
-
-/** Magic chest: 2% legendary, 5% rare (all rares + exclusives), 1% Smith's Tools, 92% common. */
 function _rollMagicChestLoot() {
-  const r = Math.random()
-  if (r < 0.02) return { type: _pickRandom(LEGENDARY_TRINKET_IDS) }
-  if (r < 0.07) {
-    const pool = [...RARE_TRINKET_IDS, ...MAGIC_CHEST_EXCLUSIVE_IDS]
-    return { type: _pickRandom(pool) }
-  }
-  if (r < 0.08) return { type: 'smiths-tools' }
-  return _rollCommonLoot()
+  return _rollMagicChestLootFromTable(_lootRollCtx())
 }
 
-function _playerOutgoingDamageMult() {
-  let mult = 1
-  // Glass Cannon Shard
-  if (hasItem('')) {
-    const p = run.player
-    const ratio = p.maxHp > 0 ? p.hp / p.maxHp : 0
-    mult *= ratio > 0.5 ? 1.5 : 0.5
-  }
-  // Freezing Hit: -20% per stack, max 5 stacks
-  const freezeStacks = run?.player?.freezingHitStacks ?? 0
-  if (freezeStacks > 0) {
-    mult *= Math.max(0.05, 1 - freezeStacks * 0.20)
-  }
-  return mult
-}
-
-function _scaleOutgoingDamageToEnemy(dmg) {
-  const raw = Number(dmg)
-  const base = Number.isFinite(raw) ? raw : 1
-  const mult = _playerOutgoingDamageMult()
-  const m = Number.isFinite(mult) ? mult : 1
-  const scaled = Math.max(1, Math.round(base * m))
-  // Corruption: -1 flat damage per stack (min 1)
-  const corruptionPenalty = run?.player?.corruptionStacks ?? 0
-  const out = Math.max(1, scaled - corruptionPenalty)
-  return Number.isFinite(out) ? out : 1
-}
-
-/** Apply two Freezing Hit stacks (max 5). Called when Frost Giant counter-attacks. */
-function _applyFreezingHit() {
-  if (!run) return
-  const stacks = Math.min(5, (run.player.freezingHitStacks ?? 0) + 2)
-  run.player.freezingHitStacks = stacks
-  UI.setFreezingHit(stacks)
-  UI.spawnFloat(document.getElementById('hud-portrait'), `🧊 Freezing Hit! (${stacks})`, 'damage')
-}
-
-/** Check Ogre shield block (10%). Returns true if the attack was blocked. */
-function _checkShieldBlock(tile) {
-  if (!tile.enemyData?.shieldBlock) return false
-  if (Math.random() >= 0.10) return false
-  UI.spawnFloat(tile.element, '🛡️ Blocked!', 'damage')
-  UI.setMessage(`The Ogre raises its shield — your attack is deflected!`)
-  EventBus.emit('audio:play', { sfx: 'hit2' })
-  return true
-}
-
-/** Returns true if the enemy telegraphs its counter-attack and the parry window should show. */
-function _shouldShowParryWindow(tile) {
-  if (_save?.settings?.cheats?.godMode) return false
-  if (!(_save?.settings?.parryEnabled ?? true)) return false
-  const attrs = tile.enemyData?.attributes ?? []
-  return attrs.includes('telegraphs') && !attrs.includes('fast') && tile.enemyData?.behaviour !== 'fast'
-}
-
-/** Apply two Corruption stacks (max 5). Called when Infected Goblin counter-attacks.
- *  Temporarily reduces maxHp and maxMana by 2% per stack; restored as stacks decay. */
-function _applyCorruption() {
-  if (!run) return
-  const prev   = run.player.corruptionStacks ?? 0
-  const stacks = Math.min(5, prev + 2)
-  if (stacks === prev) return  // already at cap
-  run.player.corruptionStacks = stacks
-
-  // Capture uncorrupted base max values on first application
-  if (!run.player.corruptionBaseMaxHp)   run.player.corruptionBaseMaxHp   = run.player.maxHp
-  if (!run.player.corruptionBaseMaxMana) run.player.corruptionBaseMaxMana = run.player.maxMana
-
-  // Reduce max values based on total stacks (2% per stack of base max)
-  run.player.maxHp   = Math.max(1, Math.round(run.player.corruptionBaseMaxHp   * (1 - stacks * 0.02)))
-  run.player.maxMana = Math.max(1, Math.round(run.player.corruptionBaseMaxMana * (1 - stacks * 0.02)))
-
-  // Clamp current values to the new lower ceiling
-  run.player.hp   = Math.min(run.player.hp,   run.player.maxHp)
-  run.player.mana = Math.min(run.player.mana, run.player.maxMana)
-
-  UI.updateHP(run.player.hp, run.player.maxHp)
-  UI.updateMana(run.player.mana, run.player.maxMana)
-  UI.setCorruption(stacks)
-  UI.spawnFloat(document.getElementById('hud-portrait'), `☣️ Corrupted! (${stacks})`, 'damage')
-}
-
-/** Apply burn stacks to the player. amount defaults to 2. Max 3 stacks. */
-function _applyBurnHit(amount = 2) {
-  if (!run) return
-  const stacks = Math.min(3, (run.player.burnStacks ?? 0) + amount)
-  run.player.burnStacks = stacks
-  UI.setBurnOverlay(stacks)
-  UI.spawnFloat(document.getElementById('hud-portrait'), `🔥 Burning! (${stacks})`, 'damage')
-}
-
-/** Apply poison stacks to the player (enemy ability — separate from poison arrow DoT on enemies).
- *  Each stack deals 1 HP per turn. Max 5 stacks, decays 1 per turn. */
-function _applyPlayerPoison(amount = 2) {
-  if (!run) return
-  const stacks = Math.min(5, (run.player.poisonStacks ?? 0) + amount)
-  run.player.poisonStacks = stacks
-  UI.setPlayerPoison(stacks)
-  UI.spawnFloat(document.getElementById('hud-portrait'), `☠️ Poisoned! (${stacks})`, 'damage')
-}
-
-/** Mushroom Harvester taunt: if a live, visible Harvester exists and the target is NOT one,
- *  redirect the attack to a random Harvester. Returns the new target tile (or original if no taunt). */
-function _resolveTauntTarget(tile) {
-  if (tile.enemyData?.taunt) return tile  // already targeting a harvester — no redirect
-  const grid = TileEngine.getGrid()
-  if (!grid) return tile
-  const harvesters = []
-  for (const row of grid) {
-    for (const t of row) {
-      if (t.revealed && t.enemyData && !t.enemyData._slain && t.enemyData.taunt) harvesters.push(t)
-    }
-  }
-  if (harvesters.length === 0) return tile
-  const tauntTarget = harvesters[Math.floor(Math.random() * harvesters.length)]
-  UI.spawnFloat(tile.element, '🍄 Taunted!', 'damage')
-  UI.spawnFloat(tauntTarget.element, '🛡️', 'xp')
-  return tauntTarget
-}
-
-/** Returns the live, revealed Drowned Hulk tile if one exists on the grid, otherwise null. */
-function _findLiveHulk() {
-  const grid = TileEngine.getGrid()
-  if (!grid) return null
-  for (const row of grid) {
-    for (const t of row) {
-      if (t.revealed && t.enemyData && !t.enemyData._slain && t.enemyData.crewBuffAura) return t
-    }
-  }
-  return null
-}
-
-const CREW_BUFF_HP = 3
-
-/** Apply the Drowned Hulk +3 HP aura to a single enemy tile (idempotent). */
-function _applyHulkBuffToTile(t) {
-  if (!t.revealed || !t.enemyData || t.enemyData._slain || t.enemyData.crewBuffAura) return
-  if (t.enemyData._hulkBuffed) return
-  const cur = Number(t.enemyData.currentHP)
-  const base = Number.isFinite(cur) ? cur : Number(t.enemyData.hp)
-  t.enemyData.currentHP = (Number.isFinite(base) ? base : 1) + CREW_BUFF_HP
-  t.enemyData._hulkBuffed = true
-  UI.updateEnemyHP(t.element, t.enemyData.currentHP)
-  UI.spawnFloat(t.element, `⚓ +${CREW_BUFF_HP} HP`, 'heal')
-}
-
-/** Remove the Drowned Hulk +3 HP aura from all buffed visible enemies (called on hulk death). */
-function _removeHulkBuffFromAll() {
-  const grid = TileEngine.getGrid()
-  if (!grid) return
-  for (const row of grid) {
-    for (const t of row) {
-      if (!t.enemyData || t.enemyData._slain || !t.enemyData._hulkBuffed) continue
-      const cur = Number(t.enemyData.currentHP)
-      const safe = Number.isFinite(cur) ? cur : Number(t.enemyData.hp ?? 1)
-      t.enemyData.currentHP = Math.max(1, safe - CREW_BUFF_HP)
-      t.enemyData._hulkBuffed = false
-      UI.updateEnemyHP(t.element, t.enemyData.currentHP)
-      UI.spawnFloat(t.element, `⚓ -${CREW_BUFF_HP} HP`, 'damage')
-    }
-  }
-}
-
-/** Apply hulk aura to all currently visible enemies (called when the hulk is first revealed). */
-function _applyHulkBuffToAll() {
-  const grid = TileEngine.getGrid()
-  if (!grid) return
-  for (const row of grid) {
-    for (const t of row) {
-      _applyHulkBuffToTile(t)
-    }
-  }
-}
-
-// ── Forge ─────────────────────────────────────────────────────
-
-function _openForge(tile) {
-  if (tile.forgeUsed) { UI.setMessage('The forge has already been used this sanctuary.'); return }
-  const inv = run.player.inventory
-  const recipes = FORGE_RECIPES.map(r => {
-    // For duplicate recipes (same ingredient), need two in inventory
-    const isDupe = r.ingredientA === r.ingredientB
-    const count  = inv.filter(e => e?.id === r.ingredientA).length
-    const hasA   = isDupe ? count >= 2 : inv.some(e => e?.id === r.ingredientA)
-    const hasB   = isDupe ? true        : inv.some(e => e?.id === r.ingredientB)
-    const canForge = hasA && hasB && _canAddToBackpack(r.result)
-    return { ...r, canForge, hasA, hasB, isDupe }
-  })
-  UI.showForgeOverlay(recipes, ITEMS, (recipeId) => _doForge(tile, recipeId), () => {
-    UI.hideForgeOverlay()
-    UI.setMessage('The forge cools as you step away.')
-  })
-}
-
-async function _doForge(tile, recipeId) {
-  const recipe = FORGE_RECIPES.find(r => r.id === recipeId)
-  if (!recipe) return
-  const inv    = run.player.inventory
-  const isDupe = recipe.ingredientA === recipe.ingredientB
-  const count  = inv.filter(e => e?.id === recipe.ingredientA).length
-  const hasA   = isDupe ? count >= 2 : inv.some(e => e?.id === recipe.ingredientA)
-  const hasB   = isDupe ? true        : inv.some(e => e?.id === recipe.ingredientB)
-  if (!hasA || !hasB) { UI.setMessage('Missing ingredients!', true); return }
-
-  dropItem(recipe.ingredientA)
-  if (!isDupe) dropItem(recipe.ingredientB)
-  else         dropItem(recipe.ingredientA)   // drop second copy
-
-  UI.hideForgeOverlay()
-  await _addToBackpack(recipe.result)
-  EventBus.emit('inventory:changed')
-
-  if (TrinketCodex.registerIfNew(_save, recipe.result)) {
-    await SaveManager.save(_save).catch(() => {})
-    await UI.showTrinketDiscovery(recipe.result)
-  }
-
-  tile.forgeUsed = true
-  EventBus.emit('audio:play', { sfx: 'spell' })
-  UI.setMessage(`⚒️ Forged: ${ITEMS[recipe.result]?.name ?? recipe.result}!`)
-}
-
-/**
- * Dungeon Mouse: every time the player flips a tile, each living mouse rolls to
- * unflip one random revealed empty tile, rerolling what lies beneath. This uses
- * the reusable TileEngine.unflipAndRerollTile primitive shared with future creatures.
- */
-async function _maybeMouseUnflip(sourceTile) {
-  const grid = TileEngine.getGrid()
-  if (!grid) return
-  // Collect all live mice first (so later unflips don't consider mice spawned by another mouse proc)
-  const mice = []
-  for (const row of grid) {
-    for (const t of row) {
-      if (t.revealed && t.enemyData && !t.enemyData._slain && t.enemyData.tileFlipper) {
-        mice.push(t)
-      }
-    }
-  }
-  if (!mice.length) return
-
-  for (const mouseTile of mice) {
-    if (!mouseTile.enemyData || mouseTile.enemyData._slain) continue
-    const chance = mouseTile.enemyData.tileFlipChance ?? 0.5
-    if (Math.random() >= chance) continue
-
-    // Candidates: revealed, plain empty tiles — never the tile just revealed, never Engineer's turret tile
-    const candidates = []
-    for (const row of grid) {
-      for (const t of row) {
-        if (t === sourceTile) continue
-        if (!t.revealed) continue
-        if (t.type !== 'empty') continue
-        if (t.isStart) continue
-        if (_turretDeployedOnTile(t)) continue
-        candidates.push(t)
-      }
-    }
-    if (!candidates.length) continue
-
-    const target = candidates[Math.floor(Math.random() * candidates.length)]
-
-    EventBus.emit('audio:play', { sfx: 'flip' })
-    if (mouseTile.element) UI.spawnFloat(mouseTile.element, '🐭 Hidden!', 'damage')
-    UI.setMessage('A mouse scurries across the floor — a tile is hidden again!')
-
-    await TileEngine.unflipAndRerollTile(target, run.floor, { isProtected: _turretDeployedOnTile })
-    if (!run) return
-    const patched = TileEngine.patchMainGridTileAt(target.row, target.col, UI.getGridEl(), onTileTap, onTileHold)
-    if (!patched) _refreshMainGridDomFromModel()
-
-    if (TileEngine.ensureExitConnectivityFromGrid(run.floor) > 0) {
-      _refreshMainGridDomFromModel()
-    }
-    TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
-    TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
-    TileEngine.refreshAllThreatClueDisplays()
-    _syncGridDomClassesFromModel()
-  }
-}
-
-/** Crystal Bone Demon: 10% chance per counter-attack to flip a random unrevealed enemy tile. */
 function _tryDemonFlip(demonTile) {
   const chance = demonTile.enemyData?.demonFlipChance ?? 0.10
   if (Math.random() >= chance) return
@@ -510,20 +197,20 @@ function _tryDemonFlip(demonTile) {
 
 /** Still Water Amulet: after 10 turns without spending mana on spells/abilities, next mana cost is 35% less. */
 function _stillWaterManaCost(baseCost) {
-  const p = run?.player
+  const p = session.run?.player
   if (!p?.inventory?.some(e => e?.id === 'still-water-amulet')) return baseCost
   if ((p.turnsWithoutSpell ?? 0) < 10) return baseCost
   return Math.max(1, Math.round(baseCost * 0.65))
 }
 
 function _markStillWaterAbilityUsed() {
-  if (run?.player) run.player.turnsWithoutSpell = 0
+  if (session.run?.player) session.run.player.turnsWithoutSpell = 0
 }
 
 function _previewSpellManaCostForUi() {
-  if (!run?.player) return Math.max(1, CONFIG.spell.manaCost)
+  if (!session.run?.player) return Math.max(1, CONFIG.spell.manaCost)
   return _stillWaterManaCost(
-    Math.max(1, CONFIG.spell.manaCost - (run.player.spellCostReduction ?? 0)) + _tearyExtraCost(),
+    Math.max(1, CONFIG.spell.manaCost - (session.run.player.spellCostReduction ?? 0)) + _tearyExtraCost(),
   )
 }
 
@@ -552,11 +239,11 @@ function _serializeHourglassSnapshot() {
     })),
   )
   return {
-    tilesRevealed: run.tilesRevealed,
-    player: structuredClone(run.player),
-    eventTile: run.eventTile ? { row: run.eventTile.row, col: run.eventTile.col } : null,
-    bossFloorExitPending: run.bossFloorExitPending,
-    killEchoQuota: run.killEchoQuota ?? 1,
+    tilesRevealed: session.run.tilesRevealed,
+    player: structuredClone(session.run.player),
+    eventTile: session.run.eventTile ? { row: session.run.eventTile.row, col: session.run.eventTile.col } : null,
+    bossFloorExitPending: session.run.bossFloorExitPending,
+    killEchoQuota: session.run.killEchoQuota ?? 1,
     tiles,
   }
 }
@@ -564,10 +251,10 @@ function _serializeHourglassSnapshot() {
 function _restoreHourglassSnapshot(snap) {
   if (!snap) return
   const grid = TileEngine.getGrid()
-  run.player = structuredClone(snap.player)
-  run.tilesRevealed = snap.tilesRevealed
-  run.bossFloorExitPending = snap.bossFloorExitPending
-  run.eventTile = snap.eventTile
+  session.run.player = structuredClone(snap.player)
+  session.run.tilesRevealed = snap.tilesRevealed
+  session.run.bossFloorExitPending = snap.bossFloorExitPending
+  session.run.eventTile = snap.eventTile
     ? TileEngine.getTile(snap.eventTile.row, snap.eventTile.col)
     : null
 
@@ -598,123 +285,45 @@ function _restoreHourglassSnapshot(snap) {
     }
   }
 
-  run.killEchoQuota = snap.killEchoQuota ?? 1
+  session.run.killEchoQuota = snap.killEchoQuota ?? 1
 
   _refreshMainGridDomFromModel()
-  UI.updateHP(run.player.hp, run.player.maxHp)
-  UI.updateMana(run.player.mana, run.player.maxMana)
-  UI.updateGold(run.player.gold)
-  UI.updateScrap(_save?.scrap ?? 0)
-  UI.updateGoldenKeys(run.player.goldenKeys ?? 0)
+  UI.updateHP(session.run.player.hp, session.run.player.maxHp)
+  UI.updateMana(session.run.player.mana, session.run.player.maxMana)
+  UI.updateGold(session.run.player.gold)
+  UI.updateScrap(session.save?.scrap ?? 0)
+  UI.updateGoldenKeys(session.run.player.goldenKeys ?? 0)
   _syncMagicChestKeyGlow()
-  UI.setFreezingHit(run.player.freezingHitStacks ?? 0)
-  UI.setBurnOverlay(run.player.burnStacks ?? 0)
-  UI.setPlayerPoison(run.player.poisonStacks ?? 0)
-  UI.setCorruption(run.player.corruptionStacks ?? 0)
-  UI.updateXP(run.player.xp, _xpNeeded())
+  UI.setFreezingHit(session.run.player.freezingHitStacks ?? 0)
+  UI.setBurnOverlay(session.run.player.burnStacks ?? 0)
+  UI.setPlayerPoison(session.run.player.poisonStacks ?? 0)
+  UI.setCorruption(session.run.player.corruptionStacks ?? 0)
+  UI.updateXP(session.run.player.xp, _xpNeeded())
   {
-    const [d0, d1] = _playerDamageRange(run.player)
+    const [d0, d1] = _playerDamageRange(session.run.player)
     UI.updateDamageRange(d0, d1)
   }
   TileEngine.refreshAllThreatClueDisplays()
 }
 
 /** Paladin Kill Echo — unrevealed enemy tiles only; Manhattan distance for “closest”. */
-function _isKillEchoHiddenEnemyTile(t) {
-  return !!(
-    t &&
-    !t.revealed &&
-    t.enemyData &&
-    !t.enemyData._slain &&
-    (t.type === 'enemy' || t.type === 'enemy_fast' || t.type === 'boss')
-  )
-}
+
 
 /** Clear Kill Echo marks only (⚔️ hints we placed); strips legacy senseEvilMarked too. */
-function _paladinKillEchoClearMarks() {
-  const grid = TileEngine.getGrid?.()
-  if (!grid) return
-  for (const row of grid) {
-    for (const t of row) {
-      if (!t.killEchoMarked && !t.senseEvilMarked) continue
-      t.killEchoMarked = false
-      t.senseEvilMarked = false
-      t.echoHintCategory = null
-      if (t.element) {
-        t.element.classList.remove('echo-hint')
-        delete t.element.dataset.echoHint
-      }
-    }
-  }
-}
 
-function _paladinKillEchoStripMarkFromTile(t) {
-  if (!t || (!t.killEchoMarked && !t.senseEvilMarked)) return
-  t.killEchoMarked = false
-  t.senseEvilMarked = false
-  t.echoHintCategory = null
-  if (t.element) {
-    t.element.classList.remove('echo-hint')
-    delete t.element.dataset.echoHint
-  }
-}
 
-function _paladinKillEchoMarkedHiddenCount() {
-  const grid = TileEngine.getGrid?.()
-  if (!grid) return 0
-  let n = 0
-  for (const row of grid) {
-    for (const t of row) {
-      if (!_isKillEchoHiddenEnemyTile(t)) continue
-      if (t.killEchoMarked || t.senseEvilMarked) n++
-    }
-  }
-  return n
-}
+
+
+
 
 /** Mark up to `pickCount` still-unmarked hidden enemies, closest first to (anchorRow, anchorCol). */
-function _paladinKillEchoMarkNewClosest(anchorRow, anchorCol, pickCount) {
-  if (_charKey() !== 'warrior') return
-  const grid = TileEngine.getGrid?.()
-  if (!grid || anchorRow == null || anchorCol == null || pickCount <= 0) return
-  const scored = []
-  for (const row of grid) {
-    for (const t of row) {
-      if (!_isKillEchoHiddenEnemyTile(t)) continue
-      if (t.killEchoMarked || t.senseEvilMarked) continue
-      const d = Math.abs(t.row - anchorRow) + Math.abs(t.col - anchorCol)
-      scored.push({ t, d })
-    }
-  }
-  scored.sort((a, b) => a.d - b.d || a.t.row - b.t.row || a.t.col - b.t.col)
-  const n = Math.min(pickCount, scored.length)
-  for (let i = 0; i < n; i++) {
-    const t = scored[i].t
-    t.killEchoMarked = true
-    t.echoHintCategory = '⚔️'
-    if (t.element) {
-      t.element.classList.add('echo-hint')
-      t.element.dataset.echoHint = '⚔️'
-    }
-  }
-}
+
 
 /** Floor start: clear prior floor’s marks, then mark `count` closest to the entrance. */
-function _paladinKillEchoApplyMarks(anchorRow, anchorCol, count) {
-  if (_charKey() !== 'warrior') return
-  if (count <= 0) return
-  _paladinKillEchoClearMarks()
-  _paladinKillEchoMarkNewClosest(anchorRow, anchorCol, count)
-}
 
-/** After slaying a marked foe: keep other marks; add new ones until we reach `run.killEchoQuota`. */
-function _paladinKillEchoAddMarksAfterKill(tile) {
-  if (_charKey() !== 'warrior' || !tile) return
-  _paladinKillEchoStripMarkFromTile(tile)
-  const q = run.killEchoQuota ?? 1
-  const need = Math.max(0, q - _paladinKillEchoMarkedHiddenCount())
-  _paladinKillEchoMarkNewClosest(tile.row, tile.col, need)
-}
+
+/** After slaying a marked foe: keep other marks; add new ones until we reach `session.run.killEchoQuota`. */
+
 
 function _echoCharmCategoryForTileType(type) {
   if (type === 'enemy' || type === 'enemy_fast' || type === 'boss') return '⚔️'
@@ -742,8 +351,8 @@ function _spyglassHintLabel(type) {
 
 /** Golden perimeter pulse on magic chest only while the player has at least one 🗝️. */
 function _syncMagicChestKeyGlow() {
-  if (!run) return
-  const hasKeys = (run.player.goldenKeys ?? 0) > 0
+  if (!session.run) return
+  const hasKeys = (session.run.player.goldenKeys ?? 0) > 0
   const grid = TileEngine.getGrid()
   for (const row of grid) {
     for (const t of row) {
@@ -753,149 +362,43 @@ function _syncMagicChestKeyGlow() {
   }
 }
 
-// ── Persistent save + run state ──────────────────────────────
-let _save = null
-let run   = null
-/** Last finalized run telemetry (clone) — survives `run = null` until the next run ends. */
-let _lastRunTelemetrySnapshot = null
-
-function _charKey() {
-  return _save?.selectedCharacter ?? 'warrior'
-}
+function _charKey() { return runCharKey() }
 
 /** True iff the active is meta-unlocked AND picked this run via level-up. */
 function _isActiveUnlocked(abilityKey, charKey = _charKey()) {
-  const list = charKey === 'ranger'      ? (_save.ranger?.upgrades      ?? [])
-             : charKey === 'engineer'    ? (_save.engineer?.upgrades    ?? [])
-             : charKey === 'mage'        ? (_save.mage?.upgrades        ?? [])
-             : charKey === 'necromancer' ? (_save.necromancer?.upgrades ?? [])
-             : charKey === 'vampire'     ? (_save.vampire?.upgrades     ?? [])
-             :                             (_save.warrior?.upgrades     ?? [])
+  const list = charKey === 'ranger'      ? (session.save.ranger?.upgrades      ?? [])
+             : charKey === 'engineer'    ? (session.save.engineer?.upgrades    ?? [])
+             : charKey === 'mage'        ? (session.save.mage?.upgrades        ?? [])
+             : charKey === 'necromancer' ? (session.save.necromancer?.upgrades ?? [])
+             : charKey === 'vampire'     ? (session.save.vampire?.upgrades     ?? [])
+             :                             (session.save.warrior?.upgrades     ?? [])
   if (!list.includes(abilityKey)) return false
-  const runUnlocked = run?.player?.unlockedActives ?? []
+  const runUnlocked = session.run?.player?.unlockedActives ?? []
   return runUnlocked.includes(abilityKey)
 }
 
-function _isMageActiveUnlocked(abilityKey) {
-  return _isActiveUnlocked(abilityKey, 'mage')
-}
 
-function _mageActiveDamageMult(abilityKey) {
-  const stacks = run?.player?.mageActiveStacks?.[abilityKey] ?? 0
-  return 1 + 0.1 * stacks
-}
 
-function _manaShieldAbsorptionRate() {
-  const stacks = run?.player?.mageActiveStacks?.['mana-shield'] ?? 0
-  return [0.30, 0.45, 0.60][Math.min(stacks, 2)]
-}
 
-function _manaShieldDrainRatio() {
-  const stacks = run?.player?.mageActiveStacks?.['mana-shield'] ?? 0
-  return [1.0, 0.85, 0.70][Math.min(stacks, 2)]
-}
 
-function _lifeTapHpCost() {
-  const stacks = run?.player?.mageActiveStacks?.['life-tap'] ?? 0
-  return stacks >= 1 ? 2 : 1
-}
 
-function _lifeTapMpGain() {
-  const stacks = run?.player?.mageActiveStacks?.['life-tap'] ?? 0
-  return [1, 3, 4][Math.min(stacks, 2)]
-}
+
+
+
+
+
+
 
 /** Legacy alias used by ranger HUD/actions. Now delegates to the unified active-unlock check. */
-function _isRangerActiveUnlocked(abilityKey) {
-  if (_isActiveUnlocked(abilityKey, 'ranger')) return true
-  // Mastery stacks granted before the active was officially unlocked still imply access (defensive — shouldn't happen with the new pool).
-  const stacks = run?.player?.rangerActiveStacks?.[abilityKey] ?? 0
-  return stacks > 0 && (_save.ranger?.upgrades ?? []).includes(abilityKey)
-}
 
-function _rangerActiveDamageMult(abilityKey) {
-  const stacks = run?.player?.rangerActiveStacks?.[abilityKey] ?? 0
-  return 1 + 0.1 * stacks
-}
 
-function _refreshRangerActiveHud() {
-  if (_charKey() !== 'ranger') return
-  // Clear warrior/engineer/mage slot bindings — otherwise Blinding Light (slot B) survives from a prior Warrior run.
-  UI.setSlamBtn(false)
-  UI.setBlindingLightBtn(false)
-  UI.setDivineLightBtn(false)
-  UI.setEngineerConstructBtn(false)
-  UI.setEngineerManaGeneratorBtn(false)
-  UI.setEngineerTeslaBtn(false, 10, false)
-  UI.setLifeTapBtn(false)
-  UI.setRicochetBtn(_isRangerActiveUnlocked('ricochet'), RANGER_UPGRADES.ricochet.manaCost)
-  UI.setArrowBarrageBtn(
-    _isRangerActiveUnlocked('arrow-barrage'),
-    RANGER_UPGRADES['arrow-barrage'].manaCost,
-  )
-  UI.setPoisonArrowShotBtn(
-    _isRangerActiveUnlocked('poison-arrow-shot'),
-    RANGER_UPGRADES['poison-arrow-shot'].manaCost,
-  )
-}
 
-function _refreshNecroActiveHud() {
-  if (_charKey() !== 'necromancer') return
-  // Clear other-hero slot bindings so they don't leak from a prior run
-  UI.setArrowBarrageBtn(false)
-  UI.setPoisonArrowShotBtn(false)
-  UI.setDivineLightBtn(false)
-  UI.setBlindingLightBtn(false)
-  UI.setEngineerConstructBtn(false)
-  UI.setEngineerManaGeneratorBtn(false)
-  UI.setEngineerTeslaBtn(false, 10, false)
-  UI.setRicochetBtn(false, 0)
-  UI.setSlamBtn(false)
-  UI.setChainLightningBtn?.(false)
-  UI.setLifeTapBtn(false)
-  UI.setStrengthenMinionBtn(
-    _isNecroActiveUnlocked('strengthen-minion'),
-    _hasNecroMetaUpgrade('strengthen-minion-mastery-3') ? 6 : STRENGTHEN_MINION_COST,
-  )
-  UI.setCorpseExplosionBtn(
-    _isNecroActiveUnlocked('corpse-explosion'),
-    NECROMANCER_UPGRADES['corpse-explosion']?.manaCost ?? CORPSE_EXPLOSION_COST,
-  )
-}
 
-function _refreshVampireHud() {
-  if (_charKey() !== 'vampire') return
-  UI.setRicochetBtn(false, 0)
-  UI.setPoisonArrowShotBtn(false)
-  UI.setArrowBarrageBtn(false)
-  UI.setDivineLightBtn(false)
-  UI.setBlindingLightBtn(false)
-  UI.setEngineerConstructBtn(false)
-  UI.setEngineerManaGeneratorBtn(false)
-  UI.setEngineerTeslaBtn(false, 10, false)
-  UI.setSlamBtn(false)
-  UI.setChainLightningBtn?.(false)
-  UI.setStrengthenMinionBtn(false)
-  UI.setLifeTapBtn(false)
-  // Slot A: Blood Tithe
-  UI.setBloodTitheBtn(
-    _isActiveUnlocked('blood-tithe', 'vampire'),
-    _bloodTitheHpCost(),
-  )
-  // Slot B: Mist Form
-  if (_isActiveUnlocked('mist-form', 'vampire')) {
-    UI.setMistFormBtn(true, VAMPIRE_UPGRADES['mist-form'].manaCost, _mistFormFlipsRemaining)
-    UI.setMistFormActive(_mistFormFlipsRemaining > 0)
-  } else {
-    UI.setMistFormBtn(false)
-  }
-  // Slot C: Blood Pact
-  if (_isActiveUnlocked('blood-pact', 'vampire')) {
-    UI.setBloodPactBtn(true, _bloodPactManaCost())
-  } else {
-    UI.setBloodPactBtn(false)
-  }
-}
+
+
+
+
+
 
 /** Ranger __Attack.gif length — portrait stays on "attack" until this elapses. */
 const RANGER_FIGHT_ATTACK_PORTRAIT_MS = 4000
@@ -924,1768 +427,697 @@ function _markReachableUi(tileEl) {
 }
 
 /** Unrevealed enemy tile types (for Dark Eyes hints only). */
-function _isDarkEyesEnemyTileType(type) {
-  return type === 'enemy' || type === 'enemy_fast' || type === 'boss'
-}
 
-function _finalizeVampireDrainKill(t, damageDealt) {
-  if (!run || !t?.enemyData || t.enemyData._slain) return
-  const e = t.enemyData
-  e.currentHP = 0
-  if (e.enemyId === 'onion') _applyTearyEyes()
-  const goldDrop = e.goldDrop ? _rand(...e.goldDrop) : 1
-  const xpDrop = e.xpDrop ?? 0
-  if (run.telemetry && damageDealt > 0) {
-    run.telemetry.totalDamageDealtToEnemies += damageDealt
-    _telemetryBumpDamageDealt(run.floor, damageDealt)
-  }
-  if (t.element) UI.spawnFloat(t.element, '🩸 Drained!', 'xp')
-  _gainGold(goldDrop, t.element, true)
-  _gainXP(xpDrop, t.element)
-  _endCombatVictory(t)
-}
+
+
 
 /** Shake / strike VFX, then after 400ms resolve kill — mirrors fightAction’s fatal-blow delay (multi-kill skips long portrait hold so chains stay snappy). */
-function _vampireDrainKillPresentationThenResolve(t, damageDealt, onDone) {
-  const el = t.element
-  if (el) {
-    UI.shakeTile(el)
-    if (_charKey() === 'ranger') UI.spawnArrow(el)
-    else if (_charKey() === 'mage') UI.spawnMageAttack(el)
-    else if (_charKey() === 'vampire') UI.spawnVampireAttack(el)
-    else if (_charKey() === 'necromancer') UI.spawnNecromancerAttack(el)
-    else UI.spawnSlash(el)
-  }
-  const attackSfx = _charKey() === 'ranger'
-    ? 'arrowShot'
-    : (Math.random() < 0.5 ? 'hit' : 'hit2')
-  EventBus.emit('audio:play', { sfx: attackSfx })
-  UI.setPortraitAnim('attack')
-  setTimeout(() => {
-    if (run && t?.enemyData && !t.enemyData._slain) {
-      _finalizeVampireDrainKill(t, damageDealt)
-    }
-    UI.setPortraitAnim('idle')
-    onDone?.()
-  }, 400)
-}
+
 
 /** First “kill” on a splittable slime: same split branch as fightAction (telemetry + UI.splitSlime). */
-function _vampireDrainSlimeSplitPresentation(t, hpBeforeDrain, onDone) {
-  const el = t.element
-  if (el) {
-    UI.shakeTile(el)
-    if (_charKey() === 'ranger') UI.spawnArrow(el)
-    else if (_charKey() === 'mage') UI.spawnMageAttack(el)
-    else if (_charKey() === 'vampire') UI.spawnVampireAttack(el)
-    else if (_charKey() === 'necromancer') UI.spawnNecromancerAttack(el)
-    else UI.spawnSlash(el)
-  }
-  const attackSfx = _charKey() === 'ranger'
-    ? 'arrowShot'
-    : (Math.random() < 0.5 ? 'hit' : 'hit2')
-  EventBus.emit('audio:play', { sfx: attackSfx })
-  UI.setPortraitAnim('attack')
-  setTimeout(() => {
-    if (!run || !t?.enemyData || t.enemyData._slain) {
-      UI.setPortraitAnim('idle')
-      onDone?.()
-      return
-    }
-    const splitHP = Math.max(1, Math.floor(t.enemyData.hp / 2))
-    if (run.telemetry) {
-      const dealt = hpBeforeDrain - splitHP
-      run.telemetry.totalDamageDealtToEnemies += dealt
-      _telemetryBumpDamageDealt(run.floor, dealt)
-    }
-    t.enemyData.currentHP = splitHP
-    t.enemyData.hasSplit = true
-    if (t.element) {
-      UI.spawnFloat(t.element, '🩸 1', 'damage')
-      UI.spawnFloat(t.element, '🟢 Split!', 'damage')
-      UI.splitSlime(t.element)
-      UI.updateEnemyHP(t.element, splitHP)
-    }
-    UI.setMessage(`The slime splits in two! Each half still fights. (${splitHP} HP remaining)`)
-    UI.setPortraitAnim('idle')
-    onDone?.()
-  }, 400)
-}
 
-function _runVampireDrainPresentationChain(entries, idx, hintTile) {
-  if (idx >= entries.length) {
-    _vampireDarkEyesRoll(hintTile)
-    return
-  }
-  const e = entries[idx]
-  if (e.type === 'split') {
-    _vampireDrainSlimeSplitPresentation(e.tile, e.hpBeforeDrain, () => {
-      _runVampireDrainPresentationChain(entries, idx + 1, hintTile)
-    })
-  } else {
-    _vampireDrainKillPresentationThenResolve(e.tile, e.damageDealt, () => {
-      _runVampireDrainPresentationChain(entries, idx + 1, hintTile)
-    })
-  }
-}
 
-function _vampireDarkEyesRoll(tile) {
-  if (!run || GameState.is(States.DEATH) || _charKey() !== 'vampire') return
-  if (Math.random() >= 0.5) return
-  const grid = TileEngine.getGrid()
-  const candidates = []
-  for (const row of grid) {
-    for (const t of row) {
-      if (t.revealed || t.reachable || t.locked || t.echoHintCategory) continue
-      if (!_isDarkEyesEnemyTileType(t.type)) continue
-      candidates.push(t)
-    }
-  }
-  for (let i = candidates.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[candidates[i], candidates[j]] = [candidates[j], candidates[i]]
-  }
-  const n = Math.min(VAMPIRE_DARK_EYES_MAX_TILES, candidates.length)
-  for (let i = 0; i < n; i++) {
-    const t = candidates[i]
-    if (!t.element) continue
-    const cat = _echoCharmCategoryForTileType(t.type)
-    t.echoHintCategory = cat
-    t.darkEyesHint = true
-    t.element.classList.add('echo-hint')
-    t.element.dataset.echoHint = cat
-  }
-}
 
-function _vampireCorruptedBloodAndDarkEyes(tile) {
-  if (!run || GameState.is(States.DEATH) || _charKey() !== 'vampire') return
 
-  // Mist Form: skip HP drain/gain, decrement counter, still allow Dark Eyes roll
-  if (_mistFormFlipsRemaining > 0) {
-    _mistFormFlipsRemaining--
-    const floatEl = tile.element ?? document.getElementById('hud-portrait')
-    // M3: heal 3% max HP (min 1) per flip while active
-    const mfStacks = run.player.vampireActiveStacks?.['mist-form'] ?? 0
-    if (mfStacks >= 3) {
-      const mfHeal = Math.max(1, Math.floor(run.player.maxHp * 0.03))
-      run.player.hp = Math.min(run.player.maxHp, run.player.hp + mfHeal)
-      UI.updateHP(run.player.hp, run.player.maxHp)
-      UI.spawnFloat(floatEl, `💚 +${mfHeal}`, 'xp')
-    }
-    if (_mistFormFlipsRemaining > 0) {
-      UI.spawnFloat(floatEl, `🌫️ ${_mistFormFlipsRemaining} left`, 'xp')
-      UI.setMistFormBtn(true, VAMPIRE_UPGRADES['mist-form'].manaCost, _mistFormFlipsRemaining)
-    } else {
-      UI.spawnFloat(floatEl, '🌫️ Mist faded', 'xp')
-      UI.setMistFormActive(false)
-      UI.setMistFormBtn(true, VAMPIRE_UPGRADES['mist-form'].manaCost, 0)
-    }
-    _vampireDarkEyesRoll(tile)
-    return
-  }
 
-  const p = run.player
-  const grid = TileEngine.getGrid()
-  const drainTargets = []
-  let monsterCount = 0
-  for (const row of grid) {
-    for (const t of row) {
-      if (!t.revealed || !t.enemyData || t.enemyData._slain) continue
-      monsterCount++
-      drainTargets.push(t)
-    }
-  }
-  // −1 HP per flip always; +1 per revealed monster beyond the first (need 2 monsters to break even).
-  const netHp = -1 + Math.max(0, monsterCount - 1)
-  const floatEl = tile.element ?? document.getElementById('hud-portrait')
-  if (netHp > 0) {
-    p.hp = Math.min(p.maxHp, p.hp + netHp)
-    UI.spawnFloat(floatEl, `🩸 +${netHp} HP`, 'heal')
-  } else if (netHp < 0) {
-    p.hp = Math.max(0, p.hp + netHp)
-    const dmgTaken = -netHp
-    if (run.telemetry) {
-      run.telemetry.totalDamageTaken += dmgTaken
-      _telemetryBumpDamageTaken(run.floor, dmgTaken)
-      _telemetryBumpDamageSource('corrupted_blood', dmgTaken)
-    }
-    UI.spawnFloat(floatEl, `🩸 ${netHp} HP`, 'damage')
-  } else {
-    UI.spawnFloat(floatEl, '🩸 0', 'xp')
-  }
-  UI.updateHP(p.hp, p.maxHp)
-  if (p.hp <= 0) {
-    _die(null, { deathCause: 'corrupted_blood' })
-    return
-  }
-  const pendingPresentations = []
-  for (const t of drainTargets) {
-    if (!t.enemyData || t.enemyData._slain) continue
-    const e = t.enemyData
-    const baseHp = Number(e.hp)
-    const cur0 = Number(e.currentHP)
-    const cur = Number.isFinite(cur0) ? cur0 : (Number.isFinite(baseHp) ? baseHp : 1)
-    if (!Number.isFinite(e.currentHP)) e.currentHP = cur
-    const hpBeforeDrain = e.currentHP
-    const nextHp = hpBeforeDrain - 1
-    const canSplit = nextHp <= 0
-      && e.attributes?.includes('splits')
-      && !e.hasSplit
-    if (nextHp > 0) {
-      e.currentHP = nextHp
-      if (t.element) UI.updateEnemyHP(t.element, nextHp)
-    } else if (canSplit) {
-      pendingPresentations.push({ type: 'split', tile: t, hpBeforeDrain })
-    } else {
-      pendingPresentations.push({ type: 'kill', tile: t, damageDealt: hpBeforeDrain })
-    }
-  }
-  if (pendingPresentations.length) {
-    _runVampireDrainPresentationChain(pendingPresentations, 0, tile)
-  } else {
-    _vampireDarkEyesRoll(tile)
-  }
-}
 
-function buildRunState() {
-  const isRanger      = _charKey() === 'ranger'
-  const isEngineer    = _charKey() === 'engineer'
-  const isMage        = _charKey() === 'mage'
-  const isVampire     = _charKey() === 'vampire'
-  const isNecromancer = _charKey() === 'necromancer'
-  const baseHP     = isMage ? MAGE_BASE.hp : isRanger ? RANGER_BASE.hp : isEngineer ? ENGINEER_BASE.hp : isVampire ? VAMPIRE_BASE.hp : isNecromancer ? NECROMANCER_BASE.hp : CONFIG.player.baseHP
-  const baseMana   = isMage ? MAGE_BASE.mana : isRanger ? RANGER_BASE.mana : isEngineer ? ENGINEER_BASE.mana : isVampire ? VAMPIRE_BASE.mana : isNecromancer ? NECROMANCER_BASE.mana : CONFIG.player.baseMana
 
-  const p = {
-    hp:      baseHP,
-    maxHp:   baseHP,
-    mana:    baseMana,
-    maxMana: baseMana,
-    gold:    CONFIG.player.startGold,
-    xp:      0,
-    level:   1,
-    safeGold: 0,
-    abilities:          isRanger ? ['trapfinder'] : [],
-    /** Active-ability IDs unlocked this run via level-up picks (e.g. 'slam', 'ricochet', 'tesla-tower'). */
-    unlockedActives:    isEngineer ? ['construct-turret'] : [],
-    /** Engineer: highest turret level the player can build/upgrade to (Mastery I → 2, Mastery II → 3). */
-    turretMaxLevel:     1,
-    /** Engineer passive — Seismic Ping ring radius (Chebyshev steps). L1 = 8 neighbors; masteries may raise this later. */
-    seismicPingLevel:   isEngineer ? ENGINEER_SEISMIC_PING.defaultLevel : undefined,
-    damageBonus:        0,
-    damageReduction:    0,
-    spellCostReduction: 0,
-    onKillHeal:         0,
-    fleeMaxCost:        null,
-    undeadBonus:        false,
-    beastBonus:         false,
-    trapReduction:      0,
-    /** Ranger: starts at 1 from passive; further ranks from level-ups. */
-    trapfinderStacks:   isRanger ? 1 : 0,
-    /** Warrior: Slam Mastery picks (integer stacks; mult = (baseTenths + stacks) / 10). */
-    slamMasteryStacks: 0,
-    /** Warrior: Blinding Light mastery — +0.1 to stun-turn mult per pick (same tenths pattern as Slam). */
-    blindingLightMasteryStacks: 0,
-    /** Ranger: level-up picks for Ricochet / Triple Volley / Poison — +10% damage per stack for that active. */
-    rangerActiveStacks: isRanger
-      ? { ricochet: 0, 'arrow-barrage': 0, 'poison-arrow-shot': 0 }
-      : undefined,
-    /** Mage: level-up picks for Chain Lightning / Telekinetic Throw / Mana Shield / Life Tap masteries. */
-    mageActiveStacks: isMage
-      ? { 'chain-lightning': 0, 'telekinetic-throw': 0, 'mana-shield': 0, 'life-tap': 0 }
-      : undefined,
-    /** Warrior: level-up picks for Divine Light heal tier. */
-    warriorActiveStacks: _charKey() === 'warrior'
-      ? { 'divine-light': 0 }
-      : undefined,
-    /** Vampire: level-up picks for Mist Form duration / Blood Pact mana. */
-    vampireActiveStacks: isVampire
-      ? { 'mist-form': 0, 'blood-pact': 0 }
-      : undefined,
-    /** Engineer: level-up picks for Tesla Tower radius/arc. */
-    engineerActiveStacks: isEngineer
-      ? { 'tesla-tower': 0 }
-      : undefined,
-    /** Necromancer: Strengthen Minion mastery level (HP gain + damage bonus). */
-    strengthenMinionStacks: isNecromancer ? 0 : undefined,
-    /** Engineer: turret heal-on-kill (Turret Mastery III in-run pick). */
-    turretKillHeal: false,
-    /** Mage: Mana Shield toggle state. */
-    manaShieldActive: false,
-    /** Mage: Life Tap toggle state. */
-    lifeTapActive: false,
-    retreatPercent:     CONFIG.retreat.goldKeepPercent,
-    extraAbilityChoice: false,
-    damageTakenMult:    1,
-    isRanger,
-    isEngineer,
-    isMage,
-    isVampire,
-    isNecromancer,
-    minionMasteryLevel: 1,
-    inventory:          [],   // [{ id, qty }]
-    goldenKeys:         0,
-    meleeHitCount:      0,    // Stormcaller's Fist tracker
-    deathmaskPending:   false, // Deathmask of the Fallen: next reveal = instant kill
-    trapImmune:         false, // Rope Coil: skip next trap
-    regenTurns:         0,    // Bandage Roll HOT turns remaining
-    regenPerTurn:       0,    // Bandage Roll HOT amount per turn
-    shieldShard:        false, // Shield Shard: absorb next hit
-    whettsoneHits:      0,    // Whetstone: bonus hits remaining
-    eagleEyeFreeFlip:   false, // Eagle Eye: next flip ignores adjacency
-    soulboundBonus:     0,    // Soulbound Blade: accumulated kill bonus (float)
-    resurrectionUsed:   false, // Resurrection Stone: one-time death prevention
-    burnStacks:         0,    // Fire Goblin: burning DoT stacks (max 3)
-    poisonStacks:       0,    // Enemy poison: player poison stacks (max 5)
-    corruptionStacks:      0, // Infected Goblin: corruption stacks (max 5)
-    corruptionBaseMaxHp:   0, // Uncorrupted maxHp — restored when stacks clear
-    corruptionBaseMaxMana: 0, // Uncorrupted maxMana — restored when stacks clear
-    // Gear system
-    armor:        0,
-    negation:     0,
-    damageBonus:  0,
-    damageReduction: 0,
-    equippedGear: { weapon: null, breastplate: null, offhand: null },
-  }
 
-  MetaProgression.applyToPlayer(p, _save)
-  p.baseMaxHp   = p.maxHp    // pre-gear base — used for maxHpPct calculations
-  p.baseMaxMana = p.maxMana  // pre-gear base — used for maxManaPct calculations
-  _applyEquippedGear(p)
-
-  return {
-    player:           p,
-    floor:            1,
-    tilesRevealed:    0,
-    activeCombatTile: null,
-    eventTile:        null,
-    /** Between boss and next dungeon — 3×3 sanctuary */
-    atRest:           false,
-    /** After boss dies, stairs appear; first tap goes to sanctuary */
-    bossFloorExitPending: false,
-    /** Chronological level-up picks this run: { level, abilityId, name, icon } */
-    levelUpLog:       [],
-    floorKeyAwarded:  false,
-    /** @type {{ row: number, col: number, level: number, mode: 'ballistic'|'tesla', hp: number, maxHp: number } | null} */
-    turret:           null,
-    /** @type {Array<{ row: number, col: number, hp: number, maxHp: number, dmg: number, id: number }>} */
-    minions:          [],
-    /** Balance / bot: per-run stats (see js/balance/runTelemetry.js) */
-    telemetry:        createInitialTelemetry(),
-    /** While active: { row, col, active, mult } — buffs all enemies until banner tile is cleared */
-    warBanner:        null,
-    /** Entry tile for this floor (shortest-path timer for Treasure Goblin) */
-    floorStartRow:    null,
-    floorStartCol:    null,
-    /** While active: { row, col, turnsLeft } — countdown until goblin escapes */
-    treasureGoblin:   null,
-    /** Paladin Kill Echo: how many hidden enemies may be marked at once (1 → 2 → 3 this floor). */
-    killEchoQuota:    1,
-  }
-}
+function buildRunState() { return GSH.buildRunState(_stateCtx()) }
 
 // ── Accessors ────────────────────────────────────────────────
 
-function getActiveCombatTile() { return run?.activeCombatTile ?? null }
+function getActiveCombatTile() { return session.run?.activeCombatTile ?? null }
 
 // ── Engineer turret ───────────────────────────────────────────
 
-function _isEngineerUpgradeUnlocked(id) {
-  return _isActiveUnlocked(id, 'engineer')
-}
 
-function _engineerTurretMaxHp(level) {
-  return ENGINEER_TURRET.maxHpByLevel[Math.max(1, Math.min(3, level)) - 1]
-}
 
-function _engineerTurretDamage(level) {
-  return ENGINEER_TURRET.damageByLevel[Math.max(1, Math.min(3, level)) - 1]
-}
 
-function _teslaStacks() {
-  return run?.player?.engineerActiveStacks?.['tesla-tower'] ?? 0
-}
 
-function _teslaRadius() {
-  const s = _teslaStacks()
-  return s >= 3 ? 4 : s >= 2 ? 3 : s >= 1 ? 2 : 1
-}
 
-function _teslaArcChance() {
-  const s = _teslaStacks()
-  return s >= 3 ? 0.75 : s >= 2 ? 0.50 : s >= 1 ? 0.25 : 0
-}
 
-function _inTeslaPerimeter(tr, tile) {
-  if (!tr || tile == null) return false
-  return Math.max(Math.abs(tr.row - tile.row), Math.abs(tr.col - tile.col)) <= _teslaRadius()
-}
+
+
+
+
+
+
+
 
 /** True when Engineer has a live turret deployed on this grid cell (never unflip / re-reveal over it). */
-function _turretDeployedOnTile(tile) {
-  if (!tile) return false
-  const tr = run?.turret
-  if (!tr || tr.hp <= 0) return false
-  return tr.row === tile.row && tr.col === tile.col
-}
 
-function _syncTurretVisual(constructing = false) {
-  if (!run) return
-  const grid = TileEngine.getGrid()
-  if (!grid) return
-  // Clear turret classes, perimeter, and injected content from all tiles
-  for (const row of grid) {
-    for (const t of row) {
-      if (t.element) {
-        t.element.classList.remove('engineer-turret', 'engineer-turret-tesla', 'turret-perimeter')
-        const old = t.element.querySelector('.turret-overlay')
-        if (old) old.remove()
-      }
-    }
-  }
-  const tr = run.turret
-  if (!tr) return
-  const tile = TileEngine.getTile(tr.row, tr.col)
-  if (!tile?.element) return
 
-  tile.element.classList.add('engineer-turret')
-  if (tr.mode === 'tesla') {
-    tile.element.classList.add('engineer-turret-tesla')
-    for (const row of grid) {
-      for (const t of row) {
-        if (!t.element) continue
-        if (_inTeslaPerimeter(tr, t)) t.element.classList.add('turret-perimeter')
-      }
-    }
-  }
 
-  // Inject turret sprite + HP/DMG stats into the tile front
-  const dmg = _engineerTurretDamage(tr.level)
-  const overlay = document.createElement('div')
-  overlay.className = 'turret-overlay'
-  const idleSrc = tr.manaGeneratorActive
-    ? 'assets/sprites/Heroes/Engineer/turret-mana.gif'
-    : tr.mode === 'tesla'
-      ? 'assets/sprites/Heroes/Engineer/turret-tesla.gif'
-      : 'assets/sprites/Heroes/Engineer/turret-t1.gif'
-  const spriteSrc = constructing
-    ? 'assets/sprites/Heroes/Engineer/turret-construction.gif'
-    : idleSrc
-  const statLine = tr.manaGeneratorActive
-    ? `<span class="stat-dmg">🔋 +mana</span>`
-    : `<span class="stat-dmg">⚔️ ${dmg}</span>`
-  overlay.innerHTML = `
-    <span class="turret-level-badge">T${tr.level}</span>
-    <img class="turret-sprite" src="${spriteSrc}?t=${Date.now()}" alt="Turret">
-    <div class="tile-enemy-stats">
-      <span class="stat-hp">❤️ ${tr.hp}</span>
-      ${statLine}
-    </div>`
-  tile.element.appendChild(overlay)
 
-  if (constructing) {
-    setTimeout(() => _syncTurretVisual(false), 2160)
-  }
-}
 
-function _destroyTurret() {
-  EventBus.emit('audio:play', { sfx: 'turretDestroyed' })
-  run.turret = null
-  _syncTurretVisual()
-  // Feedback blast: losing the turret costs the player 5 HP
-  const backlash = 5
-  run.player.hp = Math.max(0, run.player.hp - backlash)
-  UI.updateHP(run.player.hp, run.player.maxHp)
-  UI.spawnFloat(document.getElementById('hud-portrait'), `💥 −${backlash} HP`, 'damage')
-  _refreshEngineerHud()
-  if (run.player.hp <= 0) {
-    _die(null, { deathCause: 'turret_destroyed' })
-  }
-}
 
-function _damageTurretFromEnemyHit(rawAmount, floatEl) {
-  if (!run.turret || run.turret.hp <= 0) return
-  const eff = _computeEffectiveDamageTaken(rawAmount)
-  run.turret.hp -= eff
-  UI.spawnFloat(floatEl ?? document.getElementById('hud-portrait'), `🛡️ Turret −${eff}`, 'damage')
-  if (run.turret.hp <= 0) {
-    UI.setMessage('💥 Your turret is destroyed! You take 5 damage from the feedback blast.')
-    _destroyTurret()
-  } else {
-    _syncTurretVisual()
-  }
-}
+
 
 // ── Necromancer minions ───────────────────────────────────────
 
 let _nextMinionId = 1
 
-function _getMinionMaxHp() {
-  const lvl = Math.min(3, Math.max(1, run?.player?.minionMasteryLevel ?? 1))
-  return NECROMANCER_MINION.hpByLevel[lvl - 1]
-}
 
-function _getMinionDmg() {
-  const lvl = Math.min(3, Math.max(1, run?.player?.minionMasteryLevel ?? 1))
-  return NECROMANCER_MINION.damageByLevel[lvl - 1]
-}
 
-function _syncMinionVisual(minion) {
-  const tile = TileEngine.getTile(minion.row, minion.col)
-  if (!tile?.element) return
-  const existing = tile.element.querySelector('.minion-overlay')
-  if (existing) existing.remove()
-  if (minion.hp <= 0) return
-  const overlay = document.createElement('div')
-  overlay.className = 'minion-overlay'
-  overlay.innerHTML = `<span class="minion-icon">🧟</span>
-    <div class="minion-stats">
-      <span class="stat-hp">❤️ ${minion.hp}</span>
-      <span class="stat-dmg">⚔️ ${minion.dmg}</span>
-    </div>`
-  tile.element.appendChild(overlay)
-}
 
-function _syncAllMinionVisuals() {
-  if (!run?.minions) return
-  for (const m of run.minions) {
-    _syncMinionVisual(m)
-  }
-}
 
-function _clearMinionVisuals() {
-  if (!run?.minions) return
-  for (const m of run.minions) {
-    const tile = TileEngine.getTile(m.row, m.col)
-    tile?.element?.querySelector('.minion-overlay')?.remove()
-  }
-}
+
+
+
+
+
 
 /** After a raised minion dies, remove the corpse tile so it cannot be raised again (1 minion per slain enemy). */
-function _necroClearAshAfterMinionDeath(row, col) {
-  if (!run || _charKey() !== 'necromancer') return
-  const t = TileEngine.getTile(row, col)
-  if (!t?.enemyData?._slain) return
-  TileEngine.replaceTileWithEmptyPreserveState(row, col)
-  const fresh = TileEngine.getTile(row, col)
-  fresh.revealed = true
-  const patched = TileEngine.patchMainGridTileAt(row, col, UI.getGridEl(), onTileTap, onTileHold)
-  if (!patched) _refreshMainGridDomFromModel()
-  else {
-    TileEngine.refreshAllThreatClueDisplays()
-    _syncGridDomClassesFromModel()
-  }
-  _saveActiveRun()
-}
 
-function _necroRaiseMinion(tile) {
-  if (!run || !tile?.enemyData?._slain) return
-  if (_charKey() !== 'necromancer') return
-  if (run.player.mana < RAISE_MINION_COST) {
-    UI.setMessage(`Not enough mana to raise a minion! (need ${RAISE_MINION_COST})`, true)
-    return
-  }
 
-  // Check if a minion already sits on this tile
-  const existing = (run.minions ?? []).findIndex(m => m.row === tile.row && m.col === tile.col)
-  if (existing >= 0) {
-    UI.setMessage('A minion already guards this tile.', true)
-    return
-  }
 
-  run.player.mana -= RAISE_MINION_COST
-  UI.updateMana(run.player.mana, run.player.maxMana)
-
-  // Master's Sight: reveal category hints for all orthogonal neighbors when a minion rises
-  for (const adj of TileEngine.getOrthogonalTiles(tile.row, tile.col)) {
-    if (!adj.revealed && adj.element && !adj.echoHintCategory) {
-      const cat = _echoCharmCategoryForTileType(adj.type)
-      adj.echoHintCategory = cat
-      adj.element.classList.add('echo-hint')
-      adj.element.dataset.echoHint = cat
-    }
-  }
-
-  const maxHp = _getMinionMaxHp()
-  const dmg   = _getMinionDmg()
-  const minion = {
-    row:   tile.row,
-    col:   tile.col,
-    hp:    maxHp,
-    maxHp,
-    dmg,
-    id:    _nextMinionId++,
-  }
-  if (!run.minions) run.minions = []
-  run.minions.push(minion)
-  _syncMinionVisual(minion)
-  // Make the tile tappable again so the minion tile is interactive (re-applies pointer events)
-  tile.element.classList.add('enemy-alive')
-  UI.spawnFloat(tile.element, '🧟 Risen!', 'xp')
-  UI.setMessage(`You raise a minion from the ashes! (❤️ ${maxHp}, ⚔️ ${dmg}) Mana: ${run.player.mana}/${run.player.maxMana}`)
-  _saveActiveRun()
-}
 
 /** Returns total minion co-strike damage for the active combat. */
-function _necroMinionTotalDmg() {
-  if (!run?.minions?.length) return 0
-  let total = 0
-  for (const m of run.minions) total += m.dmg
-  return total
-}
+
 
 /** Absorb damage with the closest minion to the given enemy tile. Returns true if absorbed. */
-function _necroMinionAbsorbDamage(rawAmount, floatEl, enemyTile) {
-  if (!run?.minions?.length) return false
-  let closest = null
-  let closestDist = Infinity
-  for (const m of run.minions) {
-    if (m.hp <= 0) continue
-    const dist = enemyTile
-      ? Math.abs(m.row - enemyTile.row) + Math.abs(m.col - enemyTile.col)
-      : 0
-    if (dist < closestDist) { closest = m; closestDist = dist }
-  }
-  if (!closest) return false
 
-  const eff = _computeEffectiveDamageTaken(rawAmount)
-  closest.hp -= eff
-  const tile = TileEngine.getTile(closest.row, closest.col)
-  const refEl = tile?.element ?? floatEl ?? document.getElementById('hud-portrait')
-  UI.spawnFloat(refEl, `🧟 −${eff}`, 'damage')
-  if (closest.hp <= 0) {
-    closest.hp = 0
-    run.minions = run.minions.filter(m => m.id !== closest.id)
-    if (tile?.element) tile.element.querySelector('.minion-overlay')?.remove()
-    _necroClearAshAfterMinionDeath(closest.row, closest.col)
-    UI.setMessage('Your minion falls protecting you! The ashes scatter — only one minion may rise from each corpse.')
-  } else {
-    _syncMinionVisual(closest)
-    UI.setMessage(`Your minion absorbs the blow! (❤️ ${closest.hp}/${closest.maxHp})`)
-  }
-  return true
-}
 
 // ── Necromancer: active abilities ────────────────────────────
 
-function _isNecroActiveUnlocked(abilityKey) {
-  return _isActiveUnlocked(abilityKey, 'necromancer')
-}
 
-function _hasNecroMetaUpgrade(id) {
-  return (_save.necromancer?.upgrades ?? []).includes(id)
-}
 
-function strengthenMinionAction() {
-  if (_charKey() !== 'necromancer') return
-  if (!_isNecroActiveUnlocked('strengthen-minion')) return
-  if (_combatBusy) return
-  if (_strengthenMinionSelecting) {
-    _cancelStrengthenMinionMode()
-    UI.setMessage('Strengthen Minion cancelled.')
-    return
-  }
-  const _smCost = _hasNecroMetaUpgrade('strengthen-minion-mastery-3') ? 6 : STRENGTHEN_MINION_COST
-  if (run.player.mana < _smCost) {
-    UI.setMessage('Not enough mana for Strengthen Minion!', true)
-    return
-  }
-  const aliveMinions = (run.minions ?? []).filter(m => m.hp > 0)
-  if (!aliveMinions.length) {
-    UI.setMessage('You have no minions to strengthen.', true)
-    return
-  }
-  _cancelCorpseExplosionMode()
-  _strengthenMinionSelecting = true
-  UI.setStrengthenMinionActive?.(true)
-  UI.setMessage(`💪 Strengthen Minion — tap a minion to grant +${STRENGTHEN_MINION_HP_GAIN} max HP. (${STRENGTHEN_MINION_COST} mana)`)
-}
 
-function corpseExplosionAction() {
-  if (_isSilenced()) return
-  if (_charKey() !== 'necromancer') return
-  if (!_isNecroActiveUnlocked('corpse-explosion')) return
-  if (_combatBusy) return
-  if (_corpseExplosionSelecting) {
-    _cancelCorpseExplosionMode()
-    UI.setMessage('Corpse Explosion cancelled.')
-    return
-  }
-  if (run.player.mana < CORPSE_EXPLOSION_COST) {
-    UI.setMessage('Not enough mana for Corpse Explosion!', true)
-    return
-  }
-  _cancelStrengthenMinionMode()
-  _corpseExplosionSelecting = true
-  UI.setCorpseExplosionActive?.(true)
-  UI.setGridCorpseExplosionMode?.(true)
-  UI.setMessage(`💥 Corpse Explosion — tap a corpse or minion to detonate. (${CORPSE_EXPLOSION_COST} mana)`)
-}
 
-function _corpseExplosionOuterRingTiles(row, col) {
-  const grid = TileEngine.getGrid()
-  if (!grid) return []
-  const rows = grid.length
-  const cols = grid[0]?.length ?? 0
-  const out = []
-  for (let dr = -2; dr <= 2; dr++) {
-    for (let dc = -2; dc <= 2; dc++) {
-      if (Math.max(Math.abs(dr), Math.abs(dc)) !== 2) continue
-      const r = row + dr
-      const c = col + dc
-      if (r < 0 || c < 0 || r >= rows || c >= cols) continue
-      out.push(grid[r][c])
-    }
-  }
-  return out
-}
 
-function _damageEnemyFromCorpseExplosion(targetTile, dmg) {
-  if (!targetTile?.enemyData || targetTile.enemyData._slain) return
-  if (!targetTile.revealed) return
-  const ed = targetTile.enemyData
-  ed.currentHP = Math.max(0, (ed.currentHP ?? ed.hp ?? 0) - dmg)
-  if (targetTile.element) UI.spawnFloat(targetTile.element, `💥 ${dmg}`, 'damage')
-  if (ed.currentHP <= 0) {
-    _gainGold(ed.goldDrop ? _rand(...ed.goldDrop) : 1, targetTile.element, true)
-    _gainXP(ed.xpDrop ?? 0, targetTile.element)
-    _endCombatVictory(targetTile)
-  } else if (targetTile.element) {
-    UI.updateEnemyHP(targetTile.element, ed.currentHP)
-  }
-}
 
-function _executeCorpseExplosion(rootTile) {
-  const hasChain    = _hasNecroMetaUpgrade('detonation-chain')
-  const hasAbyssal  = _hasNecroMetaUpgrade('abyssal-reach')
-  const abyssalProc = hasAbyssal && Math.random() < 0.5
 
-  let cost = CORPSE_EXPLOSION_COST
-  if (hasChain)    cost += DETONATION_CHAIN_EXTRA_COST
-  if (abyssalProc) cost *= 2
 
-  if (run.player.mana < cost) {
-    UI.setMessage(`Not enough mana for this Corpse Explosion! (needs ${cost})`, true)
-    _cancelCorpseExplosionMode()
-    return
-  }
 
-  run.player.mana -= cost
-  UI.updateMana(run.player.mana, run.player.maxMana)
 
-  EventBus.emit('audio:play', { sfx: 'hit' })
 
-  // BFS: each queued center explodes; chained corpses enqueue if Detonation Chain owned.
-  const visited = new Set()
-  const queue = [rootTile]
-  const keyOf = (t) => `${t.row},${t.col}`
-  visited.add(keyOf(rootTile))
 
-  while (queue.length) {
-    const center = queue.shift()
-    // Visual flash on the detonating tile
-    if (center.element) UI.spawnFloat(center.element, '💥 BOOM', 'damage')
 
-    const innerRing = TileEngine.getAdjacentTiles(center.row, center.col)
-    const ring = abyssalProc
-      ? innerRing.concat(_corpseExplosionOuterRingTiles(center.row, center.col))
-      : innerRing
-
-    for (const t of ring) {
-      if (t.revealed && t.enemyData && !t.enemyData._slain) {
-        const ceDmg = CORPSE_EXPLOSION_DAMAGE + (_hasNecroMetaUpgrade('corpse-explosion-mastery-1') ? 1 : 0)
-        _damageEnemyFromCorpseExplosion(t, ceDmg)
-      }
-      if (hasChain && t.revealed && t.enemyData?._slain && !t.corpseExploded) {
-        const k = keyOf(t)
-        if (!visited.has(k)) {
-          visited.add(k)
-          queue.push(t)
-        }
-      }
-    }
-
-    // Consume the center
-    _consumeCorpseExplosionSource(center)
-  }
-
-  _cancelCorpseExplosionMode()
-
-  const msg = abyssalProc
-    ? `💥 Corpse Explosion — Abyssal Reach!${hasChain ? ' Chain reaction!' : ''} (${cost} mana)`
-    : hasChain
-      ? `💥 Corpse Explosion — chain reaction! (${cost} mana)`
-      : `💥 Corpse Explosion! (${cost} mana)`
-  UI.setMessage(msg)
-
-  TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
-  TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
-  _saveActiveRun()
-}
 
 /** Mark the corpse or minion tile at `tile` as spent by the explosion. */
-function _consumeCorpseExplosionSource(tile) {
-  tile.corpseExploded = true
-  // If a minion sat on this tile, destroy it.
-  const minionIdx = (run.minions ?? []).findIndex(m => m.row === tile.row && m.col === tile.col)
-  if (minionIdx >= 0) {
-    const minion = run.minions[minionIdx]
-    run.minions.splice(minionIdx, 1)
-    if (tile.element) tile.element.querySelector('.minion-overlay')?.remove()
-    if (minion) _necroClearAshAfterMinionDeath(minion.row, minion.col)
-  } else {
-    _necroClearAshAfterMinionDeath(tile.row, tile.col)
-  }
-}
+
 
 /** Unrevealed tiles within Chebyshev distance `radius` of (row,col), excluding the center. */
-function _engineerSeismicPingTargetTiles(row, col) {
-  const raw = run?.player?.seismicPingLevel ?? ENGINEER_SEISMIC_PING.defaultLevel
-  const radius = Math.max(1, Math.min(ENGINEER_SEISMIC_PING.maxLevel, raw))
-  const grid = TileEngine.getGrid()
-  if (!grid) return []
-  const out = []
-  for (let dr = -radius; dr <= radius; dr++) {
-    for (let dc = -radius; dc <= radius; dc++) {
-      if (dr === 0 && dc === 0) continue
-      if (Math.max(Math.abs(dr), Math.abs(dc)) > radius) continue
-      const t = grid[row + dr]?.[col + dc]
-      if (t) out.push(t)
-    }
-  }
-  return out
-}
+
 
 /** Engineer passive — Seismic Ping: after turret is placed or moved, scan hidden tiles in the ping ring for category hints + brief flash. */
-function _engineerTurretSeismicPing(row, col) {
-  if (_charKey() !== 'engineer' || row == null || col == null) return
-  const neighbors = _engineerSeismicPingTargetTiles(row, col)
-  for (const adj of neighbors) {
-    if (!adj?.element || adj.revealed) continue
-    if (!adj.echoHintCategory) {
-      const cat = _echoCharmCategoryForTileType(adj.type)
-      adj.echoHintCategory = cat
-      adj.element.classList.add('echo-hint')
-      adj.element.dataset.echoHint = cat
-    }
-    adj.element.classList.add('flash-seismic')
-    setTimeout(() => adj.element.classList.remove('flash-seismic'), 520)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function _stateCtx() {
+  return {
+    charKey: _charKey,
+    applyEquippedGear: _applyEquippedGear,
+    startFloor: _startFloor,
+    getCombatEngagementTile: () => session.tap.combatEngagementTile,
+    computeEffectiveDamageTaken: _computeEffectiveDamageTaken,
+    closeEventSession: _closeEventSession,
+    resetCombatOnDeath: _resetCombatOnDeath,
   }
 }
 
-function _engineerTurretAfterReveal(tile) {
-  if (_charKey() !== 'engineer' || !run.turret?.hp) return
-  if (!tile?.enemyData || tile.enemyData._slain) return
-  const tr = run.turret
-  if (tr.manaGeneratorActive) return
-  if (tr.mode === 'tesla' && !_inTeslaPerimeter(tr, tile)) return
-  const dmg = _engineerTurretDamage(tr.level)
-  const td = tile.enemyData
-  td.currentHP = Math.max(0, td.currentHP - dmg)
-  UI.spawnFloat(tile.element, `🛡️ ${dmg}`, 'damage')
-  const turretTileEl = TileEngine.getTile(tr.row, tr.col)?.element
-  if (tr.mode === 'tesla') {
-    UI.spawnTeslaArc(turretTileEl, tile.element)
-  } else {
-    UI.spawnCannonShot(turretTileEl, tile.element)
+
+// Active grid + combat engagement (TileTapRouter)
+const _isInSubFloor = TapRouter.isInSubFloor
+const _getActiveTiles = TapRouter.getActiveTiles
+const _getActiveTileRows = TapRouter.getActiveTileRows
+const _getActiveTileAt = TapRouter.getActiveTileAt
+const _getActiveOrthogonal = TapRouter.getActiveOrthogonal
+const _syncCombatEngagementDom = TapRouter.syncCombatEngagementDom
+const _setCombatEngagement = TapRouter.setCombatEngagement
+const _clearCombatEngagementForTile = TapRouter.clearCombatEngagementForTile
+const _clearAllCombatEngagement = TapRouter.clearAllCombatEngagement
+const _isCombatCommitmentLocked = TapRouter.isCombatCommitmentLocked
+const _canAttackEnemy = TapRouter.canAttackEnemy
+const _suspendCombatEngagementForMultiTargetAbility = TapRouter.suspendCombatEngagementForMultiTargetAbility
+const _restoreCombatEngagementAfterMultiTargetAbility = TapRouter.restoreCombatEngagementAfterMultiTargetAbility
+
+
+// Tile reveal / hold / chest (TileRevealController)
+const _applyRangerTrapfinderMitigation = RevealController.applyRangerTrapfinderMitigation
+const _tickPoisonArrowDotOnGlobalTurn = (opts) => RevealController.tickPoisonArrowDotOnGlobalTurn(_revealCtx(), opts)
+const _maybeOfferDeadlockEscape = () => RevealController.maybeOfferDeadlockEscape(_revealCtx())
+const _maybeMouseIntro = () => RevealController.maybeMouseIntro()
+const _maybeWarBannerIntro = () => RevealController.maybeWarBannerIntro()
+const _maybeBestiaryDiscovery = (tile) => RevealController.maybeBestiaryDiscovery(tile)
+
+
+// Combat (CombatController)
+const _shouldShowParryWindow = CombatController.shouldShowParryWindow
+
+// Targeting cancel modes + tap consumption (TargetingController)
+const _cancelRicochetMode = TargetingController.cancelRicochetMode
+const _cancelArrowBarrageMode = TargetingController.cancelArrowBarrageMode
+const _cancelPoisonArrowShotMode = TargetingController.cancelPoisonArrowShotMode
+const _cancelEngineerConstructMode = TargetingController.cancelEngineerConstructMode
+const _cancelChainLightningMode = TargetingController.cancelChainLightningMode
+const _cancelTelekineticThrowMode = TargetingController.cancelTelekineticThrowMode
+const _cancelStrengthenMinionMode = TargetingController.cancelStrengthenMinionMode
+const _cancelCorpseExplosionMode = TargetingController.cancelCorpseExplosionMode
+
+function _targetingUiCtx() {
+  return { previewSpellManaCostForUi: _previewSpellManaCostForUi }
+}
+const _cancelSpellLanternBlindingForRicochet = () =>
+  TargetingController.cancelSpellLanternBlindingForRicochet(_targetingUiCtx())
+
+function _targetingTapCtx() {
+  return {
+    ..._targetingUiCtx(),
+    castSpell: _castSpell,
+    castBlindingLight: _castBlindingLight,
+    stillWaterManaCost: _stillWaterManaCost,
+    tearyExtraCost: _tearyExtraCost,
+    executeTripleVolley: _executeTripleVolley,
+    executePoisonArrowShot: _executePoisonArrowShot,
+    executeRicochet: _executeRicochet,
+    executeChainLightning: _executeChainLightning,
+    isTelekineticThrowEnemyTarget: _isTelekineticThrowEnemyTarget,
+    getActiveTileAt: _getActiveTileAt,
+    isTelekineticThrowDestination: _isTelekineticThrowDestination,
+    executeTelekineticThrow: _executeTelekineticThrow,
   }
-  EventBus.emit('audio:play', { sfx: 'hit' })
-  if (td.currentHP <= 0) {
-    _gainGold(td.goldDrop ? _rand(...td.goldDrop) : 1, tile.element, true)
-    _gainXP(td.xpDrop ?? 0, tile.element)
-    // Turret kill heal (Mastery III in-run pick)
-    if (run.player.turretKillHeal && tr.level >= 3 && tr.hp > 0) {
-      const tkHeal = Math.max(1, Math.floor(run.player.maxHp * 0.03))
-      run.player.hp = Math.min(run.player.maxHp, run.player.hp + tkHeal)
-      UI.updateHP(run.player.hp, run.player.maxHp)
-      UI.spawnFloat(tile.element, `💚 +${tkHeal}`, 'xp')
-    }
-    _endCombatVictory(tile)
-    return
+}
+const _tryConsumeTargetingTap = (tile) => TargetingController.tryConsumeTargetingTap(_targetingTapCtx(), tile)
+
+function _spawnCtx() {
+  return {
+    onTileTap,
+    onTileHold,
+    refreshMainGridDomFromModel: _refreshMainGridDomFromModel,
+    syncGridDomClassesFromModel: _syncGridDomClassesFromModel,
+    saveActiveRun: _saveActiveRun,
+    pickRandom: _pickRandom,
+    addToBackpack: _addToBackpack,
   }
-  // Tesla arc: after firing, chance to arc to a second revealed enemy
-  if (tr.mode === 'tesla' && Math.random() < _teslaArcChance()) {
-    const arcTargets = _getActiveTiles().filter(t =>
-      t !== tile && t.revealed && t.enemyData && !t.enemyData._slain
-    )
-    if (arcTargets.length > 0) {
-      const arcTile = arcTargets[Math.floor(Math.random() * arcTargets.length)]
-      arcTile.enemyData.currentHP = Math.max(0, arcTile.enemyData.currentHP - dmg)
-      const turretTileEl = TileEngine.getTile(tr.row, tr.col)?.element
-      setTimeout(() => UI.spawnTeslaArc(turretTileEl, arcTile.element), 120)
-      UI.spawnFloat(arcTile.element, `⚡ ${dmg}`, 'damage')
-      if (arcTile.enemyData.currentHP <= 0) {
-        arcTile.enemyData._slain = true
-        _gainGold(arcTile.enemyData.goldDrop ? _rand(...arcTile.enemyData.goldDrop) : 1, arcTile.element, true)
-        _gainXP(arcTile.enemyData.xpDrop ?? 0, arcTile.element)
-        if (run.player.turretKillHeal && tr.level >= 3 && tr.hp > 0) {
-          const tkHeal = Math.max(1, Math.floor(run.player.maxHp * 0.03))
-          run.player.hp = Math.min(run.player.maxHp, run.player.hp + tkHeal)
-          UI.updateHP(run.player.hp, run.player.maxHp)
-          UI.spawnFloat(arcTile.element, `💚 +${tkHeal}`, 'xp')
-        }
-      } else {
-        UI.updateEnemyHP(arcTile.element, arcTile.enemyData.currentHP)
-      }
-    }
+}
+const _restoreTreasureGoblinAfterResume = SpecialSpawnController.restoreTreasureGoblinAfterResume
+const _spawnTreasureGoblin = (usedCoords) => SpecialSpawnController.spawnTreasureGoblin(_spawnCtx(), usedCoords)
+const _spawnArcherGoblin = (usedCoords) => SpecialSpawnController.spawnArcherGoblin(_spawnCtx(), usedCoords)
+const _spawnMouse = (usedCoords) => SpecialSpawnController.spawnMouse(_spawnCtx(), usedCoords)
+const _tickTreasureGoblinCountdown = () => SpecialSpawnController.tickTreasureGoblinCountdown(_spawnCtx())
+const _finishTreasureGoblinReward = (tile) => SpecialSpawnController.finishTreasureGoblinReward(_spawnCtx(), tile)
+
+// Floor progression (FloorController)
+function _floorCtx() {
+  return {
+    ..._combatCtx(),
+    cancelEngineerConstructMode: _cancelEngineerConstructMode,
+    cancelChainLightningMode: _cancelChainLightningMode,
+    cancelTelekineticThrowMode: _cancelTelekineticThrowMode,
+    cancelStrengthenMinionMode: _cancelStrengthenMinionMode,
+    cancelCorpseExplosionMode: _cancelCorpseExplosionMode,
+    syncWarBannerCoordsFromGrid: _syncWarBannerCoordsFromGrid,
+    syncTurretVisual: _syncTurretVisual,
+    revealStartTile: _revealStartTile,
+    restoreTreasureGoblinAfterResume: _restoreTreasureGoblinAfterResume,
+    spawnSubFloorEntry: _spawnSubFloorEntry,
+    spawnWarBannerEntry: _spawnWarBannerEntry,
+    spawnTreasureGoblin: _spawnTreasureGoblin,
+    spawnArcherGoblin: _spawnArcherGoblin,
+    spawnMouse: _spawnMouse,
+    maybeMouseIntro: _maybeMouseIntro,
+    resolveEffect: _resolveEffect,
+    paladinKillEchoApplyMarks: _paladinKillEchoApplyMarks,
+    refreshRangerActiveHud: _refreshRangerActiveHud,
+    refreshEngineerHud: _refreshEngineerHud,
+    refreshMageHud: _refreshMageHud,
+    refreshVampireHud: _refreshVampireHud,
+    refreshNecroActiveHud: _refreshNecroActiveHud,
+    isActiveUnlocked: _isActiveUnlocked,
+    previewSpellManaCostForUi: _previewSpellManaCostForUi,
+    appendLevelSnapshot: _appendLevelSnapshot,
+    appendFloorSnapshot: _appendFloorSnapshot,
+    saveActiveRun: _saveActiveRun,
+    runMusicTrack: _runMusicTrack,
+    xpNeeded: _xpNeeded,
   }
-  UI.updateEnemyHP(tile.element, td.currentHP)
-  const [dmgMin, dmgMax] = td.dmg ?? CONFIG.enemy.damage
-  const enemyCounter = typeof td.hitDamage === 'number'
-    ? td.hitDamage
-    : dmgMin + Math.floor(Math.random() * (dmgMax - dmgMin + 1))
-  _damageTurretFromEnemyHit(enemyCounter, tile.element)
 }
 
-function _handleEngineerConstructTileTap(tile) {
-  const tr = run.turret
-  if (tr && tr.row === tile.row && tr.col === tile.col) {
-    const cost = ENGINEER_CONSTRUCT_MANA_COST
-    const maxLevel = run.player.turretMaxLevel ?? 1
-    if (tr.level >= maxLevel) {
-      UI.setMessage(maxLevel < 3
-        ? `Pick Turret Mastery ${maxLevel === 1 ? 'I' : 'II'} at level-up to upgrade further.`
-        : 'Turret is already max level.', true)
-      return true
+function _startFloor() { FloorController.startFloor(_floorCtx()) }
+function _handleExit() { FloorController.handleExit(_floorCtx()) }
+function _confirmRope(tile) { FloorController.confirmRope(_floorCtx(), tile) }
+function _checkFloorModifierOnReveal(tile) { FloorController.checkFloorModifierOnReveal(_floorCtx(), tile) }
+
+
+// ── Hero ability ctx + facades (js/heroes/) ───────────────────
+
+function _heroAbilityBaseCtx() {
+  return {
+    ..._revealCtx(),
+    charKey: _charKey,
+    getActiveTiles: _getActiveTiles,
+    getActiveTileRows: _getActiveTileRows,
+    getActiveTileAt: _getActiveTileAt,
+    getActiveOrthogonal: _getActiveOrthogonal,
+    isInSubFloor: _isInSubFloor,
+    suspendCombatEngagementForMultiTargetAbility: _suspendCombatEngagementForMultiTargetAbility,
+    restoreCombatEngagementAfterMultiTargetAbility: _restoreCombatEngagementAfterMultiTargetAbility,
+    scaleOutgoingDamageToEnemy: _scaleOutgoingDamageToEnemy,
+    gainGold: _gainGold,
+    gainXP: _gainXP,
+    endCombatVictory: _endCombatVictory,
+    rand: _rand,
+    saveActiveRun: _saveActiveRun,
+    isSilenced: _isSilenced,
+    stillWaterManaCost: _stillWaterManaCost,
+    markStillWaterAbilityUsed: _markStillWaterAbilityUsed,
+    tearyExtraCost: _tearyExtraCost,
+    isActiveUnlocked: _isActiveUnlocked,
+    previewSpellManaCostForUi: _previewSpellManaCostForUi,
+    cancelRicochetMode: _cancelRicochetMode,
+    cancelArrowBarrageMode: _cancelArrowBarrageMode,
+    cancelPoisonArrowShotMode: _cancelPoisonArrowShotMode,
+    cancelChainLightningMode: _cancelChainLightningMode,
+    cancelTelekineticThrowMode: _cancelTelekineticThrowMode,
+    cancelStrengthenMinionMode: _cancelStrengthenMinionMode,
+    cancelCorpseExplosionMode: _cancelCorpseExplosionMode,
+    cancelEngineerConstructMode: _cancelEngineerConstructMode,
+    cancelSpellLanternBlindingForRicochet: _cancelSpellLanternBlindingForRicochet,
+    resolveTauntTarget: (tile) => CombatController.resolveTauntTarget(_combatCtx(), tile),
+    checkShieldBlock: (tile) => CombatController.checkShieldBlock(_combatCtx(), tile),
+    checkOnionLayer: _checkOnionLayer,
+    canAttackEnemy: _canAttackEnemy,
+    applyTearyEyes: _applyTearyEyes,
+    die: _die,
+    avgMeleeDamage: () => Warrior.avgMeleeDamage(_warriorCtx()),
+  }
+}
+
+function _warriorCtx() {
+  return { ..._heroAbilityBaseCtx() }
+}
+
+function _rangerCtx() {
+  const ctx = {
+    ..._heroAbilityBaseCtx(),
+    isRangerActiveUnlocked: (k) => Ranger.isRangerActiveUnlocked(ctx, k),
+    rangerActiveDamageMult: (k) => Ranger.rangerActiveDamageMult(k),
+  }
+  return ctx
+}
+
+function _mageCtx() {
+  const ctx = {
+    ..._heroAbilityBaseCtx(),
+    isMageActiveUnlocked: (k) => Mage.isMageActiveUnlocked(ctx, k),
+    mageActiveDamageMult: (k) => Mage.mageActiveDamageMult(k),
+    refreshMageHud: () => Mage.refreshMageHud(_mageCtx()),
+    lifeTapHpCost: () => Mage.lifeTapHpCost(),
+    lifeTapMpGain: () => Mage.lifeTapMpGain(),
+    manaShieldAbsorptionRate: () => Mage.manaShieldAbsorptionRate(),
+    manaShieldDrainRatio: () => Mage.manaShieldDrainRatio(),
+    previewSpellManaCostForUi: () => Mage.previewSpellManaCostForUi(_mageCtx()),
+    chainLightningDamagePerZap: () => Mage.chainLightningDamagePerZap(_mageCtx()),
+    telekineticThrowDamage: () => Mage.telekineticThrowDamage(_mageCtx()),
+    pickRandomDistinct: Mage.pickRandomDistinct,
+    isTelekineticThrowDestination: (t) => Mage.isTelekineticThrowDestination(ctx, t),
+    isTelekineticThrowEnemyTarget: (t) => Mage.isTelekineticThrowEnemyTarget(t),
+    patchActiveTileDom: _patchActiveTileDom,
+    recomputeSubFloorEnemyLocks: _recomputeSubFloorEnemyLocks,
+    die: _die,
+  }
+  return ctx
+}
+
+function _engineerCtx() {
+  const ctx = {
+    ..._heroAbilityBaseCtx(),
+    isEngineerUpgradeUnlocked: (id) => Engineer.isEngineerUpgradeUnlocked(ctx, id),
+    engineerTurretMaxHp: Engineer.engineerTurretMaxHp,
+    engineerTurretDamage: Engineer.engineerTurretDamage,
+    teslaStacks: Engineer.teslaStacks,
+    teslaRadius: Engineer.teslaRadius,
+    teslaArcChance: Engineer.teslaArcChance,
+    inTeslaPerimeter: Engineer.inTeslaPerimeter,
+    syncTurretVisual: Engineer.syncTurretVisual,
+    destroyTurret: () => Engineer.destroyTurret(_engineerCtx()),
+    damageTurretFromEnemyHit: (a, b) => Engineer.damageTurretFromEnemyHit(_engineerCtx(), a, b),
+    refreshEngineerHud: () => Engineer.refreshEngineerHud(_engineerCtx()),
+    echoCharmCategoryForTileType: _echoCharmCategoryForTileType,
+    computeEffectiveDamageTaken: _computeEffectiveDamageTaken,
+    onTileTap,
+    onTileHold,
+    refreshMainGridDomFromModel: _refreshMainGridDomFromModel,
+    syncGridDomClassesFromModel: _syncGridDomClassesFromModel,
+  }
+  return ctx
+}
+
+function _necroCtx() {
+  const ctx = {
+    ..._heroAbilityBaseCtx(),
+    isNecroActiveUnlocked: (k) => Necromancer.isNecroActiveUnlocked(ctx, k),
+    hasNecroMetaUpgrade: Necromancer.hasNecroMetaUpgrade,
+    echoCharmCategoryForTileType: _echoCharmCategoryForTileType,
+    refreshMainGridDomFromModel: _refreshMainGridDomFromModel,
+    syncGridDomClassesFromModel: _syncGridDomClassesFromModel,
+    onTileTap,
+    onTileHold,
+    syncMinionVisual: Necromancer.syncMinionVisual,
+    necroClearAshAfterMinionDeath: (r, c) => Necromancer.necroClearAshAfterMinionDeath(ctx, r, c),
+  }
+  return ctx
+}
+
+function _vampireCtx() {
+  return {
+    ..._heroAbilityBaseCtx(),
+    applyTearyEyes: _applyTearyEyes,
+    telemetryBumpDamageTaken: _telemetryBumpDamageTaken,
+    telemetryBumpDamageSource: _telemetryBumpDamageSource,
+    telemetryBumpDamageDealt: _telemetryBumpDamageDealt,
+    echoCharmCategoryForTileType: _echoCharmCategoryForTileType,
+    finalizeVampireDrainKill: (t, d) => Vampire.finalizeVampireDrainKill(_vampireCtx(), t, d),
+    vampireDrainKillPresentationThenResolve: (t, d, cb) => Vampire.vampireDrainKillPresentationThenResolve(_vampireCtx(), t, d, cb),
+    vampireDrainSlimeSplitPresentation: (t, hp, cb) => Vampire.vampireDrainSlimeSplitPresentation(_vampireCtx(), t, hp, cb),
+    runVampireDrainPresentationChain: (e, i, h) => Vampire.runVampireDrainPresentationChain(_vampireCtx(), e, i, h),
+    vampireDarkEyesRoll: (t) => Vampire.vampireDarkEyesRoll(_vampireCtx(), t),
+    isDarkEyesEnemyTileType: Vampire.isDarkEyesEnemyTileType,
+    bloodTitheHpCost: Vampire.bloodTitheHpCost,
+    bloodTitheManaGain: Vampire.bloodTitheManaGain,
+    bloodPactManaCost: Vampire.bloodPactManaCost,
+  }
+}
+
+function slamAction() { Warrior.slamAction(_warriorCtx()) }
+function blindingLightAction() { Warrior.blindingLightAction(_warriorCtx()) }
+function divineLightAction() { Warrior.divineLightAction(_warriorCtx()) }
+function divineLightHealAction() { Warrior.divineLightHealAction(_warriorCtx()) }
+function getSlamDamageBreakdown() { return Warrior.getSlamDamageBreakdown(_warriorCtx()) }
+function getDivineLightBreakdown() { return Warrior.getDivineLightBreakdown(_warriorCtx()) }
+function getBlindingLightBreakdown() { return Warrior.getBlindingLightBreakdown(_warriorCtx()) }
+const _castBlindingLight = (t) => Warrior.castBlindingLight(_warriorCtx(), t)
+const _castDivineLightSmite = (t) => Warrior.castDivineLightSmite(_warriorCtx(), t)
+const _paladinKillEchoAddMarksAfterKill = (t) => Warrior.paladinKillEchoAddMarksAfterKill(t)
+const _paladinKillEchoApplyMarks = (r, c, n) => Warrior.paladinKillEchoApplyMarks(r, c, n)
+const _paladinKillEchoClearMarks = () => Warrior.paladinKillEchoClearMarks()
+const _hemorrhageBurst = (t) => Warrior.hemorrhageBurst(_warriorCtx(), t)
+const _refreshAllEnemyStatusDisplays = () => Warrior.refreshAllEnemyStatusDisplays(_warriorCtx())
+
+function ricochetAction() { Ranger.ricochetAction(_rangerCtx()) }
+function arrowBarrageAction() { Ranger.arrowBarrageAction(_rangerCtx()) }
+function poisonArrowShotAction() { Ranger.poisonArrowShotAction(_rangerCtx()) }
+function getRicochetBreakdown() { return Ranger.getRicochetBreakdown(_rangerCtx()) }
+function getArrowBarrageBreakdown() { return Ranger.getArrowBarrageBreakdown(_rangerCtx()) }
+function getPoisonArrowShotBreakdown() { return Ranger.getPoisonArrowShotBreakdown(_rangerCtx()) }
+const _isRangerActiveUnlocked = (k) => Ranger.isRangerActiveUnlocked(_rangerCtx(), k)
+const _refreshRangerActiveHud = () => Ranger.refreshRangerActiveHud(_rangerCtx())
+const _executeRicochet = () => Ranger.executeRicochet(_rangerCtx())
+const _executeTripleVolley = (c) => Ranger.executeTripleVolley(_rangerCtx(), c)
+const _executePoisonArrowShot = (t) => Ranger.executePoisonArrowShot(_rangerCtx(), t)
+const _poisonArrowUnitDamage = () => Ranger.poisonArrowUnitDamage(_rangerCtx())
+
+function spellAction() { Mage.spellAction(_mageCtx()) }
+function chainLightningAction() { Mage.chainLightningAction(_mageCtx()) }
+function telekineticThrowAction() { Mage.telekineticThrowAction(_mageCtx()) }
+function manaShieldAction() { Mage.manaShieldAction(_mageCtx()) }
+function lifeTapAction() { Mage.lifeTapAction(_mageCtx()) }
+function getChainLightningBreakdown() { return Mage.getChainLightningBreakdown(_mageCtx()) }
+function getTelekineticThrowBreakdown() { return Mage.getTelekineticThrowBreakdown(_mageCtx()) }
+const _isMageActiveUnlocked = (k) => Mage.isMageActiveUnlocked(_mageCtx(), k)
+const _refreshMageHud = () => Mage.refreshMageHud(_mageCtx())
+const _mageLifeTapOnFlip = (el) => Mage.mageLifeTapOnFlip(_mageCtx(), el)
+const _castSpell = (t) => Mage.castSpell(_mageCtx(), t)
+const _executeChainLightning = (p) => Mage.executeChainLightning(_mageCtx(), p)
+const _executeTelekineticThrow = (o, d) => Mage.executeTelekineticThrow(_mageCtx(), o, d)
+const _isTelekineticThrowEnemyTarget = (t) => Mage.isTelekineticThrowEnemyTarget(t)
+const _isTelekineticThrowDestination = (t) => Mage.isTelekineticThrowDestination(_mageCtx(), t)
+const _manaShieldAbsorptionRate = () => Mage.manaShieldAbsorptionRate()
+const _manaShieldDrainRatio = () => Mage.manaShieldDrainRatio()
+const _lifeTapHpCost = () => Mage.lifeTapHpCost()
+const _lifeTapMpGain = () => Mage.lifeTapMpGain()
+
+function constructTurretAction() { Engineer.constructTurretAction(_engineerCtx()) }
+function teslaTowerAction() { Engineer.teslaTowerAction(_engineerCtx()) }
+function manaGeneratorAction() { Engineer.manaGeneratorAction(_engineerCtx()) }
+const _isEngineerUpgradeUnlocked = (id) => Engineer.isEngineerUpgradeUnlocked(_engineerCtx(), id)
+const _engineerTurretMaxHp = Engineer.engineerTurretMaxHp
+const _engineerTurretDamage = Engineer.engineerTurretDamage
+const _teslaRadius = () => Engineer.teslaRadius()
+const _inTeslaPerimeter = (tr, t) => Engineer.inTeslaPerimeter(tr, t)
+const _turretDeployedOnTile = (t) => Engineer.turretDeployedOnTile(t)
+const _syncTurretVisual = (c) => Engineer.syncTurretVisual(c)
+const _engineerTurretAfterReveal = (t) => Engineer.engineerTurretAfterReveal(_engineerCtx(), t)
+const _engineerManaGeneratorOnReveal = (el) => Engineer.engineerManaGeneratorOnReveal(_engineerCtx(), el)
+const _handleEngineerConstructTileTap = (t) => Engineer.handleEngineerConstructTileTap(_engineerCtx(), t)
+const _refreshEngineerHud = () => Engineer.refreshEngineerHud(_engineerCtx())
+const _damageTurretFromEnemyHit = (a, b) => Engineer.damageTurretFromEnemyHit(_engineerCtx(), a, b)
+
+function strengthenMinionAction() { Necromancer.strengthenMinionAction(_necroCtx()) }
+function corpseExplosionAction() { Necromancer.corpseExplosionAction(_necroCtx()) }
+const _necroRaiseMinion = (t) => Necromancer.necroRaiseMinion(_necroCtx(), t)
+const _necroMinionTotalDmg = () => Necromancer.necroMinionTotalDmg()
+const _necroMinionAbsorbDamage = (a, b, c) => Necromancer.necroMinionAbsorbDamage(_necroCtx(), a, b, c)
+const _refreshNecroActiveHud = () => Necromancer.refreshNecroActiveHud(_necroCtx())
+const _executeCorpseExplosion = (t) => Necromancer.executeCorpseExplosion(_necroCtx(), t)
+const _hasNecroMetaUpgrade = Necromancer.hasNecroMetaUpgrade
+const _syncMinionVisual = Necromancer.syncMinionVisual
+const _syncAllMinionVisuals = () => Necromancer.syncAllMinionVisuals()
+const _clearMinionVisuals = () => Necromancer.clearMinionVisuals()
+
+function bloodTitheAction() { Vampire.bloodTitheAction(_vampireCtx()) }
+function mistFormAction() { Vampire.mistFormAction(_vampireCtx()) }
+function bloodPactAction() { Vampire.bloodPactAction(_vampireCtx()) }
+function getBloodTitheBreakdown() { return Vampire.getBloodTitheBreakdown(_vampireCtx()) }
+function getBloodPactBreakdown() { return Vampire.getBloodPactBreakdown(_vampireCtx()) }
+const _refreshVampireHud = () => Vampire.refreshVampireHud(_vampireCtx())
+const _vampireCorruptedBloodAndDarkEyes = (t) => Vampire.vampireCorruptedBloodAndDarkEyes(_vampireCtx(), t)
+
+function _combatCtx() {
+  return {
+    ..._revealCtx(),
+    canAttackEnemy: _canAttackEnemy,
+    tickPoisonArrowDotOnGlobalTurn: _tickPoisonArrowDotOnGlobalTurn,
+    engineerTurretDamage: _engineerTurretDamage,
+    necroMinionTotalDmg: _necroMinionTotalDmg,
+    scaleOutgoingDamageToEnemy: _scaleOutgoingDamageToEnemy,
+    gainManaFromMeleeHit: _gainManaFromMeleeHit,
+    applyTearyEyes: _applyTearyEyes,
+    checkOnionLayer: _checkOnionLayer,
+    vibrationRequiresSyncUserActivation: _vibrationRequiresSyncUserActivation,
+    telemetryBumpDamageDealt: _telemetryBumpDamageDealt,
+    takeDamage: _takeDamage,
+    applyFreezingHit: _applyFreezingHit,
+    applyBurnHit: _applyBurnHit,
+    applyPlayerPoison: _applyPlayerPoison,
+    applyCorruption: _applyCorruption,
+    tryDemonFlip: _tryDemonFlip,
+    computeEffectiveDamageTaken: _computeEffectiveDamageTaken,
+    sfUnlockAdjacent: _sfUnlockAdjacent,
+    finishTreasureGoblinReward: _finishTreasureGoblinReward,
+    telemetryBumpKill: _telemetryBumpKill,
+    removeHulkBuffFromAll: _removeHulkBuffFromAll,
+    paladinKillEchoAddMarksAfterKill: _paladinKillEchoAddMarksAfterKill,
+    checkFloorCleared: _checkFloorCleared,
+    maybeOfferDeadlockEscape: _maybeOfferDeadlockEscape,
+  }
+}
+
+function fightAction(tile) { CombatController.fightAction(_combatCtx(), tile) }
+function _endCombatVictory(tile) { CombatController.endCombatVictory(_combatCtx(), tile) }
+
+function _revealCtx() {
+  return {
+    ..._tapCtx(),
+    onTileTap,
+    onTileHold,
+    turretDeployedOnTile: _turretDeployedOnTile,
+    syncAllUnrevealedLockedDom: _syncAllUnrevealedLockedDom,
+    serializeHourglassSnapshot: _serializeHourglassSnapshot,
+    firefoxPreFlipHapticsIfNeeded: _firefoxPreFlipHapticsIfNeeded,
+    gainXP: _gainXP,
+    engineerManaGeneratorOnReveal: _engineerManaGeneratorOnReveal,
+    checkFloorModifierOnReveal: _checkFloorModifierOnReveal,
+    rand: _rand,
+    gainGold: _gainGold,
+    endCombatVictory: _endCombatVictory,
+    markReachableUi: _markReachableUi,
+    applyHulkBuffToAll: _applyHulkBuffToAll,
+    findLiveHulk: _findLiveHulk,
+    applyHulkBuffToTile: _applyHulkBuffToTile,
+    engineerTurretAfterReveal: _engineerTurretAfterReveal,
+    charKey: _charKey,
+    echoCharmCategoryForTileType: _echoCharmCategoryForTileType,
+    vampireCorruptedBloodAndDarkEyes: _vampireCorruptedBloodAndDarkEyes,
+    mageLifeTapOnFlip: _mageLifeTapOnFlip,
+    hapticFromUserGesture: _hapticFromUserGesture,
+    hapticFromAsyncTask: _hapticFromAsyncTask,
+    tickTreasureGoblinCountdown: _tickTreasureGoblinCountdown,
+    scaleOutgoingDamageToEnemy: _scaleOutgoingDamageToEnemy,
+    poisonArrowUnitDamage: _poisonArrowUnitDamage,
+    hemorrhageBurst: _hemorrhageBurst,
+    computeEffectiveDamageTaken: _computeEffectiveDamageTaken,
+    takeDamage: _takeDamage,
+    refreshAllEnemyStatusDisplays: _refreshAllEnemyStatusDisplays,
+    playerDamageRange: _playerDamageRange,
+    addToBackpack: _addToBackpack,
+    rollChestLoot: _rollChestLoot,
+    tryGearDrop: _tryGearDrop,
+    openForge: _openForge,
+    syncMagicChestKeyGlow: _syncMagicChestKeyGlow,
+    engineerTurretDamage: _engineerTurretDamage,
+    inTeslaPerimeter: _inTeslaPerimeter,
+    teslaRadius: _teslaRadius,
+    refreshMainGridDomFromModel: _refreshMainGridDomFromModel,
+    syncGridDomClassesFromModel: _syncGridDomClassesFromModel,
+    isPlayerDeadlocked: _isPlayerDeadlocked,
+  }
+}
+
+async function revealTile(tile) { return RevealController.revealTile(_revealCtx(), tile) }
+function onTileHold(row, col) { RevealController.onTileHold(_revealCtx(), row, col) }
+async function _openChest(tile) { return RevealController.openChest(_revealCtx(), tile) }
+function _resolveEffect(tile) { RevealController.resolveEffect(_revealCtx(), tile) }
+
+function _tapCtx() {
+  return {
+    ..._stateCtx(),
+    charKey: _charKey,
+    syncAllUnrevealedLockedDom: _syncAllUnrevealedLockedDom,
+    handleEngineerConstructTileTap: _handleEngineerConstructTileTap,
+    isCombatCommitmentLocked: _isCombatCommitmentLocked,
+    cancelStrengthenMinionMode: _cancelStrengthenMinionMode,
+    syncMinionVisual: _syncMinionVisual,
+    saveActiveRun: _saveActiveRun,
+    executeCorpseExplosion: _executeCorpseExplosion,
+    castSpell: _castSpell,
+    rand: _rand,
+    gainGold: _gainGold,
+    gainXP: _gainXP,
+    endCombatVictory: _endCombatVictory,
+    useLanternOn: _useLanternOn,
+    useSpyglassOn: _useSpyglassOn,
+    castBlindingLight: _castBlindingLight,
+    castDivineLightSmite: _castDivineLightSmite,
+    stillWaterManaCost: _stillWaterManaCost,
+    tearyExtraCost: _tearyExtraCost,
+    executeTripleVolley: _executeTripleVolley,
+    executePoisonArrowShot: _executePoisonArrowShot,
+    executeRicochet: _executeRicochet,
+    executeChainLightning: _executeChainLightning,
+    isTelekineticThrowEnemyTarget: _isTelekineticThrowEnemyTarget,
+    cancelTelekineticThrowMode: _cancelTelekineticThrowMode,
+    isTelekineticThrowDestination: _isTelekineticThrowDestination,
+    executeTelekineticThrow: _executeTelekineticThrow,
+    getActiveTileAt: _getActiveTileAt,
+    enterSubFloor: _enterSubFloor,
+    destroyWarBanner: _destroyWarBanner,
+    openChest: _openChest,
+    openMagicChest: _openMagicChest,
+    revealTile,
+    openForge: _openForge,
+    confirmExit: _confirmExit,
+    confirmRope: _confirmRope,
+    openEvent: _openEvent,
+    climbThroughHazard: _climbThroughHazard,
+    necroRaiseMinion: _necroRaiseMinion,
+    fightAction,
+    hapticFromUserGesture: _hapticFromUserGesture,
+    hasNecroMetaUpgrade: _hasNecroMetaUpgrade,
+  }
+}
+
+function _resetCombatOnDeath() {
+  session.tap.spellTargeting         = false
+  session.tap.combatBusy             = false
+  _clearAllCombatEngagement()
+  session.tap.lanternTargeting       = false
+  session.tap.spyglassTargeting      = false
+  session.tap.blindingLightTargeting = false
+  session.tap.divineLightSelecting   = false
+  UI.setDivineLightActive(false)
+  _cancelRicochetMode()
+  _cancelArrowBarrageMode()
+  _cancelPoisonArrowShotMode()
+  if (session.run?.player) {
+    session.run.player.tearyEyesTurns = 0
+    UI.setTearyEyes(0)
+    session.run.player.freezingHitStacks = 0
+    UI.setFreezingHit(0)
+    session.run.player.burnStacks = 0
+    UI.setBurnOverlay(0)
+    session.run.player.poisonStacks = 0
+    UI.setPlayerPoison(0)
+    session.run.player.corruptionStacks = 0
+    if (session.run.player.corruptionBaseMaxHp) {
+      session.run.player.maxHp = session.run.player.corruptionBaseMaxHp
+      session.run.player.corruptionBaseMaxHp = 0
     }
-    if (tr.level >= 3) {
-      UI.setMessage('Turret is already max level.', true)
-      return true
+    if (session.run.player.corruptionBaseMaxMana) {
+      session.run.player.maxMana = session.run.player.corruptionBaseMaxMana
+      session.run.player.corruptionBaseMaxMana = 0
     }
-    if (run.player.mana < cost) {
-      UI.setMessage('Not enough mana.', true)
-      return true
-    }
-    run.player.mana -= cost
-    UI.updateMana(run.player.mana, run.player.maxMana)
-    tr.level++
-    tr.maxHp = _engineerTurretMaxHp(tr.level)
-    tr.hp = tr.maxHp
-    _syncTurretVisual()
-    _engineerPendingTile = null
-    UI.setEngineerPlaceMode(false)
-    EventBus.emit('audio:play', { sfx: 'confirmClick' })
-    UI.setMessage(`Turret upgraded to level ${tr.level}!`)
-    _saveActiveRun()
-    return true
+    UI.setCorruption(0)
   }
-  // Do not require tile.reachable: the start tile is revealed but never gets reachable=true
-  // (markReachable only tags unrevealed neighbors). Any revealed empty is a valid build site.
-  const canPlace = tile.revealed && tile.type === 'empty' && !tile.locked
-  if (!canPlace) {
-    _engineerPendingTile = null
-    UI.setEngineerPlaceMode(false)
-    return false
-  }
-  const pending = _engineerPendingTile
-  if (pending && (pending.row !== tile.row || pending.col !== tile.col)) {
-    _engineerPendingTile = { row: tile.row, col: tile.col }
-    UI.setEngineerPlaceMode(true)
-    UI.flashTile(tile.element)
-    UI.setMessage('🛠️ Tap again to confirm placement.')
-    return true
-  }
-  if (pending && pending.row === tile.row && pending.col === tile.col) {
-    const isRelocation = !!run.turret
-    const cost = isRelocation ? ENGINEER_MOVE_MANA_COST : ENGINEER_CONSTRUCT_MANA_COST
-    if (run.player.mana < cost) {
-      UI.setMessage('Not enough mana.', true)
-      return true
-    }
-    run.player.mana -= cost
-    UI.updateMana(run.player.mana, run.player.maxMana)
-    if (isRelocation) {
-      run.turret.row = tile.row
-      run.turret.col = tile.col
-    } else {
-      run.turret = {
-        row: tile.row,
-        col: tile.col,
-        level: 1,
-        mode: 'ballistic',
-        hp: _engineerTurretMaxHp(1),
-        maxHp: _engineerTurretMaxHp(1),
-      }
-    }
-    _engineerPendingTile = null
-    UI.setEngineerPlaceMode(false)
-    _syncTurretVisual(true)
-    _engineerTurretSeismicPing(tile.row, tile.col)
-    EventBus.emit('audio:play', { sfx: 'turretSetup' })
-    UI.setMessage(isRelocation ? 'Turret relocated!' : 'Turret constructed!')
-    _saveActiveRun()
-    return true
-  }
-  _engineerPendingTile = { row: tile.row, col: tile.col }
-  UI.setEngineerPlaceMode(true)
-  UI.flashTile(tile.element)
-  UI.setMessage('🛠️ Tap again to confirm placement.')
-  return true
-}
-
-function constructTurretAction() {
-  if (_isEngineerUpgradeUnlocked('mana-generator')) manaGeneratorAction()
-}
-
-function teslaTowerAction() {
-  if (!_isEngineerUpgradeUnlocked('tesla-tower')) return
-  if (_combatBusy) return
-  if (_isCombatCommitmentLocked()) {
-    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
-    return
-  }
-  if (!GameState.is(States.FLOOR_EXPLORE)) return
-  if (!run.turret?.hp) {
-    UI.setMessage('Build a turret first.', true)
-    return
-  }
-  const tr = run.turret
-  const enabling = tr.mode !== 'tesla'
-  tr.mode = enabling ? 'tesla' : 'ballistic'
-  if (enabling) tr.manaGeneratorActive = false
-  _syncTurretVisual()
-  _refreshEngineerHud()
-  EventBus.emit('audio:play', { sfx: 'confirmClick' })
-  UI.setMessage(enabling ? '⚡ Tesla Tower online!' : '⚡ Tesla Tower offline.')
-  _saveActiveRun()
-}
-
-function manaGeneratorAction() {
-  if (!_isEngineerUpgradeUnlocked('mana-generator')) return
-  if (_combatBusy) return
-  if (_isCombatCommitmentLocked()) {
-    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
-    return
-  }
-  if (!GameState.is(States.FLOOR_EXPLORE)) return
-  if (!run.turret?.hp) {
-    UI.setMessage('Build a turret first.', true)
-    return
-  }
-  const tr = run.turret
-  const enabling = !tr.manaGeneratorActive
-  tr.manaGeneratorActive = enabling
-  if (enabling) tr.mode = 'ballistic'
-  _syncTurretVisual()
-  _refreshEngineerHud()
-  EventBus.emit('audio:play', { sfx: 'confirmClick' })
-  UI.setMessage(enabling ? '🔋 Mana Generator online!' : '🔋 Mana Generator offline.')
-  _saveActiveRun()
-}
-
-function _engineerManaGeneratorOnReveal(tileEl) {
-  if (_charKey() !== 'engineer') return
-  if (!run.turret?.hp || !run.turret.manaGeneratorActive) return
-  const stacks = run.player.manaGeneratorMasteryStacks ?? 0
-  // M3: when mana is already full, heal 1 HP instead
-  if (stacks >= 3 && run.player.mana >= run.player.maxMana) {
-    run.player.hp = Math.min(run.player.maxHp, run.player.hp + 1)
-    UI.updateHP(run.player.hp, run.player.maxHp)
-    UI.spawnFloat(tileEl, '💚 +1', 'xp')
-    return
-  }
-  let gain = 1
-  if (stacks >= 2 && Math.random() < 0.25) gain = 3
-  else if (stacks >= 1 && Math.random() < 0.25) gain = 2
-  run.player.mana = Math.min(run.player.maxMana, run.player.mana + gain)
-  UI.updateMana(run.player.mana, run.player.maxMana)
-  UI.spawnFloat(tileEl, `🔋 +${gain}`, 'xp')
-}
-
-function _refreshEngineerHud() {
-  const t = ENGINEER_UPGRADES['tesla-tower'].manaCost
-  UI.setSlamBtn(false)
-  UI.setRicochetBtn(false)
-  UI.setArrowBarrageBtn(false)
-  UI.setPoisonArrowShotBtn(false)
-  UI.setBlindingLightBtn(false)
-  UI.setDivineLightBtn(false)
-  UI.setLifeTapBtn(false)
-  UI.setEngineerManaGeneratorBtn(_isEngineerUpgradeUnlocked('mana-generator'), run.turret?.manaGeneratorActive ?? false)
-  UI.setEngineerTeslaBtn(_isEngineerUpgradeUnlocked('tesla-tower'), run.turret?.mode === 'tesla')
-}
-
-function _refreshMageHud() {
-  if (_charKey() !== 'mage') return
-  UI.setSlamBtn(false)
-  UI.setRicochetBtn(false)
-  UI.setArrowBarrageBtn(false)
-  UI.setPoisonArrowShotBtn(false)
-  UI.setBlindingLightBtn(false)
-  UI.setDivineLightBtn(false)
-  UI.setEngineerConstructBtn(false)
-  UI.setEngineerManaGeneratorBtn(false)
-  UI.setEngineerTeslaBtn(false, 10, false)
-  UI.setChainLightningBtn(
-    _isMageActiveUnlocked('chain-lightning'),
-    MAGE_UPGRADES['chain-lightning'].manaCost,
-  )
-  UI.setTelekineticThrowBtn(
-    _isMageActiveUnlocked('telekinetic-throw'),
-    MAGE_UPGRADES['telekinetic-throw'].manaCost,
-  )
-  UI.setManaShieldBtn(
-    _isMageActiveUnlocked('mana-shield'),
-    MAGE_UPGRADES['mana-shield'].manaCost,
-    run?.player?.manaShieldActive ?? false,
-  )
-  UI.setLifeTapBtn(
-    _isMageActiveUnlocked('life-tap'),
-    run?.player?.lifeTapActive ?? false,
-  )
 }
 
 // ── Init ─────────────────────────────────────────────────────
 
-function init(saveData) {
-  _save = saveData
-}
+function init(saveData) { GSH.init(_stateCtx(), saveData) }
 
 // ── New game ─────────────────────────────────────────────────
 
-function newGame() {
-  UI.hideRunSummary()
-  _clearActiveRun()
-  run = buildRunState()
-  TileEngine.setDiagonalMovement((_save.selectedCharacter ?? 'warrior') === 'mage')
-  UI.hideMainMenu()
-  EventBus.emit('audio:crossfade', { track: 'dungeon', duration: 1500 })
-  _startFloor()
-}
+function newGame() { GSH.newGame(_stateCtx()) }
 
 // ── Run persistence ──────────────────────────────────────────
 
-function _serializeGridSnapshot() {
-  const grid = TileEngine.getGrid()
-  if (!grid?.length) return null
-  return grid.map(row =>
-    row.map(t => ({
-      type: t.type,
-      revealed: t.revealed,
-      locked: t.locked,
-      reachable: t.reachable,
-      enemyData: t.enemyData ? structuredClone(t.enemyData) : null,
-      itemData: t.itemData ? structuredClone(t.itemData) : null,
-      chestLoot: t.chestLoot ? structuredClone(t.chestLoot) : null,
-      chestReady: t.chestReady,
-      chestLooted: t.chestLooted,
-      magicChestReady: t.magicChestReady,
-      pendingLoot: t.pendingLoot ? structuredClone(t.pendingLoot) : null,
-      exitResolved: t.exitResolved,
-      eventResolved: t.eventResolved,
-      ropeResolved: t.ropeResolved,
-      forgeUsed: t.forgeUsed,
-      echoHintCategory: t.echoHintCategory ?? null,
-      darkEyesHint: !!t.darkEyesHint,
-      bannerReady: t.bannerReady ?? null,
-      warBannerFlying: t.warBannerFlying ?? null,
-      killEchoMarked: !!(t.killEchoMarked || t.senseEvilMarked),
-      armorValue: t.armorValue ?? null,
-    })),
-  )
-}
 
-function _saveActiveRun() {
-  if (!run || !_save) return
-  _save.activeRun = {
-    player:          structuredClone(run.player),
-    floor:           run.floor,
-    atRest:          run.atRest,
-    levelUpLog:      run.levelUpLog.slice(),
-    floorKeyAwarded: !!run.floorKeyAwarded,
-    turret:          run.turret ? structuredClone(run.turret) : null,
-    minions:         run.minions ? structuredClone(run.minions) : [],
-    telemetry:       run.telemetry ? structuredClone(run.telemetry) : undefined,
-    tilesRevealed:   run.tilesRevealed,
-    bossFloorExitPending: !!run.bossFloorExitPending,
-    eventTile:       run.eventTile ? { row: run.eventTile.row, col: run.eventTile.col } : null,
-    gridSnapshot:    _serializeGridSnapshot(),
-    combatEngagement: _combatEngagementTile ? { ..._combatEngagementTile } : null,
-    warBanner:       run.warBanner ? structuredClone(run.warBanner) : null,
-    treasureGoblin:  run.treasureGoblin ? structuredClone(run.treasureGoblin) : null,
-    floorStartRow:   run.floorStartRow ?? null,
-    floorStartCol:   run.floorStartCol ?? null,
-    killEchoQuota:   run.killEchoQuota ?? 1,
-  }
-  SaveManager.save(_save).catch(() => {})
-}
+// Gear + blacksmith (GearController)
+function _adjustPlayerStat(stat, delta) { GearController.adjustPlayerStat(stat, delta) }
 
-// ── Gear stat helpers ─────────────────────────────────────────────────────────
-
-function _adjustPlayerStat(stat, delta) {
-  const p = run.player
-  if (stat === 'maxHpPct') {
-    const flatDelta = Math.round((p.baseMaxHp ?? p.maxHp) * delta / 100)
-    p.maxHp = Math.max(1, p.maxHp + flatDelta)
-    p.hp    = Math.max(1, Math.min(p.hp + flatDelta, p.maxHp))
-  } else if (stat === 'maxManaPct') {
-    const flatDelta = Math.round((p.baseMaxMana ?? p.maxMana) * delta / 100)
-    p.maxMana = Math.max(0, p.maxMana + flatDelta)
-    p.mana    = Math.max(0, Math.min(p.mana + flatDelta, p.maxMana))
-  } else if (stat === 'barbedGear') {
-    // Detriment: reduces maxHp by N% of base max HP (delta is negative e.g. -5)
-    const flatDelta = Math.round((p.baseMaxHp ?? p.maxHp) * delta / 100)
-    p.maxHp = Math.max(1, p.maxHp + flatDelta)
-    p.hp    = Math.min(p.hp, p.maxHp)
-  } else if (stat === 'manaDrain') {
-    // Detriment: reduces maxMana by N% of base max mana (delta is negative)
-    const flatDelta = Math.round((p.baseMaxMana ?? p.maxMana) * delta / 100)
-    p.maxMana = Math.max(0, p.maxMana + flatDelta)
-    p.mana    = Math.min(p.mana, p.maxMana)
-  } else if (stat === 'damageBonus') {
-    p.damageBonus = (p.damageBonus ?? 0) + delta
-  } else if (stat === 'negation') {
-    p.negation = (p.negation ?? 0) + delta
-  } else if (stat === 'damageReduction') {
-    p.damageReduction = (p.damageReduction ?? 0) + delta
-  } else if (stat === 'brittleArmor') {
-    p.negation = Math.max(0, (p.negation ?? 0) + delta / 100)
-  } else if (stat === 'maxHp') {
-    // Legacy flat stat — kept for backward-compat with pre-rename saves
-    p.maxHp += delta; p.hp += delta
-  } else if (stat === 'maxMana') {
-    p.maxMana += delta; p.mana += delta
+function _gearCtx() {
+  return {
+    rand: _rand,
+    playerDamageRange: _playerDamageRange,
   }
 }
 
-function _applyGearStats(piece) {
-  for (const [stat, value] of Object.entries(piece.stats)) {
-    _adjustPlayerStat(stat, value)
-  }
-}
+function _applyEquippedGear(p) { GearController.applyEquippedGear(_gearCtx(), p) }
+function _equipGear(inventoryIndex) { GearController.equipGear(_gearCtx(), inventoryIndex) }
+function _unequipGear(slot, inventoryIndex) { GearController.unequipGear(_gearCtx(), slot, inventoryIndex) }
+function _handleGearPickup(piece) { GearController.handleGearPickup(_gearCtx(), piece) }
+function _tryGearDrop(floor, chance) { return GearController.tryGearDrop(_gearCtx(), floor, chance) }
+function _upgradeGear(slot) { return GearController.upgradeGear(_gearCtx(), slot) }
+function _disassembleGear(slot) { return GearController.disassembleGear(_gearCtx(), slot) }
+function _reduceDetriment(slot, statKey) { return GearController.reduceDetriment(_gearCtx(), slot, statKey) }
+function _trashGear(inventoryIndex) { GearController.trashGear(_gearCtx(), inventoryIndex) }
 
-function _removeGearStats(piece) {
-  for (const [stat, value] of Object.entries(piece.stats)) {
-    _adjustPlayerStat(stat, -value)
-  }
-}
+function _saveActiveRun() { GSH.saveActiveRun(_stateCtx()) }
 
-/** Load persisted equippedGear onto player at run start. */
-function _applyEquippedGear(p) {
-  const saved = _save?.equippedGear
-  if (!saved) return
-  const baseHp   = p.baseMaxHp   ?? p.maxHp
-  const baseMana = p.baseMaxMana ?? p.maxMana
-  for (const slot of ['weapon', 'breastplate', 'offhand']) {
-    const piece = saved[slot]
-    if (!piece) continue
-    p.equippedGear[slot] = piece
-    for (const [stat, value] of Object.entries(piece.stats)) {
-      if (stat === 'maxHpPct') {
-        const d = Math.round(baseHp * value / 100)
-        p.maxHp = Math.max(1, p.maxHp + d); p.hp = Math.max(1, Math.min(p.hp + d, p.maxHp))
-      } else if (stat === 'maxManaPct') {
-        const d = Math.round(baseMana * value / 100)
-        p.maxMana = Math.max(0, p.maxMana + d); p.mana = Math.max(0, Math.min(p.mana + d, p.maxMana))
-      } else if (stat === 'barbedGear') {
-        const d = Math.round(baseHp * value / 100)
-        p.maxHp = Math.max(1, p.maxHp + d); p.hp = Math.min(p.hp, p.maxHp)
-      } else if (stat === 'manaDrain') {
-        const d = Math.round(baseMana * value / 100)
-        p.maxMana = Math.max(0, p.maxMana + d); p.mana = Math.min(p.mana, p.maxMana)
-      } else if (stat === 'damageBonus') {
-        p.damageBonus = (p.damageBonus ?? 0) + value
-      } else if (stat === 'negation') {
-        p.negation = (p.negation ?? 0) + value
-      } else if (stat === 'damageReduction') {
-        p.damageReduction = (p.damageReduction ?? 0) + value
-      } else if (stat === 'brittleArmor') {
-        p.negation = Math.max(0, (p.negation ?? 0) + value / 100)
-      } else if (stat === 'maxHp') {
-        // Legacy flat stat — backward-compat for pre-rename saves
-        p.maxHp += value; p.hp += value
-      } else if (stat === 'maxMana') {
-        p.maxMana += value; p.mana += value
-      }
-    }
-  }
-}
-
-function _equipGear(inventoryIndex) {
-  const inventory = run.player.inventory
-  const candidate = inventory[inventoryIndex]
-  if (!candidate || !candidate.slot) return
-
-  const slot = candidate.slot
-  const prev = run.player.equippedGear[slot] ?? null
-
-  inventory[inventoryIndex] = prev
-
-  run.player.equippedGear[slot] = candidate
-
-  if (prev) _removeGearStats(prev)
-  _applyGearStats(candidate)
-
-  run.player.hp   = Math.max(1, Math.min(run.player.hp,   run.player.maxHp))
-  run.player.mana = Math.max(0, Math.min(run.player.mana, run.player.maxMana))
-
-  const [d0, d1] = _playerDamageRange(run.player)
-  UI.updateHP(run.player.hp, run.player.maxHp)
-  UI.updateMana(run.player.mana, run.player.maxMana)
-  UI.updateDamageRange(d0, d1)
-  EventBus.emit('inventory:changed')
-}
-
-function _unequipGear(slot, inventoryIndex) {
-  if (!run) return
-  const piece = run.player.equippedGear[slot]
-  if (!piece) return
-  run.player.inventory[inventoryIndex] = piece
-  run.player.equippedGear[slot] = null
-  _removeGearStats(piece)
-  run.player.hp   = Math.max(1, Math.min(run.player.hp,   run.player.maxHp))
-  run.player.mana = Math.max(0, Math.min(run.player.mana, run.player.maxMana))
-  const [d0, d1] = _playerDamageRange(run.player)
-  UI.updateHP(run.player.hp, run.player.maxHp)
-  UI.updateMana(run.player.mana, run.player.maxMana)
-  UI.updateDamageRange(d0, d1)
-  EventBus.emit('inventory:changed')
-}
-
-/** Push a gear piece into the backpack, or emit backpack:full if no room. */
-function _handleGearPickup(piece) {
-  const inv = run.player.inventory
-  const BACKPACK_MAX_SLOTS = 9
-  const usedSlots = inv.filter(e => e !== null).length
-  if (usedSlots < BACKPACK_MAX_SLOTS) {
-    const nullIdx = inv.indexOf(null)
-    if (nullIdx >= 0) { inv[nullIdx] = piece } else { inv.push(piece) }
-    EventBus.emit('inventory:changed')
-    EventBus.emit('gear:pickedUp')
-    UI.showGearFoundToast(piece)
-  } else {
-    EventBus.emit('backpack:full', { type: 'gear', piece })
-  }
-}
-
-/** Try to drop a gear piece; returns true if a piece was added to backpack. */
-function _tryGearDrop(floor, chance) {
-  if (Math.random() >= chance) return false
-  const { generateGear, pickDropTier, pickDropSlot } = _gearModule
-  const tier  = pickDropTier(floor)
-  const slot  = pickDropSlot()
-  const piece = generateGear(slot, tier)
-  _handleGearPickup(piece)
-  return true
-}
-
-function _clearActiveRun() {
-  UI.hideSubFloor()
-  if (!_save?.activeRun) return
-  delete _save.activeRun
-  SaveManager.save(_save).catch(() => {})
-}
+function _clearActiveRun() { GSH.clearActiveRun(_stateCtx()) }
 
 /** In-run background music key for AudioManager (sanctuary rest vs dungeon). */
 function _runMusicTrack() {
-  if (!run) return 'dungeon'
-  if (run.atRest) return 'sanctuary'
+  if (!session.run) return 'dungeon'
+  if (session.run.atRest) return 'sanctuary'
   return 'dungeon'
 }
 
-function resumeRun() {
-  const saved = _save?.activeRun
-  if (!saved) return
-  run = {
-    player:               saved.player,
-    floor:                saved.floor,
-    atRest:               saved.atRest ?? false,
-    levelUpLog:           saved.levelUpLog ?? [],
-    floorKeyAwarded:      saved.floorKeyAwarded ?? false,
-    tilesRevealed:        saved.tilesRevealed ?? 0,
-    activeCombatTile:     null,
-    eventTile:            null,
-    bossFloorExitPending: !!saved.bossFloorExitPending,
-    turret:               saved.turret ?? null,
-    minions:              saved.minions ?? [],
-    _resumeGridSnapshot:  saved.gridSnapshot ?? null,
-    _resumeEventTile:     saved.eventTile ?? null,
-    _resumeCombatEngagement: saved.combatEngagement ?? null,
-    telemetry:            (() => {
-      if (!saved.telemetry) return createInitialTelemetry()
-      const t = structuredClone(saved.telemetry)
-      if (t.runStartSnapshotDone == null) t.runStartSnapshotDone = true
-      if (!t.damageByFloor) t.damageByFloor = {}
-      if (!Array.isArray(t.floorSnapshots)) t.floorSnapshots = []
-      return t
-    })(),
-    warBanner: saved.warBanner ?? null,
-    treasureGoblin: saved.treasureGoblin ?? null,
-    floorStartRow: saved.floorStartRow ?? null,
-    floorStartCol: saved.floorStartCol ?? null,
-    killEchoQuota: saved.killEchoQuota ?? 1,
-  }
-  const ch = _save.selectedCharacter ?? 'warrior'
-  if (ch === 'engineer' && (run.player.seismicPingLevel == null || run.player.seismicPingLevel < 1)) {
-    run.player.seismicPingLevel = ENGINEER_SEISMIC_PING.defaultLevel
-  }
-  run.player.isEngineer    = ch === 'engineer'
-  run.player.isRanger      = ch === 'ranger'
-  run.player.isMage        = ch === 'mage'
-  run.player.isVampire     = ch === 'vampire'
-  run.player.isNecromancer = ch === 'necromancer'
-  TileEngine.setDiagonalMovement(ch === 'mage')
-  UI.hideMainMenu()
-  EventBus.emit('audio:crossfade', { track: _runMusicTrack(), duration: 1500 })
-  _startFloor()
-}
+function resumeRun() { GSH.resumeRun(_stateCtx()) }
 
-function abandonRun() {
-  run = null
-  _clearActiveRun()
-  returnToMenu()
-}
+function abandonRun() { GSH.abandonRun(_stateCtx()) }
 
 // ── Return to menu ───────────────────────────────────────────
 
-function returnToMenu(autoSave = false) {
-  _clearActiveRun()
-  run = null
-  if (!GameState.transition(States.MENU)) GameState.set(States.MENU)
-  if (autoSave) SaveManager.save(_save)
-  const char = _charKey()
-  const xp   = char === 'ranger'
-    ? _save.ranger.totalXP
-    : char === 'engineer'
-      ? _save.engineer.totalXP
-      : char === 'mage'
-        ? (_save.mage?.totalXP ?? 0)
-        : char === 'vampire'
-          ? (_save.vampire?.totalXP ?? 0)
-          : char === 'necromancer'
-            ? (_save.necromancer?.totalXP ?? 0)
-            : _save.warrior.totalXP
-  UI.updateMenuStats(_save.persistentGold, xp, char, _save)
-  UI.setActiveDifficulty(_save.settings.difficulty)
-  UI.showMainMenu()
-  UI.refreshSkipFloorButton(_save)
-  EventBus.emit('audio:crossfade', { track: 'menu', duration: 1500 })
-}
-
-function _startFloor() {
-  _spellTargeting         = false
-  _combatBusy             = false
-  _clearAllCombatEngagement()
-  _lanternTargeting       = false
-  _spyglassTargeting      = false
-  _blindingLightTargeting = false
-  _divineLightSelecting   = false
-  UI.setDivineLightActive(false)
-  _ricochetSelecting = false
-  _ricochetTiles     = []
-  UI.clearRicochetMarks()
-  UI.setRicochetActive(false)
-  UI.setGridRicochetMode(false)
-  _arrowBarrageSelecting = false
-  _tripleVolleyCenter = null
-  UI.clearTripleVolleyAoePreview()
-  UI.setArrowBarrageActive(false)
-  UI.setGridArrowBarrageMode(false)
-  _poisonArrowShotSelecting = false
-  UI.setPoisonArrowShotActive(false)
-  UI.setGridPoisonArrowShotMode(false)
-  _cancelEngineerConstructMode()
-  _cancelChainLightningMode()
-  _cancelTelekineticThrowMode()
-  _cancelStrengthenMinionMode()
-  _cancelCorpseExplosionMode()
-  _mistFormFlipsRemaining = 0
-  if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0); run.player.freezingHitStacks = 0; UI.setFreezingHit(0); run.player.burnStacks = 0; UI.setBurnOverlay(0); run.player.poisonStacks = 0; UI.setPlayerPoison(0); run.player.corruptionStacks = 0; if (run.player.corruptionBaseMaxHp) { run.player.maxHp = run.player.corruptionBaseMaxHp; run.player.corruptionBaseMaxHp = 0 } if (run.player.corruptionBaseMaxMana) { run.player.maxMana = run.player.corruptionBaseMaxMana; run.player.corruptionBaseMaxMana = 0 } UI.setCorruption(0) }
-  if (run) { run._hourglassSnapshot = null }
-  _throwingKnifeTargeting  = false
-  _rustyNailTargeting      = false
-  _twinBladesTargeting     = false
-  if (run?.player) run.player.navigatorsChartUsed = false
-  const resumeSnapshot = !!(run?._resumeGridSnapshot)
-  // Hunger Stone: costs 2 HP and grants +1 max damage each floor (skip sanctuary)
-  if (!resumeSnapshot && run && !run.atRest && run.floor > 1 && run.player.inventory.some(e => e?.id === 'hunger-stone')) {
-    run.player.damageBonus = (run.player.damageBonus ?? 0) + 1
-    run.player.hp = Math.max(1, run.player.hp - 2)
-  }
-  let gridRestored = false
-  if (run?._resumeGridSnapshot) {
-    gridRestored = TileEngine.importGridFromSnapshot(run._resumeGridSnapshot, run.floor, { rest: run.atRest })
-    run._resumeGridSnapshot = null
-    _syncWarBannerCoordsFromGrid()
-  }
-  if (!gridRestored) {
-    TileEngine.generateGrid(run.floor, { rest: run.atRest })
-    if (run) {
-      run.treasureGoblin = null
-      run.floorStartRow = null
-      run.floorStartCol = null
-    }
-  }
-  if (!run.atRest) {
-    TileEngine.ensureExitConnectivityFromGrid(run.floor)
-  }
-  TileEngine.renderGrid(UI.getGridEl(), onTileTap, onTileHold)
-  if (run.turret) _syncTurretVisual()
-  run.minions = []
-
-  // ── Floor modifier ─────────────────────────────────────────
-  if (run.floorModifier?.clear) {
-    try { run.floorModifier.clear(run, TileEngine.getGrid()) } catch (_) {}
-  }
-  if (!gridRestored) {
-    const isBoss = CONFIG.bossFloors?.includes(run.floor) ?? false
-    run.floorModifier = pickModifier(run.floor, run.atRest, isBoss) ?? null
-    if (run.floorModifier) {
-      try { run.floorModifier.apply(run, TileEngine.getGrid()) } catch (_) {}
-      UI.setFloorModifier(run.floorModifier)
-    } else {
-      UI.clearFloorModifier()
-    }
-  } else {
-    // Resumed run — re-apply The Hunt marks (visual only, tiles already exist)
-    if (run.floorModifier?.id === 'the-hunt') {
-      const grid = TileEngine.getGrid()
-      for (const row of grid) {
-        for (const t of row) {
-          if (t.enemyData && !t.revealed && !t.enemyData._slain && t.element) {
-            t.element.classList.add('hunt-marked')
-          }
-        }
-      }
-    }
-    if (run.floorModifier) UI.setFloorModifier(run.floorModifier)
-    else UI.clearFloorModifier()
-  }
-  if (run._resumeEventTile) {
-    run.eventTile = TileEngine.getTile(run._resumeEventTile.row, run._resumeEventTile.col)
-    run._resumeEventTile = null
-  }
-  if (gridRestored) {
-    TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
-    TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
-    _syncGridDomClassesFromModel()
-    _restoreTreasureGoblinAfterResume()
-    // Skip one treasure tick so resume-time poison/harass tick does not consume a goblin turn
-    run._resumeTreasureGoblinTickSkip = true
-    _tickPoisonArrowDotOnGlobalTurn()
-  } else {
-    _revealStartTile()
-  }
-  // First-run intro: show once on floor 1 (skipped during bot runs)
-  const _isBot = new URLSearchParams(location.search).has('balanceBot')
-    || new URLSearchParams(location.search).has('testBotOngoing')
-    || new URLSearchParams(location.search).has('testHarness')
-  // Floor modifier modal: shown once per new floor when a modifier is active
-  if (!_isBot && !gridRestored && run.floorModifier) {
-    UI.showFloorModifierModal(run.floorModifier, () => {})
-  }
-  if (!_isBot && run.floor === 1 && !(_save.settings?.firstRunIntroDismissed)) {
-    UI.showFirstRunIntro(() => {
-      _save.settings = _save.settings ?? {}
-      _save.settings.firstRunIntroDismissed = true
-      SaveManager.save(_save).catch(() => {})
-      if (!(_save.settings?.parryChoiceDismissed)) {
-        UI.showParryOnboarding((enabled) => {
-          _save.settings.parryEnabled = enabled
-          _save.settings.parryChoiceDismissed = true
-          SaveManager.save(_save).catch(() => {})
-        })
-      }
-    })
-  } else if (!_isBot && run.floor === 1 && !(_save.settings?.parryChoiceDismissed)) {
-    UI.showParryOnboarding((enabled) => {
-      _save.settings = _save.settings ?? {}
-      _save.settings.parryEnabled = enabled
-      _save.settings.parryChoiceDismissed = true
-      SaveManager.save(_save).catch(() => {})
-    })
-  }
-  // Cracked Compass: reveal exit tile from the start (skip rest floors)
-  if (!gridRestored && !run.atRest && run.player.inventory.some(e => e?.id === 'cracked-compass')) {
-    const grid = TileEngine.getGrid()
-    for (const row of grid) {
-      for (const t of row) {
-        if (t.type === 'exit' && !t.revealed) {
-          t.revealed = true
-          run.tilesRevealed++
-          TileEngine.markReachable(t.row, t.col, _markReachableUi)
-          if (t.element) {
-            TileEngine.flipTile(t, UI)
-            t.element.classList.add('compass-revealed')
-          }
-          break
-        }
-      }
-    }
-  }
-
-  // Sub-floor spawn: always on floor 1, otherwise 5% chance on non-boss, non-sanctuary floors
-  if ((_save.settings.subLevelsEnabled ?? true) && !gridRestored && !run.atRest && !CONFIG.bossFloors.includes(run.floor)
-      && (run.floor === 1 || Math.random() < CONFIG.subFloor.spawnChance)) {
-    _spawnSubFloorEntry()
-  }
-
-  // War banner: always on floor 1; otherwise 20% per non-boss dungeon floor — buffs all enemies until cleared
-  if (!gridRestored && !run.atRest && !CONFIG.bossFloors.includes(run.floor)
-      && (run.floor === 1 || Math.random() < CONFIG.warBanner.spawnChance)) {
-    _spawnWarBannerEntry()
-  } else if (!gridRestored && !run.atRest) {
-    run.warBanner = null
-  }
-
-  const specialSpawnUsed = new Set()
-  // Treasure Goblin — 5% per non-boss dungeon floor; pre-revealed with escape timer (path from entry + 2)
-  if (!gridRestored && !run.atRest && !CONFIG.bossFloors.includes(run.floor)
-      && Math.random() < (CONFIG.treasureGoblin?.spawnChance ?? 0.05)) {
-    _spawnTreasureGoblin(specialSpawnUsed)
-  }
-  // Archer Goblin: always floor 1, 20% chance on subsequent non-boss dungeon floors.
-  // Immediately revealed; starts firing arrows each turn until killed.
-  if (!gridRestored && !run.atRest && !CONFIG.bossFloors.includes(run.floor)
-      && (run.floor === 1 || Math.random() < 0.20)) {
-    _spawnArcherGoblin(specialSpawnUsed)
-  }
-
-  // Dungeon Mouse: CONFIG.mouse.spawnChance per non-boss dungeon floor (no floor-1 guarantee).
-  // Pre-revealed; each time the player flips a tile, 50% to unflip a random revealed empty tile.
-  if (!gridRestored && !run.atRest && !CONFIG.bossFloors.includes(run.floor)
-      && Math.random() < (CONFIG.mouse?.spawnChance ?? 0.20)) {
-    _spawnMouse(specialSpawnUsed)
-    _maybeMouseIntro()
-  }
-
-  // Forsaken Idol: reveal all unrevealed enemy tiles from floor start
-  if (!gridRestored && !run.atRest && run.player.inventory.some(e => e?.id === 'forsaken-idol')) {
-    const grid = TileEngine.getGrid()
-    for (const row of grid) {
-      for (const t of row) {
-        if (!t.revealed && (t.type === 'enemy' || t.type === 'enemy_fast' || t.type === 'boss')) {
-          t.revealed = true
-          run.tilesRevealed++
-          TileEngine.markReachable(t.row, t.col, _markReachableUi)
-          if (t.element) TileEngine.flipTile(t, UI)
-          if (t.enemyData) TileEngine.rollEnemyHitDamage(t.enemyData)
-          _resolveEffect(t)
-        }
-      }
-    }
-  }
-  // Paladin Kill Echo: mark closest hidden enemy/enemies to floor start; quota resets each floor
-  if (!gridRestored && !run.atRest && _charKey() === 'warrior') {
-    run.killEchoQuota = 1
-    _paladinKillEchoApplyMarks(run.floorStartRow, run.floorStartCol, run.killEchoQuota)
-  }
-  // Mending Moss / Living Bramble: restore 3 HP at start of each new floor (skip floor 1 and sanctuary)
-  if (!gridRestored && !run.atRest && run.floor > 1 && (run.player.inventory.some(e => e?.id === 'mending-moss') || run.player.inventory.some(e => e?.id === 'living-bramble'))) {
-    run.player.hp = Math.min(run.player.maxHp, run.player.hp + 3)
-  }
-  // Predator's Edge: +1 max damage per floor, costs 2 HP (same as Hunger Stone)
-  if (!resumeSnapshot && run && !run.atRest && run.floor > 1 && run.player.inventory.some(e => e?.id === 'predators-edge')) {
-    run.player.damageBonus = (run.player.damageBonus ?? 0) + 1
-    run.player.hp = Math.max(1, run.player.hp - 2)
-  }
-  // Twin Fates: coin flip each floor (skip floor 1 and sanctuary)
-  if (!gridRestored && !run.atRest && run.floor > 1 && run.player.inventory.some(e => e?.id === 'twin-fates')) {
-    if (Math.random() < 0.5) {
-      run.player.maxHp += 4
-      run.player.hp    += 4
-    } else {
-      run.player.maxHp = Math.max(1, run.player.maxHp - 2)
-      run.player.hp    = Math.min(run.player.hp, run.player.maxHp)
-    }
-  }
-  // Abyssal Lens: hint all tile categories on the back of unrevealed tiles
-  if (!gridRestored && !run.atRest && run.player.inventory.some(e => e?.id === 'abyssal-lens')) {
-    const grid = TileEngine.getGrid()
-    for (const row of grid) {
-      for (const t of row) {
-        if (!t.revealed && t.element) {
-          const cat = _echoCharmCategoryForTileType(t.type)
-          t.echoHintCategory = cat
-          t.element.classList.add('echo-hint')
-          t.element.dataset.echoHint = cat
-        }
-      }
-    }
-  }
-
-  GameState.set(States.FLOOR_EXPLORE)
-  UI.updateFloor(run.floor, { rest: run.atRest })
-  UI.updateHP(run.player.hp, run.player.maxHp)
-  UI.updateMana(run.player.mana, run.player.maxMana)
-  UI.updateGold(run.player.gold)
-  UI.updateScrap(_save?.scrap ?? 0)
-  UI.updateArmor(run.player.armor ?? 0)
-  UI.updateGoldenKeys(run.player.goldenKeys ?? 0)
-  _syncMagicChestKeyGlow()
-  UI.setFreezingHit(run.player.freezingHitStacks ?? 0)
-  UI.setBurnOverlay(run.player.burnStacks ?? 0)
-  UI.setPlayerPoison(run.player.poisonStacks ?? 0)
-  UI.setCorruption(run.player.corruptionStacks ?? 0)
-  UI.updateXP(run.player.xp, _xpNeeded())
-  {
-    const [d0, d1] = _playerDamageRange(run.player)
-    UI.updateDamageRange(d0, d1)
-  }
-  UI.setHudCharacter(_charKey())
-  // Slot A — actives appear only after the player picks them at level-up (gated by meta unlock + run unlock)
-  if (_charKey() === 'ranger') {
-    _refreshRangerActiveHud()
-  } else if (_charKey() === 'engineer') {
-    _refreshEngineerHud()
-  } else if (_charKey() === 'mage') {
-    _refreshMageHud()
-  } else if (_charKey() === 'vampire') {
-    _refreshVampireHud()
-  } else if (_charKey() === 'necromancer') {
-    _refreshNecroActiveHud()
-  } else {
-    UI.setSlamBtn(_isActiveUnlocked('slam', 'warrior'), WARRIOR_UPGRADES.slam.manaCost)
-    UI.setArrowBarrageBtn(false)
-    UI.setPoisonArrowShotBtn(false)
-    UI.setDivineLightBtn(_isActiveUnlocked('divine-light', 'warrior'), WARRIOR_UPGRADES['divine-light'].manaCost)
-  }
-  // Blinding Light — warrior only, slot B (ranger uses B for Poison Arrow, C for Triple Volley)
-  if (_charKey() === 'warrior') {
-    UI.setBlindingLightBtn(_isActiveUnlocked('blinding-light', 'warrior'), WARRIOR_UPGRADES['blinding-light'].manaCost)
-  }
-  // Show spell button always — player can target any enemy at any time
-  const effectiveCost = _previewSpellManaCostForUi()
-  UI.showActionPanel(effectiveCost, run.player.mana >= effectiveCost)
-  // Start tile is already revealed — player can flee; only close dialog if it was open.
-  document.getElementById('retreat-confirm')?.classList.add('hidden')
-  UI.showRetreat()
-  UI.hideRunSummary()
-  UI.hideEventOverlays()
-
-  const isBoss = CONFIG.bossFloors.includes(run.floor) && !run.atRest
-  const hasWarBanner = run.warBanner?.active && !run.atRest
-  UI.setMessage(run.atRest
-    ? 'A quiet sanctuary. The well restores you; the rope lets you bank gold; the stairs go deeper.'
-    : isBoss
-      ? `⚠️ Floor ${run.floor} — Boss floor! Tread carefully.`
-      : hasWarBanner
-        ? '🚩 A war banner flies over this floor — enemies hit harder until you tear it down!'
-      : 'Tap a tile to reveal what lurks beneath...')
-
-  if (run.telemetry && !run.telemetry.runStartSnapshotDone) {
-    _appendLevelSnapshot('runStart')
-    run.telemetry.runStartSnapshotDone = true
-  }
-  _appendFloorSnapshot('floorEnter')
-
-  Logger.debug(`[GameController] Floor ${run.floor} started`)
-  TileEngine.refreshAllThreatClueDisplays()
-  UI.refreshSkipFloorButton(_save)
-  if (run._resumeCombatEngagement) {
-    const raw = run._resumeCombatEngagement
-    const pos = Array.isArray(raw) ? raw[0] : raw
-    if (pos && typeof pos.row === 'number' && typeof pos.col === 'number') {
-      const t = TileEngine.getTile(pos.row, pos.col)
-      if (t?.enemyData && !t.enemyData._slain) {
-        _combatEngagementTile = { row: pos.row, col: pos.col }
-        _syncCombatEngagementDom()
-      }
-    }
-    run._resumeCombatEngagement = null
-  }
-  _saveActiveRun()
-}
+function returnToMenu(autoSave = false) { GSH.returnToMenu(_stateCtx(), autoSave) }
 
 /** Full main-grid rebuild from model — use after hourglass rewind or war banner teardown. */
 function _refreshMainGridDomFromModel() {
@@ -2784,7 +1216,7 @@ function _syncGridDomClassesFromModel() {
 
 function _revealStartTile() {
   const grid = TileEngine.getGrid()
-  const { cols, rows } = CONFIG.gridSize(run.floor, { rest: run.atRest })
+  const { cols, rows } = CONFIG.gridSize(session.run.floor, { rest: session.run.atRest })
 
   // Start tile must be empty — find all empty tiles and pick one at random
   const empties = []
@@ -2805,232 +1237,37 @@ function _revealStartTile() {
 
   tile.revealed = true
   tile.isStart = true
-  run.tilesRevealed++
-  run.floorStartRow = tile.row
-  run.floorStartCol = tile.col
+  session.run.tilesRevealed++
+  session.run.floorStartRow = tile.row
+  session.run.floorStartCol = tile.col
   // Mark neighbours reachable immediately so they're clickable before the flip finishes
   TileEngine.markReachable(tile.row, tile.col, _markReachableUi)
   TileEngine.flipTile(tile)
 
   // Turret carries over — deploy it on the starting tile of the new floor
-  if (run.turret?.hp > 0 && !run.atRest) {
-    run.turret.row = tile.row
-    run.turret.col = tile.col
+  if (session.run.turret?.hp > 0 && !session.run.atRest) {
+    session.run.turret.row = tile.row
+    session.run.turret.col = tile.col
     _syncTurretVisual()
     _engineerTurretSeismicPing(tile.row, tile.col)
-    UI.setMessage(`🛡️ Your turret followed you to floor ${run.floor}.`)
+    UI.setMessage(`🛡️ Your turret followed you to floor ${session.run.floor}.`)
   }
   _tickPoisonArrowDotOnGlobalTurn()
   TileEngine.refreshAllThreatClueDisplays()
 }
 
 // ── Tile tap router ──────────────────────────────────────────
-
-let _spellTargeting         = false
-let _combatBusy             = false
-let _combatBusySetAt        = 0   // timestamp when _combatBusy last became true
-let _lanternTargeting       = false
-let _mistFormFlipsRemaining = 0
-let _spyglassTargeting      = false
-let _blindingLightTargeting = false
-let _divineLightSelecting   = false
-let _ricochetSelecting = false
-let _ricochetTiles     = []
-let _arrowBarrageSelecting = false
-/** Triple Volley: { row, col } center after first tap; second tap same tile fires. */
-let _tripleVolleyCenter = null
-let _poisonArrowShotSelecting = false
-/** First tile pick for double-tap place / relocate — { row, col } */
-let _engineerPendingTile = null
-let _throwingKnifeTargeting  = false
-let _rustyNailTargeting      = false
-let _twinBladesTargeting     = false
-/** Mage Chain Lightning — true once the player has tapped the ability. */
-let _chainLightningSelecting = false
-/** Mage Telekinetic Throw step: 0 = idle, 1 = picking enemy, 2 = picking destination. */
-let _telekineticThrowStep   = 0
-/** Enemy tile captured at step 1 — { row, col } in the active grid. */
-let _telekineticEnemyTile   = null
-/** Necromancer Strengthen Minion — true once the player has tapped the ability. */
-let _strengthenMinionSelecting = false
-/** Necromancer Corpse Explosion — true once the player has tapped the ability. */
-let _corpseExplosionSelecting  = false
-
-/** Single focused enemy for current combat — no swapping until this one is slain (ambush uses `force`). */
-let _combatEngagementTile = null
-
-// ── Active grid helpers (main dungeon OR sub-floor) ──────────
-// When a sub-floor is active, abilities, target iteration, and kill
-// handling should operate on its tiles — not the main dungeon grid.
-
-function _isInSubFloor() {
-  return !!run?.subFloor?.active
-}
-
-/** Flat list of tiles in the currently active grid (sub-floor if active, else main). */
-function _getActiveTiles() {
-  if (_isInSubFloor()) {
-    const out = []
-    for (const row of run.subFloor.tiles) for (const t of row) if (t) out.push(t)
-    return out
-  }
-  const grid = TileEngine.getGrid()
-  if (!grid?.length) return []
-  const out = []
-  for (const row of grid) for (const t of row) if (t) out.push(t)
-  return out
-}
-
-/** 2D array for algorithms that need row/col indexing on the active grid. */
-function _getActiveTileRows() {
-  return _isInSubFloor() ? run.subFloor.tiles : TileEngine.getGrid()
-}
-
-/** Tile at (row, col) on the active grid — sub-floor when a sub-floor is open, else main dungeon. */
-function _getActiveTileAt(row, col) {
-  if (_isInSubFloor()) return run.subFloor.tiles[row]?.[col] ?? null
-  return TileEngine.getTile(row, col)
-}
-
-/** Orthogonal neighbors in the active grid. */
-function _getActiveOrthogonal(row, col) {
-  const rows = _getActiveTileRows()
-  if (!rows?.length) return []
-  const dirs = [[-1,0],[1,0],[0,-1],[0,1]]
-  return dirs
-    .map(([dr, dc]) => rows[row + dr]?.[col + dc])
-    .filter(Boolean)
-}
-
-/** Sync red border highlight on the engaged enemy tile (at most one). */
-function _syncCombatEngagementDom() {
-  const grid = TileEngine.getGrid()
-  if (grid) {
-    const hasEngagement = !_isInSubFloor() && !!_combatEngagementTile
-    for (const row of grid) {
-      for (const t of row) {
-        if (!t.element) continue
-        const engaged =
-          hasEngagement
-          && t.row === _combatEngagementTile.row
-          && t.col === _combatEngagementTile.col
-          && t.enemyData
-          && !t.enemyData._slain
-        UI.setTileCombatEngaged(t.element, engaged)
-        UI.setTileCombatBlocked(t.element, hasEngagement && !engaged)
-      }
-    }
-  }
-  if (_isInSubFloor() && run.subFloor?.tiles) {
-    const hasEngagement = !!_combatEngagementTile
-    for (const row of run.subFloor.tiles) {
-      for (const t of row) {
-        if (!t?.element) continue
-        const engaged =
-          hasEngagement
-          && t.row === _combatEngagementTile.row
-          && t.col === _combatEngagementTile.col
-          && t.enemyData
-          && !t.enemyData._slain
-        UI.setTileCombatEngaged(t.element, engaged)
-        UI.setTileCombatBlocked(t.element, hasEngagement && !engaged)
-      }
-    }
-  }
-}
-
-/**
- * @param {{ force?: boolean }} [opts] — `force: true` for ambush reveal (replaces prior focus).
- * @returns {boolean} whether this tile is now the engagement target
- */
-function _setCombatEngagement(tile, { force = false } = {}) {
-  if (!tile?.enemyData || tile.enemyData._slain) return false
-  if (!_combatEngagementTile) {
-    _combatEngagementTile = { row: tile.row, col: tile.col }
-    _syncCombatEngagementDom()
-    return true
-  }
-  if (_combatEngagementTile.row === tile.row && _combatEngagementTile.col === tile.col) return true
-  const cur = _getActiveTileAt(_combatEngagementTile.row, _combatEngagementTile.col)
-  if (!cur?.enemyData || cur.enemyData._slain) {
-    _combatEngagementTile = { row: tile.row, col: tile.col }
-    _syncCombatEngagementDom()
-    return true
-  }
-  if (force) {
-    _combatEngagementTile = { row: tile.row, col: tile.col }
-    _syncCombatEngagementDom()
-    return true
-  }
-  return false
-}
-
-function _clearCombatEngagementForTile(tile) {
-  if (
-    _combatEngagementTile
-    && tile.row === _combatEngagementTile.row
-    && tile.col === _combatEngagementTile.col
-  ) {
-    _combatEngagementTile = null
-    _syncCombatEngagementDom()
-  }
-}
-
-function _clearAllCombatEngagement() {
-  _combatEngagementTile = null
-  _syncCombatEngagementDom()
-}
-
-/** True while the focused enemy is still alive (clears stale refs). */
-function _isCombatCommitmentLocked() {
-  if (!_combatEngagementTile) return false
-  const t = _getActiveTileAt(_combatEngagementTile.row, _combatEngagementTile.col)
-  if (t?.enemyData && !t.enemyData._slain) return true
-  _combatEngagementTile = null
-  _syncCombatEngagementDom()
-  return false
-}
-
-/** Melee / single-target attacks: only the engaged enemy, unless engagement is stale/cleared. */
-function _canAttackEnemy(tile) {
-  if (!_combatEngagementTile) return true
-  const cur = _getActiveTileAt(_combatEngagementTile.row, _combatEngagementTile.col)
-  if (!cur?.enemyData || cur.enemyData._slain) {
-    _combatEngagementTile = null
-    _syncCombatEngagementDom()
-    return true
-  }
-  return tile.row === _combatEngagementTile.row && tile.col === _combatEngagementTile.col
-}
-
-/** Temporarily clear focus so Slam / Ricochet / Triple Volley can hit any targets; pair with restore after the ability finishes. */
-function _suspendCombatEngagementForMultiTargetAbility() {
-  const saved = _combatEngagementTile ? { ..._combatEngagementTile } : null
-  _combatEngagementTile = null
-  _syncCombatEngagementDom()
-  return saved
-}
-
-function _restoreCombatEngagementAfterMultiTargetAbility(saved) {
-  if (!saved) return
-  const t = _getActiveTileAt(saved.row, saved.col)
-  if (t?.enemyData && !t.enemyData._slain) {
-    _combatEngagementTile = { row: saved.row, col: saved.col }
-    _syncCombatEngagementDom()
-  }
-}
-
 // ── Angry Onion helpers ───────────────────────────────────────
 
 /** Extra mana cost while Teary Eyes debuff is active. */
 function _tearyExtraCost() {
-  return (run?.player?.tearyEyesTurns ?? 0) > 0 ? 1 : 0
+  return (session.run?.player?.tearyEyesTurns ?? 0) > 0 ? 1 : 0
 }
 
 /** Apply / refresh Teary Eyes debuff on the player (2 turns). */
 function _applyTearyEyes() {
-  if (!run) return
-  run.player.tearyEyesTurns = 2
+  if (!session.run) return
+  session.run.player.tearyEyesTurns = 2
   UI.setTearyEyes(2)
   UI.spawnFloat(document.getElementById('hud-portrait'), '💧 Teary Eyes!', 'damage')
 }
@@ -3065,82 +1302,6 @@ function _checkOnionLayer(tile) {
   EventBus.emit('audio:play', { sfx: 'hit2' })
 }
 
-function _cancelRicochetMode() {
-  _ricochetSelecting = false
-  _ricochetTiles     = []
-  UI.clearRicochetMarks()
-  UI.setRicochetActive(false)
-  UI.setGridRicochetMode(false)
-}
-
-function _cancelArrowBarrageMode() {
-  _arrowBarrageSelecting = false
-  _tripleVolleyCenter = null
-  UI.clearTripleVolleyAoePreview()
-  UI.setArrowBarrageActive(false)
-  UI.setGridArrowBarrageMode(false)
-}
-
-function _cancelPoisonArrowShotMode() {
-  _poisonArrowShotSelecting = false
-  UI.setPoisonArrowShotActive(false)
-  UI.setGridPoisonArrowShotMode(false)
-}
-
-function _cancelEngineerConstructMode() {
-  _engineerPendingTile = null
-  UI.setEngineerPlaceMode(false)
-}
-
-function _cancelChainLightningMode() {
-  _chainLightningSelecting = false
-  UI.setChainLightningActive(false)
-  UI.setGridChainLightningMode(false)
-}
-
-function _cancelTelekineticThrowMode() {
-  _telekineticThrowStep = 0
-  _telekineticEnemyTile = null
-  UI.setTelekineticThrowActive(false)
-  UI.setGridTelekineticThrowMode(null)
-  UI.clearTelekineticMarks()
-}
-
-function _cancelStrengthenMinionMode() {
-  _strengthenMinionSelecting = false
-  UI.setStrengthenMinionActive?.(false)
-}
-
-function _cancelCorpseExplosionMode() {
-  _corpseExplosionSelecting = false
-  UI.setCorpseExplosionActive?.(false)
-  UI.setGridCorpseExplosionMode?.(false)
-}
-
-function _cancelSpellLanternBlindingForRicochet() {
-  if (_spellTargeting) {
-    _spellTargeting = false
-    const effectiveCost = _previewSpellManaCostForUi()
-    UI.setSpellTargeting(false, effectiveCost)
-  }
-  if (_lanternTargeting) {
-    _lanternTargeting = false
-    UI.setLanternTargeting(false)
-  }
-  if (_spyglassTargeting) {
-    _spyglassTargeting = false
-    UI.setLanternTargeting(false)
-  }
-  if (_blindingLightTargeting) {
-    _blindingLightTargeting = false
-    UI.setBlindingLightActive(false)
-  }
-  if (_divineLightSelecting) {
-    _divineLightSelecting = false
-    UI.setDivineLightActive(false)
-  }
-}
-
 /** Keep `.locked` (red X) aligned with `tile.locked` on every tile — DOM can drift after unlock/repair paths. */
 function _syncAllUnrevealedLockedDom() {
   const grid = TileEngine.getGrid()
@@ -3158,3167 +1319,44 @@ function _syncAllUnrevealedLockedDom() {
   }
 }
 
-// ── Sub-floor ────────────────────────────────────────────────
 
-/** Pick a random unrevealed non-start tile and convert it to a sub_floor_entry. */
-function _spawnSubFloorEntry() {
-  const grid = TileEngine.getGrid()
-  const candidates = []
-  for (const row of grid) {
-    for (const t of row) {
-      if (!t.revealed && !t.locked && t.type !== 'exit' && t.type !== 'boss') {
-        candidates.push(t)
-      }
-    }
-  }
-  if (!candidates.length) return
-  const target = candidates[Math.floor(Math.random() * candidates.length)]
-  target.type = 'sub_floor_entry'
-  target.enemyData = null
-  target.subFloorType = TileEngine.rollSubFloorType()
-  Logger.info(`[GameController] Sub-floor spawned: ${target.subFloorType} on floor ${run.floor}`)
-  // Update the front face so when the player flips it, spiral art shows
-  if (target.element) {
-    for (const cls of [...target.element.classList]) {
-      if (cls.startsWith('tile-type-')) target.element.classList.remove(cls)
-    }
-    target.element.classList.add('tile-type-sub_floor_entry')
-    const front = target.element.querySelector('.tile-front')
-    if (front) {
-      front.className = 'tile-front type-sub-floor-entry'
-      front.innerHTML = ''
-    }
-  }
-}
 
-function _applyWarBannerBuffToEnemyGrid(mult) {
-  const grid = TileEngine.getGrid()
-  if (!grid) return
-  for (const row of grid) {
-    for (const t of row) {
-      if (!t?.enemyData || t.enemyData._slain || t.enemyData._warBannerBuffed) continue
-      const e = t.enemyData
-      e.hp = Math.max(1, Math.round(e.hp * mult))
-      e.currentHP = Math.max(1, Math.round((e.currentHP ?? e.hp) * mult))
-      if (Array.isArray(e.dmg)) e.dmg = e.dmg.map(d => Math.max(1, Math.round(d * mult)))
-      e._warBannerBuffed = true
-      // Unrevealed tiles still render stats on the flip face — refresh DOM for every enemy tile
-      if (t.element) {
-        UI.updateEnemyHP(t.element, e.currentHP)
-        TileEngine.refreshEnemyDamageOnTile(t)
-      }
-    }
-  }
-}
-
-function _stripWarBannerBuff(mult) {
-  const grid = TileEngine.getGrid()
-  if (!grid) return
-  for (const row of grid) {
-    for (const t of row) {
-      if (!t?.enemyData || !t.enemyData._warBannerBuffed) continue
-      const e = t.enemyData
-      // Dead enemies — do not strip stats (Math.max(1,…) would revive); also guard HP≤0 without _slain
-      if (e._slain || (e.currentHP ?? 1) <= 0) {
-        delete e._warBannerBuffed
-        continue
-      }
-      e.hp = Math.max(1, Math.round(e.hp / mult))
-      e.currentHP = Math.max(1, Math.min(e.hp, Math.round(e.currentHP / mult)))
-      if (Array.isArray(e.dmg)) e.dmg = e.dmg.map(d => Math.max(1, Math.round(d / mult)))
-      if (e.hitDamage != null) e.hitDamage = Math.max(1, Math.round(e.hitDamage / mult))
-      delete e._warBannerBuffed
-      if (t.element) {
-        UI.updateEnemyHP(t.element, e.currentHP)
-        TileEngine.refreshEnemyDamageOnTile(t)
-      }
-    }
-  }
-}
-
-/**
- * After loading grid from snapshot, align run.warBanner row/col with the actual war_banner cell.
- * Stale saved coords can point at a different tile (e.g. chest at 1,3 while banner is at 1,4).
- */
-function _syncWarBannerCoordsFromGrid() {
-  if (!run?.warBanner?.active) return
-  const { row, col } = run.warBanner
-  const atSaved = TileEngine.getTile(row, col)
-  if (atSaved?.type === 'war_banner') return
-
-  const grid = TileEngine.getGrid()
-  if (!grid) return
-  for (const r of grid) {
-    for (const cell of r) {
-      if (cell?.type === 'war_banner') {
-        const mult = run.warBanner.mult ?? CONFIG.warBanner.statMult
-        run.warBanner = { row: cell.row, col: cell.col, active: true, mult }
-        Logger.debug(`[GameController] warBanner coords synced to (${cell.row},${cell.col})`)
-        return
-      }
-    }
-  }
-  run.warBanner = null
-  Logger.debug('[GameController] warBanner cleared — no war_banner tile in grid')
-}
-
-/** Pick a random unrevealed tile and place the war banner; buffs all living enemies on the floor. */
-function _spawnWarBannerEntry() {
-  const mult = CONFIG.warBanner.statMult
-  const grid = TileEngine.getGrid()
-  const candidates = []
-  for (const row of grid) {
-    for (const t of row) {
-      if (!t.revealed && !t.locked && t.type !== 'exit' && t.type !== 'boss' && t.type !== 'sub_floor_entry'
-          && t.type !== 'chest' && t.type !== 'magic_chest' && t.type !== 'heart' && t.type !== 'gold') {
-        candidates.push(t)
-      }
-    }
-  }
-  if (!candidates.length) return
-  const target = candidates[Math.floor(Math.random() * candidates.length)]
-  target.type = 'war_banner'
-  target.enemyData = null
-  target.warBannerFlying = true
-  Logger.info(`[GameController] War banner spawned on floor ${run.floor} (enemy buff ×${mult})`)
-  // Replacing whatever was under this tile — drop loot-specific state so it cannot resurface after teardown.
-  delete target.chestLoot
-  delete target.chestReady
-  delete target.chestLooted
-  delete target.magicChestReady
-  delete target.pendingLoot
-  run.warBanner = { row: target.row, col: target.col, active: true, mult }
-  _applyWarBannerBuffToEnemyGrid(mult)
-  if (target.element) {
-    for (const cls of [...target.element.classList]) {
-      if (cls.startsWith('tile-type-')) target.element.classList.remove(cls)
-    }
-    target.element.classList.add('tile-type-war_banner')
-    const back = target.element.querySelector('.tile-back')
-    if (back) {
-      back.innerHTML = '<span class="tile-war-banner-fly" aria-hidden="true">🚩</span>'
-    }
-    const front = target.element.querySelector('.tile-front')
-    if (front) {
-      front.className = 'tile-front type-war-banner'
-      front.innerHTML = '<span class="tile-icon-wrap tile-icon-fallback"><span class="tile-emoji">🚩</span></span><span class="tile-label">War Banner</span><span class="tile-threat-clue" aria-hidden="true"></span>'
-    }
-  }
-}
-
-function _pickSpecialSpawnEnemyTile(usedCoords) {
-  const grid = TileEngine.getGrid()
-  const candidates = []
-  for (const row of grid) {
-    for (const t of row) {
-      if (!t.revealed && (t.type === 'enemy' || t.type === 'enemy_fast') && t.enemyData) {
-        const k = `${t.row},${t.col}`
-        if (usedCoords?.has(k)) continue
-        candidates.push(t)
-      }
-    }
-  }
-  if (!candidates.length) return null
-  return candidates[Math.floor(Math.random() * candidates.length)]
-}
-
-/** BFS shortest-path length (orthogonal steps) between two passable cells; null if unreachable. */
-function _shortestPathStepsMainGrid(sr, sc, tr, tc) {
-  const grid = TileEngine.getGrid()
-  if (!grid?.length) return null
-  const passable = t => t && t.type !== 'hole' && t.type !== 'blockage'
-  const rows = grid.length
-  const cols = grid[0].length
-  const q = [[sr, sc, 0]]
-  const seen = new Set([`${sr},${sc}`])
-  while (q.length) {
-    const [r, c, d] = q.shift()
-    if (r === tr && c === tc) return d
-    for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-      const nr = r + dr
-      const nc = c + dc
-      if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue
-      const k = `${nr},${nc}`
-      if (seen.has(k)) continue
-      const t = grid[nr][nc]
-      if (!passable(t)) continue
-      seen.add(k)
-      q.push([nr, nc, d + 1])
-    }
-  }
-  return null
-}
-
-function _attachTreasureGoblinTimerUi(tile) {
-  if (!tile?.element || !run?.treasureGoblin) return
-  tile.element.querySelector('.treasure-goblin-timer')?.remove()
-  const badge = document.createElement('div')
-  badge.className = 'treasure-goblin-timer'
-  badge.textContent = String(run.treasureGoblin.turnsLeft)
-  tile.element.appendChild(badge)
-}
-
-function _syncTreasureGoblinTimerBadge() {
-  if (!run?.treasureGoblin) return
-  const t = TileEngine.getTile(run.treasureGoblin.row, run.treasureGoblin.col)
-  const badge = t?.element?.querySelector('.treasure-goblin-timer')
-  if (badge) badge.textContent = String(run.treasureGoblin.turnsLeft)
-}
-
-function _restoreTreasureGoblinAfterResume() {
-  if (!run?.treasureGoblin) return
-  const t = TileEngine.getTile(run.treasureGoblin.row, run.treasureGoblin.col)
-  if (t?.enemyData?.enemyId === 'treasure_goblin' && !t.enemyData._slain) {
-    _attachTreasureGoblinTimerUi(t)
-  } else {
-    run.treasureGoblin = null
-  }
-}
-
-function _treasureGoblinEscape() {
-  const g = run?.treasureGoblin
-  if (!g) return
-  const tr = g.row
-  const tc = g.col
-  const tile = TileEngine.getTile(tr, tc)
-  if (!tile?.enemyData || tile.enemyData.enemyId !== 'treasure_goblin' || tile.enemyData._slain) {
-    run.treasureGoblin = null
-    return
-  }
-  tile.element?.querySelector('.treasure-goblin-timer')?.remove()
-  run.treasureGoblin = null
-  TileEngine.replaceTileWithEmptyPreserveState(tr, tc)
-  const fresh = TileEngine.getTile(tr, tc)
-  fresh.revealed = true
-  const patched = TileEngine.patchMainGridTileAt(tr, tc, UI.getGridEl(), onTileTap, onTileHold)
-  if (!patched) _refreshMainGridDomFromModel()
-  else {
-    TileEngine.refreshAllThreatClueDisplays()
-    _syncGridDomClassesFromModel()
-  }
-  const floatEl = TileEngine.getTile(tr, tc)?.element
-  if (floatEl) {
-    floatEl.classList.add('treasure-goblin-escaped')
-    UI.spawnFloat(floatEl, '💨 Escaped!', 'damage')
-    setTimeout(() => floatEl.classList.remove('treasure-goblin-escaped'), 800)
-  }
-  UI.setMessage('💨 The Treasure Goblin escapes with his sack!')
-  _saveActiveRun()
-}
-
-function _tickTreasureGoblinCountdown() {
-  if (run?._resumeTreasureGoblinTickSkip) {
-    run._resumeTreasureGoblinTickSkip = false
-    return
-  }
-  if (!run?.treasureGoblin) return
-  const g = run.treasureGoblin
-  const tile = TileEngine.getTile(g.row, g.col)
-  if (!tile?.enemyData || tile.enemyData.enemyId !== 'treasure_goblin' || tile.enemyData._slain) {
-    run.treasureGoblin = null
-    return
-  }
-  g.turnsLeft--
-  _syncTreasureGoblinTimerBadge()
-  if (g.turnsLeft <= 0) _treasureGoblinEscape()
-}
-
-async function _finishTreasureGoblinReward(tile) {
-  if (tile.enemyData?.enemyId !== 'treasure_goblin' || tile._treasureRewardGranted) return
-  tile._treasureRewardGranted = true
-  run.treasureGoblin = null
-  tile.element?.querySelector('.treasure-goblin-timer')?.remove()
-  const owned = new Set(run.player.inventory.map(e => e.id))
-  let pool = RARE_TRINKET_IDS.filter(id => !owned.has(id))
-  if (pool.length === 0) pool = [...RARE_TRINKET_IDS]
-  const id = _pickRandom(pool)
-  await _addToBackpack(id)
-  const def = ITEMS[id]
-  if (def && tile.element) UI.spawnFloat(tile.element, `${def.icon ?? '✨'} ${def.name}`, 'xp')
-  UI.setMessage(`You bag the Treasure Goblin — ${def?.name ?? 'a rare trinket'}!`)
-  _saveActiveRun()
-}
-
-function _spawnTreasureGoblin(usedCoords) {
-  const sr = run.floorStartRow
-  const sc = run.floorStartCol
-  if (typeof sr !== 'number' || typeof sc !== 'number') return
-  const target = _pickSpecialSpawnEnemyTile(usedCoords)
-  if (!target) return
-  const steps = _shortestPathStepsMainGrid(sr, sc, target.row, target.col)
-  if (steps === null) return
-  const turnsLeft = steps + 2
-  const ed = TileEngine.createEnemy('treasure_goblin', run.floor)
-  ed.hp = 1
-  ed.currentHP = 1
-  ed.dmg = [0, 0]
-  ed.hitDamage = 0
-  target.enemyData = ed
-  target.type = 'enemy'
-  target.revealed = true
-  run.tilesRevealed++
-  usedCoords.add(`${target.row},${target.col}`)
-  run.treasureGoblin = { row: target.row, col: target.col, turnsLeft }
-  const patched = TileEngine.patchMainGridTileAt(target.row, target.col, UI.getGridEl(), onTileTap, onTileHold)
-  if (!patched) _refreshMainGridDomFromModel()
-  else {
-    TileEngine.refreshAllThreatClueDisplays()
-    _syncGridDomClassesFromModel()
-  }
-  _attachTreasureGoblinTimerUi(target)
-  UI.setMessage('💰 A Treasure Goblin appears! Reach him before the timer hits zero.')
-}
-
-function _spawnArcherGoblin(usedCoords) {
-  const target = _pickSpecialSpawnEnemyTile(usedCoords)
-  if (!target) return
-  // Replace enemy data with archer_goblin
-  target.enemyData = TileEngine.createEnemy('archer_goblin', run.floor)
-  TileEngine.rollEnemyHitDamage(target.enemyData)
-  target.type = 'enemy'
-  // Immediately reveal — archer is visible from floor start
-  target.revealed = true
-  run.tilesRevealed++
-  usedCoords?.add(`${target.row},${target.col}`)
-  // Do NOT markReachable — archer neighbors become reachable naturally as player explores toward them
-  const patched = TileEngine.patchMainGridTileAt(target.row, target.col, UI.getGridEl(), onTileTap, onTileHold)
-  if (!patched) _refreshMainGridDomFromModel()
-  else {
-    TileEngine.refreshAllThreatClueDisplays()
-    _syncGridDomClassesFromModel()
-  }
-}
-
-function _spawnMouse(usedCoords) {
-  const target = _pickSpecialSpawnEnemyTile(usedCoords)
-  if (!target) return
-  target.enemyData = TileEngine.createEnemy('mouse', run.floor)
-  TileEngine.rollEnemyHitDamage(target.enemyData)
-  target.type = 'enemy'
-  target.revealed = true
-  run.tilesRevealed++
-  usedCoords?.add(`${target.row},${target.col}`)
-  // Do NOT markReachable — mouse behaves like archer, player must path adjacent
-  const patched = TileEngine.patchMainGridTileAt(target.row, target.col, UI.getGridEl(), onTileTap, onTileHold)
-  if (!patched) _refreshMainGridDomFromModel()
-  else {
-    TileEngine.refreshAllThreatClueDisplays()
-    _syncGridDomClassesFromModel()
-  }
-}
-
-function _destroyWarBanner(tile) {
-  if (!tile || tile.type !== 'war_banner' || !run.warBanner?.active) return
-  const mult = run.warBanner.mult ?? CONFIG.warBanner.statMult
-  const floatEl = tile.element
-  const tr = tile.row
-  const tc = tile.col
-  if (run.warBanner.row !== tr || run.warBanner.col !== tc) {
-    Logger.warn('[GameController] warBanner row/col !== tapped tile — replacing tapped cell', { warBanner: run.warBanner, tr, tc })
-  }
-  _stripWarBannerBuff(mult)
-  run.warBanner = null
-  // Always replace the tapped tile's cell — it is the war_banner the player destroyed (avoids stale run.warBanner coords).
-  TileEngine.replaceTileWithEmptyPreserveState(tr, tc)
-  EventBus.emit('audio:play', { sfx: 'hit' })
-  if (floatEl) UI.spawnFloat(floatEl, 'Banner torn!', 'heal')
-  UI.setMessage('The war banner falls! Enemies on this floor lose their fighting spirit.')
-  // Do not full renderGrid here — that remounts every tile and replays slain spirit FX, chest/gold pulses, etc.
-  const patched = TileEngine.patchMainGridTileAt(tr, tc, UI.getGridEl(), onTileTap, onTileHold)
-  if (!patched) _refreshMainGridDomFromModel()
-  else {
-    TileEngine.refreshAllThreatClueDisplays()
-    _syncGridDomClassesFromModel()
-  }
-  _saveActiveRun()
-}
-
-function _enterSubFloor(tile) {
-  if (tile.subFloorVisited) return // already depleted
-
-  // ── Debug: type picker ───────────────────────────────────────
-  if (window.__DEBUG_SUBFLOOR) {
-    const types = ['mob_den', 'boss_vault', 'treasure_vault', 'shrine', 'ambush', 'collapsed_tunnel', 'cartographers_cache', 'toxic_gas']
-    const picker = document.createElement('div')
-    picker.style.cssText = [
-      'position:fixed', 'inset:0', 'z-index:9999',
-      'background:rgba(0,0,0,0.82)', 'display:flex', 'flex-direction:column',
-      'align-items:center', 'justify-content:center', 'gap:10px',
-    ].join(';')
-    const heading = document.createElement('div')
-    heading.textContent = '🗺️ DEBUG — Choose sub-floor type'
-    heading.style.cssText = 'color:#e8d8a0;font-size:1rem;font-weight:700;margin-bottom:6px'
-    picker.appendChild(heading)
-    types.forEach(t => {
-      const btn = document.createElement('button')
-      btn.textContent = t.replace(/_/g, ' ')
-      btn.style.cssText = [
-        'padding:8px 28px', 'font-size:0.95rem', 'border-radius:6px',
-        'border:1px solid #7a6040', 'background:#2a1e10', 'color:#e8d8a0',
-        'cursor:pointer', 'min-width:180px',
-      ].join(';')
-      btn.addEventListener('click', () => {
-        document.body.removeChild(picker)
-        _loadSubFloor(tile, t)   // skip debug check — go straight to load
-      })
-      picker.appendChild(btn)
-    })
-    document.body.appendChild(picker)
-    return
-  }
-  // ────────────────────────────────────────────────────────────
-
-  _loadSubFloor(tile, tile.subFloorType ?? 'mob_den')
-}
-
-function _loadSubFloor(tile, type) {
-  const sfData = TileEngine.generateSubFloor(type, run.floor)
-  run.subFloor = {
-    type,
-    tiles: sfData.tiles,
-    rows: sfData.rows,
-    cols: sfData.cols,
-    mobType: sfData.mobType ?? null,
-    entryTile: { row: tile.row, col: tile.col },
-    active: true,
-  }
-  UI.showSubFloor(run.subFloor, _onSubFloorTileTap, _onSubFloorTileHold)
-  const msgs = {
-    mob_den:              'You descend into a cramped warren. Creatures scurry in the dark.',
-    boss_vault:           'A heavy door seals behind you. Something massive stirs in the center.',
-    treasure_vault:       'The glitter of gold catches your eye. But the floor feels... wrong.',
-    shrine:               'Silence. Torchlight flickers over an ancient idol.',
-    ambush:               'The air is still. Too still.',
-    collapsed_tunnel:     'The passage is unstable. Stairs behind you offer escape at any moment.',
-    cartographers_cache:  'Dusty scrolls and crumbled maps. Something useful might be buried here.',
-    toxic_gas:            '☠️ Toxic gas burns your lungs! Find the exit — every step costs you.',
-  }
-  UI.setSubFloorMessage(msgs[type] ?? 'You descend into the dark.')
-}
-
-function _exitSubFloor() {
-  if (!run.subFloor) return
-  const { entryTile } = run.subFloor
-  run.subFloor.active = false
-  // Mark entry tile as depleted on main floor
-  const mainTile = TileEngine.getTile(entryTile.row, entryTile.col)
-  if (mainTile) {
-    mainTile.subFloorVisited = true
-    mainTile.type = 'sub_floor_used'
-    if (mainTile.element) {
-      for (const cls of [...mainTile.element.classList]) {
-        if (cls.startsWith('tile-type-')) mainTile.element.classList.remove(cls)
-      }
-      mainTile.element.classList.add('tile-type-sub_floor_used')
-    }
-  }
-  run.subFloor = null
-  UI.hideSubFloor()
-  UI.setMessage('You climb back to the main floor.')
-}
-
-function _onSubFloorTileHold(row, col) {
-  if (!run?.subFloor) return
-  const tile = run.subFloor.tiles[row]?.[col]
-  if (!tile) return
-  if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-    const e = tile.enemyData
-    const sprites = ENEMY_SPRITES[e.enemyId]
-    UI.showInfoCard({
-      name: e.label, spriteSrc: sprites?.idle ? MONSTER_ICONS_BASE + sprites.idle : null,
-      emoji: e.emoji, hp: e.currentHP ?? e.hp, maxHp: e.hp,
-      dmg: TileEngine.formatEnemyDamageDisplay(e.dmg, e.hitDamage),
-      type: e.type, blurb: e.blurb ?? '', attributes: e.attributes ?? [],
-    })
-  } else if (tile.revealed && tile.type === 'trap') {
-    UI.showTrapModal(() => {})
-  } else if (tile.revealed) {
-    const info = TILE_BLURBS[tile.type]
-    if (info) UI.showInfoCard({ name: info.label, emoji: info.emoji, spriteSrc: null, blurb: info.blurb, attributes: [] })
-  } else {
-    UI.showInfoCard({ name: 'Unknown', emoji: '❓', spriteSrc: null, blurb: 'Darkness conceals what lurks within.', attributes: [] })
-  }
-}
-
-/**
- * If any ability targeting mode is active, consume the tap on the given tile.
- * Returns true if the tap was handled (caller should stop).
- * Works for both main-grid and sub-floor tiles since targeting handlers operate
- * on `tile.element` / `tile.enemyData`, which both variants expose.
- */
-function _tryConsumeTargetingTap(tile) {
-  if (!tile) return false
-
-  if (_spellTargeting) {
-    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) _castSpell(tile)
-    return true
-  }
-  if (_blindingLightTargeting) {
-    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) _castBlindingLight(tile)
-    return true
-  }
-  if (_arrowBarrageSelecting) {
-    if (!tile.revealed) {
-      UI.setMessage('Triple Volley — tap a revealed tile to place the 3×3 area.', true)
-      return true
-    }
-    const cost = _stillWaterManaCost(RANGER_UPGRADES['arrow-barrage'].manaCost + _tearyExtraCost())
-    if (!_tripleVolleyCenter) {
-      _tripleVolleyCenter = { row: tile.row, col: tile.col }
-      UI.setTripleVolleyAoePreview(tile.row, tile.col)
-      UI.setMessage('Triple Volley — tap the same tile again to fire.')
-      return true
-    }
-    if (tile.row !== _tripleVolleyCenter.row || tile.col !== _tripleVolleyCenter.col) {
-      _tripleVolleyCenter = { row: tile.row, col: tile.col }
-      UI.setTripleVolleyAoePreview(tile.row, tile.col)
-      UI.setMessage('Triple Volley — area moved. Tap the center tile again to confirm.')
-      return true
-    }
-    if (run.player.mana < cost) {
-      UI.setMessage('Not enough mana for Triple Volley!', true)
-      return true
-    }
-    _executeTripleVolley(_tripleVolleyCenter)
-    return true
-  }
-  if (_poisonArrowShotSelecting) {
-    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      const cost = _stillWaterManaCost(RANGER_UPGRADES['poison-arrow-shot'].manaCost + _tearyExtraCost())
-      if (run.player.mana < cost) UI.setMessage('Not enough mana for Poison Arrow!', true)
-      else _executePoisonArrowShot(tile)
-    }
-    return true
-  }
-  if (_ricochetSelecting) {
-    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      const idx = _ricochetTiles.findIndex(t => t.row === tile.row && t.col === tile.col)
-      if (idx >= 0) {
-        _ricochetTiles.splice(idx, 1)
-        UI.refreshRicochetMarks(_ricochetTiles)
-      } else if (_ricochetTiles.length < 3) {
-        _ricochetTiles.push(tile)
-        UI.refreshRicochetMarks(_ricochetTiles)
-        if (_ricochetTiles.length === 3) {
-          const cost = _stillWaterManaCost(RANGER_UPGRADES.ricochet.manaCost + _tearyExtraCost())
-          if (run.player.mana < cost) {
-            _ricochetTiles.pop()
-            UI.refreshRicochetMarks(_ricochetTiles)
-            UI.setMessage('Not enough mana for Ricochet!', true)
-          } else {
-            _executeRicochet()
-          }
-        }
-      }
-    }
-    return true
-  }
-  if (_chainLightningSelecting) {
-    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      if (tile.enemyData.spellImmune) {
-        UI.setMessage('🛡️ That enemy is immune to Chain Lightning!', true)
-      } else {
-        _executeChainLightning(tile)
-      }
-    }
-    return true
-  }
-  if (_telekineticThrowStep > 0) {
-    if (_telekineticThrowStep === 1) {
-      if (_isTelekineticThrowEnemyTarget(tile)) {
-        _telekineticEnemyTile = { row: tile.row, col: tile.col }
-        _telekineticThrowStep = 2
-        UI.clearTelekineticMarks()
-        UI.markTelekineticOrigin(tile.element)
-        UI.setGridTelekineticThrowMode('dest')
-        UI.setMessage('🌀 Now tap a revealed empty tile to slam them down.')
-      } else if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-        if (tile.enemyData.behaviour === 'boss' || tile.type === 'boss') {
-          UI.setMessage('🛡️ Bosses cannot be thrown.', true)
-        } else if (tile.enemyData.spellImmune) {
-          UI.setMessage('🛡️ That enemy is immune to Telekinetic Throw!', true)
-        } else {
-          UI.setMessage('Not a valid target.', true)
-        }
-      } else {
-        UI.setMessage('Tap a revealed enemy to grab.', true)
-      }
-      return true
-    }
-    if (_telekineticThrowStep === 2) {
-      const origin = _telekineticEnemyTile
-        ? _getActiveTileAt(_telekineticEnemyTile.row, _telekineticEnemyTile.col)
-        : null
-      if (!origin || !_isTelekineticThrowEnemyTarget(origin)) {
-        _cancelTelekineticThrowMode()
-        UI.setMessage('Telekinetic Throw — target no longer valid.', true)
-        return true
-      }
-      if (tile.row === origin.row && tile.col === origin.col) {
-        UI.setMessage('Pick a different landing tile.', true)
-        return true
-      }
-      if (!_isTelekineticThrowDestination(tile)) {
-        UI.setMessage('Landing tile must be a revealed empty tile (no loot, chest, stairs, turret).', true)
-        return true
-      }
-      _executeTelekineticThrow(origin, tile)
-      return true
-    }
-  }
-  return false
-}
-
-function _onSubFloorTileTap(row, col) {
-  if (!run?.subFloor?.active) return
-  const sf = run.subFloor
-  const tile = sf.tiles[row]?.[col]
-  if (!tile) return
-
-  // Ability targeting — shared with main grid
-  if (_tryConsumeTargetingTap(tile)) return
-
-  // Stairs up — exit sub-floor
-  if (tile.revealed && tile.type === 'stairs_up') {
-    _exitSubFloor()
-    return
-  }
-
-  // Shrine — open choice modal
-  if (tile.revealed && tile.type === 'shrine' && !tile.shrineUsed) {
-    _openShrine(tile)
-    return
-  }
-
-  // Chest — open loot
-  if (tile.revealed && tile.type === 'chest' && tile.chestReady && !tile.chestLooted) {
-    _openSubFloorChest(tile)
-    return
-  }
-
-  // Living enemy — fight
-  if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-    if (_combatBusy && Date.now() - _combatBusySetAt > 3000) {
-      _combatBusy = false
-    }
-    if (!_combatBusy) _subFloorFight(tile)
-    return
-  }
-
-  // Reveal unrevealed tile
-  if (!tile.revealed && !tile.locked && tile.reachable) {
-    EventBus.emit('audio:play', { sfx: 'flip' })
-    _subFloorReveal(tile)
-  }
-}
-
-function _openSubFloorChest(tile) {
-  tile.chestReady = false
-  tile.chestLooted = true
-  tile.element?.classList.remove('chest-ready')
-  EventBus.emit('audio:play', { sfx: 'chest' })
-
-  const loot = tile.chestLoot ?? _rollChestLoot()
-  const itemDef = ITEMS[loot.type]
-
-  // Give the loot
-  if (loot.type === 'gold') {
-    _gainGold(loot.amount ?? 1, tile.element)
-    UI.setSubFloorMessage(`You pry it open — +${loot.amount ?? 1} gold!`)
-  } else if (loot.type === 'smiths-tools') {
-    const amt = itemDef?.effect?.amount ?? 1
-    run.player.damageBonus = (run.player.damageBonus ?? 0) + amt
-    const [d0, d1] = _playerDamageRange(run.player)
-    UI.updateDamageRange(d0, d1)
-    UI.setSubFloorMessage(`You pry it open — ${itemDef?.name ?? "Smith's Tools"}! +${amt} attack.`)
-  } else {
-    _addToBackpack(loot.type)
-    UI.setSubFloorMessage(`You pry it open — ${itemDef?.name ?? 'something useful'}!`)
-  }
-
-  // Float the item icon out of the chest — mirrors main _openChest
-  if (itemDef) UI.spawnFloat(tile.element, `${itemDef.icon ?? '📦'} ${itemDef.name}`, 'xp')
-
-  // Play chest-open gif, then fade icon out with collecting animation
-  const chestImg = tile.element?.querySelector('.tile-icon-img')
-  const iconWrap = tile.element?.querySelector('.tile-icon-wrap')
-  const GIF_DURATION = 750
-
-  if (chestImg) _forcePlayChestGif(chestImg, ITEM_ICONS_BASE + 'chest.gif?t=' + Date.now())
-
-  setTimeout(() => {
-    if (chestImg) chestImg.remove()
-    if (iconWrap) {
-      iconWrap.classList.add('collecting')
-      setTimeout(() => {
-        iconWrap.innerHTML = ''
-        iconWrap.classList.remove('collecting')
-      }, 560)
-    }
-  }, GIF_DURATION)
-}
 
 /**
  * Reveal the exit tile on the main floor (map pickup reward).
  * Finds any unrevealed exit tile and flips it in place.
  */
-function _sfRevealMainFloorExit() {
-  const grid = TileEngine.getGrid()
-  if (!grid) return
-  for (const row of grid) {
-    for (const t of row) {
-      if (t.type === 'exit' && !t.revealed) {
-        t.revealed = true
-        t.reachable = true
-        if (t.element) {
-          t.element.classList.add('revealed')
-          t.element.classList.add('exit-pending')
-          UI.spawnFloat(t.element, '🗺️ Exit found!', 'xp')
-        }
-        return
-      }
-    }
-  }
-}
+
 
 /** Fade out and clear the icon on a collected sub-floor tile (gold, heart). */
-function _sfFadeOutTileIcon(tile) {
-  const wrap = tile.element?.querySelector('.tile-icon-wrap')
-  if (!wrap) return
-  setTimeout(() => {
-    wrap.style.transition = 'opacity 0.4s ease'
-    wrap.style.opacity = '0'
-    setTimeout(() => { wrap.innerHTML = ''; wrap.style.cssText = '' }, 420)
-  }, 500)
-}
 
-function _subFloorReveal(tile) {
-  if (!run?.subFloor) return
-  const sf = run.subFloor
-  tile.revealed = true
-  UI.flipSubFloorTile(tile)
-  // Resolve tile effect
-  switch (tile.type) {
-    case 'enemy':
-    case 'boss': {
-      // Lock orthogonal neighbors in sub-floor
-      _sfLockAdjacent(tile)
-      _gainXP(CONFIG.xp.perTileReveal, null)
-      UI.setSubFloorMessage(`A ${tile.enemyData?.label ?? 'enemy'} lurks. Tap it to fight.`)
-      break
-    }
-    case 'chest': {
-      tile.chestLoot = _rollChestLoot()
-      tile.chestReady = true
-      tile.element?.classList.add('chest-ready')
-      _gainXP(CONFIG.xp.perTileReveal, null)
-      UI.setSubFloorMessage('A chest! Tap it to open.')
-      break
-    }
-    case 'gold': {
-      _gainGold(1, tile.element)
-      _gainXP(CONFIG.xp.perTileReveal, tile.element)
-      UI.setSubFloorMessage('You pocket a coin. +1 gold.')
-      _sfFadeOutTileIcon(tile)
-      break
-    }
-    case 'heart': {
-      const heal = CONFIG.heart.healAmount
-      run.player.hp = Math.min(run.player.maxHp, run.player.hp + heal)
-      UI.updateHP(run.player.hp, run.player.maxHp)
-      UI.spawnFloat(tile.element, `+${heal} HP`, 'heal')
-      _gainXP(CONFIG.xp.perTileReveal, tile.element)
-      UI.setSubFloorMessage(`A healing sigil. +${heal} HP.`)
-      _sfFadeOutTileIcon(tile)
-      break
-    }
-    case 'trap': {
-      const trapDmg = _rand(2, 5)
-      _takeDamage(trapDmg, tile.element, false, null, { deathCause: 'trap' })
-      _gainXP(CONFIG.xp.perTileReveal, tile.element)
-      UI.setSubFloorMessage(`A trap! You take ${trapDmg} damage.`)
-      break
-    }
-    case 'empty': {
-      _gainXP(CONFIG.xp.perTileReveal, null)
-      UI.setSubFloorMessage('Nothing here but stone.')
-      break
-    }
-    case 'stairs_up': {
-      UI.setSubFloorMessage('Stairs lead back up. Tap to ascend.')
-      break
-    }
-    case 'shrine': {
-      UI.setSubFloorMessage('An ancient shrine. Tap it to make an offering.')
-      break
-    }
-    case 'map': {
-      _gainXP(CONFIG.xp.perTileReveal, tile.element)
-      // Reveal the main-floor exit tile
-      _sfRevealMainFloorExit()
-      UI.setSubFloorMessage('📜 You found a map! The exit on the main floor is now visible.')
-      _sfFadeOutTileIcon(tile)
-      break
-    }
-    case 'rubble': {
-      // Toxic gas: deal damage each flip
-      if (run.subFloor?.type === 'toxic_gas') {
-        const dmg = CONFIG.subFloor.toxicGasDamagePerFlip
-        _takeDamage(dmg, tile.element, false, null, { deathCause: 'toxic_gas' })
-        UI.setSubFloorMessage(`☠️ Gas chokes you — ${dmg} damage! Keep searching for the exit.`)
-      } else {
-        UI.setSubFloorMessage('Just rubble and dust.')
-      }
-      _sfFadeOutTileIcon(tile)
-      break
-    }
-  }
-  // Expand reachability from this tile (orthogonal)
-  const { tiles, rows, cols } = sf
-  const dirs = [[-1,0],[1,0],[0,-1],[0,1]]
-  for (const [dr, dc] of dirs) {
-    const nr = tile.row + dr, nc = tile.col + dc
-    const adj = tiles[nr]?.[nc]
-    if (adj && !adj.revealed && !adj.locked && !adj.reachable) {
-      adj.reachable = true
-      UI.markSubFloorTileReachable(adj)
-    }
-  }
-  // Boss vault: on boss death, unlock all tiles
-  if (sf.type === 'boss_vault') {
-    const bossAlive = tiles.flat().some(t => t?.enemyData && !t.enemyData._slain && t.isBossVaultBoss)
-    if (!bossAlive) {
-      for (const row of tiles) for (const t of row) {
-        if (t && t.locked) {
-          t.locked = false
-          t.reachable = true
-          UI.markSubFloorTileReachable(t)
-        }
-      }
-    }
-  }
-}
 
-function _sfLockAdjacent(tile) {
-  if (!run?.subFloor) return
-  const { tiles } = run.subFloor
-  const dirs = [[-1,0],[1,0],[0,-1],[0,1]]
-  for (const [dr, dc] of dirs) {
-    const adj = tiles[tile.row + dr]?.[tile.col + dc]
-    if (adj && !adj.revealed) {
-      adj.locked = true
-      adj.reachable = false
-      UI.lockSubFloorTile(adj)
-    }
-  }
-}
 
-function _sfUnlockAdjacent(tile) {
-  if (!run?.subFloor) return
-  const { tiles, rows, cols } = run.subFloor
-  const dirs = [[-1,0],[1,0],[0,-1],[0,1]]
-  for (const [dr, dc] of dirs) {
-    const adj = tiles[tile.row + dr]?.[tile.col + dc]
-    if (adj && !adj.revealed && adj.locked) {
-      // Only unlock if no other living enemy locks this tile
-      let stillLocked = false
-      for (const [er, ec] of dirs) {
-        const e = tiles[adj.row + er]?.[adj.col + ec]
-        if (e && e.revealed && e.enemyData && !e.enemyData._slain && e !== tile) {
-          stillLocked = true; break
-        }
-      }
-      if (!stillLocked) {
-        adj.locked = false
-        adj.reachable = true
-        UI.unlockSubFloorTile(adj)
-        UI.markSubFloorTileReachable(adj)
-      }
-    }
-  }
-}
 
-function _subFloorFight(tile) {
-  if (_combatBusy) return
-  _combatBusy = true; _combatBusySetAt = Date.now()
-  const result = CombatResolver.resolveFight(run.player, tile.enemyData)
-  const playerDmg = result.playerDmg
 
-  UI.setPortraitAnim('attack')
-  EventBus.emit('audio:play', { sfx: 'hit' })
-  if (_charKey() === 'mage') UI.spawnMageAttack(tile.element)
-  else if (_charKey() === 'vampire') UI.spawnVampireAttack(tile.element)
-  else if (_charKey() === 'necromancer') UI.spawnNecromancerAttack(tile.element)
-  else UI.spawnSlash(tile.element)
-  UI.shakeTile(tile.element)
 
-  // Apply player damage to enemy
-  const prevHP = tile.enemyData.currentHP ?? tile.enemyData.hp
-  tile.enemyData.currentHP = Math.max(0, prevHP - playerDmg)
-  const enemySlain = tile.enemyData.currentHP <= 0
 
-  if (enemySlain) {
-    tile.enemyData.currentHP = 0
-    tile.enemyData._slain = true
-    _gainGold(tile.enemyData.goldDrop ? _rand(...tile.enemyData.goldDrop) : 1, tile.element, true)
-    _gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
-    UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'damage')
-    UI.setSubFloorMessage(`You slay the ${tile.enemyData.label} for ${playerDmg} damage!`)
-    UI.markSubFloorTileSlain(tile)
-    _sfUnlockAdjacent(tile)
-    // Boss vault: unlock all rewards on boss death
-    if (tile.isBossVaultBoss) {
-      const sf = run.subFloor
-      for (const row of sf.tiles) for (const t of row) {
-        if (t && t.locked) {
-          t.locked = false; t.reachable = true
-          UI.unlockSubFloorTile(t); UI.markSubFloorTileReachable(t)
-        }
-      }
-      UI.setSubFloorMessage('The boss falls! The vault trembles — riches await.')
-    }
-    setTimeout(() => { UI.setPortraitAnim('idle'); _combatBusy = false }, 400)
-  } else {
-    const taken = _computeEffectiveDamageTaken(result.enemyDmg)
-    UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'damage')
-    _takeDamage(taken, tile.element, false, tile.enemyData, { enemyAttack: true })
-    UI.setSubFloorMessage(`You strike for ${playerDmg}. The ${tile.enemyData.label} hits back for ${taken}.`)
-    UI.updateSubFloorEnemyHP(tile)
-    setTimeout(() => { UI.setPortraitAnim('idle'); _combatBusy = false }, 500)
-  }
-}
 
-function _openShrine(tile) {
-  const cfg = CONFIG.subFloor.shrine
-  const canAffordGold = run.player.gold >= cfg.goldOfferingCost
-  const goldBtn = document.getElementById('shrine-btn-gold')
-  if (goldBtn) goldBtn.disabled = !canAffordGold
 
-  const shrineOverlay = document.getElementById('shrine-overlay')
-  if (!shrineOverlay) return
-  shrineOverlay.classList.remove('hidden')
-  shrineOverlay.removeAttribute('aria-hidden')
 
-  function _closeShrineOverlay() {
-    shrineOverlay.classList.add('hidden')
-    shrineOverlay.setAttribute('aria-hidden', 'true')
-    document.getElementById('shrine-btn-blood')?.removeEventListener('click', onBlood)
-    document.getElementById('shrine-btn-gold')?.removeEventListener('click', onGold)
-    document.getElementById('shrine-btn-leave')?.removeEventListener('click', onLeave)
-  }
 
-  function onBlood() {
-    const hpCost = Math.max(1, Math.floor(run.player.maxHp * cfg.bloodSacrificeHpPct))
-    run.player.maxHp = Math.max(1, run.player.maxHp - hpCost)
-    run.player.hp = Math.min(run.player.hp, run.player.maxHp)
-    run.player.damageBonus = (run.player.damageBonus ?? 0) + cfg.bloodSacrificeDmgBonus
-    UI.updateHP(run.player.hp, run.player.maxHp)
-    const [d0, d1] = _playerDamageRange(run.player)
-    UI.updateDamageRange(d0, d1)
-    tile.shrineUsed = true
-    _closeShrineOverlay()
-    UI.setSubFloorMessage(`You offer your blood. −${hpCost} max HP, +${cfg.bloodSacrificeDmgBonus} damage.`)
-  }
 
-  function onGold() {
-    if (run.player.gold < cfg.goldOfferingCost) return
-    run.player.gold -= cfg.goldOfferingCost
-    run.player.maxHp += cfg.goldOfferingHpBonus
-    run.player.hp = Math.min(run.player.hp + cfg.goldOfferingHpBonus, run.player.maxHp)
-    UI.updateGold(run.player.gold)
-    UI.updateHP(run.player.hp, run.player.maxHp)
-    tile.shrineUsed = true
-    _closeShrineOverlay()
-    UI.setSubFloorMessage(`You lay gold at the shrine. −${cfg.goldOfferingCost}🪙, +${cfg.goldOfferingHpBonus} max HP.`)
-  }
-
-  function onLeave() {
-    _closeShrineOverlay()
-    UI.setSubFloorMessage('You leave the shrine undisturbed.')
-  }
-
-  // Delay wiring by one frame so any ghost click from the shrine-tile tap
-  // has already fired before the button listeners are attached.
-  setTimeout(() => {
-    document.getElementById('shrine-btn-blood')?.addEventListener('click', onBlood, { once: true })
-    document.getElementById('shrine-btn-gold')?.addEventListener('click', onGold, { once: true })
-    document.getElementById('shrine-btn-leave')?.addEventListener('click', onLeave, { once: true })
-  }, 0)
-}
-
-function onTileTap(row, col) {
-  const state = GameState.current()
-  const tile  = TileEngine.getTile(row, col)
-  if (!tile) return
-
-  if (state === States.NPC_INTERACT) return
-
-  _syncAllUnrevealedLockedDom()
-
-  if (state === States.FLOOR_EXPLORE && _charKey() === 'engineer') {
-    const tr = run.turret
-    const isTurretTile = tr?.hp > 0 && tr.row === tile.row && tr.col === tile.col
-    const isRevealedEmpty = tile.revealed && tile.type === 'empty' && !tile.locked
-    const isLivingEnemyTap = tile.revealed && tile.enemyData && !tile.enemyData._slain
-    if ((isTurretTile || isRevealedEmpty || _engineerPendingTile) && !isLivingEnemyTap) {
-      if (_isCombatCommitmentLocked()) {
-        if (!isTurretTile && !isRevealedEmpty) {
-          UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
-          return
-        }
-      }
-      if (_handleEngineerConstructTileTap(tile)) return
-    }
-  }
-
-  // Necromancer: Strengthen Minion — tap a minion tile to reinforce it
-  if (_strengthenMinionSelecting) {
-    const minion = (run.minions ?? []).find(m => m.row === tile.row && m.col === tile.col && m.hp > 0)
-    if (!minion) {
-      UI.setMessage('Tap one of your minions to strengthen it.', true)
-      return
-    }
-    if (run.player.mana < STRENGTHEN_MINION_COST) {
-      UI.setMessage('Not enough mana for Strengthen Minion!', true)
-      _cancelStrengthenMinionMode()
-      return
-    }
-    const smStacks = run.player.strengthenMinionStacks ?? 0
-    const smHpGain = smStacks >= 1 ? 10 : 5
-    const smManaCost = _hasNecroMetaUpgrade('strengthen-minion-mastery-3') ? 6 : STRENGTHEN_MINION_COST
-    run.player.mana -= smManaCost
-    UI.updateMana(run.player.mana, run.player.maxMana)
-    minion.maxHp += smHpGain
-    minion.hp    += smHpGain
-    if (smStacks >= 2) {
-      minion.damage = (minion.damage ?? 1) + 1
-    }
-    _syncMinionVisual(minion)
-    UI.spawnFloat(tile.element, `❤️ +${smHpGain}`, 'xp')
-    UI.setMessage(`Your minion grows stronger! (❤️ ${minion.hp}/${minion.maxHp})`)
-    _cancelStrengthenMinionMode()
-    _saveActiveRun()
-    return
-  }
-
-  // Necromancer: Corpse Explosion — tap a corpse (ash pile) or minion to detonate
-  if (_corpseExplosionSelecting) {
-    const isCorpse = tile.revealed && tile.enemyData && tile.enemyData._slain && !tile.corpseExploded
-    const isMinion = !!(run.minions ?? []).find(m => m.row === tile.row && m.col === tile.col && m.hp > 0)
-    if (!isCorpse && !isMinion) {
-      UI.setMessage('Tap a corpse or one of your minions to detonate.', true)
-      return
-    }
-    _executeCorpseExplosion(tile)
-    return
-  }
-
-  // Spell targeting mode: only enemy taps fire; everything else ignored
-  if (_spellTargeting) {
-    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      _castSpell(tile)
-    }
-    return
-  }
-
-  // Throwing Knife targeting
-  if (_throwingKnifeTargeting) {
-    _throwingKnifeTargeting = false
-    UI.setMessage('')
-    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      const dmg = 3
-      tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - dmg)
-      UI.spawnFloat(tile.element, `🗡️ ${dmg}`, 'damage')
-      EventBus.emit('audio:play', { sfx: 'hit' })
-      if (tile.enemyData.currentHP <= 0) {
-        _gainGold(tile.enemyData.goldDrop ? _rand(...tile.enemyData.goldDrop) : 1, tile.element, true)
-        _gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
-        _endCombatVictory(tile)
-        UI.setMessage(`🗡️ Knife flies true — enemy slain! No counter-attack.`)
-      } else {
-        UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
-        UI.setMessage(`🗡️ Knife deals ${dmg} damage. Enemy has ${tile.enemyData.currentHP} HP left.`)
-      }
-    }
-    return
-  }
-
-  // Twin Blades targeting
-  if (_twinBladesTargeting) {
-    _twinBladesTargeting = false
-    UI.setMessage('')
-    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      const dmg = 5
-      tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - dmg)
-      UI.spawnFloat(tile.element, `⚔️ ${dmg}`, 'damage')
-      EventBus.emit('audio:play', { sfx: 'hit' })
-      if (tile.enemyData.currentHP <= 0) {
-        _gainGold(tile.enemyData.goldDrop ? _rand(...tile.enemyData.goldDrop) : 1, tile.element, true)
-        _gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
-        _endCombatVictory(tile)
-        UI.setMessage(`⚔️ Twin Blades — enemy slain! No counter-attack.`)
-      } else {
-        UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
-        UI.setMessage(`⚔️ Twin Blades deal ${dmg} damage. Enemy has ${tile.enemyData.currentHP} HP left.`)
-      }
-    }
-    return
-  }
-
-  // Rusty Nail targeting
-  if (_rustyNailTargeting) {
-    _rustyNailTargeting = false
-    UI.setMessage('')
-    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      tile.enemyData.poisonTurns = (tile.enemyData.poisonTurns ?? 0) + 5
-      tile.enemyData.nailPoison  = true
-      UI.updateEnemyStatus(tile.element, tile.enemyData)
-      UI.spawnFloat(tile.element, '📌 Poisoned!', 'damage')
-      UI.setMessage(`📌 Rusty nail lodges deep — ${tile.enemyData.label} will take 1 damage per turn for 5 turns.`)
-      EventBus.emit('audio:play', { sfx: 'hit' })
-    }
-    return
-  }
-
-  // Lantern targeting: any unrevealed tile (ignores reachable restriction)
-  if (_lanternTargeting) {
-    if (!tile.revealed) {
-      if (_isCombatCommitmentLocked()) {
-        UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
-        return
-      }
-      _useLanternOn(tile)
-      return
-    }
-    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      _lanternTargeting = false
-      UI.setLanternTargeting(false)
-      // Fall through — melee the enemy
-    } else {
-      return
-    }
-  }
-
-  if (_spyglassTargeting) {
-    if (!tile.revealed) {
-      if (_isCombatCommitmentLocked()) {
-        UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
-        return
-      }
-      _useSpyglassOn(tile)
-      return
-    }
-    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      _spyglassTargeting = false
-      UI.setLanternTargeting(false)
-      // Fall through — melee the enemy
-    } else {
-      return
-    }
-  }
-
-  // Blinding Light targeting: revealed living enemy
-  if (_blindingLightTargeting) {
-    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      _castBlindingLight(tile)
-    }
-    return
-  }
-
-  // Divine Light targeting: revealed living enemy → smite
-  if (_divineLightSelecting) {
-    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      _castDivineLightSmite(tile)
-    }
-    return
-  }
-
-  // Triple Volley: first tap sets 3×3 center (preview); second tap same tile confirms
-  if (_arrowBarrageSelecting) {
-    if (!tile.revealed) {
-      UI.setMessage('Triple Volley — tap a revealed tile to place the 3×3 area.', true)
-      return
-    }
-    const cost = _stillWaterManaCost(RANGER_UPGRADES['arrow-barrage'].manaCost + _tearyExtraCost())
-    if (!_tripleVolleyCenter) {
-      _tripleVolleyCenter = { row: tile.row, col: tile.col }
-      UI.setTripleVolleyAoePreview(tile.row, tile.col)
-      UI.setMessage(
-        'Triple Volley — blinking tiles show the blast. Tap the same tile again to fire (or tap the ability to cancel).',
-      )
-      return
-    }
-    if (tile.row !== _tripleVolleyCenter.row || tile.col !== _tripleVolleyCenter.col) {
-      _tripleVolleyCenter = { row: tile.row, col: tile.col }
-      UI.setTripleVolleyAoePreview(tile.row, tile.col)
-      UI.setMessage('Triple Volley — area moved. Tap the center tile again to confirm.')
-      return
-    }
-    if (run.player.mana < cost) {
-      UI.setMessage('Not enough mana for Triple Volley!', true)
-      return
-    }
-    _executeTripleVolley(_tripleVolleyCenter)
-    return
-  }
-
-  // Poison Arrow (active): single living enemy — initial hit + 3 poison ticks (global turns)
-  if (_poisonArrowShotSelecting) {
-    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      const cost = _stillWaterManaCost(RANGER_UPGRADES['poison-arrow-shot'].manaCost + _tearyExtraCost())
-      if (run.player.mana < cost) {
-        UI.setMessage('Not enough mana for Poison Arrow!', true)
-      } else {
-        _executePoisonArrowShot(tile)
-      }
-    }
-    return
-  }
-
-  // Ricochet: mark up to 3 enemies in tap order; 3rd pick fires immediately
-  if (_ricochetSelecting) {
-    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      const idx = _ricochetTiles.findIndex(t => t.row === tile.row && t.col === tile.col)
-      if (idx >= 0) {
-        _ricochetTiles.splice(idx, 1)
-        UI.refreshRicochetMarks(_ricochetTiles)
-      } else if (_ricochetTiles.length < 3) {
-        _ricochetTiles.push(tile)
-        UI.refreshRicochetMarks(_ricochetTiles)
-        if (_ricochetTiles.length === 3) {
-          const cost = _stillWaterManaCost(RANGER_UPGRADES.ricochet.manaCost + _tearyExtraCost())
-          if (run.player.mana < cost) {
-            _ricochetTiles.pop()
-            UI.refreshRicochetMarks(_ricochetTiles)
-            UI.setMessage('Not enough mana for Ricochet!', true)
-          } else {
-            _executeRicochet()
-          }
-        }
-      } else {
-        UI.setMessage('Ricochet — max 3 targets.', true)
-      }
-    }
-    return
-  }
-
-  // Chain Lightning: tap a revealed living enemy — bolt zaps, then arcs to up to 2 more at random
-  if (_chainLightningSelecting) {
-    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      if (tile.enemyData.spellImmune) {
-        UI.setMessage('🛡️ That enemy is immune to Chain Lightning!', true)
-      } else {
-        _executeChainLightning(tile)
-      }
-    }
-    return
-  }
-
-  // Telekinetic Throw: tap enemy (step 1), tap empty tile (step 2)
-  if (_telekineticThrowStep > 0) {
-    if (_telekineticThrowStep === 1) {
-      if (_isTelekineticThrowEnemyTarget(tile)) {
-        _telekineticEnemyTile = { row: tile.row, col: tile.col }
-        _telekineticThrowStep = 2
-        UI.clearTelekineticMarks()
-        UI.markTelekineticOrigin(tile.element)
-        UI.setGridTelekineticThrowMode('dest')
-        UI.setMessage('🌀 Now tap a revealed empty tile to slam them down.')
-      } else if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-        if (tile.enemyData.behaviour === 'boss' || tile.type === 'boss') {
-          UI.setMessage('🛡️ Bosses cannot be thrown.', true)
-        } else if (tile.enemyData.spellImmune) {
-          UI.setMessage('🛡️ That enemy is immune to Telekinetic Throw!', true)
-        } else {
-          UI.setMessage('Not a valid target.', true)
-        }
-      } else {
-        UI.setMessage('Tap a revealed enemy to grab.', true)
-      }
-      return
-    }
-    if (_telekineticThrowStep === 2) {
-      const origin = _telekineticEnemyTile
-        ? _getActiveTileAt(_telekineticEnemyTile.row, _telekineticEnemyTile.col)
-        : null
-      if (!origin || !_isTelekineticThrowEnemyTarget(origin)) {
-        _cancelTelekineticThrowMode()
-        UI.setMessage('Telekinetic Throw — target no longer valid.', true)
-        return
-      }
-      if (tile.row === origin.row && tile.col === origin.col) {
-        UI.setMessage('Pick a different landing tile.', true)
-        return
-      }
-      if (!_isTelekineticThrowDestination(tile)) {
-        UI.setMessage('Landing tile must be a revealed empty tile (no loot, chest, stairs, turret).', true)
-        return
-      }
-      _executeTelekineticThrow(origin, tile)
-      return
-    }
-  }
-
-  if (state === States.FLOOR_EXPLORE) {
-    const floorCombatLocked = _isCombatCommitmentLocked()
-    const tileIsLivingEnemy = tile.revealed && tile.enemyData && !tile.enemyData._slain
-
-    if (floorCombatLocked && !tileIsLivingEnemy) {
-      // Sub-floor entry is always accessible regardless of combat lock
-      if (tile.revealed && tile.type === 'sub_floor_entry' && tile.entryReady && !tile.subFloorVisited) {
-        _enterSubFloor(tile)
-        return
-      }
-      if (tile.revealed && tile.type === 'war_banner' && tile.bannerReady && run.warBanner?.active) {
-        _destroyWarBanner(tile)
-        return
-      }
-      // Chests are world interactions (like the banner), not new exploration — allow while engaged.
-      if (tile.revealed && tile.type === 'chest' && tile.chestReady && !tile.chestLooted) {
-        _openChest(tile)
-        return
-      }
-      if (tile.revealed && tile.type === 'magic_chest' && tile.magicChestReady) {
-        _openMagicChest(tile)
-        return
-      }
-      if (!tile.revealed && !tile.locked && tile.reachable) {
-        UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
-        return
-      }
-      if (tile.revealed) {
-        UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
-        return
-      }
-      return
-    }
-
-    // Eagle Eye: one free flip to any unrevealed unlocked tile after a kill
-    if (!_combatBusy && !tile.revealed && !tile.locked && run.player.eagleEyeFreeFlip) {
-      run.player.eagleEyeFreeFlip = false
-      revealTile(tile)
-      return
-    }
-    if (!_combatBusy && !tile.revealed && !tile.locked && tile.reachable) {
-      _hapticFromUserGesture(15)
-      revealTile(tile)
-    } else if (tile.revealed && tile.type === 'chest' && tile.chestReady && !tile.chestLooted) {
-      _openChest(tile)
-    } else if (tile.revealed && tile.type === 'magic_chest' && tile.magicChestReady) {
-      _openMagicChest(tile)
-    } else if (tile.revealed && tile.type === 'forge') {
-      _openForge(tile)
-    } else if (tile.revealed && tile.type === 'exit' && !tile.exitResolved) {
-      _confirmExit(tile)
-    } else if (tile.revealed && tile.type === 'rope' && !tile.ropeResolved) {
-      _confirmRope(tile)
-    } else if (tile.revealed && tile.type === 'event' && !tile.eventResolved) {
-      _openEvent(tile)
-    } else if (tile.revealed && tile.type === 'hole') {
-      if (tile.deadlockEscape) _climbThroughHazard(tile)
-      else UI.setMessage('A gaping pit blocks the way. You cannot pass.')
-    } else if (tile.revealed && tile.type === 'blockage') {
-      if (tile.deadlockEscape) _climbThroughHazard(tile)
-      else UI.setMessage('A pile of rubble blocks the way. Find another path.')
-    } else if (tile.revealed && tile.type === 'sub_floor_entry' && tile.entryReady && !tile.subFloorVisited) {
-      _enterSubFloor(tile)
-    } else if (tile.revealed && tile.type === 'war_banner' && tile.bannerReady && run.warBanner?.active) {
-      _destroyWarBanner(tile)
-    } else if (tile.revealed && tile.enemyData && tile.enemyData._slain && _charKey() === 'necromancer') {
-      // Necromancer: tap ash pile to raise a minion
-      _necroRaiseMinion(tile)
-    } else if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      // Archer / Mouse: only fightable once the player has revealed an adjacent tile
-      if (tile.enemyData?.behaviour === 'archer' || tile.enemyData?.behaviour === 'mouse') {
-        const neighbors = TileEngine.getOrthogonalTiles(tile.row, tile.col)
-        if (!neighbors.some(n => n.revealed)) {
-          const label = tile.enemyData.behaviour === 'mouse' ? 'The mouse scurries away — advance to engage.' : 'The archer is too far away — advance to engage.'
-          UI.setMessage(label, true)
-          return
-        }
-      }
-      // Safety net: if _combatBusy has been stuck for >3s with no resolution, clear it
-      if (_combatBusy && Date.now() - _combatBusySetAt > 3000) {
-        console.warn('[GameController] _combatBusy stuck >3s — force-clearing')
-        _combatBusy = false
-      }
-      if (!_combatBusy) fightAction(tile)
-    }
-  }
-}
-
-// ── Tile hold (info card) ────────────────────────────────────
-
-function _showTurretPerimeter(tr) {
-  const grid = TileEngine.getGrid()
-  if (!grid || !tr) return
-  for (const row of grid) {
-    for (const t of row) {
-      if (!t.element) continue
-      t.element.classList.toggle('turret-perimeter', tr.mode === 'tesla' && _inTeslaPerimeter(tr, t))
-    }
-  }
-}
-
-function _clearTurretPerimeter() {
-  const grid = TileEngine.getGrid()
-  if (!grid) return
-  for (const row of grid) {
-    for (const t of row) {
-      t.element?.classList.remove('turret-perimeter')
-    }
-  }
-}
-
-function onTileHold(row, col) {
-  const tile = TileEngine.getTile(row, col)
-  if (!tile) return
-
-  // Turret hold — check before empty guard since turret sits on empty tiles
-  const tr = run?.turret
-  if (tile.revealed && tr && tr.row === row && tr.col === col) {
-    const dmg    = _engineerTurretDamage(tr.level)
-    const pingLv = Math.max(1, Math.min(ENGINEER_SEISMIC_PING.maxLevel, run.player.seismicPingLevel ?? ENGINEER_SEISMIC_PING.defaultLevel))
-    const seismicDesc = pingLv === 1
-      ? 'Passive Seismic Ping L1 — each build or move pings the 8 adjacent hidden tiles with category hints (enemy, trap, loot, …) and a quick pulse.'
-      : `Passive Seismic Ping L${pingLv} — each build or move pings hidden tiles up to ${pingLv} steps from the turret (same hints + pulse).`
-    const modeDesc = tr.manaGeneratorActive
-      ? 'Mana Generator — grants mana on every tile flip'
-      : tr.mode === 'tesla' ? 'Tesla — zaps enemies in the 8 surrounding tiles' : 'Ballistic — fires at all revealed enemies'
-    const details = [
-      { icon: '🛡️', label: 'Mode',   desc: modeDesc },
-      { icon: '⬆️', label: 'Level',  desc: `T${tr.level}` },
-      { icon: '❤️', label: 'HP',     desc: `${tr.hp} / ${tr.maxHp}` },
-      { icon: '⚔️', label: 'Damage', desc: `${dmg} per hit` },
-      { icon: '📳', label: 'Seismic', desc: seismicDesc },
-    ]
-    _showTurretPerimeter(tr)
-    const overlay = document.getElementById('info-card-overlay')
-    const onClose = () => {
-      _clearTurretPerimeter()
-      overlay?.removeEventListener('click', onClose)
-    }
-    overlay?.addEventListener('click', onClose)
-    UI.showInfoCard({
-      name:      `Turret (T${tr.level})`,
-      spriteSrc: tr.mode === 'tesla'
-        ? 'assets/sprites/Heroes/Engineer/turret-tesla.gif'
-        : 'assets/sprites/Heroes/Engineer/turret-t1.gif',
-      blurb:     tr.mode === 'tesla'
-        ? `⚡ Tesla Tower — zaps any enemy you attack within its ${radius}-tile perimeter.`
-        : '🛡️ Ballistic Turret — fires at every enemy tile you reveal.',
-      details,
-      attributes: [],
-    })
-    return
-  }
-
-  if (tile.type === 'empty') return   // nothing interesting to show
-
-  if (tile.type === 'war_banner') {
-    const info = TILE_BLURBS.war_banner
-    if (info) {
-      const blurb = `${info.blurb}\n\n${info.holdHint ?? ''}`
-      UI.showInfoCard({ name: info.label, emoji: info.emoji, spriteSrc: null, blurb, attributes: [] })
-    }
-    return
-  }
-
-  let cardData
-
-  if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-    const e       = tile.enemyData
-    const sprites = ENEMY_SPRITES[e.enemyId]
-    const blurbBase = e.blurb ?? ''
-    const blurb     = e.holdHint ? `${blurbBase}\n\n${e.holdHint}` : blurbBase
-    cardData = {
-      name:       e.label,
-      spriteSrc:  sprites?.idle ? MONSTER_ICONS_BASE + sprites.idle : null,
-      emoji:      e.emoji,
-      hp:         e.currentHP ?? e.hp,
-      maxHp:      e.hp,
-      dmg:        TileEngine.formatEnemyDamageDisplay(e.dmg, e.hitDamage),
-      type:       e.type,
-      blurb,
-      attributes: e.attributes ?? [],
-    }
-  } else if (tile.revealed && tile.type === 'trap') {
-    UI.showTrapModal(() => {})
-    return
-  } else if (tile.revealed) {
-    const info = TILE_BLURBS[tile.type]
-    if (!info) return
-    const iconFile = TILE_TYPE_ICON_FILES[tile.type]
-    const spriteSrc = iconFile ? ITEM_ICONS_BASE + iconFile : null
-    cardData = {
-      name:       info.label,
-      emoji:      spriteSrc ? '' : info.emoji,
-      spriteSrc,
-      blurb:      info.blurb,
-      attributes: [],
-    }
-  } else {
-    // Unrevealed — show mystery card
-    cardData = {
-      name:       'Unknown',
-      emoji:      '❓',
-      spriteSrc:  null,
-      blurb:      'The darkness conceals all. Reveal this tile to learn what lurks within.',
-      attributes: [],
-    }
-  }
-
-  UI.showInfoCard(cardData)
-}
-
-// ── Reveal tile ──────────────────────────────────────────────
-
-/** Traps, dedicated fast tiles, and fast ambush on normal enemy reveals — 10% to shave trapfinderStacks HP (min 1). */
-function _applyRangerTrapfinderMitigation(preMitigationDmg, p) {
-  if (!p?.isRanger || (p.trapfinderStacks ?? 0) <= 0) {
-    return { dmg: preMitigationDmg, proc: false }
-  }
-  if (Math.random() >= CONFIG.ability.trapfinderProcChance) {
-    return { dmg: preMitigationDmg, proc: false }
-  }
-  const mitigated = Math.max(1, preMitigationDmg - p.trapfinderStacks)
-  return { dmg: mitigated, proc: true }
-}
-
-/** One global “turn” for DoT / debuff effects: each tile flip/reveal, or starting a melee vs any enemy. */
-function _tickPoisonArrowDotOnGlobalTurn(opts = {}) {
-  const hapticChannel = opts.hapticChannel === 'gesture' ? 'gesture' : 'deferred'
-  const dotHaptic = hapticChannel === 'gesture' ? _hapticFromUserGesture : _hapticFromAsyncTask
-  if (!run || GameState.is(States.DEATH)) return
-  _tickTreasureGoblinCountdown()
-  // Teary Eyes debuff tick
-  if ((run.player.tearyEyesTurns ?? 0) > 0) {
-    run.player.tearyEyesTurns--
-    UI.setTearyEyes(run.player.tearyEyesTurns)
-  }
-  // Freezing Hit debuff tick (1 stack falls off per global turn)
-  if ((run.player.freezingHitStacks ?? 0) > 0) {
-    run.player.freezingHitStacks--
-    UI.setFreezingHit(run.player.freezingHitStacks)
-  }
-  // Corruption debuff tick: 1 stack falls off per global turn, restoring max HP/Mana proportionally
-  if ((run.player.corruptionStacks ?? 0) > 0) {
-    run.player.corruptionStacks--
-    const stacks = run.player.corruptionStacks
-    if (stacks === 0) {
-      // Fully restore base max values
-      if (run.player.corruptionBaseMaxHp)   run.player.maxHp   = run.player.corruptionBaseMaxHp
-      if (run.player.corruptionBaseMaxMana) run.player.maxMana = run.player.corruptionBaseMaxMana
-      run.player.corruptionBaseMaxHp   = 0
-      run.player.corruptionBaseMaxMana = 0
-    } else {
-      // Partial restore — recompute from base
-      run.player.maxHp   = Math.max(1, Math.round(run.player.corruptionBaseMaxHp   * (1 - stacks * 0.02)))
-      run.player.maxMana = Math.max(1, Math.round(run.player.corruptionBaseMaxMana * (1 - stacks * 0.02)))
-    }
-    UI.updateHP(run.player.hp, run.player.maxHp)
-    UI.updateMana(run.player.mana, run.player.maxMana)
-    UI.setCorruption(stacks)
-  }
-  // Player Poison debuff tick: 1 HP damage per stack, then 1 stack falls off
-  if ((run.player.poisonStacks ?? 0) > 0) {
-    const dmg = run.player.poisonStacks
-    run.player.hp = Math.max(1, run.player.hp - dmg)
-    UI.updateHP(run.player.hp, run.player.maxHp)
-    dotHaptic(20)
-    UI.spawnFloat(document.getElementById('hud-portrait'), `☠️ Poison ${dmg}`, 'damage')
-    run.player.poisonStacks--
-    UI.setPlayerPoison(run.player.poisonStacks)
-  }
-  // Burn debuff tick: 1 HP damage per stack, then 1 stack falls off
-  if ((run.player.burnStacks ?? 0) > 0) {
-    const dmg = run.player.burnStacks
-    run.player.hp = Math.max(1, run.player.hp - dmg)
-    UI.updateHP(run.player.hp, run.player.maxHp)
-    dotHaptic(20)
-    UI.spawnFloat(document.getElementById('hud-portrait'), `🔥 Burn ${dmg}`, 'damage')
-    run.player.burnStacks--
-    UI.setBurnOverlay(run.player.burnStacks)
-    if (run.player.hp <= 1 && !GameState.is(States.DEATH)) {
-      // Don't kill from burn — leave at 1 HP minimum
-    }
-  }
-  const grid = TileEngine.getGrid()
-  const plagueBonus    = run.player.inventory?.some(e => e?.id === 'plague-rat-skull') ? 1 : 0
-  const festerBonus   = run.player.inventory?.some(e => e?.id === 'festering-wound') ? 2 : 0
-  const pDmg = _scaleOutgoingDamageToEnemy(_poisonArrowUnitDamage()) + plagueBonus + festerBonus
-  for (const tile of _getActiveTiles()) {
-    if (!tile.revealed || !tile.enemyData || tile.enemyData._slain) continue
-    if ((tile.enemyData.poisonTurns ?? 0) <= 0) continue
-
-    tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - pDmg)
-    tile.enemyData.poisonTurns--
-    if (tile.element) {
-      UI.spawnFloat(tile.element, `☠️ ${pDmg}`, 'damage')
-      UI.shakeTile(tile.element)
-    }
-    if (tile.enemyData.currentHP <= 0) {
-      const gold = tile.enemyData.goldDrop ? _rand(...tile.enemyData.goldDrop) : 1
-      _gainGold(gold, tile.element)
-      _gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
-      _endCombatVictory(tile)
-    } else if (tile.element) {
-      UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
-    }
-  }
-  // Hemorrhage bleed tick: enemies bleeding from Slam → Hemorrhage branch
-  for (const tile of _getActiveTiles()) {
-    if (!tile.revealed || !tile.enemyData || tile.enemyData._slain) continue
-    if ((tile.enemyData.bleedTurns ?? 0) <= 0) continue
-    const bDmg = tile.enemyData.bleedDmg ?? 2
-    tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - bDmg)
-    tile.enemyData.bleedTurns--
-    if (tile.element) {
-      UI.spawnFloat(tile.element, `🩸 ${bDmg}`, 'damage')
-      UI.shakeTile(tile.element)
-    }
-    if (tile.enemyData.currentHP <= 0) {
-      const gold = tile.enemyData.goldDrop ? _rand(...tile.enemyData.goldDrop) : 1
-      _gainGold(gold, tile.element)
-      _gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
-      if (tile.enemyData.bleedBurst) _hemorrhageBurst(tile)
-      _endCombatVictory(tile)
-    } else if (tile.element) {
-      UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
-    }
-  }
-  if (!grid) return
-  // Harass tick: each revealed living enemy with harassPlayer=true fires at player every global turn
-  let totalHarassDmg = 0
-  let archerCount = 0
-  let batCount = 0
-  for (const row of grid) {
-    for (const tile of row) {
-      if (!tile.revealed || !tile.enemyData || tile.enemyData._slain) continue
-      if (!tile.enemyData.harassPlayer) continue
-      const rawDmg = tile.enemyData.harassDmg ?? 1
-      // Harass damage scales +1 per 10 floors (floor 1-9 = base, 10-19 = base+1, ...)
-      const harassFloorBonus = Math.floor((run.floor ?? 1) / 10)
-      const dmg = _computeEffectiveDamageTaken(rawDmg + harassFloorBonus)
-      totalHarassDmg += dmg
-      if (tile.enemyData.enemyId === 'archer_goblin') {
-        archerCount++
-        // Flash the attack sprite briefly
-        const img = tile.element?.querySelector('.tile-icon-img')
-        if (img) {
-          img.src = MONSTER_ICONS_BASE + 'archer_goblin/archer-goblin-attack.gif?t=' + Date.now()
-          setTimeout(() => {
-            if (img.isConnected) img.src = MONSTER_ICONS_BASE + 'archer_goblin/archer-goblin-idle.gif?t=' + Date.now()
-          }, 4000)
-        }
-        UI.spawnFloat(tile.element, `🏹 ${dmg}`, 'damage')
-      } else {
-        batCount++
-        UI.spawnFloat(tile.element, `🦇 ${dmg}`, 'damage')
-      }
-    }
-  }
-  if (totalHarassDmg > 0 && !GameState.is(States.DEATH)) {
-    if (archerCount > 0) {
-      EventBus.emit('audio:play', archerCount > 1
-        ? { sfx: 'enemyArcherShot', layered: { count: Math.min(archerCount, 8), spreadMs: 72, jitterMs: 40 } }
-        : { sfx: 'enemyArcherShot' })
-    }
-    _takeDamage(totalHarassDmg, document.getElementById('hud-portrait'), false, null, {
-      enemyAttack: true,
-      hapticChannel,
-      deathCause: 'archer_harass',
-    })
-    const parts = []
-    if (archerCount > 0) parts.push(`🏹 Goblin Archer${archerCount > 1 ? 's fire' : ' fires'} for ${totalHarassDmg} dmg!`)
-    if (batCount > 0) parts.push(`🦇 Shadow Bat${batCount > 1 ? 's attack' : ' attacks'}!`)
-    UI.setMessage(parts.join(' ') + ` (${totalHarassDmg} total)`)
-  }
-
-  if (run.player.inventory?.some(e => e?.id === 'still-water-amulet')) {
-    run.player.turnsWithoutSpell = (run.player.turnsWithoutSpell ?? 0) + 1
-  }
-  // Bandage Roll HOT
-  if ((run.player.regenTurns ?? 0) > 0) {
-    const amt = run.player.regenPerTurn ?? 1
-    run.player.hp = Math.min(run.player.maxHp, run.player.hp + amt)
-    run.player.regenTurns--
-    UI.spawnFloat(document.getElementById('hud-portrait'), `🩹 +${amt} HP`, 'heal')
-    UI.updateHP(run.player.hp, run.player.maxHp)
-  }
-  _refreshAllEnemyStatusDisplays()
-}
-
-async function revealTile(tile) {
-  if (!tile.revealed && _turretDeployedOnTile(tile)) return
-  _syncAllUnrevealedLockedDom()
-  if (run.player.inventory.some(e => e?.id === 'hourglass-sand')) {
-    run._hourglassSnapshot = _serializeHourglassSnapshot()
-  }
-  if (tile.element) {
-    tile.element.classList.remove('echo-hint')
-    delete tile.element.dataset.echoHint
-  }
-  delete tile.echoHintCategory
-
-  tile.revealed = true
-  run.tilesRevealed++
-  _firefoxPreFlipHapticsIfNeeded(tile)
-  UI.setPortraitAnim('run')
-  EventBus.emit('audio:play', { sfx: 'flip' })
-  await TileEngine.flipTile(tile)
-  if (!run) return  // run ended (retreat/death) during the flip animation
-  if (tile.enemyData) {
-    TileEngine.rollEnemyHitDamage(tile.enemyData)
-    // Face text was built at grid render time — sync HP/⚔️ from model (e.g. war banner, auras)
-    UI.updateEnemyHP(tile.element, tile.enemyData.currentHP ?? tile.enemyData.hp)
-    TileEngine.refreshEnemyDamageOnTile(tile)
-  }
-  UI.setPortraitAnim('idle')
-  _gainXP(CONFIG.xp.perTileReveal, tile.element)
-  _engineerManaGeneratorOnReveal(tile.element)
-  _checkFloorModifierOnReveal(tile)
-  EventBus.emit('tile:revealed', { tile })
-  // Deathmask: instant kill on first enemy reveal after a proc
-  if (tile.enemyData && !tile.enemyData._slain && run.player.deathmaskPending) {
-    run.player.deathmaskPending = false
-    UI.spawnFloat(tile.element, '💀 Instant Kill!', 'xp')
-    _gainGold(tile.enemyData.goldDrop ? _rand(...tile.enemyData.goldDrop) : 1, tile.element, true)
-    _gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
-    _endCombatVictory(tile)
-    TileEngine.markReachable(tile.row, tile.col, _markReachableUi)
-    return
-  }
-  await _maybeBestiaryDiscovery(tile)
-  _resolveEffect(tile)
-  if (tile.type === 'war_banner') await _maybeWarBannerIntro()
-  // Drowned Hulk aura: if the revealed tile IS the hulk, buff all current visible enemies.
-  // If a hulk is already alive, buff this newly revealed enemy.
-  if (tile.enemyData && !tile.enemyData._slain) {
-    if (tile.enemyData.crewBuffAura) {
-      _applyHulkBuffToAll()
-    } else {
-      const hulk = _findLiveHulk()
-      if (hulk && hulk !== tile) _applyHulkBuffToTile(tile)
-    }
-    _engineerTurretAfterReveal(tile)
-  }
-  // Blockage / hole tiles do not extend reachability — player must path around them
-  if (tile.type !== 'blockage' && tile.type !== 'hole') {
-    TileEngine.markReachable(tile.row, tile.col, _markReachableUi)
-  }
-  // Ranger unique trait: 50% chance to sense the category of orthogonal neighbors
-  if (_charKey() === 'ranger' && Math.random() < 0.5) {
-    for (const adj of TileEngine.getOrthogonalTiles(tile.row, tile.col)) {
-      if (!adj.revealed && adj.element && !adj.echoHintCategory) {
-        const cat = _echoCharmCategoryForTileType(adj.type)
-        adj.echoHintCategory = cat
-        adj.element.classList.add('echo-hint')
-        adj.element.dataset.echoHint = cat
-      }
-    }
-  }
-  if (_charKey() === 'vampire' && run && !GameState.is(States.DEATH) && !run.atRest) {
-    _vampireCorruptedBloodAndDarkEyes(tile)
-  }
-  if (_charKey() === 'mage' && run && !GameState.is(States.DEATH)) {
-    _mageLifeTapOnFlip(tile.element ?? document.getElementById('hud-portrait'))
-  }
-  // Abyssal Lens: randomly reveal one additional tile per flip (non-recursive)
-  if (!tile._lensReveal && run.player.inventory.some(e => e?.id === 'abyssal-lens')) {
-    const grid = TileEngine.getGrid()
-    const candidates = []
-    for (const row of grid) {
-      for (const t of row) {
-        if (!t.revealed && !t.locked && t !== tile) candidates.push(t)
-      }
-    }
-    if (candidates.length > 0) {
-      const extra = candidates[Math.floor(Math.random() * candidates.length)]
-      extra._lensReveal = true
-      await revealTile(extra)
-      delete extra._lensReveal
-    }
-  }
-  _tickPoisonArrowDotOnGlobalTurn({ hapticChannel: 'deferred' })
-  TileEngine.refreshAllThreatClueDisplays()
-  // Dungeon Mouse (and future tile-flipping creatures): roll after every player flip.
-  // Skip on cascaded reveals (Abyssal Lens) so a single tap only triggers mice once.
-  if (!tile._lensReveal) {
-    await _maybeMouseUnflip(tile)
-  }
-  _maybeOfferDeadlockEscape()
-}
-
-async function _maybeWarBannerIntro() {
-  if (_save.settings.warBannerIntroSeen) return
-  try {
-    await UI.showWarBannerIntro()
-    _save.settings.warBannerIntroSeen = true
-    await SaveManager.save(_save).catch(() => {})
-  } catch (e) {
-    Logger.debug('[GameController] war banner intro', e)
-  }
-}
-
-async function _maybeMouseIntro() {
-  if (_save.settings.mouseTutorialSeen) return
-  try {
-    await UI.showMouseIntro()
-    _save.settings.mouseTutorialSeen = true
-    await SaveManager.save(_save).catch(() => {})
-  } catch (e) {
-    Logger.debug('[GameController] mouse intro', e)
-  }
-}
-
-async function _maybeBestiaryDiscovery(tile) {
-  const id = tile.enemyData?.enemyId
-  if (!id) return
-  try {
-    if (!Bestiary.registerIfNew(_save, id)) return
-    await SaveManager.save(_save).catch(() => {})
-    await UI.showBestiaryDiscovery(id)
-  } catch (e) {
-    Logger.debug('[GameController] bestiary discovery', e)
-  }
-}
-
-// ── Chest open ───────────────────────────────────────────────
-
-/** Swap PNG→GIF reliably (restart animation from frame 0) across browsers. */
-function _forcePlayChestGif(img, gifSrc) {
-  if (!img || img.tagName !== 'IMG') return
-  img.removeAttribute('src')
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      img.src = gifSrc
-    })
-  })
-}
-
-async function _openChest(tile) {
-  tile.chestReady = false
-  tile.element?.classList.remove('chest-ready')
-  const loot = tile.chestLoot
-
-  EventBus.emit('audio:play', { sfx: 'chest' })
-  if (loot.type === 'smiths-tools') {
-    const def = ITEMS['smiths-tools']
-    const amt = def?.effect?.amount ?? 1
-    run.player.damageBonus = (run.player.damageBonus ?? 0) + amt
-    {
-      const [d0, d1] = _playerDamageRange(run.player)
-      UI.updateDamageRange(d0, d1)
-    }
-    UI.spawnFloat(tile.element, `🔧 ${def.name}`, 'xp')
-    UI.setMessage(`You pry it open — ${def.name}! +${amt} attack damage for this run.`)
-  } else if (loot.type === 'gold') {
-    _gainGold(loot.amount, tile.element, false, true)
-    UI.setMessage(`You pry it open — +${loot.amount} gold!`)
-  } else {
-    const def = ITEMS[loot.type]
-    if (def) {
-      await _addToBackpack(loot.type)
-      const tag = def.effect?.type?.startsWith('passive') ? 'Passive' : 'Item'
-      UI.spawnFloat(tile.element, `${def.icon} ${def.name}`, 'xp')
-      UI.setMessage(`You pry it open — ${def.name}! (${tag})`)
-    } else {
-      _gainGold(loot.amount ?? 1, tile.element)
-      UI.setMessage('You pry it open — something glitters inside.')
-    }
-  }
-
-  // Swap static chest image to animated gif, wait for it to finish, then collect
-  const chestImg = tile.element?.querySelector('.tile-icon-img')
-  const iconWrap = tile.element?.querySelector('.tile-icon-wrap')
-  const GIF_DURATION = 750 // ms — one play-through of chest.gif
-
-  if (chestImg) _forcePlayChestGif(chestImg, ITEM_ICONS_BASE + 'chest.gif?t=' + Date.now())
-
-  setTimeout(() => {
-    // Remove the img so no broken-image box shows during collect animation
-    if (chestImg) chestImg.remove()
-    if (iconWrap) {
-      iconWrap.classList.add('collecting')
-      setTimeout(() => {
-        iconWrap.innerHTML = ''
-        iconWrap.classList.remove('collecting')
-      }, 560)
-    }
-  }, GIF_DURATION)
-
-  // 10% chance for an additional gear drop from chests
-  _tryGearDrop(run.floor, 0.10)
-
-  tile.chestLooted = true
-}
-
-// ── Tile effect resolution ───────────────────────────────────
-
-function _resolveEffect(tile) {
-  const p = run.player
-
-  switch (tile.type) {
-
-    case 'empty':
-      if (run.player.inventory.some(e => e?.id === 'tomb-tithe') || run.player.inventory.some(e => e?.id === 'delvers-kit')) {
-        _gainGold(1, tile.element)
-        UI.setMessage('🪦 The tomb pays its tithe — +1 gold.')
-      } else if (run.player.inventory.some(e => e?.id === 'scavengers-bag') && Math.random() < 0.05) {
-        _gainGold(1, tile.element)
-        UI.setMessage("Your scavenger's bag catches a glint — +1 gold!")
-      } else {
-        UI.setMessage('Dust, silence, and the distant drip of water.')
-      }
-      if (run.floorModifier?.id === 'consecrated-ground') {
-        run.player.hp = Math.min(run.player.maxHp, run.player.hp + 1)
-        UI.updateHP(run.player.hp, run.player.maxHp)
-        UI.spawnFloat(tile.element, '✨ +1', 'heal')
-      }
-      UI.showRetreat()
-      break
-
-    case 'gold': {
-      const g = 1
-      _gainGold(g, tile.element)
-      UI.setMessage(`A coin on the floor. +1 gold.`)
-      UI.showRetreat()
-      // Animate the coin icon flying upward and fading out
-      const iconWrap = tile.element?.querySelector('.tile-icon-wrap')
-      if (iconWrap) iconWrap.classList.add('collecting')
-      break
-    }
-
-    case 'chest': {
-      tile.chestLoot = _rollChestLoot()
-      tile.chestReady = true
-      if (tile.element) tile.element.classList.add('chest-ready')
-      UI.setMessage('A locked chest — tap again to pry it open.')
-      UI.showRetreat()
-      break
-    }
-
-    case 'trap': {
-      if (p.trapImmune) {
-        p.trapImmune = false
-        EventBus.emit('audio:play', { sfx: 'trap' })
-        UI.setMessage('🪢 The rope coil trips the snare harmlessly — you walk right through.')
-        UI.spawnFloat(tile.element, '🪢 Blocked!', 'heal')
-        UI.showRetreat()
-        break
-      }
-      if ((p.trapDodgeChance ?? 0) > 0) {
-        const r = tile._trapDodgeRoll != null ? tile._trapDodgeRoll : Math.random()
-        if (tile._trapDodgeRoll != null) delete tile._trapDodgeRoll
-        if (r < p.trapDodgeChance) {
-          EventBus.emit('audio:play', { sfx: 'trap' })
-          UI.setMessage('A trap snaps shut — your training pays off! You dodge it.')
-          UI.spawnFloat(tile.element, '🪤 Dodged!', 'heal')
-          break
-        }
-      } else if (tile._trapDodgeRoll != null) {
-        delete tile._trapDodgeRoll
-      }
-      let rawDmg = _rand(...CONFIG.trap.damage)
-      if (run.floorModifier?.id === 'haunted-ground') rawDmg *= 2
-      let dmg = Math.max(1, rawDmg - (p.trapReduction ?? 0))
-      if (p.inventory?.some(e => e?.id === 'greed-tooth')) dmg += 1
-      const reduced = rawDmg !== dmg ? ` (reduced from ${rawDmg})` : ''
-      let tfNote = ''
-      if (p.isRanger && (p.trapfinderStacks ?? 0) > 0) {
-        const r = _applyRangerTrapfinderMitigation(dmg, p)
-        dmg = r.dmg
-        if (r.proc) tfNote = ' Trapfinder!'
-      }
-      EventBus.emit('audio:play', { sfx: 'trap' })
-      _takeDamage(dmg, tile.element, false, null, { deathCause: 'trap' })
-      const hauntedNote = run.floorModifier?.id === 'haunted-ground' ? ' 💀 Haunted Ground!' : ''
-      UI.setMessage(`A trap snaps shut! You take ${dmg} damage${reduced}.${tfNote}${hauntedNote}`)
-      if (!GameState.is(States.DEATH)) {
-        if (run.floorModifier?.id === 'haunted-ground') {
-          const hauntedLoot = _rollChestLoot()
-          if (hauntedLoot.type !== 'gold') {
-            _addToBackpack(hauntedLoot.type).then(() => {
-              const def = ITEMS[hauntedLoot.type]
-              if (def) UI.spawnFloat(tile.element, `${def.icon} ${def.name}`, 'xp')
-            }).catch(() => {})
-          } else {
-            _gainGold(hauntedLoot.amount ?? 1, tile.element)
-          }
-        }
-        UI.showRetreat()
-      }
-      break
-    }
-
-    case 'well': {
-      p.hp   = p.maxHp
-      p.mana = p.maxMana
-      UI.updateHP(p.hp, p.maxHp)
-      UI.updateMana(p.mana, p.maxMana)
-      UI.spawnFloat(tile.element, 'Restored!', 'heal')
-      UI.setMessage('The well washes over you — health and mana restored.')
-      EventBus.emit('audio:play', { sfx: 'heal' })
-      UI.showRetreat()
-      break
-    }
-
-    case 'anvil': {
-      p.damageBonus = (p.damageBonus ?? 0) + 1
-      {
-        const [d0, d1] = _playerDamageRange(p)
-        UI.updateDamageRange(d0, d1)
-      }
-      UI.spawnFloat(tile.element, '+1 ATK', 'xp')
-      UI.setMessage('You temper your weapon on the anvil — +1 attack damage for this run.')
-      EventBus.emit('audio:play', { sfx: 'hit' })
-      UI.showRetreat()
-      break
-    }
-
-    case 'forge': {
-      const inv = run.player.inventory
-      const hasMatch = FORGE_RECIPES.some(r => {
-        const isDupe = r.ingredientA === r.ingredientB
-        const count  = inv.filter(e => e?.id === r.ingredientA).length
-        const hasA   = isDupe ? count >= 2 : inv.some(e => e?.id === r.ingredientA)
-        const hasB   = isDupe ? true        : inv.some(e => e?.id === r.ingredientB)
-        return hasA && hasB
-      })
-      if (hasMatch) {
-        _openForge(tile)
-      } else {
-        UI.setMessage('The forge awaits — bring two combinable trinkets to merge them.')
-        UI.showRetreat()
-      }
-      break
-    }
-
-    case 'magic_chest': {
-      tile.magicChestReady = true
-      if (tile.element) tile.element.classList.add('chest-ready')
-      _syncMagicChestKeyGlow()
-      const keys = run.player.goldenKeys ?? 0
-      UI.setMessage(`✨ A Magic Chest! Spend a 🗝️ Golden Key to open it. You have ${keys} key${keys === 1 ? '' : 's'}.`)
-      UI.showRetreat()
-      break
-    }
-
-    case 'rope': {
-      tile.ropeResolved = false
-      if (tile.element) tile.element.classList.add('rope-pending')
-      UI.setMessage('🧵 A vault rope. Tap again to bank some gold before pushing deeper.')
-      UI.showRetreat()
-      break
-    }
-
-    case 'heart': {
-      const bonus   = CONFIG.heart.maxHpBonus
-      const healAmt = Math.min(CONFIG.heart.healAmount, p.maxHp + bonus - p.hp)
-      p.maxHp += bonus
-      p.hp     = Math.min(p.maxHp, p.hp + healAmt)
-      UI.spawnFloat(tile.element, `+${bonus} Max HP`, 'heal')
-      UI.spawnFloat(tile.element, `+${healAmt} HP`, 'heal')
-      UI.updateHP(p.hp, p.maxHp)
-      UI.setMessage(`✨ A sacred heart! Your max HP grows. +${bonus} max HP, +${healAmt} HP restored.`)
-      UI.showRetreat()
-      break
-    }
-
-    case 'armor': {
-      const av = tile.armorValue ?? 1
-      p.armor = (p.armor ?? 0) + av
-      EventBus.emit('audio:play', { sfx: 'armor_pickup' })
-      UI.spawnFloat(tile.element, `+${av} Armor`, 'armor')
-      UI.updateArmor(p.armor)
-      UI.setMessage(`🛡️ You pick up a piece of armor. +${av} Armor.`)
-      UI.showRetreat()
-      const iconWrap = tile.element?.querySelector('.tile-icon-wrap')
-      if (iconWrap) iconWrap.classList.add('collecting-spin')
-      break
-    }
-
-    case 'checkpoint': {
-      const healAmt = Math.floor(p.maxHp * CONFIG.checkpoint.healPercent)
-      const manaAmt = CONFIG.checkpoint.manaRestore
-      p.hp       = Math.min(p.maxHp,   p.hp   + healAmt)
-      p.mana     = Math.min(p.maxMana, p.mana + manaAmt)
-      UI.spawnFloat(tile.element, `+${healAmt} HP`, 'heal')
-      UI.spawnFloat(tile.element, `+${manaAmt} MP`, 'mana')
-      UI.updateHP(p.hp, p.maxHp)
-      UI.updateMana(p.mana, p.maxMana)
-      UI.setMessage(`🏕️ A hidden camp! You rest and recover. +${healAmt} HP, +${manaAmt} mana.`)
-      UI.showRetreat()
-      SaveManager.save(_save)
-      EventBus.emit('run:checkpoint', {})
-      break
-    }
-
-    case 'blockage':
-      UI.setMessage('A pile of rubble blocks the way. Find another path.')
-      break
-
-    case 'hole':
-      UI.setMessage('A gaping pit blocks the way. Find another path.')
-      break
-
-    case 'event':
-      tile.eventResolved = false
-      run.eventTile = tile
-      if (tile.element) tile.element.classList.add('event-pending')
-      UI.setMessage('Something stirs in the shadows. Tap to investigate.')
-      UI.showRetreat()
-      break
-
-    case 'boss':
-    case 'enemy_fast': {
-      // Boss tiles: no free ambush hit or forced engagement — tap the boss to start the fight.
-      const isBossTile = tile.type === 'boss'
-      /** Vampire: no fast-tile ambush damage, shake, or forced engagement — reveal plays like a normal foe. */
-      const skipFastAmbushForVampire = p.isVampire && !isBossTile
-      let reflexDodge = false
-      if (!isBossTile && !skipFastAmbushForVampire) {
-        const { dmg } = CombatResolver.resolveFastReveal(tile.enemyData)
-        const wardensBlock = p.inventory.some(e => e?.id === 'wardens-brand')
-        reflexDodge =
-          !wardensBlock
-          && !tile.enemyData?.isBoss
-          && (p.reflexDodgeChance ?? 0) > 0
-          && Math.random() < p.reflexDodgeChance
-        if (!wardensBlock && !reflexDodge) {
-          const baseDmg = dmg + (p.inventory.some(e => e?.id === 'abyssal-lens') ? 1 : 0)
-          const r = _applyRangerTrapfinderMitigation(baseDmg, p)
-          _takeDamage(r.dmg, tile.element, false, null, { enemyAttack: true, deathCause: 'fast_enemy' })
-        }
-        UI.shakeTile(tile.element)
-      }
-      const rangerSkipLock = p.isRanger && Math.random() < RANGER_PASSIVE_SKIP_ADJ_LOCK
-      if (rangerSkipLock) {
-        tile.enemyData.rangerSkipAdjacentLock = true
-      } else if (tile.enemyData?.behaviour !== 'archer') {
-        TileEngine.lockAdjacent(tile.row, tile.col, UI.lockTile.bind(UI))
-      }
-      UI.markTileEnemyAlive(tile.element)
-      if (!GameState.is(States.DEATH)) {
-        if (isBossTile) {
-          UI.setMessage(
-            `⚠️ BOSS: ${tile.enemyData.label} — stands before you. Tap when ready to fight.`,
-            true,
-          )
-        } else if (skipFastAmbushForVampire) {
-          UI.setMessage(`A ${tile.enemyData?.label ?? 'enemy'} lurks. Tap it to fight.`)
-        } else {
-          const label = tile.enemyData?.isBoss ? `⚠️ BOSS: ${tile.enemyData.label}` : '⚡ Fast enemy'
-          const dodgeNote = reflexDodge ? ' Your reflexes kick in — ambush dodged!' : ''
-          UI.setMessage(`${label} strikes first!${dodgeNote} Tap it to fight.`, true)
-          if (reflexDodge) UI.spawnFloat(tile.element, '⚡ Dodged!', 'heal')
-        }
-        UI.showRetreat()
-        EventBus.emit('tile:locked', {})
-      }
-      break
-    }
-
-    case 'enemy': {
-      const rangerSkipLock = p.isRanger && Math.random() < RANGER_PASSIVE_SKIP_ADJ_LOCK
-      if (rangerSkipLock) {
-        tile.enemyData.rangerSkipAdjacentLock = true
-      } else if (tile.enemyData?.behaviour !== 'archer') {
-        TileEngine.lockAdjacent(tile.row, tile.col, UI.lockTile.bind(UI))
-      }
-      UI.markTileEnemyAlive(tile.element)
-
-      // Fortune's Fool: auto-reroll enemy stats on reveal (free, no mana cost)
-      if (run.player.inventory.some(e => e?.id === 'fortunes-fool')) {
-        TileEngine.refreshEnemyDamageOnTile(tile, run.floor)
-        UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
-        UI.spawnFloat(tile.element, '🤡 Rerolled!', 'xp')
-      }
-      // Tongue Snatch: Toad Beast steals 1–5 gold on reveal
-      if (tile.enemyData?.tongueSnatch) {
-        const snatch = Math.min(p.gold, _rand(1, 5))
-        if (snatch > 0) {
-          p.gold -= snatch
-          tile.enemyData.snatched = snatch
-          UI.updateGold(p.gold)
-          UI.spawnFloat(tile.element, `👅 −${snatch}💰`, 'damage')
-          UI.setMessage(`👅 The Toad Beast's tongue snaps out and snatches ${snatch} gold! Kill it to get it back.`, true)
-          EventBus.emit('audio:play', { sfx: 'gold' })
-          UI.showRetreat()
-          break
-        }
-      }
-
-      // Fast enemies get a free strike the moment they're revealed (bosses never ambush)
-      const hasWardenBrand = p.inventory.some(e => e?.id === 'wardens-brand')
-      const hasWarden = hasWardenBrand
-      const hasLens   = p.inventory.some(e => e?.id === 'abyssal-lens')
-      if (tile.enemyData?.attributes?.includes('fast') && !tile.enemyData?.isBoss && !p.isVampire) {
-        const d = tile.enemyData.dmg
-        const ambushDmg  = tile.enemyData.hitDamage ?? (Array.isArray(d) ? d[0] : d)
-        const reflexDodge = !hasWarden && (p.reflexDodgeChance ?? 0) > 0 && Math.random() < p.reflexDodgeChance
-        if (hasWardenBrand) {
-          UI.setMessage(`The ${tile.enemyData.label} lunges — but your brand holds. Tap to fight.`)
-        } else if (reflexDodge) {
-          UI.spawnFloat(tile.element, '⚡ Dodged!', 'heal')
-          UI.setMessage(`⚡ The ${tile.enemyData.label} lunges — your reflexes save you! Tap to fight.`)
-        } else {
-          const finalDmg = ambushDmg + (hasLens ? 1 : 0)
-          const r = _applyRangerTrapfinderMitigation(finalDmg, p)
-          _takeDamage(r.dmg, tile.element, false, tile.enemyData, { enemyAttack: true })
-          const tf = r.proc ? ' Trapfinder!' : ''
-          UI.setMessage(`⚡ The ${tile.enemyData.label} strikes first for ${r.dmg}!${tf} Tap to fight back.`)
-        }
-      } else if (hasLens && !tile.enemyData?.isBoss && !p.isVampire) {
-        // Abyssal Lens: normal enemies also deal 1 ambush damage
-        _takeDamage(1, tile.element, false, tile.enemyData, { enemyAttack: true })
-        if (!GameState.is(States.DEATH)) {
-          UI.setMessage(`👁️ The ${tile.enemyData?.label ?? 'enemy'} senses your sight and strikes! Tap to fight.`)
-          _setCombatEngagement(tile, { force: true })
-        }
-      } else {
-        UI.setMessage(`A ${tile.enemyData?.label ?? 'enemy'} lurks. Tap it to fight.`)
-      }
-      UI.showRetreat()
-      EventBus.emit('tile:locked', {})
-      break
-    }
-
-    case 'exit':
-      tile.exitResolved = false
-      if (tile.element) tile.element.classList.add('exit-pending')
-      if (run.floor >= CONFIG.floorNames.length) {
-        UI.setMessage('🚪 Daylight ahead! Tap the exit again when you\'re ready to leave the dungeon.')
-      } else {
-        UI.setMessage('🚪 Stairs lead downward. Tap the exit again when you\'re ready to descend.')
-      }
-      UI.showRetreat()
-      break
-
-    case 'sub_floor_entry': {
-      const warnings = { ambush: ' Something feels wrong…', collapsed_tunnel: ' Dust falls from above.' }
-      const warn = warnings[tile.subFloorType] ?? ''
-      UI.setMessage(`🕳️ A hidden passage yawns open.${warn} Tap again to descend — or leave it be.`)
-      tile.entryReady = true
-      if (tile.element) tile.element.classList.add('sub-floor-entry-ready')
-      UI.showRetreat()
-      break
-    }
-
-    case 'war_banner': {
-      tile.bannerReady = true
-      tile.warBannerFlying = false
-      if (tile.element) {
-        tile.element.classList.add('war-banner-ready')
-        const fly = tile.element.querySelector('.tile-war-banner-fly')
-        if (fly) fly.remove()
-      }
-      UI.setMessage('🚩 An enemy war banner! Tear it down quickly — your foes fight harder while it flies. Tap again to destroy it.')
-      UI.showRetreat()
-      break
-    }
-  }
-}
+function onTileTap(row, col) { TapRouter.onTileTap(_tapCtx(), row, col) }
 
 function _confirmExit(tile) {
   if (tile.type !== 'exit' || tile.exitResolved) return
-  if (run.floorModifier?.id === 'warded-dungeon') {
+  if (session.run.floorModifier?.id === 'warded-dungeon') {
     const grid = TileEngine.getGrid()
     const total = grid.reduce((s, row) => s + row.length, 0)
     const threshold = Math.ceil(total * 0.60)
-    if (run.tilesRevealed < threshold) {
-      UI.setMessage(`🔒 Warded Dungeon — the exit won't open until ${threshold} tiles are revealed (${run.tilesRevealed}/${threshold}).`, true)
+    if (session.run.tilesRevealed < threshold) {
+      UI.setMessage(`🔒 Warded Dungeon — the exit won't open until ${threshold} tiles are revealed (${session.run.tilesRevealed}/${threshold}).`, true)
       return
     }
   }
   tile.exitResolved = true
   tile.element?.classList.remove('exit-pending')
   _handleExit()
-}
-
-// ── Event tile ───────────────────────────────────────────────
-
-function _openEvent(tile) {
-  if (tile.eventResolved) return
-  if (!GameState.transition(States.NPC_INTERACT)) return
-  EventBus.emit('audio:play', { sfx: 'merchant' })
-
-  // Roll event type once and cache on tile so resume works
-  if (!tile.eventType) tile.eventType = rollEventType()
-
-  switch (tile.eventType) {
-    case 'merchant':    _openMerchantShop(tile);  break
-    case 'gambler':     _openGamblerEvent(tile);   break
-    case 'triple-chest':   _openTripleChestEvent(tile);  break
-    case 'trinket-trader': _openTrinketTraderEvent(tile); break
-    default:               _openStoryEvent(tile);         break
-  }
-}
-
-function _closeEventSession(tile) {
-  if (tile) {
-    tile.eventResolved = true
-    tile.element?.classList.remove('event-pending')
-    const iconWrap = tile.element?.querySelector('.tile-icon-wrap')
-    if (iconWrap) iconWrap.classList.add('collecting')
-  }
-  run.eventTile = null
-  UI.hideEventOverlays()
-  if (GameState.is(States.NPC_INTERACT)) GameState.transition(States.FLOOR_EXPLORE)
-  _flushDeferredLevelUpXp()
-}
-
-/** Balance bot: leave merchant / event UI without simulating clicks (closes session + returns to explore). */
-function balanceBotDismissNpcEvent() {
-  if (!GameState.is(States.NPC_INTERACT)) return false
-  if (run?.eventTile) {
-    _closeEventSession(run.eventTile)
-    return true
-  }
-  // No eventTile on run — mark any unresolved event tile on the grid so the bot doesn't re-tap it
-  const grid = TileEngine.getGrid()
-  if (grid) {
-    for (const row of grid) {
-      for (const t of row) {
-        if (t.revealed && t.type === 'event' && !t.eventResolved) {
-          t.eventResolved = true
-          t.element?.classList.remove('event-pending')
-        }
-      }
-    }
-  }
-  UI.hideEventOverlays()
-  if (!GameState.transition(States.FLOOR_EXPLORE)) GameState.set(States.FLOOR_EXPLORE)
-  _flushDeferredLevelUpXp()
-  return true
-}
-
-// ── Merchant shop ─────────────────────────────────────────────
-
-function _rollMerchantTrinket() {
-  const pool = [...RARE_TRINKET_IDS, ...LEGENDARY_TRINKET_IDS]
-  return _pickRandom(pool)
-}
-
-function _openMerchantShop(tile) {
-  const trinketId = _rollMerchantTrinket()
-  const items = MERCHANT_ITEMS.map(def => ({
-    ...def,
-    id: def.id === '__trinket__' ? trinketId : def.id,
-    label: def.id === '__trinket__' ? (ITEMS[trinketId]?.name ?? 'Mystery Relic') : def.label,
-  }))
-  UI.showMerchantShop(run.player.gold, items, (itemId) => _doMerchantBuy(tile, itemId, items), () => {
-    if (!GameState.is(States.DEATH)) UI.setMessage('The merchant watches you leave.')
-    _closeEventSession(tile)
-  })
-}
-
-async function _doMerchantBuy(tile, itemId, items) {
-  const p = run.player
-  const def = items.find(i => i.id === itemId)
-  if (!def) return
-  if (p.gold < def.price) { UI.setMessage('Not enough gold!', true); return }
-
-  const hasCoin = p.inventory.some(e => e?.id === 'philosophers-coin')
-  const isCoinConvert = hasCoin && (itemId === 'potion-red' || itemId === 'potion-blue' || itemId === 'potion-mystery')
-  // Pre-check backpack room so gold is never deducted for an item that can't be received
-  if (!isCoinConvert && !_canAddToBackpack(itemId)) {
-    UI.setMessage("Backpack is full — make room before buying!", true)
-    return
-  }
-
-  p.gold -= def.price
-  UI.updateGold(p.gold)
-  await _addToBackpack(itemId)
-  EventBus.emit('inventory:changed')
-  EventBus.emit('audio:play', { sfx: 'chest' })
-  if (isCoinConvert) {
-    const goldBack = itemId === 'potion-red' ? 3 : itemId === 'potion-mystery' ? 2 : 5
-    UI.setMessage(`🪙 Philosopher's Coin converts your ${def.label} to +${goldBack} gold!`)
-  } else {
-    UI.setMessage(`You purchase the ${def.label}.`)
-  }
-  // Refresh shop display with updated gold
-  UI.refreshMerchantShopGold(p.gold)
-}
-
-// ── Gambler event ─────────────────────────────────────────────
-
-function _openGamblerEvent(tile) {
-  const p = run.player
-  UI.showGamblerEvent(
-    p.gold,
-    // onBetAndRoll
-    (bet) => {
-      // Deduct bet immediately; refund handled in outcome
-      const actualBet = Math.min(bet, p.gold)
-      p.gold -= actualBet
-      UI.updateGold(p.gold)
-
-      UI.gamblerShowRollPhase((r1, r2) => {
-        const total = r1 + r2
-        const won   = total >= 7
-
-        if (won) {
-          // Return bet + winnings
-          _gainGold(actualBet * 2, document.getElementById('hud-portrait'))
-        }
-
-        UI.gamblerShowOutcome(actualBet, r1, r2, won)
-
-        // Wire the Continue button
-        const ov  = document.getElementById('gambler-overlay')
-        const btn = ov?.querySelector('#gambler-outcome-ok')
-        if (btn) {
-          btn.onclick = () => {
-            _closeEventSession(tile)
-            if (won) {
-              UI.setMessage(`You rolled ${r1 + r2}! You win ${actualBet}🪙 — the gambler tips his hat.`)
-            } else {
-              UI.setMessage(`You rolled ${r1 + r2}. The gambler pockets your gold with a grin.`)
-            }
-          }
-        }
-      })
-    },
-    // onWalkAway
-    () => {
-      _closeEventSession(tile)
-      UI.setMessage('You walk away from the gambler\'s table.')
-    },
-  )
-}
-
-// ── Triple chest event ────────────────────────────────────────
-
-async function _openTripleChestEvent(tile) {
-  const chests = [
-    { rarity: 'common',    loot: _rollCommonLoot() },
-    { rarity: 'rare',      loot: { type: _pickRandom(RARE_TRINKET_IDS) } },
-    { rarity: 'legendary', loot: { type: _pickRandom(LEGENDARY_TRINKET_IDS) } },
-  ]
-  // Shuffle so player can't always pick right
-  chests.sort(() => Math.random() - 0.5)
-
-  UI.showTripleChestEvent(chests, async (idx) => {
-    try {
-      const chosen = chests[idx]
-      const loot = chosen.loot
-      if (loot.type === 'gold') {
-        _gainGold(loot.amount ?? 5, tile.element)
-        UI.setMessage(`You open the chest — ${loot.amount ?? 5} gold spills out!`)
-      } else {
-        await _addToBackpack(loot.type)
-        EventBus.emit('inventory:changed')
-        UI.setMessage(`You open the chest and find: ${ITEMS[loot.type]?.name ?? loot.type}!`)
-      }
-      EventBus.emit('audio:play', { sfx: 'chest' })
-    } finally {
-      _closeEventSession(tile)
-    }
-  }, () => _closeEventSession(tile))
-}
-
-// ── Trinket Trader event ──────────────────────────────────────
-
-function _openTrinketTraderEvent(tile) {
-  UI.showTrinketTraderEvent(
-    run.player.inventory,
-    ITEMS,
-    async (offeredId) => {
-      // Drop the offered trinket
-      const offeredName = ITEMS[offeredId]?.name ?? offeredId
-      dropItem(offeredId)
-      // Roll a replacement — same rarity as what was given, with a small upgrade chance
-      const offeredRarity = ITEMS[offeredId]?.rarity ?? 'common'
-      const newId = _rollTrinketTradeReward(offeredRarity)
-      const newItem = ITEMS[newId]
-      // Close event BEFORE adding so any backpack:full prompt appears cleanly
-      _closeEventSession(tile)
-      await _addToBackpack(newId)
-      EventBus.emit('inventory:changed')
-      UI.setMessage(`✨ You traded ${offeredName} for ${newItem?.name ?? newId}!`)
-      EventBus.emit('audio:play', { sfx: 'chest' })
-    },
-    () => {
-      _closeEventSession(tile)
-      UI.setMessage('The trader nods and disappears into the shadows.')
-    },
-  )
-}
-
-/** Roll a trinket reward for the Trinket Trader, biased toward the offered rarity with a small upgrade chance. */
-function _rollTrinketTradeReward(offeredRarity) {
-  // 15% chance to upgrade one tier, 5% chance to downgrade, otherwise same
-  const r = Math.random()
-  let targetRarity = offeredRarity
-  if (offeredRarity === 'common' && r < 0.15)       targetRarity = 'rare'
-  else if (offeredRarity === 'rare' && r < 0.15)    targetRarity = 'legendary'
-  else if (offeredRarity === 'rare' && r < 0.20)    targetRarity = 'common'
-  else if (offeredRarity === 'legendary' && r < 0.15) targetRarity = 'rare'
-
-  // Build pool from the matching rarity, excluding what player already has and what they just traded
-  const owned = new Set(run.player.inventory.map(e => e.id))
-  let pool = []
-  if (targetRarity === 'common')    pool = COMMON_LOOT_IDS.filter(id => !owned.has(id) && ITEMS[id]?.rarity === 'common')
-  if (targetRarity === 'rare')      pool = RARE_TRINKET_IDS.filter(id => !owned.has(id))
-  if (targetRarity === 'legendary') pool = LEGENDARY_TRINKET_IDS.filter(id => !owned.has(id))
-
-  // Fallback: allow duplicates if pool is exhausted
-  if (pool.length === 0) {
-    if (targetRarity === 'common')    pool = COMMON_LOOT_IDS.filter(id => ITEMS[id]?.rarity === 'common')
-    if (targetRarity === 'rare')      pool = [...RARE_TRINKET_IDS]
-    if (targetRarity === 'legendary') pool = [...LEGENDARY_TRINKET_IDS]
-  }
-  if (pool.length === 0) pool = RARE_TRINKET_IDS  // final fallback
-
-  return pool[Math.floor(Math.random() * pool.length)]
-}
-
-// ── Story event ───────────────────────────────────────────────
-
-function _openStoryEvent(tile) {
-  const scenario = STORY_EVENTS[Math.floor(Math.random() * STORY_EVENTS.length)]
-  UI.showStoryEvent(scenario, (choiceIdx, outcomeIdx) => {
-    const outcome = scenario.choices[choiceIdx].outcomes[outcomeIdx]
-    _applyStoryOutcome(outcome, tile)
-    UI.showStoryOutcome(outcome.text, () => _closeEventSession(tile))
-  })
-}
-
-function _applyStoryOutcome(outcome, tile) {
-  const p = run.player
-  switch (outcome.effect) {
-    case 'damage':
-      _takeDamage(outcome.effectValue, tile.element, false, null, { deathCause: 'merchant' })
-      break
-    case 'heal':
-      p.hp = Math.min(p.maxHp, p.hp + outcome.effectValue)
-      UI.spawnFloat(tile.element, `+${outcome.effectValue} HP`, 'heal')
-      UI.updateHP(p.hp, p.maxHp)
-      break
-    case 'gold':
-      _gainGold(outcome.effectValue, tile.element)
-      break
-    case 'mana':
-      p.mana = Math.min(p.maxMana, p.mana + outcome.effectValue)
-      UI.spawnFloat(tile.element, `+${outcome.effectValue}🔵`, 'mana')
-      UI.updateMana(p.mana, p.maxMana)
-      break
-    case 'golden-key':
-      p.goldenKeys = (p.goldenKeys ?? 0) + outcome.effectValue
-      UI.updateGoldenKeys(p.goldenKeys)
-      UI.spawnFloat(tile.element, `🗝️ +${outcome.effectValue}`, 'xp')
-      break
-    case 'random-potion': {
-      const rr = Math.random()
-      const potionId = rr < 1/3 ? 'potion-red' : rr < 2/3 ? 'potion-blue' : 'potion-mystery'
-      _addToBackpack(potionId)
-      EventBus.emit('inventory:changed')
-      const potionFloat = potionId === 'potion-red' ? '🧪 +Potion' : potionId === 'potion-blue' ? '🔵 +Potion' : '🤍 +Potion'
-      UI.spawnFloat(tile.element, potionFloat, 'heal')
-      break
-    }
-    case 'nothing':
-    default:
-      break
-  }
-}
-
-// ── Enemy sprite swap ────────────────────────────────────────
-
-function _setEnemySprite(tile, state) {
-  const sprites = ENEMY_SPRITES[tile.enemyData?.enemyId]
-  if (!sprites) return
-  const img = tile.element?.querySelector('.tile-icon-img')
-  if (!img) return
-  const src = state === 'attack' ? sprites.attack : sprites.idle
-  if (src) img.src = MONSTER_ICONS_BASE + src
-}
-
-// ── Combat ───────────────────────────────────────────────────
-
-function fightAction(tile) {
-  _combatBusy = true; _combatBusySetAt = Date.now()
-
-  _tickPoisonArrowDotOnGlobalTurn({ hapticChannel: 'gesture' })
-  if (!tile?.enemyData || tile.enemyData._slain) {
-    _combatBusy = false
-    return
-  }
-
-  // Mushroom Harvester taunt: redirect melee to a random visible Harvester
-  tile = _resolveTauntTarget(tile)
-  if (!tile?.enemyData || tile.enemyData._slain) {
-    _combatBusy = false
-    return
-  }
-  if (!_canAttackEnemy(tile)) {
-    _combatBusy = false
-    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
-    return
-  }
-  _setCombatEngagement(tile)
-
-  const result = CombatResolver.resolveFight(run.player, tile.enemyData)
-
-  let playerDmg = result.playerDmg
-  if (_charKey() === 'engineer' && run.turret?.hp > 0) {
-    const tr = run.turret
-    const useTurret = !tr.manaGeneratorActive && (tr.mode === 'ballistic' || (tr.mode === 'tesla' && _inTeslaPerimeter(tr, tile)))
-    if (useTurret) {
-      playerDmg += _engineerTurretDamage(tr.level)
-      const turretTileEl = TileEngine.getTile(tr.row, tr.col)?.element
-      if (tr.mode === 'tesla') {
-        setTimeout(() => UI.spawnTeslaArc(turretTileEl, tile.element), 80)
-      } else {
-        setTimeout(() => UI.spawnCannonShot(turretTileEl, tile.element), 80)
-      }
-    }
-  }
-  if (_charKey() === 'necromancer') {
-    const minionDmg = _necroMinionTotalDmg()
-    if (minionDmg > 0) playerDmg += minionDmg
-  }
-  const isUndead = tile.enemyData?.type === 'undead'
-  const isBeast  = tile.enemyData?.type === 'beast'
-  if (run.player.undeadBonus && isUndead) playerDmg = Math.round(playerDmg * 2)
-  if (run.player.beastBonus  && isBeast)  playerDmg = Math.round(playerDmg * 2)
-
-  if (run.player.inventory.some(e => e?.id === 'duelists-glove') && !tile.enemyData._duelistFirstMeleeDone) {
-    playerDmg += 1
-    tile.enemyData._duelistFirstMeleeDone = true
-  }
-  // Predator's Edge: first hit on each enemy deals double damage
-  if (run.player.inventory.some(e => e?.id === 'predators-edge') && !tile.enemyData._predatorFirstHitDone) {
-    playerDmg = playerDmg * 2
-    tile.enemyData._predatorFirstHitDone = true
-  }
-  // Whetstone: +1 damage for next N hits
-  if ((run.player.whettsoneHits ?? 0) > 0) {
-    playerDmg += 1
-    run.player.whettsoneHits--
-  }
-  // Mirror of Vanity: +5% of current HP as flat damage bonus
-  if (run.player.inventory.some(e => e?.id === 'mirror-of-vanity')) {
-    playerDmg += Math.max(1, Math.floor(run.player.hp * 0.05))
-  }
-  // Ogre: 10% shield block — cancels entire melee attack
-  if (_checkShieldBlock(tile)) { _combatBusy = false; return }
-
-  playerDmg = _scaleOutgoingDamageToEnemy(playerDmg)
-
-  // Solarflare III: +50% melee damage vs stunned blinded enemies
-  if (tile.enemyData.solarflareVulnerable && (tile.enemyData.stunTurns ?? 0) > 0) {
-    playerDmg = Math.round(playerDmg * 1.5)
-  }
-
-  _gainManaFromMeleeHit(tile.element)
-
-  run.player.meleeHitCount = (run.player.meleeHitCount ?? 0) + 1
-  const _stormProc = run.player.inventory.some(e => e?.id === 'stormcallers-fist') && run.player.meleeHitCount % 5 === 0
-
-  const bonusSuffix = (run.player.undeadBonus && isUndead) || (run.player.beastBonus && isBeast) ? ' (2×!)' : ''
-  const curHp = Number(tile.enemyData.currentHP)
-  const safeCurHp = Number.isFinite(curHp) ? curHp : Math.max(1, Number(tile.enemyData.hp) || 1)
-  if (!Number.isFinite(curHp)) tile.enemyData.currentHP = safeCurHp
-  const hpBeforeStrike = tile.enemyData.currentHP
-  const pd = Number(playerDmg)
-  const safePd = Number.isFinite(pd) ? pd : _scaleOutgoingDamageToEnemy(1)
-  const newEnemyHP = _save.settings.cheats?.instantKill ? 0 : Math.max(0, safeCurHp - safePd)
-  const killsEnemy = newEnemyHP <= 0
-
-  // Fire Ring: 10% chance to ignite on hit
-  const hasFireRing = run.player.inventory.some(e => e?.id === 'fire-ring')
-  const ignite = hasFireRing && !killsEnemy && Math.random() < 0.10
-
-  // Infected Blade: every melee hit poisons the enemy (3 turns)
-  if (!killsEnemy && run.player.inventory.some(e => e?.id === 'infected-blade')) {
-    tile.enemyData.poisonTurns = Math.max(tile.enemyData.poisonTurns ?? 0, 3)
-    UI.updateEnemyStatus(tile.element, tile.enemyData)
-  }
-  // Festering Wound: every melee hit poisons the enemy (8 turns)
-  if (!killsEnemy && run.player.inventory.some(e => e?.id === 'festering-wound')) {
-    tile.enemyData.poisonTurns = Math.max(tile.enemyData.poisonTurns ?? 0, 8)
-    UI.updateEnemyStatus(tile.element, tile.enemyData)
-  }
-
-  // Stun: enemy is stunned if stunTurns > 0
-  const isStunned = (tile.enemyData.stunTurns ?? 0) > 0
-
-  UI.setPortraitAnim('attack')
-  if (_charKey() === 'ranger') UI.spawnArrow(tile.element)
-  else if (_charKey() === 'mage') UI.spawnMageAttack(tile.element)
-  else if (_charKey() === 'vampire') UI.spawnVampireAttack(tile.element)
-  else if (_charKey() === 'necromancer') UI.spawnNecromancerAttack(tile.element)
-  else UI.spawnSlash(tile.element)
-  const attackSfx = _charKey() === 'ranger'
-    ? 'arrowShot'
-    : (Math.random() < 0.5 ? 'hit' : 'hit2')
-  EventBus.emit('audio:play', { sfx: attackSfx })
-
-  const attackPortraitT0 = performance.now()
-  const isRanger = _charKey() === 'ranger'
-  const afterAttackPortrait = (fn) => {
-    const holdMs = isRanger ? RANGER_FIGHT_ATTACK_PORTRAIT_MS : WARRIOR_FIGHT_ATTACK_PORTRAIT_MS
-    const elapsed = performance.now() - attackPortraitT0
-    setTimeout(fn, Math.max(0, holdMs - elapsed))
-  }
-
-  const enemyGoldDrop = tile.enemyData.goldDrop ? _rand(...tile.enemyData.goldDrop) : 1
-
-  // Slime split: first kill restores half HP and splits visually
-  const canSplit = killsEnemy
-    && tile.enemyData?.attributes?.includes('splits')
-    && !tile.enemyData.hasSplit
-
-  // Firefox: counter-attack and spiked-collar damage run inside setTimeout — vibrate must happen now, in the gesture turn.
-  if (_vibrationRequiresSyncUserActivation() && !killsEnemy && !canSplit) {
-    let ms = 0
-    if (run.player.inventory.some(e => e?.id === 'spiked-collar')) ms += 18
-    if (!isStunned && result.enemyDmg > 0) ms += 48
-    if (ms > 0) _hapticFromUserGesture(Math.min(90, ms))
-  }
-
-  if (killsEnemy && !canSplit) {
-    // Fatal blow — enemy never gets to counter
-    setTimeout(() => {
-      // Spell / Slam / boss exit can resolve this kill first; boss tile clears enemyData.
-      if (!run || !tile?.enemyData || tile.enemyData._slain) {
-        _combatBusy = false
-        return
-      }
-      if (run.telemetry) {
-        run.telemetry.totalDamageDealtToEnemies += hpBeforeStrike
-        _telemetryBumpDamageDealt(run.floor, hpBeforeStrike)
-      }
-      tile.enemyData.currentHP = 0
-      if (tile.enemyData?.enemyId === 'onion') _applyTearyEyes()
-      UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp')
-      UI.setMessage(`You strike for ${playerDmg}${bonusSuffix}! The enemy falls before they can strike back. +${enemyGoldDrop} gold.`)
-      _gainGold(enemyGoldDrop, tile.element, true)
-      _gainXP(result.xpDrop ?? 0, tile.element)
-      _endCombatVictory(tile)
-      if (_stormProc) _triggerStormcallerLightning(tile, playerDmg)
-      afterAttackPortrait(() => {
-        UI.setPortraitAnim('idle')
-      })
-      _combatBusy = false
-    }, 400)
-  } else if (canSplit) {
-    setTimeout(() => {
-      if (!run || !tile?.enemyData || tile.enemyData._slain) {
-        _combatBusy = false
-        return
-      }
-      const splitHP = Math.max(1, Math.floor(tile.enemyData.hp / 2))
-      if (run.telemetry) {
-        const dealt = hpBeforeStrike - splitHP
-        run.telemetry.totalDamageDealtToEnemies += dealt
-        _telemetryBumpDamageDealt(run.floor, dealt)
-      }
-      tile.enemyData.currentHP = splitHP
-      tile.enemyData.hasSplit  = true
-      UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp')
-      UI.spawnFloat(tile.element, '🟢 Split!', 'damage')
-      UI.splitSlime(tile.element)
-      UI.updateEnemyHP(tile.element, splitHP)
-      UI.setMessage(`The slime splits in two! Each half still fights. (${splitHP} HP remaining)`)
-      afterAttackPortrait(() => {
-        UI.setPortraitAnim('idle')
-      })
-      _combatBusy = false
-    }, 400)
-  } else {
-    setTimeout(() => {
-      if (!run) { _combatBusy = false; return }
-      if (!tile?.enemyData || tile.enemyData._slain) {
-        _combatBusy = false
-        return
-      }
-      if (run.telemetry) {
-        const dealt = hpBeforeStrike - newEnemyHP
-        run.telemetry.totalDamageDealtToEnemies += dealt
-        _telemetryBumpDamageDealt(run.floor, dealt)
-      }
-      tile.enemyData.currentHP = newEnemyHP
-      if (tile.enemyData?.enemyId === 'onion') { _applyTearyEyes(); _checkOnionLayer(tile) }
-
-      if (ignite) {
-        tile.enemyData.burnTurns = 3
-        UI.spawnFloat(tile.element, '🔥 Ignited!', 'damage')
-      }
-
-      // Tick burn damage if active
-      if ((tile.enemyData.burnTurns ?? 0) > 0) {
-        const burnPlagueBonus = run.player.inventory.some(e => e?.id === 'plague-rat-skull') ? 1 : 0
-        const chp0 = Number(tile.enemyData.currentHP)
-        const chp = Number.isFinite(chp0) ? chp0 : Number(tile.enemyData.hp ?? 0)
-        const burnDmg = chp > 0
-          ? Math.max(1, Math.floor(chp * 0.2)) + burnPlagueBonus
-          : 1 + burnPlagueBonus
-        tile.enemyData.currentHP = Math.max(0, (Number.isFinite(chp0) ? chp0 : chp) - burnDmg)
-        tile.enemyData.burnTurns--
-        UI.spawnFloat(tile.element, `🔥 ${burnDmg}`, 'damage')
-        if (tile.enemyData.currentHP <= 0) {
-          UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp')
-          UI.setMessage(`You strike for ${playerDmg}${bonusSuffix}! The enemy falls to flames before they can strike back. +${enemyGoldDrop} gold.`)
-          _gainGold(enemyGoldDrop, tile.element, true)
-          _gainXP(result.xpDrop ?? 0, tile.element)
-          _endCombatVictory(tile)
-          afterAttackPortrait(() => {
-            UI.setPortraitAnim('idle')
-          })
-          _combatBusy = false
-          return
-        }
-      }
-
-      // Spiked Collar: deal 1 self-damage on every melee hit
-      if (run.player.inventory.some(e => e?.id === 'spiked-collar')) {
-        _takeDamage(1, tile.element, true, null, { deathCause: 'spiked_collar' })
-        if (GameState.is(States.DEATH)) { _combatBusy = false; return }
-      }
-
-      // Decrement stun
-      if (isStunned) tile.enemyData.stunTurns--
-
-      // Enemy counter-attack — telegraphing enemies show a parry window first
-      if (!isStunned && _shouldShowParryWindow(tile)) {
-        const _isBot = new URLSearchParams(location.search).has('balanceBot')
-          || new URLSearchParams(location.search).has('testBotOngoing')
-          || new URLSearchParams(location.search).has('testHarness')
-        const _doParryWindow = () => {
-        UI.showParryWindow(tile.enemyData, (parryResult) => {
-          if (!run || !tile.enemyData || tile.enemyData._slain) { _combatBusy = false; return }
-
-          let finalEnemyDmg = result.enemyDmg
-          let parrySuccessType = null
-
-          if (parryResult === 'block') {
-            // Successful block: free, half damage
-            finalEnemyDmg = Math.floor(result.enemyDmg / 2)
-            parrySuccessType = 'block'
-          } else if (parryResult === 'counter') {
-            // Successful parry: +1 mana, no damage
-            run.player.mana = Math.min(run.player.maxMana, (run.player.mana ?? 0) + 1)
-            UI.updateMana(run.player.mana, run.player.maxMana)
-            finalEnemyDmg = 0
-            parrySuccessType = 'counter'
-          } else if (parryResult === 'miss-block') {
-            // Failed block attempt: -1 mana, full damage
-            run.player.mana = Math.max(0, (run.player.mana ?? 0) - 1)
-            UI.updateMana(run.player.mana, run.player.maxMana)
-          } else if (parryResult === 'miss-parry') {
-            // Failed parry attempt: -2 mana, double damage
-            run.player.mana = Math.max(0, (run.player.mana ?? 0) - 2)
-            UI.updateMana(run.player.mana, run.player.maxMana)
-            finalEnemyDmg = result.enemyDmg * 2
-          }
-          // 'ignore': ring expired untouched — full damage, no mana change
-
-          _setEnemySprite(tile, 'attack')
-          if (tile.enemyData?.freezingHit)   _applyFreezingHit()
-          if (tile.enemyData?.burnHit)        _applyBurnHit(tile.enemyData.burnHitAmount ?? 2)
-          if (tile.enemyData?.poisonHit)      _applyPlayerPoison(tile.enemyData.poisonHitAmount ?? 2)
-          if (tile.enemyData?.corruptionHit)  _applyCorruption()
-          if (tile.enemyData?.demonFlip)      _tryDemonFlip(tile)
-          if (finalEnemyDmg > 0) {
-            _takeDamage(finalEnemyDmg, tile.element, true, tile.enemyData, { enemyAttack: true })
-            UI.shakeTile(tile.element)
-          }
-          if (GameState.is(States.DEATH)) { _combatBusy = false; return }
-
-          if (parrySuccessType === 'counter') {
-            const bonusHitDmg = Math.max(1, Math.ceil(playerDmg * 0.5))
-            tile.enemyData.currentHP = Math.max(0, (tile.enemyData.currentHP ?? 0) - bonusHitDmg)
-            UI.spawnFloat(tile.element, `⚡ ${bonusHitDmg}`, 'xp')
-            UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
-            if (tile.enemyData.currentHP <= 0) {
-              _gainGold(enemyGoldDrop, tile.element, true)
-              _gainXP(result.xpDrop ?? 0, tile.element)
-              _endCombatVictory(tile)
-              afterAttackPortrait(() => UI.setPortraitAnim('idle'))
-              _combatBusy = false
-              return
-            }
-          }
-
-          setTimeout(() => {
-            if (!run || !tile.enemyData || tile.enemyData._slain) { _combatBusy = false; return }
-            _setEnemySprite(tile, 'idle')
-            UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp')
-            EventBus.emit('combat:damage', { amount: playerDmg, target: 'enemy' })
-            let tradeMsg
-            if (parrySuccessType === 'counter') {
-              tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Counter! You deflect the blow and land a bonus hit.`
-            } else if (parrySuccessType === 'block') {
-              if (finalEnemyDmg === 0) {
-                tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Perfect block! You take no damage.`
-              } else {
-                const taken = _computeEffectiveDamageTaken(finalEnemyDmg)
-                tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Blocked! You absorb the hit for only ${taken} damage.`
-              }
-            } else {
-              const taken = _computeEffectiveDamageTaken(result.enemyDmg)
-              tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! You miss the window — enemy strikes for ${taken} damage.`
-            }
-            UI.setMessage(tradeMsg)
-            UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
-            if (_stormProc) _triggerStormcallerLightning(tile, playerDmg)
-            afterAttackPortrait(() => {
-              if (finalEnemyDmg > 0) UI.setPortraitAnim('hit')
-              setTimeout(() => UI.setPortraitAnim('idle'), finalEnemyDmg > 0 ? 500 : 0)
-            })
-            _combatBusy = false
-          }, 500)
-        }, _charKey())
-        } // end _doParryWindow
-        if (!_isBot && !(_save.settings?.parryTutorialSeen)) {
-          _save.settings.parryTutorialSeen = true
-          SaveManager.save(_save).catch(() => {})
-          UI.showParryTutorial(_charKey(), _doParryWindow)
-        } else {
-          _doParryWindow()
-        }
-        return
-      }
-
-      // Enemy counter-attack (skipped if stunned)
-      if (!isStunned) {
-        _setEnemySprite(tile, 'attack')
-        if (tile.enemyData?.freezingHit)    _applyFreezingHit()
-        if (tile.enemyData?.burnHit)         _applyBurnHit(tile.enemyData.burnHitAmount ?? 2)
-        if (tile.enemyData?.poisonHit)       _applyPlayerPoison(tile.enemyData.poisonHitAmount ?? 2)
-        if (tile.enemyData?.corruptionHit)   _applyCorruption()
-        if (tile.enemyData?.demonFlip)        _tryDemonFlip(tile)
-        _takeDamage(result.enemyDmg, tile.element, true, tile.enemyData, { enemyAttack: true })
-        UI.shakeTile(tile.element)
-        if (GameState.is(States.DEATH)) { _combatBusy = false; return }
-      }
-
-      setTimeout(() => {
-        if (!run || !tile.enemyData || tile.enemyData._slain) {
-          _combatBusy = false
-          return
-        }
-        _setEnemySprite(tile, 'idle')
-        UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp')
-        EventBus.emit('combat:damage', { amount: playerDmg, target: 'enemy' })
-        let tradeMsg
-        if (isStunned) {
-          tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Enemy is stunned — no counter-attack.`
-        } else if (_save.settings.cheats?.godMode) {
-          tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Enemy strikes back — you take no damage.`
-        } else {
-          const taken = _computeEffectiveDamageTaken(result.enemyDmg)
-          tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Enemy strikes back for ${taken} damage.`
-        }
-        UI.setMessage(tradeMsg)
-        UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
-        if (_stormProc) _triggerStormcallerLightning(tile, playerDmg)
-
-        afterAttackPortrait(() => {
-          if (!isStunned) UI.setPortraitAnim('hit')
-          setTimeout(() => {
-            UI.setPortraitAnim('idle')
-          }, isStunned ? 0 : 500)
-        })
-        _combatBusy = false
-      }, isStunned ? 200 : 500)
-    }, 400)
-  }
-}
-
-// ── Spell ─────────────────────────────────────────────────────
-
-function slamAction() {
-  if (_isSilenced()) return
-  if (!(_save.warrior?.upgrades ?? []).includes('slam')) return
-  if (_combatBusy) return
-
-  // Reverberation III: consume free-cast flag before mana check
-  const isFree = run.player.slamFreeNextCast === true
-  if (isFree) run.player.slamFreeNextCast = false
-  const cost = isFree ? 0 : _stillWaterManaCost(WARRIOR_UPGRADES.slam.manaCost)
-  if (run.player.mana < cost) {
-    UI.setMessage('Not enough mana for Slam!', true)
-    return
-  }
-
-  UI.playSlam()
-  EventBus.emit('audio:play', { sfx: 'slam' })
-
-  // Collect all revealed living enemies on the ACTIVE grid (main or sub-floor)
-  const targets = []
-  let immuneSkipped = 0
-  for (const tile of _getActiveTiles()) {
-    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      if (tile.enemyData.spellImmune) { immuneSkipped++; continue }
-      targets.push(tile)
-    }
-  }
-
-  if (targets.length === 0) {
-    UI.setMessage(immuneSkipped ? 'No valid targets — Gnomes are immune to abilities!' : 'No enemies to Slam!', true)
-    return
-  }
-
-  const savedEngagement = _suspendCombatEngagementForMultiTargetAbility()
-
-  // Spend mana
-  run.player.mana = Math.max(0, run.player.mana - cost)
-  _markStillWaterAbilityUsed()
-  UI.updateMana(run.player.mana, run.player.maxMana)
-
-  _combatBusy = true; _combatBusySetAt = Date.now()
-  UI.setPortraitAnim('attack')
-  const slamDmg = _scaleOutgoingDamageToEnemy(_slamDamagePerTarget())
-  const immuneNote = immuneSkipped ? ` (${immuneSkipped} immune)` : ''
-  const freeNote   = isFree ? ' (free!)' : ''
-  UI.setMessage(`💥 Slam! ${targets.length} enem${targets.length > 1 ? 'ies' : 'y'} struck for ${slamDmg} each!${immuneNote}${freeNote}`)
-
-  // Stagger slash effects across targets
-  let slamKillCount = 0
-  targets.forEach((target, i) => {
-    setTimeout(() => {
-      UI.spawnSlash(target.element)
-      UI.shakeTile(target.element)
-      target.enemyData.currentHP = Math.max(0, target.enemyData.currentHP - slamDmg)
-      UI.spawnFloat(target.element, `💥 ${slamDmg}`, 'xp')
-      if (target.enemyData.currentHP <= 0) {
-        slamKillCount++
-        _gainGold(target.enemyData.goldDrop ? _rand(...target.enemyData.goldDrop) : 1, target.element, true)
-        _gainXP(target.enemyData.xpDrop ?? 0, target.element)
-        _endCombatVictory(target)
-      } else {
-        UI.updateEnemyHP(target.element, target.enemyData.currentHP)
-      }
-    }, i * 120)
-  })
-
-  setTimeout(() => {
-    UI.setPortraitAnim('idle')
-    _combatBusy = false
-    _restoreCombatEngagementAfterMultiTargetAbility(savedEngagement)
-    _slamBranchAftereffect(targets, slamDmg, slamKillCount)
-  }, targets.length * 120 + 400)
-}
-
-function _slamBranchAftereffect(targets, slamDmg, killCount) {
-  if (!run?.player?.slamBranch) return
-  const { name, tier } = run.player.slamBranch
-
-  if (name === 'hemorrhage') {
-    const [bleedTurns, bleedDmg] = tier >= 2 ? [3, 3] : [2, 2]
-    const burstOnDeath = tier >= 3
-    const survivors = targets.filter(t => t.enemyData && !t.enemyData._slain && t.enemyData.currentHP > 0)
-    for (const t of survivors) {
-      t.enemyData.bleedTurns = (t.enemyData.bleedTurns ?? 0) + bleedTurns
-      t.enemyData.bleedDmg   = bleedDmg
-      t.enemyData.bleedBurst = burstOnDeath
-      if (t.element) UI.spawnFloat(t.element, `🩸 ${bleedTurns}t`, 'damage')
-    }
-    if (survivors.length > 0) UI.setMessage(`🩸 Hemorrhage — ${survivors.length} enem${survivors.length > 1 ? 'ies' : 'y'} bleeding!`)
-    _refreshAllEnemyStatusDisplays()
-  } else if (name === 'seismic') {
-    _slamSeismicReveal(targets, tier)
-  } else if (name === 'reverberation') {
-    const manaPerKill = tier >= 2 ? 2 : 1
-    if (killCount > 0) {
-      const gained = Math.min(killCount * manaPerKill, run.player.maxMana - run.player.mana)
-      if (gained > 0) {
-        run.player.mana += gained
-        UI.updateMana(run.player.mana, run.player.maxMana)
-        UI.spawnFloat(document.getElementById('hud-portrait'), `🔮 +${gained}`, 'mana')
-      }
-    }
-    if (tier >= 3 && killCount >= 2) {
-      run.player.slamFreeNextCast = true
-      UI.setMessage(`⚡ Reverberation — ${killCount} kills! Next Slam costs no mana.`)
-    }
-  }
-}
-
-function _slamSeismicReveal(targets, tier) {
-  const revealCount = tier >= 3 ? 3 : tier >= 2 ? 2 : 1
-  const dealExtraDmg = tier >= 3
-
-  // Collect unrevealed tiles adjacent (Chebyshev ≤1) to any hit target
-  const seen = new Set()
-  const candidates = []
-  for (const t of targets) {
-    for (const tile of _getActiveTiles()) {
-      const key = `${tile.row},${tile.col}`
-      if (seen.has(key) || tile.revealed || tile.locked) continue
-      if (Math.abs(tile.row - t.row) <= 1 && Math.abs(tile.col - t.col) <= 1) {
-        seen.add(key)
-        candidates.push(tile)
-      }
-    }
-  }
-
-  candidates.sort(() => Math.random() - 0.5)
-  const toReveal = candidates.slice(0, revealCount)
-  if (toReveal.length === 0) return
-
-  let extraKills = 0
-  for (const tile of toReveal) {
-    tile.revealed = true
-    run.tilesRevealed++
-    TileEngine.markReachable(tile.row, tile.col, _markReachableUi)
-    if (tile.element) TileEngine.flipTile(tile)
-
-    if (dealExtraDmg && tile.enemyData && !tile.enemyData._slain && !tile.enemyData.spellImmune) {
-      const dmg = _scaleOutgoingDamageToEnemy(_slamDamagePerTarget())
-      tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - dmg)
-      if (tile.element) {
-        UI.spawnFloat(tile.element, `💥 ${dmg}`, 'xp')
-        UI.shakeTile(tile.element)
-      }
-      if (tile.enemyData.currentHP <= 0) {
-        _gainGold(tile.enemyData.goldDrop ? _rand(...tile.enemyData.goldDrop) : 1, tile.element, true)
-        _gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
-        _endCombatVictory(tile)
-        extraKills++
-      } else if (tile.element) {
-        UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
-      }
-    }
-  }
-
-  _syncGridDomClassesFromModel()
-  TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
-  const killNote = extraKills > 0 ? ` (${extraKills} enem${extraKills > 1 ? 'ies' : 'y'} hit!)` : ''
-  UI.setMessage(`🌊 Seismic — shockwave reveals ${toReveal.length} tile${toReveal.length > 1 ? 's' : ''}!${killNote}`)
-}
-
-function _refreshAllEnemyStatusDisplays() {
-  for (const tile of _getActiveTiles()) {
-    if (!tile.revealed || !tile.enemyData || tile.enemyData._slain) continue
-    UI.updateEnemyStatus(tile.element, tile.enemyData)
-  }
-}
-
-function _hemorrhageBurst(sourceTile) {
-  const burstDmg = 2
-  for (const tile of _getActiveTiles()) {
-    if (!tile.revealed || !tile.enemyData || tile.enemyData._slain) continue
-    if (tile === sourceTile) continue
-    tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - burstDmg)
-    if (tile.element) {
-      UI.spawnFloat(tile.element, `🩸💥 ${burstDmg}`, 'damage')
-      UI.shakeTile(tile.element)
-    }
-    if (tile.enemyData.currentHP <= 0) {
-      _gainGold(tile.enemyData.goldDrop ? _rand(...tile.enemyData.goldDrop) : 1, tile.element)
-      _gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
-      _endCombatVictory(tile)
-    } else if (tile.element) {
-      UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
-    }
-  }
 }
 
 function abilitySlotAAction() {
@@ -6330,922 +1368,94 @@ function abilitySlotAAction() {
   else slamAction()
 }
 
-function _bloodTitheHpCost() {
-  const tier = run?.player?.bloodTitheMasteryTier ?? 1
-  if (tier >= 4) return 7
-  if (tier >= 3) return 8
-  if (tier >= 2) return 9
-  return 10
-}
 
-function _bloodTitheManaGain() {
-  const tier = run?.player?.bloodTitheMasteryTier ?? 1
-  if (tier >= 4) return 13
-  if (tier >= 3) return 12
-  if (tier >= 2) return 11
-  return 10
-}
 
-function bloodTitheAction() {
-  if (_isSilenced()) return
-  if (!_isActiveUnlocked('blood-tithe', 'vampire')) return
-  if (_combatBusy) return
-  const hpCost  = _bloodTitheHpCost()
-  const manaGain = _bloodTitheManaGain()
-  const btTier   = run?.player?.bloodTitheMasteryTier ?? 1
-  const btSafety = btTier >= 4
-  if (!btSafety && run.player.hp <= hpCost) {
-    UI.setMessage('Not enough HP — Blood Tithe would be lethal!', true)
-    return
-  }
-  if (btSafety && run.player.hp <= 1) {
-    UI.setMessage('Cannot Blood Tithe at 1 HP!', true)
-    return
-  }
-  if (run.player.mana >= run.player.maxMana) {
-    UI.setMessage('Mana is already full!', true)
-    return
-  }
-  run.player.hp = btSafety ? Math.max(1, run.player.hp - hpCost) : run.player.hp - hpCost
-  UI.updateHP(run.player.hp, run.player.maxHp)
-  UI.spawnFloat(document.getElementById('hud-portrait'), `🩸 −${hpCost} HP`, 'damage')
-  const gained = Math.min(manaGain, run.player.maxMana - run.player.mana)
-  run.player.mana = Math.min(run.player.maxMana, run.player.mana + manaGain)
-  UI.updateMana(run.player.mana, run.player.maxMana)
-  UI.spawnFloat(document.getElementById('hud-portrait'), `🔵 +${gained}`, 'xp')
-  UI.setMessage(`🩸 Blood Tithe — spent ${hpCost} HP, gained ${gained} mana.`)
-  EventBus.emit('audio:play', { sfx: 'spell' })
-}
 
-function mistFormAction() {
-  if (!_isActiveUnlocked('mist-form', 'vampire')) return
-  if (_combatBusy) return
-  if (_mistFormFlipsRemaining > 0) {
-    UI.setMessage('Mist Form is already active!', true)
-    return
-  }
-  const cost = _stillWaterManaCost(VAMPIRE_UPGRADES['mist-form'].manaCost)
-  if (run.player.mana < cost) {
-    UI.setMessage('Not enough mana for Mist Form!', true)
-    return
-  }
-  run.player.mana = Math.max(0, run.player.mana - cost)
-  _markStillWaterAbilityUsed()
-  UI.updateMana(run.player.mana, run.player.maxMana)
-  const mfStacks = run.player.vampireActiveStacks?.['mist-form'] ?? 0
-  _mistFormFlipsRemaining = mfStacks >= 2 ? 8 : mfStacks >= 1 ? 5 : 3
-  UI.setMistFormBtn(true, VAMPIRE_UPGRADES['mist-form'].manaCost, _mistFormFlipsRemaining)
-  UI.setMistFormActive(true)
-  UI.setMessage(`🌫️ Mist Form — next ${_mistFormFlipsRemaining} flips protected from blood drain.`)
-  EventBus.emit('audio:play', { sfx: 'spell' })
-}
 
-function _bloodPactManaCost() {
-  const stacks = run?.player?.vampireActiveStacks?.['blood-pact'] ?? 0
-  if (stacks >= 2) return 10
-  if (stacks >= 1) return 13
-  return 15
-}
 
-function bloodPactAction() {
-  if (!_isActiveUnlocked('blood-pact', 'vampire')) return
-  if (_combatBusy) return
-  const cost = _stillWaterManaCost(_bloodPactManaCost())
-  if (run.player.mana < cost) {
-    UI.setMessage('Not enough mana for Blood Pact!', true)
-    return
-  }
 
-  const targets = []
-  for (const tile of _getActiveTiles()) {
-    if (
-      tile.revealed && tile.enemyData && !tile.enemyData._slain &&
-      tile.enemyData.behaviour !== 'boss' && tile.type !== 'boss'
-    ) {
-      targets.push(tile)
-    }
-  }
 
-  if (targets.length === 0) {
-    UI.setMessage('No eligible enemies — bosses are immune to Blood Pact!', true)
-    return
-  }
 
-  run.player.mana = Math.max(0, run.player.mana - cost)
-  _markStillWaterAbilityUsed()
-  UI.updateMana(run.player.mana, run.player.maxMana)
 
-  // Ensure currentHP is initialized, add 1 to each, then equalize at rounded average
-  for (const tile of targets) {
-    const e = tile.enemyData
-    if (!Number.isFinite(e.currentHP)) e.currentHP = Number(e.hp) || 1
-    e.currentHP = Math.max(1, e.currentHP + 1)
-  }
-  const total = targets.reduce((sum, tile) => sum + tile.enemyData.currentHP, 0)
-  const avgHp = Math.max(1, Math.round(total / targets.length))
 
-  for (const tile of targets) {
-    tile.enemyData.currentHP = avgHp
-    if (tile.element) UI.updateEnemyHP(tile.element, avgHp)
-    UI.spawnFloat(tile.element, `⚖️ ${avgHp}`, 'xp')
-  }
 
-  // M3: heal 1 HP per enemy affected
-  const bpStacks = run.player.vampireActiveStacks?.['blood-pact'] ?? 0
-  if (bpStacks >= 3) {
-    const healAmt = targets.length
-    run.player.hp = Math.min(run.player.maxHp, run.player.hp + healAmt)
-    UI.updateHP(run.player.hp, run.player.maxHp)
-    UI.spawnFloat(document.getElementById('hud-portrait'), `💚 +${healAmt}`, 'xp')
-  }
 
-  UI.setMessage(`⚖️ Blood Pact — ${targets.length} enem${targets.length !== 1 ? 'ies' : 'y'} equalized to ${avgHp} HP.`)
-  EventBus.emit('audio:play', { sfx: 'spell' })
-}
 
-function getBloodPactBreakdown() {
-  if (!run || _charKey() !== 'vampire') return null
-  const targets = []
-  for (const tile of _getActiveTiles()) {
-    if (
-      tile.revealed && tile.enemyData && !tile.enemyData._slain &&
-      tile.enemyData.behaviour !== 'boss' && tile.type !== 'boss'
-    ) {
-      const cur = Number.isFinite(tile.enemyData.currentHP)
-        ? tile.enemyData.currentHP
-        : (Number(tile.enemyData.hp) || 1)
-      targets.push(cur)
-    }
-  }
-  if (targets.length === 0) return { count: 0, avgHp: null }
-  const total = targets.reduce((sum, hp) => sum + hp + 1, 0)
-  const avgHp = Math.max(1, Math.round(total / targets.length))
-  return { count: targets.length, avgHp }
-}
 
-function ricochetAction() {
-  if (_isSilenced()) return
-  if (!_isRangerActiveUnlocked('ricochet')) return
-  if (_combatBusy) return
-  const cost = _stillWaterManaCost(RANGER_UPGRADES.ricochet.manaCost + _tearyExtraCost())
 
-  if (!_ricochetSelecting) {
-    if (run.player.mana < cost) {
-      UI.setMessage('Not enough mana for Ricochet!', true)
-      return
-    }
-    _cancelSpellLanternBlindingForRicochet()
-    _cancelArrowBarrageMode()
-    _cancelPoisonArrowShotMode()
-    _ricochetSelecting = true
-    _ricochetTiles     = []
-    UI.setRicochetActive(true)
-    UI.setGridRicochetMode(true)
-    UI.clearRicochetMarks()
-    UI.setMessage('🏹 Ricochet — tap up to 3 enemies (order matters). The 3rd pick fires; with 1–2 picks, tap Ricochet again.')
-    return
-  }
 
-  if (_ricochetTiles.length === 0) {
-    _cancelRicochetMode()
-    UI.setMessage('Ricochet cancelled.')
-    return
-  }
 
-  if (run.player.mana < cost) {
-    UI.setMessage('Not enough mana for Ricochet!', true)
-    return
-  }
-
-  _executeRicochet()
-}
-
-function _executeRicochet() {
-  const cost    = _stillWaterManaCost(RANGER_UPGRADES.ricochet.manaCost + _tearyExtraCost())
-  const ordered = _ricochetTiles.slice()
-
-  const targets = ordered.filter(t => t.enemyData && !t.enemyData._slain && !t.enemyData.spellImmune)
-  const immuneCount = ordered.filter(t => t.enemyData && !t.enemyData._slain && t.enemyData.spellImmune).length
-  if (targets.length === 0) {
-    _cancelRicochetMode()
-    UI.setMessage(immuneCount > 0 ? '🛡️ All selected enemies are immune to Ricochet!' : 'Ricochet — no valid targets left.', true)
-    return
-  }
-
-  EventBus.emit('audio:play', { sfx: 'confirmClick' })
-  const savedEngagement = _suspendCombatEngagementForMultiTargetAbility()
-  _cancelRicochetMode()
-
-  run.player.mana = Math.max(0, run.player.mana - cost)
-  _markStillWaterAbilityUsed()
-  UI.updateMana(run.player.mana, run.player.maxMana)
-
-  _combatBusy = true; _combatBusySetAt = Date.now()
-  UI.setPortraitAnim('attack')
-  const dmgSeq = _ricochetDamageSequence(targets.length, 'ricochet')
-  UI.setMessage(`🏹 Ricochet — ${targets.length} shot${targets.length > 1 ? 's' : ''}! (${dmgSeq.join(' → ')})`)
-
-  targets.forEach((target, i) => {
-    const dmg = _scaleOutgoingDamageToEnemy(dmgSeq[i])
-    setTimeout(() => {
-      if (!target.enemyData || target.enemyData._slain) return
-      UI.spawnArrow(target.element)
-      EventBus.emit('audio:play', { sfx: 'arrowShot' })
-      UI.shakeTile(target.element)
-      target.enemyData.currentHP = Math.max(0, target.enemyData.currentHP - dmg)
-      _checkOnionLayer(target)
-      UI.spawnFloat(target.element, `🏹 ${dmg}`, 'xp')
-      if (target.enemyData.currentHP <= 0) {
-        _gainGold(target.enemyData.goldDrop ? _rand(...target.enemyData.goldDrop) : 1, target.element, true)
-        _gainXP(target.enemyData.xpDrop ?? 0, target.element)
-        _endCombatVictory(target)
-      } else {
-        UI.updateEnemyHP(target.element, target.enemyData.currentHP)
-      }
-    }, i * 120)
-  })
-
-  // Unlike Ranger melee, Ricochet is a short volley — do not hold _combatBusy for
-  // RANGER_FIGHT_ATTACK_PORTRAIT_MS (4s) or the next enemy tap is silently ignored.
-  const doneMs = targets.length * 120 + 400
-  setTimeout(() => {
-    UI.setPortraitAnim('idle')
-    _combatBusy = false
-    _restoreCombatEngagementAfterMultiTargetAbility(savedEngagement)
-  }, doneMs)
-}
 
 // ── Mage: Chain Lightning ─────────────────────────────────────
 
 /** Per-zap damage for Chain Lightning: equal across bounces, scaled by mage mastery. */
-function _chainLightningDamagePerZap() {
-  const avg  = _avgMeleeDamage()
-  const unit = Math.max(1, Math.round(avg * CONFIG.ability.ricochetUnitMult))
-  const mult = _mageActiveDamageMult('chain-lightning')
-  return Math.max(CombatResolver.abilityDmgFloor(run.floor), Math.round(unit * 1.5 * mult))
-}
 
-function getChainLightningBreakdown() {
-  if (!run || !run.player?.isMage) return null
-  const avg  = _avgMeleeDamage()
-  const unit = Math.max(1, Math.round(avg * CONFIG.ability.ricochetUnitMult))
-  const mult = _mageActiveDamageMult('chain-lightning')
-  const perZap = Math.max(1, Math.round(unit * 1.5 * mult))
-  const stacks = run.player.mageActiveStacks?.['chain-lightning'] ?? 0
-  return { avgMelee: avg, unit, mult, stacks, perZap, maxZaps: 3 }
-}
 
-function chainLightningAction() {
-  if (!_isMageActiveUnlocked('chain-lightning')) return
-  if (_combatBusy) return
-  const cost = _stillWaterManaCost(MAGE_UPGRADES['chain-lightning'].manaCost + _tearyExtraCost())
 
-  if (!_chainLightningSelecting) {
-    if (run.player.mana < cost) {
-      UI.setMessage('Not enough mana for Chain Lightning!', true)
-      return
-    }
-    _cancelSpellLanternBlindingForRicochet()
-    _cancelTelekineticThrowMode()
-    _chainLightningSelecting = true
-    UI.setChainLightningActive(true)
-    UI.setGridChainLightningMode(true)
-    UI.setMessage('⚡ Chain Lightning — tap a revealed enemy. The bolt arcs to 2 more at random.')
-    return
-  }
 
-  _cancelChainLightningMode()
-  UI.setMessage('Chain Lightning cancelled.')
-}
+
 
 /** Pick `count` distinct random entries from `pool` (returns a new array). */
-function _pickRandomDistinct(pool, count) {
-  const a = pool.slice()
-  const out = []
-  while (a.length > 0 && out.length < count) {
-    const idx = Math.floor(Math.random() * a.length)
-    out.push(a.splice(idx, 1)[0])
-  }
-  return out
-}
 
-function _executeChainLightning(primary) {
-  if (!primary?.enemyData || primary.enemyData._slain) {
-    UI.setMessage('Chain Lightning — no valid primary target.', true)
-    _cancelChainLightningMode()
-    return
-  }
-  if (primary.enemyData.spellImmune) {
-    UI.setMessage('🛡️ That enemy is immune to Chain Lightning!', true)
-    return
-  }
-  const cost = _stillWaterManaCost(MAGE_UPGRADES['chain-lightning'].manaCost + _tearyExtraCost())
-  if (run.player.mana < cost) {
-    UI.setMessage('Not enough mana for Chain Lightning!', true)
-    return
-  }
 
-  // Gather random jump candidates — revealed living non-immune enemies other than the primary.
-  const candidates = _getActiveTiles().filter(t =>
-    t.revealed &&
-    t.enemyData &&
-    !t.enemyData._slain &&
-    !t.enemyData.spellImmune &&
-    !(t.row === primary.row && t.col === primary.col),
-  )
-  const jumps = _pickRandomDistinct(candidates, 2)
-  const targets = [primary, ...jumps]
 
-  const savedEngagement = _suspendCombatEngagementForMultiTargetAbility()
-  _cancelChainLightningMode()
-
-  run.player.mana = Math.max(0, run.player.mana - cost)
-  _markStillWaterAbilityUsed()
-  UI.updateMana(run.player.mana, run.player.maxMana)
-
-  const perZap = _chainLightningDamagePerZap()
-  _combatBusy = true; _combatBusySetAt = Date.now()
-  UI.setPortraitAnim('attack')
-  UI.setMessage(`⚡ Chain Lightning — ${targets.length} zap${targets.length > 1 ? 's' : ''} for ${perZap} each.`)
-
-  targets.forEach((target, i) => {
-    const dmg = _scaleOutgoingDamageToEnemy(perZap)
-    setTimeout(() => {
-      if (!target.enemyData || target.enemyData._slain) return
-      const fromEl = i === 0
-        ? document.getElementById('hud-portrait')
-        : targets[i - 1]?.element
-      UI.spawnZap(fromEl, target.element)
-      EventBus.emit('audio:play', { sfx: 'zap' })
-      UI.shakeTile(target.element)
-      target.enemyData.currentHP = Math.max(0, target.enemyData.currentHP - dmg)
-      _checkOnionLayer(target)
-      UI.spawnFloat(target.element, `⚡ ${dmg}`, 'xp')
-      if (target.enemyData.currentHP <= 0) {
-        _gainGold(target.enemyData.goldDrop ? _rand(...target.enemyData.goldDrop) : 1, target.element, true)
-        _gainXP(target.enemyData.xpDrop ?? 0, target.element)
-        _endCombatVictory(target)
-      } else {
-        UI.updateEnemyHP(target.element, target.enemyData.currentHP)
-      }
-    }, i * 140)
-  })
-
-  const doneMs = targets.length * 140 + 400
-  setTimeout(() => {
-    UI.setPortraitAnim('idle')
-    _combatBusy = false
-    _restoreCombatEngagementAfterMultiTargetAbility(savedEngagement)
-  }, doneMs)
-}
 
 // ── Mage: Telekinetic Throw ───────────────────────────────────
 
-function _telekineticThrowDamage() {
-  const avg  = _avgMeleeDamage()
-  const mult = _mageActiveDamageMult('telekinetic-throw')
-  return Math.max(CombatResolver.abilityDmgFloor(run.floor), Math.round(avg * 3 * mult))
-}
 
-function getTelekineticThrowBreakdown() {
-  if (!run || !run.player?.isMage) return null
-  const avg  = _avgMeleeDamage()
-  const mult = _mageActiveDamageMult('telekinetic-throw')
-  const dmg  = Math.max(1, Math.round(avg * 3 * mult))
-  const stacks = run.player.mageActiveStacks?.['telekinetic-throw'] ?? 0
-  return { avgMelee: avg, mult, stacks, damage: dmg }
-}
+
+
 
 /** True if `tile` is a safe destination for Telekinetic Throw — revealed empty, no content. */
-function _isTelekineticThrowDestination(tile) {
-  if (!tile) return false
-  if (!tile.revealed) return false
-  if (tile.locked) return false
-  if (tile.type !== 'empty') return false
-  if (tile.enemyData) return false
-  if (tile.itemData) return false
-  if (tile.chestReady || tile.chestLooted) return false
-  // Turret tile: guard via run.turret coordinates on main grid only.
-  if (!_isInSubFloor() && run?.turret && run.turret.hp > 0 &&
-      run.turret.row === tile.row && run.turret.col === tile.col) return false
-  return true
-}
+
 
 /** True if `tile` holds a valid TK Throw pickup target — revealed living non-boss non-immune. */
-function _isTelekineticThrowEnemyTarget(tile) {
-  if (!tile?.revealed) return false
-  const e = tile.enemyData
-  if (!e || e._slain) return false
-  if (e.spellImmune) return false
-  if (e.behaviour === 'boss' || tile.type === 'boss') return false
-  return true
-}
 
-function telekineticThrowAction() {
-  if (!_isMageActiveUnlocked('telekinetic-throw')) return
-  if (_combatBusy) return
-  const cost = _stillWaterManaCost(MAGE_UPGRADES['telekinetic-throw'].manaCost + _tearyExtraCost())
 
-  if (_telekineticThrowStep === 0) {
-    if (run.player.mana < cost) {
-      UI.setMessage('Not enough mana for Telekinetic Throw!', true)
-      return
-    }
-    _cancelSpellLanternBlindingForRicochet()
-    _cancelChainLightningMode()
-    _telekineticThrowStep = 1
-    _telekineticEnemyTile = null
-    UI.setTelekineticThrowActive(true)
-    UI.setGridTelekineticThrowMode('enemy')
-    UI.setMessage('🌀 Telekinetic Throw — tap an enemy to grab (bosses & spell-immune excluded).')
-    return
-  }
 
-  _cancelTelekineticThrowMode()
-  UI.setMessage('Telekinetic Throw cancelled.')
-}
 
-function _executeTelekineticThrow(originTile, destTile) {
-  if (!_isTelekineticThrowEnemyTarget(originTile)) {
-    UI.setMessage('🛡️ Not a valid target anymore.', true)
-    _cancelTelekineticThrowMode()
-    return
-  }
-  if (!_isTelekineticThrowDestination(destTile)) {
-    UI.setMessage('That tile is no longer a valid landing spot.', true)
-    return
-  }
-  if (originTile === destTile) {
-    UI.setMessage('Pick a different landing tile.', true)
-    return
-  }
 
-  const cost = _stillWaterManaCost(MAGE_UPGRADES['telekinetic-throw'].manaCost + _tearyExtraCost())
-  if (run.player.mana < cost) {
-    UI.setMessage('Not enough mana for Telekinetic Throw!', true)
-    return
-  }
 
-  _cancelTelekineticThrowMode()
 
-  run.player.mana = Math.max(0, run.player.mana - cost)
-  _markStillWaterAbilityUsed()
-  UI.updateMana(run.player.mana, run.player.maxMana)
 
-  // Lift animation on origin, then move + slam on destination.
-  UI.spawnFloat(originTile.element, '🌀 Lifted!', 'mana')
-  UI.shakeTile(originTile.element)
 
-  const lifted = originTile.enemyData
-  const liftedType = originTile.type
 
-  // Clear origin so it renders as a plain revealed empty.
-  originTile.enemyData = null
-  originTile.type = 'empty'
-  originTile.revealed = true
-  originTile.locked = false
-  originTile.chestReady = false
-  originTile.chestLooted = false
-  originTile.itemData = null
 
-  // Put the enemy on the destination tile. Keep destination as revealed so
-  // the next melee / spell interaction works like any revealed enemy tile.
-  destTile.type = liftedType
-  destTile.enemyData = lifted
-  destTile.revealed = true
-  destTile.locked = false
-
-  _patchActiveTileDom(originTile.row, originTile.col)
-  _patchActiveTileDom(destTile.row, destTile.col)
-
-  // Recompute global locks — an adjacent tile may still be locked by another enemy,
-  // so naive unlockAdjacent around the origin would be wrong (leaves stale red X's).
-  if (!_isInSubFloor()) {
-    TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
-  } else {
-    // Sub-floor: clear locks for revealed tiles, then re-lock around living non-archer enemies.
-    _recomputeSubFloorEnemyLocks()
-  }
-
-  TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
-  _syncGridDomClassesFromModel()
-
-  // Slam impact — shockwave + audio, then damage.
-  _combatBusy = true; _combatBusySetAt = Date.now()
-  UI.setPortraitAnim('attack')
-  const dmg = _scaleOutgoingDamageToEnemy(_telekineticThrowDamage())
-  UI.setMessage(`🌀 Telekinetic Throw — slammed for ${dmg} damage!`)
-  setTimeout(() => {
-    if (!destTile.enemyData || destTile.enemyData._slain) return
-    EventBus.emit('audio:play', { sfx: 'telekineticSlam' })
-    UI.spawnSlamRing(destTile.element)
-    UI.shakeTile(destTile.element)
-    destTile.enemyData.currentHP = Math.max(0, destTile.enemyData.currentHP - dmg)
-    _checkOnionLayer(destTile)
-    UI.spawnFloat(destTile.element, `🌀 ${dmg}`, 'damage')
-    if (destTile.enemyData.currentHP <= 0) {
-      _gainGold(destTile.enemyData.goldDrop ? _rand(...destTile.enemyData.goldDrop) : 1, destTile.element, true)
-      _gainXP(destTile.enemyData.xpDrop ?? 0, destTile.element)
-      _endCombatVictory(destTile)
-      if (!_isInSubFloor()) {
-        TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
-      } else {
-        _recomputeSubFloorEnemyLocks()
-      }
-    } else {
-      UI.updateEnemyHP(destTile.element, destTile.enemyData.currentHP)
-    }
-  }, 160)
-
-  setTimeout(() => {
-    UI.setPortraitAnim('idle')
-    _combatBusy = false
-  }, 600)
-  _saveActiveRun()
-}
-
-function manaShieldAction() {
-  if (!_isMageActiveUnlocked('mana-shield')) return
-  if (_combatBusy) return
-  if (_isCombatCommitmentLocked()) {
-    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
-    return
-  }
-  const ACTIVATION_COST = MAGE_UPGRADES['mana-shield'].manaCost
-  const enabling = !run.player.manaShieldActive
-  if (enabling) {
-    if (run.player.mana < ACTIVATION_COST) {
-      UI.setMessage(`🔵 Not enough mana (need ${ACTIVATION_COST}).`, true)
-      return
-    }
-    run.player.mana -= ACTIVATION_COST
-    UI.updateMana(run.player.mana, run.player.maxMana)
-  }
-  run.player.manaShieldActive = enabling
-  _refreshMageHud()
-  EventBus.emit('audio:play', { sfx: 'confirmClick' })
-  UI.setMessage(enabling ? '🔵 Mana Shield active!' : '🔵 Mana Shield deactivated.')
-  _saveActiveRun()
-}
-
-function lifeTapAction() {
-  if (!_isMageActiveUnlocked('life-tap')) return
-  if (_combatBusy) return
-  if (_isCombatCommitmentLocked()) {
-    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
-    return
-  }
-  const enabling = !run.player.lifeTapActive
-  if (enabling) {
-    const hpCost = _lifeTapHpCost()
-    if (run.player.hp <= hpCost) {
-      UI.setMessage('🔴 Not enough HP to activate Life Tap.', true)
-      return
-    }
-    if (run.player.mana >= run.player.maxMana) {
-      UI.setMessage('🔴 Mana already full.', true)
-      return
-    }
-  }
-  run.player.lifeTapActive = enabling
-  _refreshMageHud()
-  EventBus.emit('audio:play', { sfx: 'confirmClick' })
-  UI.setMessage(enabling ? '🔴 Life Tap active!' : '🔴 Life Tap deactivated.')
-  _saveActiveRun()
-}
-
-function _mageLifeTapOnFlip(tileEl) {
-  if (!run || !run.player.lifeTapActive || _charKey() !== 'mage') return
-  const p = run.player
-  const hpCost = _lifeTapHpCost()
-  const mpGain = _lifeTapMpGain()
-  // Auto-disable if mana is full — M3 keeps active and heals instead
-  const ltStacks = p.mageActiveStacks?.['life-tap'] ?? 0
-  if (p.mana >= p.maxMana) {
-    if (ltStacks >= 3) {
-      if (Math.random() < 0.5) {
-        p.hp = Math.min(p.maxHp, p.hp + 1)
-        UI.updateHP(p.hp, p.maxHp)
-        UI.spawnFloat(tileEl, '+1 HP', 'xp')
-      }
-      return
-    }
-    p.lifeTapActive = false
-    _refreshMageHud()
-    UI.setMessage('🔴 Life Tap: mana full — deactivated.')
-    return
-  }
-  if (p.hp <= hpCost) {
-    p.lifeTapActive = false
-    _refreshMageHud()
-    UI.setMessage('🔴 Life Tap: not enough HP — deactivated.')
-    return
-  }
-  p.hp   = Math.max(1, p.hp - hpCost)
-  p.mana = Math.min(p.maxMana, p.mana + mpGain)
-  UI.updateHP(p.hp, p.maxHp)
-  UI.updateMana(p.mana, p.maxMana)
-  UI.spawnFloat(tileEl, `-${hpCost} HP`, 'damage')
-  UI.spawnFloat(tileEl, `+${mpGain} MP`, 'xp')
-}
 
 /** Re-render a single tile's DOM in-place from its model. For sub-floors we re-render the whole grid. */
-function _patchActiveTileDom(row, col) {
-  if (_isInSubFloor()) {
-    const sf = run?.subFloor
-    if (!sf) return
-    // Sub-floor tiles don't support a single-tile patch, so rebuild the whole grid.
-    UI.showSubFloor(sf, _onSubFloorTileTap, _onSubFloorTileHold)
-    return
-  }
-  const gridEl = UI.getGridEl?.() ?? document.getElementById('grid')
-  if (!gridEl) return
-  TileEngine.patchMainGridTileAt(row, col, gridEl, onTileTap, onTileHold)
-}
+
 
 /** Sub-floor local version of recomputeAllEnemyLocks — mirrors TileEngine behaviour for sf.tiles. */
-function _recomputeSubFloorEnemyLocks() {
-  const sf = run?.subFloor
-  if (!sf?.tiles) return
-  const rows = sf.tiles.length
-  const cols = sf.tiles[0]?.length ?? 0
-  // Clear locks on unrevealed tiles.
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const t = sf.tiles[r][c]
-      if (!t.revealed && t.locked) {
-        t.locked = false
-        t.element?.classList.remove('locked')
-      }
-    }
-  }
-  // Re-lock adjacent to living enemies (skip archers/mice per main-grid rules).
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const t = sf.tiles[r][c]
-      const e = t.enemyData
-      if (!t.revealed || !e || e._slain) continue
-      if (e.behaviour === 'archer' || e.behaviour === 'mouse') continue
-      for (let dr = -1; dr <= 1; dr++) {
-        for (let dc = -1; dc <= 1; dc++) {
-          if (dr === 0 && dc === 0) continue
-          const nr = r + dr, nc = c + dc
-          if (nr < 0 || nc < 0 || nr >= rows || nc >= cols) continue
-          const adj = sf.tiles[nr][nc]
-          if (!adj.revealed) {
-            adj.locked = true
-            adj.element?.classList.add('locked')
-          }
-        }
-      }
-    }
-  }
-}
 
-function arrowBarrageAction() {
-  if (!_isRangerActiveUnlocked('arrow-barrage')) return
-  if (_combatBusy) return
-  const cost = _stillWaterManaCost(RANGER_UPGRADES['arrow-barrage'].manaCost + _tearyExtraCost())
 
-  if (!_arrowBarrageSelecting) {
-    if (run.player.mana < cost) {
-      UI.setMessage('Not enough mana for Triple Volley!', true)
-      return
-    }
-    _cancelSpellLanternBlindingForRicochet()
-    _cancelRicochetMode()
-    _cancelPoisonArrowShotMode()
-    _arrowBarrageSelecting = true
-    UI.setArrowBarrageActive(true)
-    UI.setGridArrowBarrageMode(true)
-    UI.setMessage(
-      '🏹 Triple Volley — tap a revealed tile to place a 3×3 blast (50% attack each enemy, min 1). Tap the same tile again to fire; tap the ability to cancel.',
-    )
-    return
-  }
 
-  _cancelArrowBarrageMode()
-  UI.setMessage('Triple Volley cancelled.')
-}
 
-function _tripleVolleyDamagePerEnemy() {
-  const avg = _avgMeleeDamage()
-  const pct = CONFIG.ability.tripleVolleyHeroDamagePct
-  const mult = _rangerActiveDamageMult('arrow-barrage')
-  return Math.max(1, Math.round(avg * pct * mult))
-}
 
-function _tilesIn3x3(centerRow, centerCol) {
-  const grid = _getActiveTileRows()
-  if (!grid?.length) return []
-  const rows = grid.length
-  const cols = grid[0].length
-  const out = []
-  for (let dr = -1; dr <= 1; dr++) {
-    for (let dc = -1; dc <= 1; dc++) {
-      const r = centerRow + dr
-      const c = centerCol + dc
-      if (r < 0 || c < 0 || r >= rows || c >= cols) continue
-      const t = grid[r]?.[c]
-      if (t) out.push(t)
-    }
-  }
-  return out
-}
 
-function _executeTripleVolley(center) {
-  const cost = _stillWaterManaCost(RANGER_UPGRADES['arrow-barrage'].manaCost + _tearyExtraCost())
-  const tiles = _tilesIn3x3(center.row, center.col)
-  const targets = tiles.filter(t => t.revealed && t.enemyData && !t.enemyData._slain && !t.enemyData.spellImmune)
 
-  if (targets.length === 0) {
-    UI.setMessage('Triple Volley — no enemies in that 3×3 area. Pick another center.', true)
-    _tripleVolleyCenter = null
-    UI.clearTripleVolleyAoePreview()
-    return
-  }
 
-  EventBus.emit('audio:play', { sfx: 'confirmClick' })
-  const savedEngagement = _suspendCombatEngagementForMultiTargetAbility()
 
-  _cancelArrowBarrageMode()
 
-  run.player.mana = Math.max(0, run.player.mana - cost)
-  _markStillWaterAbilityUsed()
-  UI.updateMana(run.player.mana, run.player.maxMana)
 
-  const dmg = _scaleOutgoingDamageToEnemy(_tripleVolleyDamagePerEnemy())
-  _combatBusy = true; _combatBusySetAt = Date.now()
-  UI.setPortraitAnim('attack')
-  UI.setMessage(`🏹 Triple Volley! ${targets.length} enem${targets.length > 1 ? 'ies' : 'y'} for ${dmg} each.`)
 
-  EventBus.emit('audio:play', {
-    sfx: 'arrowShot',
-    layered: {
-      count: Math.min(14, 6 + targets.length * 2),
-      spreadMs: 120,
-      jitterMs: 35,
-    },
-  })
 
-  // Rain of arrows overlay across all 9 tiles
-  UI.spawnArrowRain(tiles.map(t => t.element), targets.length * 120 + 600)
 
-  targets.forEach((target, i) => {
-    setTimeout(() => {
-      const t = target
-      if (!t?.enemyData || t.enemyData._slain) return
-      UI.spawnArrow(t.element)
-      UI.shakeTile(t.element)
-      t.enemyData.currentHP = Math.max(0, t.enemyData.currentHP - dmg)
-      _checkOnionLayer(t)
-      UI.spawnFloat(t.element, `🏹 ${dmg}`, 'xp')
-      if (t.enemyData.currentHP <= 0) {
-        _gainGold(t.enemyData.goldDrop ? _rand(...t.enemyData.goldDrop) : 1, t.element, true)
-        _gainXP(t.enemyData.xpDrop ?? 0, t.element)
-        _endCombatVictory(t)
-      } else {
-        UI.updateEnemyHP(t.element, t.enemyData.currentHP)
-      }
-    }, i * 120)
-  })
 
-  const doneMs = targets.length * 120 + 400
-  setTimeout(() => {
-    UI.setPortraitAnim('idle')
-    _combatBusy = false
-    _restoreCombatEngagementAfterMultiTargetAbility(savedEngagement)
-  }, doneMs)
-}
-
-function poisonArrowShotAction() {
-  if (!_isRangerActiveUnlocked('poison-arrow-shot')) return
-  if (_combatBusy) return
-  const cost = _stillWaterManaCost(RANGER_UPGRADES['poison-arrow-shot'].manaCost + _tearyExtraCost())
-
-  if (!_poisonArrowShotSelecting) {
-    if (run.player.mana < cost) {
-      UI.setMessage('Not enough mana for Poison Arrow!', true)
-      return
-    }
-    _cancelSpellLanternBlindingForRicochet()
-    _cancelRicochetMode()
-    _cancelArrowBarrageMode()
-    _poisonArrowShotSelecting = true
-    UI.setPoisonArrowShotActive(true)
-    UI.setGridPoisonArrowShotMode(true)
-    UI.setMessage('☠️ Poison Arrow — tap one enemy. Tap again to cancel.')
-    return
-  }
-
-  _cancelPoisonArrowShotMode()
-  UI.setMessage('Poison Arrow cancelled.')
-}
-
-function _executePoisonArrowShot(tile) {
-  const cost = _stillWaterManaCost(RANGER_UPGRADES['poison-arrow-shot'].manaCost + _tearyExtraCost())
-  if (!tile?.enemyData || tile.enemyData._slain) {
-    _cancelPoisonArrowShotMode()
-    return
-  }
-
-  if (tile.enemyData?.spellImmune) {
-    _cancelPoisonArrowShotMode()
-    UI.setMessage(`🛡️ ${tile.enemyData.label} is immune to Poison Arrow!`, true)
-    return
-  }
-
-  if (!_canAttackEnemy(tile)) {
-    _cancelPoisonArrowShotMode()
-    UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
-    return
-  }
-
-  EventBus.emit('audio:play', { sfx: 'confirmClick' })
-  const row = tile.row
-  const col = tile.col
-  _cancelPoisonArrowShotMode()
-
-  run.player.mana = Math.max(0, run.player.mana - cost)
-  _markStillWaterAbilityUsed()
-  UI.updateMana(run.player.mana, run.player.maxMana)
-
-  const initial = _scaleOutgoingDamageToEnemy(_poisonArrowUnitDamage())
-  _combatBusy = true; _combatBusySetAt = Date.now()
-  UI.setPortraitAnim('attack')
-
-  const t0 = _getActiveTileAt(row, col)
-  if (!t0?.enemyData || t0.enemyData._slain) {
-    UI.setPortraitAnim('idle')
-    _combatBusy = false
-    return
-  }
-
-  UI.spawnArrow(t0.element)
-  EventBus.emit('audio:play', { sfx: 'arrowShot' })
-  UI.shakeTile(t0.element)
-  t0.enemyData.currentHP = Math.max(0, t0.enemyData.currentHP - initial)
-  UI.spawnFloat(t0.element, `☠️ ${initial}`, 'xp')
-
-  if (t0.enemyData.currentHP <= 0) {
-    _gainGold(t0.enemyData.goldDrop ? _rand(...t0.enemyData.goldDrop) : 1, t0.element, true)
-    _gainXP(t0.enemyData.xpDrop ?? 0, t0.element)
-    _endCombatVictory(t0)
-    setTimeout(() => {
-      UI.setPortraitAnim('idle')
-      _combatBusy = false
-    }, 400)
-    return
-  }
-
-  t0.enemyData.poisonTurns = 3
-  UI.updateEnemyHP(t0.element, t0.enemyData.currentHP)
-  UI.updateEnemyStatus(t0.element, t0.enemyData)
-  UI.setMessage(`☠️ Poison Arrow! The foe is poisoned (${initial} + ${3} ticks on turns — flips or melee).`)
-
-  setTimeout(() => {
-    UI.setPortraitAnim('idle')
-    _combatBusy = false
-  }, 400)
-}
-
-function spellAction() {
-  if (_isSilenced()) return
-  const effectiveCost = _previewSpellManaCostForUi()
-  if (run.player.mana < effectiveCost) {
-    UI.setMessage('Not enough mana!', true)
-    return
-  }
-  // Toggle targeting mode
-  _spellTargeting = !_spellTargeting
-  UI.setSpellTargeting(_spellTargeting, effectiveCost)
-  if (_spellTargeting) {
-    _cancelRicochetMode()
-    _cancelArrowBarrageMode()
-    _cancelPoisonArrowShotMode()
-    _spyglassTargeting = false
-    _lanternTargeting = false
-    UI.setLanternTargeting(false)
-    UI.setMessage('✨ Choose an enemy to target.')
-  } else {
-    UI.setMessage('Spell cancelled.')
-  }
-}
 
 function lanternAction() {
-  const inv = run.player.inventory
+  const inv = session.run.player.inventory
   const entry = inv.find(e => e?.id === 'lantern')
   if (!entry) return
-  if (_combatBusy) return
+  if (session.tap.combatBusy) return
   if (_isCombatCommitmentLocked()) {
     UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
     return
   }
 
-  _spyglassTargeting = false
-  _lanternTargeting = !_lanternTargeting
-  UI.setLanternTargeting(_lanternTargeting)
-  if (_lanternTargeting) {
+  session.tap.spyglassTargeting = false
+  session.tap.lanternTargeting = !session.tap.lanternTargeting
+  UI.setLanternTargeting(session.tap.lanternTargeting)
+  if (session.tap.lanternTargeting) {
     _cancelRicochetMode()
     _cancelArrowBarrageMode()
     _cancelPoisonArrowShotMode()
@@ -7256,39 +1466,39 @@ function lanternAction() {
 }
 
 function spyglassAction() {
-  const inv = run.player.inventory
+  const inv = session.run.player.inventory
   const entry = inv.find(e => e?.id === 'spyglass')
   if (!entry) return
-  if (_combatBusy) return
+  if (session.tap.combatBusy) return
   if (_isCombatCommitmentLocked()) {
     UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
     return
   }
 
-  if (_spellTargeting) {
-    _spellTargeting = false
+  if (session.tap.spellTargeting) {
+    session.tap.spellTargeting = false
     const effectiveCost = _previewSpellManaCostForUi()
     UI.setSpellTargeting(false, effectiveCost)
   }
-  if (_lanternTargeting) {
-    _lanternTargeting = false
+  if (session.tap.lanternTargeting) {
+    session.tap.lanternTargeting = false
     UI.setLanternTargeting(false)
   }
   _cancelRicochetMode()
   _cancelArrowBarrageMode()
   _cancelPoisonArrowShotMode()
-  if (_blindingLightTargeting) {
-    _blindingLightTargeting = false
+  if (session.tap.blindingLightTargeting) {
+    session.tap.blindingLightTargeting = false
     UI.setBlindingLightActive(false)
   }
-  if (_divineLightSelecting) {
-    _divineLightSelecting = false
+  if (session.tap.divineLightSelecting) {
+    session.tap.divineLightSelecting = false
     UI.setDivineLightActive(false)
   }
 
-  _spyglassTargeting = !_spyglassTargeting
-  UI.setLanternTargeting(_spyglassTargeting)
-  if (_spyglassTargeting) {
+  session.tap.spyglassTargeting = !session.tap.spyglassTargeting
+  UI.setLanternTargeting(session.tap.spyglassTargeting)
+  if (session.tap.spyglassTargeting) {
     UI.setMessage('🔭 Spyglass raised — tap a hidden tile to glimpse it.')
   } else {
     UI.setMessage('Spyglass lowered.')
@@ -7296,11 +1506,11 @@ function spyglassAction() {
 }
 
 function hourglassAction() {
-  if (!run._hourglassSnapshot) {
+  if (!session.run._hourglassSnapshot) {
     UI.setMessage('Nothing to rewind yet.', true)
     return
   }
-  if (_combatBusy) {
+  if (session.tap.combatBusy) {
     UI.setMessage('Not while combat is resolving.', true)
     return
   }
@@ -7312,14 +1522,14 @@ function hourglassAction() {
     UI.setMessage('Cannot rewind during level-up.', true)
     return
   }
-  const p = run.player
+  const p = session.run.player
   if (p.gold < 1) {
     UI.setMessage('You need 1 gold to use Hourglass Sand.', true)
     return
   }
-  _restoreHourglassSnapshot(run._hourglassSnapshot)
-  _spyglassTargeting = false
-  _lanternTargeting = false
+  _restoreHourglassSnapshot(session.run._hourglassSnapshot)
+  session.tap.spyglassTargeting = false
+  session.tap.lanternTargeting = false
   UI.setLanternTargeting(false)
   p.mana = 0
   p.hp -= 1
@@ -7336,11 +1546,11 @@ function hourglassAction() {
 }
 
 function _useLanternOn(tile) {
-  _lanternTargeting = false
-  _spyglassTargeting = false
+  session.tap.lanternTargeting = false
+  session.tap.spyglassTargeting = false
   UI.setLanternTargeting(false)
 
-  const inv   = run.player.inventory
+  const inv   = session.run.player.inventory
   const entry = inv.find(e => e?.id === 'lantern')
   if (!entry) return
 
@@ -7353,10 +1563,10 @@ function _useLanternOn(tile) {
 }
 
 function dowsingRodAction() {
-  const inv = run.player.inventory
+  const inv = session.run.player.inventory
   const entry = inv.find(e => e?.id === 'dowsing-rod')
   if (!entry) return
-  if (_combatBusy) return
+  if (session.tap.combatBusy) return
   if (_isCombatCommitmentLocked()) {
     UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
     return
@@ -7407,11 +1617,11 @@ function dowsingRodAction() {
 }
 
 function _useSpyglassOn(tile) {
-  _spyglassTargeting = false
-  _lanternTargeting = false
+  session.tap.spyglassTargeting = false
+  session.tap.lanternTargeting = false
   UI.setLanternTargeting(false)
 
-  const inv   = run.player.inventory
+  const inv   = session.run.player.inventory
   const entry = inv.find(e => e?.id === 'spyglass')
   if (!entry) return
 
@@ -7424,701 +1634,47 @@ function _useSpyglassOn(tile) {
   EventBus.emit('audio:play', { sfx: 'menu' })
 }
 
-function blindingLightAction() {
-  if (_isSilenced()) return
-  if (!(_save.warrior?.upgrades ?? []).includes('blinding-light')) return
-  if (_combatBusy) return
-  const cost = _stillWaterManaCost(WARRIOR_UPGRADES['blinding-light'].manaCost + _tearyExtraCost())
-  if (run.player.mana < cost) {
-    UI.setMessage('Not enough mana for Blinding Light!', true)
-    return
-  }
 
-  _blindingLightTargeting = !_blindingLightTargeting
-  UI.setBlindingLightActive(_blindingLightTargeting)
-  if (_blindingLightTargeting) {
-    _spyglassTargeting = false
-    _lanternTargeting = false
-    UI.setLanternTargeting(false)
-    _cancelRicochetMode()
-    _cancelArrowBarrageMode()
-    _cancelPoisonArrowShotMode()
-    UI.setMessage('✨ Choose an enemy to blind.')
-  } else {
-    UI.setMessage('Blinding Light cancelled.')
-  }
-}
 
-function _castBlindingLight(tile) {
-  _blindingLightTargeting = false
-  UI.setBlindingLightActive(false)
 
-  const cost = _stillWaterManaCost(WARRIOR_UPGRADES['blinding-light'].manaCost + _tearyExtraCost())
-  if (run.player.mana < cost) {
-    UI.setMessage('Not enough mana!', true)
-    return
-  }
 
-  if (tile.enemyData?.spellImmune) {
-    UI.setMessage(`🛡️ ${tile.enemyData.label} is immune to spells!`, true)
-    return
-  }
 
-  let stun = _blindingLightStunTurns()
-  const isUndead = tile.enemyData?.type === 'undead'
-  const isBeast  = tile.enemyData?.type === 'beast'
-  if (run.player.undeadBonus && isUndead) stun = Math.round(stun * 2)
-  if (run.player.beastBonus  && isBeast)  stun = Math.round(stun * 2)
-  stun = Math.max(2, stun)
-  const bonusSuffix = (run.player.undeadBonus && isUndead) || (run.player.beastBonus && isBeast)
-    ? ' (2× stun!)' : ''
 
-  run.player.mana = Math.max(0, run.player.mana - cost)
-  _markStillWaterAbilityUsed()
-  UI.updateMana(run.player.mana, run.player.maxMana)
 
-  UI.setPortraitAnim('attack')
-  UI.spawnFloat(tile.element, `⏱️ +${stun}`, 'mana')
-  UI.flashTile(tile.element)
-  EventBus.emit('audio:play', { sfx: 'spell' })
-  setTimeout(() => UI.setPortraitAnim('idle'), 600)
-
-  tile.enemyData.stunTurns = (tile.enemyData.stunTurns ?? 0) + stun
-  UI.updateEnemyStatus(tile.element, tile.enemyData)
-
-  UI.setMessage(
-    `✨ Blinding Light${bonusSuffix} — +${stun} stun turn${stun === 1 ? '' : 's'}! ${tile.enemyData.label} cannot counter-attack (${tile.enemyData.currentHP} HP).`,
-  )
-
-  _blindingBranchAftereffect(tile, stun, cost)
-}
-
-function _blindingBranchAftereffect(primaryTile, stun, cost) {
-  if (!run?.player?.blindingBranch) return
-  const { name, tier } = run.player.blindingBranch
-
-  if (name === 'solarflare') {
-    const aoeMult = tier >= 2 ? 2 / 3 : 0.5
-    const aoeStun = Math.max(1, Math.round(stun * aoeMult))
-    const others = _getActiveTiles().filter(t =>
-      t !== primaryTile &&
-      t.revealed && t.enemyData && !t.enemyData._slain &&
-      !t.enemyData.spellImmune,
-    )
-    for (const t of others) {
-      t.enemyData.stunTurns = (t.enemyData.stunTurns ?? 0) + aoeStun
-      if (tier >= 3) t.enemyData.solarflareVulnerable = true
-      if (t.element) UI.spawnFloat(t.element, `⏱️ +${aoeStun}`, 'mana')
-      UI.updateEnemyStatus(t.element, t.enemyData)
-    }
-    if (tier >= 3) primaryTile.enemyData.solarflareVulnerable = true
-    if (others.length > 0) {
-      UI.setMessage(`✨ Solarflare — ${others.length} other enem${others.length > 1 ? 'ies' : 'y'} blinded (+${aoeStun} turns)!`)
-    }
-  } else if (name === 'revelation') {
-    _blindingRevelationReveal(primaryTile, tier, cost)
-  }
-}
-
-function _blindingRevelationReveal(tile, tier, cost) {
-  const revealCount = tier >= 2 ? 3 : 2
-
-  const seen = new Set()
-  const candidates = []
-  for (const t of _getActiveTiles()) {
-    const key = `${t.row},${t.col}`
-    if (seen.has(key) || t.revealed) continue
-    if (Math.abs(t.row - tile.row) <= 1 && Math.abs(t.col - tile.col) <= 1) {
-      seen.add(key)
-      candidates.push(t)
-    }
-  }
-
-  candidates.sort(() => Math.random() - 0.5)
-  const toReveal = candidates.slice(0, revealCount)
-  if (toReveal.length === 0) return
-
-  let enemyFound = false
-  for (const t of toReveal) {
-    t.revealed = true
-    run.tilesRevealed++
-    TileEngine.markReachable(t.row, t.col, _markReachableUi)
-    if (t.element) TileEngine.flipTile(t)
-
-    if (tier >= 3 && t.enemyData && !t.enemyData._slain && !t.enemyData.spellImmune) {
-      t.enemyData.stunTurns = (t.enemyData.stunTurns ?? 0) + 1
-      if (t.element) UI.spawnFloat(t.element, '⏱️ +1', 'mana')
-      UI.updateEnemyStatus(t.element, t.enemyData)
-      enemyFound = true
-    }
-  }
-
-  _syncGridDomClassesFromModel()
-  TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
-
-  if (tier >= 3 && enemyFound) {
-    const refund = Math.floor(cost / 2)
-    run.player.mana = Math.min(run.player.maxMana, run.player.mana + refund)
-    UI.updateMana(run.player.mana, run.player.maxMana)
-    UI.spawnFloat(document.getElementById('hud-portrait'), `🔮 +${refund}`, 'mana')
-    UI.setMessage(`👁️ Revelation — ${toReveal.length} tile${toReveal.length > 1 ? 's' : ''} revealed! +${refund} mana refunded.`)
-  } else {
-    UI.setMessage(`👁️ Revelation — ${toReveal.length} tile${toReveal.length > 1 ? 's' : ''} illuminated!`)
-  }
-}
 
 // ── Divine Light ──────────────────────────────────────────────
 
-function divineLightAction() {
-  if (_isSilenced()) return
-  if (_charKey() !== 'warrior') return
-  const warriorUpgrades = _save.warrior?.upgrades ?? []
-  if (!warriorUpgrades.includes('divine-light')) return
-  if (_combatBusy) return
 
-  const cost = _stillWaterManaCost(WARRIOR_UPGRADES['divine-light'].manaCost + _tearyExtraCost())
-  if (!_divineLightSelecting) {
-    if (run.player.mana < cost) {
-      UI.setMessage('Not enough mana for Divine Light!', true)
-      return
-    }
-    _cancelSpellLanternBlindingForRicochet()
-    _cancelRicochetMode()
-    _cancelArrowBarrageMode()
-    _cancelPoisonArrowShotMode()
-    _spyglassTargeting = false
-    _lanternTargeting = false
-    UI.setLanternTargeting(false)
-    _divineLightSelecting = true
-    UI.setDivineLightActive(true)
-    UI.setMessage('🌟 Divine Light — tap an enemy to smite it, or tap your portrait to heal HP.')
-  } else {
-    _divineLightSelecting = false
-    UI.setDivineLightActive(false)
-    UI.setMessage('Divine Light cancelled.')
-  }
-}
 
-function divineLightHealAction() {
-  if (!_divineLightSelecting) return
-  const cost = _stillWaterManaCost(WARRIOR_UPGRADES['divine-light'].manaCost + _tearyExtraCost())
-  if (run.player.mana < cost) {
-    UI.setMessage('Not enough mana!', true)
-    return
-  }
-  _divineLightSelecting = false
-  UI.setDivineLightActive(false)
-  run.player.mana = Math.max(0, run.player.mana - cost)
-  _markStillWaterAbilityUsed()
-  UI.updateMana(run.player.mana, run.player.maxMana)
 
-  const dlStacks = run.player.warriorActiveStacks?.['divine-light'] ?? 0
-  const dlRate   = dlStacks >= 3 ? 0.15 : dlStacks >= 2 ? 0.10 : dlStacks >= 1 ? 0.05 : 0.03
-  const heal = Math.max(1, Math.floor(run.player.maxHp * dlRate))
-  run.player.hp = Math.min(run.player.maxHp, run.player.hp + heal)
-  UI.updateHP(run.player.hp, run.player.maxHp)
-  UI.setPortraitAnim('attack')
-  EventBus.emit('audio:play', { sfx: 'divineLight' })
-  setTimeout(() => UI.setPortraitAnim('idle'), 600)
-  UI.setMessage(`🌟 Divine Light — restored ${heal} HP! (${run.player.hp}/${run.player.maxHp})`)
-}
 
-function _castDivineLightSmite(tile) {
-  _divineLightSelecting = false
-  UI.setDivineLightActive(false)
 
-  const cost = _stillWaterManaCost(WARRIOR_UPGRADES['divine-light'].manaCost + _tearyExtraCost())
-  if (run.player.mana < cost) {
-    UI.setMessage('Not enough mana!', true)
-    return
-  }
 
-  if (tile.enemyData?.spellImmune) {
-    UI.setMessage(`🛡️ ${tile.enemyData.label} is immune to spells!`, true)
-    return
-  }
 
-  const dmg = _scaleOutgoingDamageToEnemy(Math.max(1, Math.round(_avgMeleeDamage())))
-  run.player.mana = Math.max(0, run.player.mana - cost)
-  _markStillWaterAbilityUsed()
-  UI.updateMana(run.player.mana, run.player.maxMana)
-
-  tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - dmg)
-  UI.setPortraitAnim('attack')
-  UI.spawnFloat(tile.element, `🌟 ${dmg}`, 'mana')
-  UI.flashTile(tile.element)
-  EventBus.emit('audio:play', { sfx: 'divineLight' })
-  setTimeout(() => UI.setPortraitAnim('idle'), 600)
-
-  if (tile.enemyData.currentHP <= 0) {
-    UI.setMessage(`🌟 Divine Light smites for ${dmg}! The enemy is destroyed. +${tile.enemyData.goldDrop ? 1 : 0} gold.`)
-    _gainGold(1, tile.element)
-    _gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
-    _endCombatVictory(tile)
-  } else {
-    UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
-    UI.setMessage(`🌟 Divine Light smites for ${dmg}! ${tile.enemyData.label} has ${tile.enemyData.currentHP} HP left.`)
-  }
-}
-
-function _castSpell(tile) {
-  _spellTargeting = false
-  const effectiveCost = _stillWaterManaCost(
-    Math.max(1, CONFIG.spell.manaCost - (run.player.spellCostReduction ?? 0)) + _tearyExtraCost(),
-  )
-  UI.setSpellTargeting(false, effectiveCost)
-
-  if (run.player.mana < effectiveCost) {
-    UI.setMessage('Not enough mana!', true)
-    return
-  }
-
-  // Mushroom Harvester taunt: redirect spell to a random visible Harvester
-  tile = _resolveTauntTarget(tile)
-
-  if (tile.enemyData?.spellImmune) {
-    UI.setMessage(`🛡️ ${tile.enemyData.label} is immune to spells!`, true)
-    return
-  }
-
-  // Ogre: 10% shield block — cancels spell entirely
-  if (_checkShieldBlock(tile)) return
-
-  const result = CombatResolver.resolveSpell(run.player, tile.enemyData)
-
-  let spellDmg = result.damage
-  const isUndead = tile.enemyData?.type === 'undead'
-  const isBeast  = tile.enemyData?.type === 'beast'
-  if (run.player.undeadBonus && isUndead) spellDmg = Math.round(spellDmg * 2)
-  if (run.player.beastBonus  && isBeast)  spellDmg = Math.round(spellDmg * 2)
-  // Mirror of Vanity: +5% current HP as flat bonus
-  if (run.player.inventory.some(e => e?.id === 'mirror-of-vanity')) {
-    spellDmg += Math.max(1, Math.floor(run.player.hp * 0.05))
-  }
-  // The Traded Codex: spell scales with missing HP (1× full, ~3× near death)
-  if (run.player.inventory.some(e => e?.id === 'traded-codex') && run.player.maxHp > 0) {
-    const missingRatio = 1 - (run.player.hp / run.player.maxHp)
-    const codexMult = 1 + 2 * missingRatio
-    spellDmg = Math.round(spellDmg * codexMult)
-  }
-  spellDmg = _scaleOutgoingDamageToEnemy(spellDmg)
-
-  UI.setPortraitAnim('attack')
-  run.player.mana -= effectiveCost
-  // Witching Stone: each spell costs 1 additional HP
-  if (run.player.inventory.some(e => e?.id === 'witching-stone')) {
-    run.player.hp = Math.max(0, run.player.hp - 1)
-    UI.updateHP(run.player.hp, run.player.maxHp)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '🔮 -1 HP', 'damage')
-    if (run.player.hp <= 0) { _die(null, { deathCause: 'witching_stone' }); return }
-  }
-  // Spell Siphon: each spell costs +2 HP; 40% chance to restore 3 HP
-  if (run.player.inventory.some(e => e?.id === 'spell-siphon')) {
-    run.player.hp = Math.max(0, run.player.hp - 2)
-    UI.updateHP(run.player.hp, run.player.maxHp)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '🩸 -2 HP', 'damage')
-    if (run.player.hp <= 0) { _die(null, { deathCause: 'spell_siphon' }); return }
-    if (Math.random() < 0.40) {
-      run.player.hp = Math.min(run.player.maxHp, run.player.hp + 3)
-      UI.updateHP(run.player.hp, run.player.maxHp)
-      UI.spawnFloat(document.getElementById('hud-portrait'), '🩸 +3 HP', 'heal')
-    }
-  }
-  _markStillWaterAbilityUsed()
-  if (run.player.inventory.some(e => e?.id === 'surge-pearl') && Math.random() < 0.20) {
-    const refund = Math.floor(effectiveCost / 2)
-    if (refund > 0) {
-      run.player.mana = Math.min(run.player.maxMana, run.player.mana + refund)
-      UI.spawnFloat(document.getElementById('hud-portrait'), `⚪ +${refund} MP`, 'mana')
-    }
-  }
-  if (run.player.inventory.some(e => e?.id === 'resonance-core') && Math.random() < 0.30) {
-    const refund = effectiveCost
-    if (refund > 0) {
-      run.player.mana = Math.min(run.player.maxMana, run.player.mana + refund)
-      UI.spawnFloat(document.getElementById('hud-portrait'), `🔮 +${refund} MP`, 'mana')
-    }
-  }
-  UI.updateMana(run.player.mana, run.player.maxMana)
-  UI.spawnFloat(tile.element, `✨ ${spellDmg}`, 'mana')
-  const bonusSuffix = (run.player.undeadBonus && isUndead) || (run.player.beastBonus && isBeast)
-    ? ' (2×!)' : ''
-  tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - spellDmg)
-  _checkOnionLayer(tile)
-  EventBus.emit('audio:play', { sfx: 'spell' })
-  EventBus.emit('combat:spell', { manaCost: effectiveCost })
-  setTimeout(() => UI.setPortraitAnim('idle'), 600)
-  if (tile.enemyData.currentHP <= 0) {
-    const spellGoldDrop = tile.enemyData.goldDrop ? _rand(...tile.enemyData.goldDrop) : 1
-    UI.setMessage(`Spell blasts for ${spellDmg}${bonusSuffix}! +${spellGoldDrop} gold.`)
-    _gainGold(spellGoldDrop, tile.element, true)
-    _gainXP(result.xpDrop ?? 0, tile.element)
-    _endCombatVictory(tile)
-  } else {
-    UI.setMessage(`Spell blasts for ${spellDmg}${bonusSuffix}! Enemy has ${tile.enemyData.currentHP} HP left.`)
-    UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
-  }
-}
-
-function _endCombatVictory(tile) {
-  // Sub-floor kill path — bypass main-grid-specific cleanup (boss exit tile,
-  // recompute adjacency locks on _grid, threat clue refresh, floor-cleared
-  // check). Handle sub-floor-appropriate cleanup instead and still apply
-  // on-kill trinket effects below by falling through? No — on-kill trinket
-  // effects reference `TileEngine.getOrthogonalTiles`, which is main-grid.
-  // For sub-floors we use a focused subset.
-  if (_isInSubFloor()) {
-    tile.enemyData._slain = true
-    UI.markSubFloorTileSlain(tile)
-    _sfUnlockAdjacent(tile)
-    // Boss vault: unlock rewards on boss death
-    if (tile.isBossVaultBoss) {
-      const sf = run.subFloor
-      for (const row of sf.tiles) for (const t of row) {
-        if (t && t.locked) {
-          t.locked = false; t.reachable = true
-          UI.unlockSubFloorTile(t); UI.markSubFloorTileReachable(t)
-        }
-      }
-      UI.setSubFloorMessage('The boss falls! The vault trembles — riches await.')
-    }
-    // On-kill heal / vampire-fang trinkets still apply in sub-floor
-    if (run.player.onKillHeal > 0) {
-      run.player.hp = Math.min(run.player.maxHp, run.player.hp + run.player.onKillHeal)
-      UI.spawnFloat(tile.element, `+${run.player.onKillHeal} HP`, 'heal')
-      UI.updateHP(run.player.hp, run.player.maxHp)
-    }
-    if (run.player.inventory.some(e => e?.id === 'vampire-fang')) {
-      run.player.hp = Math.min(run.player.maxHp, run.player.hp + 1)
-      UI.spawnFloat(tile.element, '+1 HP', 'heal')
-      UI.updateHP(run.player.hp, run.player.maxHp)
-    }
-    EventBus.emit('audio:play', { sfx: 'gold' })
-    _telemetryBumpKill(run.floor)
-    EventBus.emit('combat:end', { outcome: 'victory' })
-    return
-  }
-
-  _telemetryBumpKill(run.floor)
-  const wasBoss = !!tile.enemyData?.isBoss
-  const killEchoKill = _charKey() === 'warrior' && !!(tile.killEchoMarked || tile.senseEvilMarked)
-  tile.enemyData._slain = true
-  _clearCombatEngagementForTile(tile)
-  // Drowned Hulk: remove crew aura from all buffed enemies on death
-  if (tile.enemyData.crewBuffAura) {
-    UI.setMessage('⚓ The Drowned Hulk falls — its crew weakens!')
-    _removeHulkBuffFromAll()
-  }
-  TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
-  // Paladin Kill Echo: widen quota; add new marks from this kill without stripping other marked foes
-  if (killEchoKill) {
-    run.killEchoQuota = Math.min((run.killEchoQuota ?? 1) + 1, 3)
-    _paladinKillEchoAddMarksAfterKill(tile)
-  }
-  // Archer / Treasure Goblin spawn pre-revealed without markReachable (see _spawnArcherGoblin),
-  // so neighbors stay unreachable until the player paths adjacent. On defeat,
-  // propagate reachability from the tile so surrounding tiles become tappable.
-  if (tile.enemyData?.enemyId === 'archer_goblin' || tile.enemyData?.enemyId === 'treasure_goblin') {
-    TileEngine.markReachable(tile.row, tile.col, _markReachableUi)
-  }
-  if (tile.enemyData?.isBoss) {
-    run.bossFloorExitPending = true
-    tile.type = 'exit'
-    tile.enemyData = null
-    UI.markBossTileAsExit(tile.element)
-    tile.exitResolved = false
-    tile.element?.classList.add('exit-pending')
-    UI.setMessage('🚪 The way forward opens. Tap the stairs when you are ready.')
-  } else {
-    UI.markTileSlain(tile.element)
-    // Necromancer: slain tiles become ash piles — re-enable pointer events for Raise Minion
-    if (_charKey() === 'necromancer') {
-      tile.element?.classList.add('enemy-alive')
-      UI.setMessage('💀 The enemy falls to ashes. Tap to raise a minion (10 mana).')
-    }
-  }
-
-  // Tongue Snatch: return stolen gold on kill
-  if ((tile.enemyData?.snatched ?? 0) > 0) {
-    _gainGold(tile.enemyData.snatched, tile.element)
-    UI.spawnFloat(tile.element, `👅 +${tile.enemyData.snatched}💰 returned!`, 'heal')
-  }
-
-  if (run.player.onKillHeal > 0) {
-    run.player.hp = Math.min(run.player.maxHp, run.player.hp + run.player.onKillHeal)
-    UI.spawnFloat(tile.element, `+${run.player.onKillHeal} HP`, 'heal')
-    UI.updateHP(run.player.hp, run.player.maxHp)
-  }
-
-  // Engineer Turret Mastery III: heal 3% (min 1) on any kill while turret is active at level 3
-  if (_charKey() === 'engineer' && run.player.turretKillHeal) {
-    const tr = run.turret
-    if (tr?.hp > 0 && tr.level >= 3) {
-      const tkHeal = Math.max(1, Math.floor(run.player.maxHp * 0.03))
-      run.player.hp = Math.min(run.player.maxHp, run.player.hp + tkHeal)
-      UI.updateHP(run.player.hp, run.player.maxHp)
-      UI.spawnFloat(tile.element, `💚 +${tkHeal}`, 'xp')
-    }
-  }
-
-  if (run.player.inventory.some(e => e?.id === 'vampire-fang')) {
-    run.player.hp = Math.min(run.player.maxHp, run.player.hp + 1)
-    UI.spawnFloat(tile.element, '+1 HP', 'heal')
-    UI.updateHP(run.player.hp, run.player.maxHp)
-  }
-  if (run.player.inventory.some(e => e?.id === 'sanguine-covenant')) {
-    run.player.hp = Math.min(run.player.maxHp, run.player.hp + 2)
-    UI.spawnFloat(tile.element, '⚗️ +2 HP', 'heal')
-    UI.updateHP(run.player.hp, run.player.maxHp)
-  }
-  if (run.player.inventory.some(e => e?.id === 'soul-candle') && Math.random() < 0.20) {
-    run.player.mana = Math.min(run.player.maxMana, run.player.mana + 1)
-    UI.spawnFloat(tile.element, '🕯️ +1 MP', 'mana')
-    UI.updateMana(run.player.mana, run.player.maxMana)
-  }
-  if (run.player.inventory.some(e => e?.id === 'temporal-wick') && Math.random() < 0.30) {
-    run.player.mana = Math.min(run.player.maxMana, run.player.mana + 1)
-    UI.spawnFloat(tile.element, '⏳ +1 MP', 'mana')
-    UI.updateMana(run.player.mana, run.player.maxMana)
-  }
-  if (run.player.inventory.some(e => e?.id === 'resonance-core')) {
-    for (const adj of TileEngine.getOrthogonalTiles(tile.row, tile.col)) {
-      if (!adj.revealed && adj.element) {
-        const cat = _echoCharmCategoryForTileType(adj.type)
-        adj.echoHintCategory = cat
-        adj.element.classList.add('echo-hint')
-        adj.element.dataset.echoHint = cat
-      }
-    }
-  }
-  // Deathmask: 25% chance next reveal is an instant kill
-  if (!run.player.deathmaskPending && run.player.inventory.some(e => e?.id === 'deathmask') && Math.random() < 0.25) {
-    run.player.deathmaskPending = true
-    UI.spawnFloat(tile.element, '💀 Marked!', 'xp')
-  }
-  if (run.player.inventory.some(e => e?.id === 'greed-tooth')) {
-    _gainGold(1, tile.element, true)
-  }
-  if (run.player.inventory.some(e => e?.id === 'echo-charm')) {
-    for (const adj of TileEngine.getOrthogonalTiles(tile.row, tile.col)) {
-      if (!adj.revealed && adj.element) {
-        const cat = _echoCharmCategoryForTileType(adj.type)
-        adj.echoHintCategory = cat
-        adj.element.classList.add('echo-hint')
-        adj.element.dataset.echoHint = cat
-      }
-    }
-  }
-
-  // Eagle Eye: grant free flip (any tile, ignores adjacency)
-  if (run.player.inventory.some(e => e?.id === 'eagle-eye')) {
-    run.player.eagleEyeFreeFlip = true
-    UI.spawnFloat(tile.element, '🦅 Free flip!', 'xp')
-  }
-  // Hunter's Instinct: reveal nearest adjacent hidden tile + echo hint all other adjacent tiles
-  if (run.player.inventory.some(e => e?.id === 'hunters-instinct')) {
-    const adjs = TileEngine.getOrthogonalTiles(tile.row, tile.col).filter(t => !t.revealed)
-    if (adjs.length > 0) {
-      const nearest = adjs[0]
-      nearest.revealed = true
-      run.tilesRevealed++
-      TileEngine.markReachable(nearest.row, nearest.col, _markReachableUi)
-      if (nearest.element) TileEngine.flipTile(nearest, UI)
-      for (const adj of adjs.slice(1)) {
-        if (!adj.revealed && adj.element) {
-          const cat = _echoCharmCategoryForTileType(adj.type)
-          adj.echoHintCategory = cat
-          adj.element.classList.add('echo-hint')
-          adj.element.dataset.echoHint = cat
-        }
-      }
-      UI.spawnFloat(tile.element, '🐾 Instinct!', 'xp')
-    }
-  }
-  // Soulbound Blade: +0.1 permanent damage per kill
-  if (run.player.inventory.some(e => e?.id === 'soulbound-blade')) {
-    run.player.soulboundBonus = (run.player.soulboundBonus ?? 0) + 0.1
-    if (Math.floor(run.player.soulboundBonus) > Math.floor(run.player.soulboundBonus - 0.1)) {
-      const [d0, d1] = _playerDamageRange(run.player)
-      UI.updateDamageRange(d0, d1)
-      UI.spawnFloat(tile.element, '⚔️ +1 dmg!', 'xp')
-    }
-  }
-
-  if (tile.enemyData?.enemyId === 'treasure_goblin') {
-    void _finishTreasureGoblinReward(tile).catch(() => {})
-  }
-
-  // Mana Spring modifier: +2 mana per kill
-  if (run.floorModifier?.id === 'mana-spring' && run.player.mana < run.player.maxMana) {
-    const gained = Math.min(2, run.player.maxMana - run.player.mana)
-    run.player.mana += gained
-    UI.spawnFloat(tile.element, `🔮 +${gained} MP`, 'mana')
-    UI.updateMana(run.player.mana, run.player.maxMana)
-  }
-
-  // Gear drop: boss = guaranteed, normal enemy = 5% chance
-  _tryGearDrop(run.floor, wasBoss ? 1.0 : 0.05)
-
-  EventBus.emit('audio:play', { sfx: 'gold' })
-  EventBus.emit('combat:end', { outcome: 'victory' })
-  TileEngine.refreshAllThreatClueDisplays()
-  _checkFloorCleared()
-  _maybeOfferDeadlockEscape()
-}
 
 // ── Hasty Retreat ────────────────────────────────────────────
 
-function doRetreat(reason = 'player') {
-  if (!run) return
-
-  if (GameState.is(States.NPC_INTERACT) && run.eventTile) {
-    _closeEventSession(run.eventTile)
-  }
-
-  const hpAtRetreat = run?.player?.hp ?? null
-  const goldBeforeRetreat = run?.player?.gold ?? null
-  const pct      = _save.settings?.childMode ? 1.0 : (run.player.retreatPercent ?? CONFIG.retreat.goldKeepPercent)
-  const keptGold = Math.floor(run.player.gold * pct)
-  run.player.gold = keptGold
-  UI.updateGold(keptGold)
-  UI.hideRetreat()
-  UI.hideActionPanel()
-  UI.hideEventOverlays()
-  UI.setMessage(`You flee the dungeon, clutching ${keptGold} gold.`)
-  EventBus.emit('run:retreat', { goldBanked: keptGold })
-
-  const stats = _runStats()
-  _finalizeRunTelemetry('retreat', {
-    killerEnemyId: null,
-    retreatReason: reason,
-    hpAtRetreat,
-    goldBeforeRetreat,
-  })
-  const { xpEarned, xpRetained, xpLost, goldBanked } = MetaProgression.endRun(_save, stats, 'retreat')
-
-  if (run?.player?.equippedGear) _save.equippedGear = structuredClone(run.player.equippedGear)
-  // End run immediately so UI/bots do not see an active run while waiting for the summary overlay.
-  _clearActiveRun()
-  run = null
-  GameState.set(States.BETWEEN_RUNS)
-
-  setTimeout(() => {
-    UI.showRunSummary('retreat', { ...stats, xpEarned, xpRetained, xpLost, goldBanked })
-    _wireRunSummaryBtn()
-  }, 1200)
-}
+function doRetreat(reason = 'player') { GSH.doRetreat(_stateCtx(), reason) }
 
 // ── Floor progression ────────────────────────────────────────
 
-function _handleExit() {
-  if (run.atRest) {
-    run.atRest = false
-    run.floorKeyAwarded = false
-    run.floor++
-    Logger.info(`[GameController] Floor transition → ${run.floor}`, {
-      hp: run.player.hp, maxHp: run.player.maxHp,
-      mana: run.player.mana, gold: run.player.gold,
-      inventory: run.player.inventory.map(e => e.id),
-    })
-    EventBus.emit('audio:crossfade', { track: _runMusicTrack(), duration: 1500 })
-    EventBus.emit('audio:play', { sfx: 'footsteps' })
-    UI.setMessage(`🚪 Descending to floor ${run.floor}...`)
-    EventBus.emit('run:floorAdvance', { newFloor: run.floor })
-    UI.runFloorTransition(3000, () => {
-      GameState.set(States.BOOT)
-      _startFloor()
-    }, run.floor)
-    return
-  }
-  if (run.bossFloorExitPending) {
-    run.bossFloorExitPending = false
-    run.atRest = true
-    EventBus.emit('audio:crossfade', { track: 'sanctuary', duration: 1500 })
-    EventBus.emit('audio:play', { sfx: 'footsteps' })
-    UI.setMessage('Stone gives way to still air — a sanctuary between the depths.')
-    EventBus.emit('run:floorAdvance', { newFloor: run.floor })
-    UI.runFloorTransition(3000, () => {
-      if (!run) return
-      GameState.set(States.BOOT)
-      _startFloor()
-    }, null)
-    return
-  }
-  _nextFloor()
-}
-
-function _confirmRope(tile) {
-  if (tile.type !== 'rope' || run._ropeUsedThisSanctuary) return
-  UI.showRopeModal(
-    (pct) => {
-      run._ropeUsedThisSanctuary = true
-      tile.ropeResolved = true
-      tile.element?.classList.remove('rope-pending')
-      const p = run.player
-      const banked = Math.floor(p.gold * pct)
-      p.safeGold = (p.safeGold ?? 0) + banked
-      p.gold     = Math.max(0, p.gold - banked)
-      UI.updateGold(p.gold)
-      UI.spawnFloat(tile.element, `-${banked}🪙`, 'damage')
-      UI.spawnFloat(tile.element, `🔒 +${banked} banked`, 'gold')
-      UI.setMessage(`🧵 You send ${banked} gold to the surface. It's yours even if you fall.`)
-      EventBus.emit('player:goldChange', { amount: -banked, newTotal: p.gold })
-      EventBus.emit('audio:play', { sfx: 'gold' })
-      SaveManager.save(_save)
-    },
-    () => {
-      UI.setMessage('You leave the vault for now. Tap again to bank your gold.')
-    }
-  )
-}
-
-function _nextFloor() {
-  // Clear modifier before advancing — Glass Cannon/Silence stat reversals happen here
-  if (run.floorModifier?.clear) {
-    try { run.floorModifier.clear(run, TileEngine.getGrid()) } catch (_) {}
-  }
-  run.floorModifier = null
-  UI.clearFloorModifier()
-  run._ropeUsedThisSanctuary = false
-  run.floorKeyAwarded = false
-  run.floor++
-  EventBus.emit('audio:crossfade', { track: _runMusicTrack(), duration: 1500 })
-  EventBus.emit('audio:play', { sfx: 'footsteps' })
-  UI.setMessage(`🚪 Descending to floor ${run.floor}...`)
-  EventBus.emit('run:floorAdvance', { newFloor: run.floor })
-  UI.runFloorTransition(3000, () => {
-    if (!run) return
-    GameState.set(States.BOOT)
-    _startFloor()
-  }, run.floor)
-}
-
 // ── Player stat helpers ──────────────────────────────────────
 
-function _computeEffectiveDamageTaken(rawAmount) {
-  if (!run) return rawAmount
-  const scaled = Math.round(rawAmount * (run.player.damageTakenMult ?? 1))
-  const maskReduction   = run.player.inventory.some(e => e?.id === 'plague-mask')    ? 1 : 0
-  const bladeReduction  = run.player.inventory.some(e => e?.id === 'infected-blade') ? 1 : 0
-  return Math.max(1, scaled - (run.player.damageReduction ?? 0) - maskReduction - bladeReduction)
-}
-
 function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null, opts = {}) {
-  if (!run) return
+  if (!session.run) return
   const enemyAttack = opts.enemyAttack === true
-  if (enemyAttack && _charKey() === 'engineer' && run.turret?.hp > 0) {
+  if (enemyAttack && _charKey() === 'engineer' && session.run.turret?.hp > 0) {
     _damageTurretFromEnemyHit(amount, tileEl)
     return
   }
-  if (enemyAttack && _charKey() === 'necromancer' && run.minions?.some(m => m.hp > 0)) {
-    _necroMinionAbsorbDamage(amount, tileEl, run.activeCombatTile)
+  if (enemyAttack && _charKey() === 'necromancer' && session.run.minions?.some(m => m.hp > 0)) {
+    _necroMinionAbsorbDamage(amount, tileEl, session.run.activeCombatTile)
     return
   }
-  if (_save.settings.cheats?.godMode) return
+  if (session.save.settings.cheats?.godMode) return
   // Shield Shard: absorb next hit entirely
-  if (run?.player?.shieldShard) {
-    run.player.shieldShard = false
+  if (session.run?.player?.shieldShard) {
+    session.run.player.shieldShard = false
     UI.spawnFloat(tileEl, '🛡️ Blocked!', 'heal')
     return
   }
@@ -8132,23 +1688,23 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
   }
   let effective = _computeEffectiveDamageTaken(amount)
   // Mana Shield: absorb a portion of damage by draining mana
-  if (_charKey() === 'mage' && run.player.manaShieldActive && run.player.mana > 0) {
+  if (_charKey() === 'mage' && session.run.player.manaShieldActive && session.run.player.mana > 0) {
     const rate       = _manaShieldAbsorptionRate()
     const drainRatio = _manaShieldDrainRatio()
     const wantAbsorb = Math.max(1, Math.floor(effective * rate))
     const wantDrain  = Math.max(1, Math.round(wantAbsorb * drainRatio))
-    const actualDrain  = Math.min(run.player.mana, wantDrain)
+    const actualDrain  = Math.min(session.run.player.mana, wantDrain)
     const actualAbsorb = wantDrain > 0 ? Math.min(wantAbsorb, Math.round(wantAbsorb * actualDrain / wantDrain)) : 0
-    run.player.mana -= actualDrain
-    UI.updateMana(run.player.mana, run.player.maxMana)
+    session.run.player.mana -= actualDrain
+    UI.updateMana(session.run.player.mana, session.run.player.maxMana)
     if (actualAbsorb > 0) UI.spawnFloat(tileEl, `-${actualAbsorb} MP`, 'xp')
     effective = Math.max(0, effective - actualAbsorb)
-    if (run.player.mana <= 0) {
-      run.player.manaShieldActive = false
+    if (session.run.player.mana <= 0) {
+      session.run.player.manaShieldActive = false
       _refreshMageHud()
-      const msStacks = run.player.mageActiveStacks?.['mana-shield'] ?? 0
+      const msStacks = session.run.player.mageActiveStacks?.['mana-shield'] ?? 0
       if (msStacks >= 3) {
-        const [dmgMin, dmgMax] = _playerDamageRange(run.player)
+        const [dmgMin, dmgMax] = _playerDamageRange(session.run.player)
         const explosionDmg = Math.floor((dmgMin + dmgMax) / 2)
         for (const t of _getActiveTiles()) {
           if (t.revealed && t.enemyData && !t.enemyData._slain) {
@@ -8163,94 +1719,94 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
       }
     }
     if (effective <= 0) {
-      UI.updateHP(run.player.hp, run.player.maxHp)
+      UI.updateHP(session.run.player.hp, session.run.player.maxHp)
       return
     }
   }
   // Armor / Negation — combat hits only (traps and self-damage bypass armor)
-  if (enemyAttack && effective > 0 && (run.player.armor ?? 0) > 0) {
-    const negation = Math.min(run.player.negation ?? 0, CONFIG.armor.negationCap)
+  if (enemyAttack && effective > 0 && (session.run.player.armor ?? 0) > 0) {
+    const negation = Math.min(session.run.player.negation ?? 0, CONFIG.armor.negationCap)
     if (negation > 0 && Math.random() < negation) {
       // Negation proc: armor preserved, hit fully blocked
       UI.spawnFloat(tileEl, '🛡️ Blocked!', 'armor')
       UI.setMessage('The blow glances off your armor — blocked!')
-      UI.updateHP(run.player.hp, run.player.maxHp)
+      UI.updateHP(session.run.player.hp, session.run.player.maxHp)
       return
     }
     // Armor absorption: absorbs the entire hit, costs 1 armor point
-    run.player.armor -= 1
-    UI.updateArmor(run.player.armor)
-    if (run.player.armor === 0) {
+    session.run.player.armor -= 1
+    UI.updateArmor(session.run.player.armor)
+    if (session.run.player.armor === 0) {
       UI.spawnFloat(tileEl, '🛡️ Shattered!', 'damage')
       UI.setMessage('Your armor shatters under the blow!')
     } else {
       UI.spawnFloat(tileEl, '🛡️ -1 Armor', 'armor')
     }
-    UI.updateHP(run.player.hp, run.player.maxHp)
+    UI.updateHP(session.run.player.hp, session.run.player.maxHp)
     return
   }
 
   // Pauper's Crown: drain gold before HP
-  if (run.player.inventory?.some(e => e?.id === 'paupers-crown')) {
-    const goldDrained = Math.min(run.player.gold, effective)
-    run.player.gold  -= goldDrained
-    UI.updateGold(run.player.gold)
+  if (session.run.player.inventory?.some(e => e?.id === 'paupers-crown')) {
+    const goldDrained = Math.min(session.run.player.gold, effective)
+    session.run.player.gold  -= goldDrained
+    UI.updateGold(session.run.player.gold)
     if (goldDrained > 0) UI.spawnFloat(tileEl, `-${goldDrained}🪙`, 'damage')
     const hpDmg = effective - goldDrained
     if (hpDmg <= 0) return
-    run.player.hp = Math.max(0, run.player.hp - hpDmg)
-    if (run.telemetry && hpDmg > 0) {
-      run.telemetry.totalDamageTaken += hpDmg
-      _telemetryBumpDamageTaken(run.floor, hpDmg)
+    session.run.player.hp = Math.max(0, session.run.player.hp - hpDmg)
+    if (session.run.telemetry && hpDmg > 0) {
+      session.run.telemetry.totalDamageTaken += hpDmg
+      _telemetryBumpDamageTaken(session.run.floor, hpDmg)
       _telemetryBumpDamageSource(opts.deathCause ?? (opts.enemyAttack ? 'combat' : 'other'), hpDmg)
     }
     UI.spawnFloat(tileEl, `-${hpDmg} HP`, 'damage')
   } else {
-    run.player.hp = Math.max(0, run.player.hp - effective)
-    if (run.telemetry && effective > 0) {
-      run.telemetry.totalDamageTaken += effective
-      _telemetryBumpDamageTaken(run.floor, effective)
+    session.run.player.hp = Math.max(0, session.run.player.hp - effective)
+    if (session.run.telemetry && effective > 0) {
+      session.run.telemetry.totalDamageTaken += effective
+      _telemetryBumpDamageTaken(session.run.floor, effective)
       _telemetryBumpDamageSource(opts.deathCause ?? (opts.enemyAttack ? 'combat' : 'other'), effective)
     }
     UI.spawnFloat(tileEl, `-${effective} HP`, 'damage')
   }
-  UI.updateHP(run.player.hp, run.player.maxHp)
+  UI.updateHP(session.run.player.hp, session.run.player.maxHp)
   if (opts.hapticChannel === 'gesture') {
     _hapticFromUserGesture(55)
   } else {
     _hapticFromAsyncTask(55)
   }
   UI.shakeScreenDamage()
-  EventBus.emit('player:hpChange', { amount: -effective, newHP: run.player.hp })
+  EventBus.emit('player:hpChange', { amount: -effective, newHP: session.run.player.hp })
   // Resurrection Stone: prevent death once, restore half max HP
-  if (run.player.hp <= 0 && !run.player.resurrectionUsed &&
-      run.player.inventory?.some(e => e?.id === 'resurrection-stone')) {
-    run.player.resurrectionUsed = true
-    run.player.hp = Math.max(1, Math.floor(run.player.maxHp / 2))
-    UI.updateHP(run.player.hp, run.player.maxHp)
+  if (session.run.player.hp <= 0 && !session.run.player.resurrectionUsed &&
+      session.run.player.inventory?.some(e => e?.id === 'resurrection-stone')) {
+    session.run.player.resurrectionUsed = true
+    session.run.player.hp = Math.max(1, Math.floor(session.run.player.maxHp / 2))
+    UI.updateHP(session.run.player.hp, session.run.player.maxHp)
     UI.spawnFloat(tileEl, '💎 Resurrected!', 'heal')
     UI.setMessage('💎 The Resurrection Stone shatters — you cling to life!')
     // Remove the stone from inventory
-    const inv = run.player.inventory
+    const inv = session.run.player.inventory
     const idx = inv.findIndex(e => e.id === 'resurrection-stone')
     if (idx !== -1) inv.splice(idx, 1)
     EventBus.emit('inventory:changed')
     return
   }
-  if (run.player.hp <= 0) { _die(killerData, opts.deathCause ? { deathCause: opts.deathCause } : {}); return }
+  if (session.run.player.hp <= 0) { _die(killerData, opts.deathCause ? { deathCause: opts.deathCause } : {}); return }
   // Auto-potion: use a health potion if HP drops below 30% threshold (player setting)
-  if (_save.settings?.autoPotions && run.player.hp > 0) {
-    const ratio = run.player.hp / run.player.maxHp
+  if (session.save.settings?.autoPotions && session.run.player.hp > 0) {
+    const ratio = session.run.player.hp / session.run.player.maxHp
     if (ratio < 0.30) {
-      const inv = run.player.inventory
+      const inv = session.run.player.inventory
       const potEntry = inv.find(e => e?.id === 'potion-red' && e.qty > 0)
       if (potEntry) {
-        const healed = Math.min(ITEMS['potion-red'].effect.amount, run.player.maxHp - run.player.hp)
+        const healed = Math.min(ITEMS['potion-red'].effect.amount, session.run.player.maxHp - session.run.player.hp)
         if (healed > 0) {
-          run.player.hp += healed
+          session.run.player.hp += healed
           potEntry.qty--
           if (potEntry.qty <= 0) inv.splice(inv.indexOf(potEntry), 1)
-          UI.updateHP(run.player.hp, run.player.maxHp)
+          UI.updateHP(session.run.player.hp, session.run.player.maxHp)
           UI.spawnFloat(tileEl ?? document.getElementById('hud-portrait'), `🧪 Auto +${healed} HP`, 'heal')
           EventBus.emit('inventory:changed')
         }
@@ -8258,10 +1814,10 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
     }
   }
   // Thorn Wrap / Inferno Barbs / Barbed Mantle / Living Bramble: reflect damage to attacker
-  const hasThorn        = run.player.inventory.some(e => e?.id === 'thorn-wrap')
-  const hasInferno      = run.player.inventory.some(e => e?.id === 'inferno-barbs')
-  const hasBarbedMantle = run.player.inventory.some(e => e?.id === 'barbed-mantle')
-  const hasLivingBramble = run.player.inventory.some(e => e?.id === 'living-bramble')
+  const hasThorn        = session.run.player.inventory.some(e => e?.id === 'thorn-wrap')
+  const hasInferno      = session.run.player.inventory.some(e => e?.id === 'inferno-barbs')
+  const hasBarbedMantle = session.run.player.inventory.some(e => e?.id === 'barbed-mantle')
+  const hasLivingBramble = session.run.player.inventory.some(e => e?.id === 'living-bramble')
   if (killerData && !killerData._slain && (hasThorn || hasInferno || hasBarbedMantle || hasLivingBramble)) {
     const reflectDmg = hasInferno ? 2 : hasBarbedMantle ? 3 : 1
     killerData.currentHP = Math.max(0, killerData.currentHP - reflectDmg)
@@ -8269,14 +1825,14 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
     UI.spawnFloat(tileEl, reflectLabel, 'heal')
     if (hasInferno) _applyBurnHit(1)   // Inferno Barbs also burns attacker
     if (killerData.currentHP <= 0) {
-      const combatTile = run.activeCombatTile
+      const combatTile = session.run.activeCombatTile
       if (combatTile) {
         _gainGold(combatTile.enemyData?.goldDrop ? _rand(...combatTile.enemyData.goldDrop) : 1, combatTile.element, true)
         _gainXP(combatTile.enemyData?.xpDrop ?? 0, combatTile.element)
         _endCombatVictory(combatTile)
       }
-    } else if (run.activeCombatTile) {
-      UI.updateEnemyHP(run.activeCombatTile.element, killerData.currentHP)
+    } else if (session.run.activeCombatTile) {
+      UI.updateEnemyHP(session.run.activeCombatTile.element, killerData.currentHP)
     }
   }
   if (!skipPortraitAnim) {
@@ -8286,127 +1842,103 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
 }
 
 function _gainGold(amount, tileEl, fromEnemy = false, fromChest = false) {
-  if (!run) return
+  if (!session.run) return
   let actual = amount
   if (fromEnemy) {
-    if (run.player.inventory.some(e => e?.id === 'misers-pouch')) actual += 1
-    if (run.player.inventory.some(e => e?.id === 'tomb-tithe')) actual += 1
-    if (run.player.inventory.some(e => e?.id === 'gamblers-mark')) actual = Math.random() < 0.5 ? 0 : actual * 2
-    if (run.player.inventory.some(e => e?.id === 'fortunes-fool')) actual *= 2
-    if (run.player.inventory.some(e => e?.id === 'devils-gambit') && Math.random() < 0.20) actual *= 2
-    if (run.player.inventory.some(e => e?.id === 'vault-key')) actual += 2
+    if (session.run.player.inventory.some(e => e?.id === 'misers-pouch')) actual += 1
+    if (session.run.player.inventory.some(e => e?.id === 'tomb-tithe')) actual += 1
+    if (session.run.player.inventory.some(e => e?.id === 'gamblers-mark')) actual = Math.random() < 0.5 ? 0 : actual * 2
+    if (session.run.player.inventory.some(e => e?.id === 'fortunes-fool')) actual *= 2
+    if (session.run.player.inventory.some(e => e?.id === 'devils-gambit') && Math.random() < 0.20) actual *= 2
+    if (session.run.player.inventory.some(e => e?.id === 'vault-key')) actual += 2
     actual = Math.round(actual)
   }
   // Fortune's Fool: also doubles chest gold
-  if (fromChest && run.player.inventory.some(e => e?.id === 'fortunes-fool')) actual *= 2
+  if (fromChest && session.run.player.inventory.some(e => e?.id === 'fortunes-fool')) actual *= 2
   // Floor modifiers: Ancient Cache (chest double gold) and Hungry Dungeon (halve enemy/chest gold)
-  if (run.floorModifier?.id === 'ancient-cache' && fromChest) actual *= 2
-  if (run.floorModifier?.id === 'hungry-dungeon' && (fromEnemy || fromChest)) actual = Math.max(0, Math.floor(actual / 2))
+  if (session.run.floorModifier?.id === 'ancient-cache' && fromChest) actual *= 2
+  if (session.run.floorModifier?.id === 'hungry-dungeon' && (fromEnemy || fromChest)) actual = Math.max(0, Math.floor(actual / 2))
   // Vault Key: auto-bank 15% of all earned gold to persistent gold
-  if (run.player.inventory.some(e => e?.id === 'vault-key') && actual > 0) {
+  if (session.run.player.inventory.some(e => e?.id === 'vault-key') && actual > 0) {
     const bank = Math.floor(actual * 0.15)
     if (bank > 0) {
-      _save.persistentGold = (_save.persistentGold ?? 0) + bank
+      session.save.persistentGold = (session.save.persistentGold ?? 0) + bank
       UI.spawnFloat(tileEl, `🗝️ +${bank} banked`, 'gold')
     }
   }
   // Philosopher's Coin: all gold × 5
-  if (run.player.inventory.some(e => e?.id === 'philosophers-coin')) actual *= 5
+  if (session.run.player.inventory.some(e => e?.id === 'philosophers-coin')) actual *= 5
   if (actual <= 0) {
     UI.spawnFloat(tileEl, '♠️ No gold!', 'damage')
     return
   }
-  run.player.gold += actual
-  _telemetryBumpGold(run.floor, actual)
+  session.run.player.gold += actual
+  _telemetryBumpGold(session.run.floor, actual)
   UI.spawnFloat(tileEl, `+${actual}🪙`, 'gold')
-  UI.updateGold(run.player.gold)
-  EventBus.emit('player:goldChange', { amount: actual, newTotal: run.player.gold })
+  UI.updateGold(session.run.player.gold)
+  EventBus.emit('player:goldChange', { amount: actual, newTotal: session.run.player.gold })
 }
 
 function _isSilenced() {
-  if (!run?.floorModifier || run.floorModifier.id !== 'silence') return false
+  if (!session.run?.floorModifier || session.run.floorModifier.id !== 'silence') return false
   UI.setMessage('🤫 Silence — active abilities are sealed this floor.', true)
   return true
 }
 
-function _checkFloorModifierOnReveal(tile) {
-  if (!run?.floorModifier) return
-  const mod = run.floorModifier
-  const el  = tile.element
-
-  if (mod.id === 'miasma') {
-    run._miasmaCounter = (run._miasmaCounter ?? 0) + 1
-    if (run._miasmaCounter % 3 === 0) {
-      _takeDamage(1, el, false, null, { deathCause: 'miasma' })
-      UI.spawnFloat(el, '☠️ Miasma!', 'damage')
-    }
-  }
-
-  if (mod.id === 'crumbling-walls' && Math.random() < 0.20) {
-    _takeDamage(1, el, false, null, { deathCause: 'crumbling_walls' })
-    UI.spawnFloat(el, '🪨 Crumble!', 'damage')
-  }
-
-  // Remove hunt-marked class when an enemy tile is revealed
-  if (mod.id === 'the-hunt' && tile.enemyData) {
-    el?.classList.remove('hunt-marked')
-  }
-}
-
 /** +mana on successful melee strike (not on shield block — see fightAction). Mana ring: 10% double. Mana Crucible: +1 guaranteed. */
 function _gainManaFromMeleeHit(tileEl) {
-  if (!run?.player) return
+  if (!session.run?.player) return
   const add = CONFIG.player.manaPerMeleeHit ?? 0
-  const hasManaRing     = run.player.inventory.some(e => e?.id === 'mana-ring')
-  const hasCrucible     = run.player.inventory.some(e => e?.id === 'mana-crucible')
+  const hasManaRing     = session.run.player.inventory.some(e => e?.id === 'mana-ring')
+  const hasCrucible     = session.run.player.inventory.some(e => e?.id === 'mana-crucible')
   let gain = 0
   if (add > 0) {
     gain += (hasManaRing && Math.random() < 0.10) ? add * 2 : add
   }
   if (hasCrucible) gain += 1
-  if (gain <= 0 || run.player.mana >= run.player.maxMana) return
-  run.player.mana = Math.min(run.player.maxMana, run.player.mana + gain)
+  if (gain <= 0 || session.run.player.mana >= session.run.player.maxMana) return
+  session.run.player.mana = Math.min(session.run.player.maxMana, session.run.player.mana + gain)
   if (hasManaRing && gain > add) {
     UI.spawnFloat(tileEl, `+${gain}🔵`, 'mana')
   } else if (hasCrucible) {
     UI.spawnFloat(tileEl, '+1🔵', 'mana')
   }
-  UI.updateMana(run.player.mana, run.player.maxMana)
+  UI.updateMana(session.run.player.mana, session.run.player.maxMana)
 }
 
 function _gainXP(amount, tileEl) {
-  if (!run) return
-  run.player.xp += amount
+  if (!session.run) return
+  session.run.player.xp += amount
   const needed = _xpNeeded()
-  if (run.player.xp >= needed) {
+  if (session.run.player.xp >= needed) {
     if (_shouldDeferLevelUpDueToNpc()) {
-      UI.updateXP(run.player.xp, _xpNeeded())
+      UI.updateXP(session.run.player.xp, _xpNeeded())
       return
     }
-    run.player.xp -= needed
-    run.player.level++
-    UI.spawnFloat(tileEl, `⬆️ Lv ${run.player.level}!`, 'xp')
-    EventBus.emit('player:levelup', { newLevel: run.player.level })
+    session.run.player.xp -= needed
+    session.run.player.level++
+    UI.spawnFloat(tileEl, `⬆️ Lv ${session.run.player.level}!`, 'xp')
+    EventBus.emit('player:levelup', { newLevel: session.run.player.level })
     EventBus.emit('audio:play', { sfx: 'levelup' })
     _triggerLevelUp()
   }
-  UI.updateXP(run.player.xp, _xpNeeded())
+  UI.updateXP(session.run.player.xp, _xpNeeded())
 }
 
 function _metaUnlockedForLevelUp() {
   const c = _charKey()
-  if (c === 'ranger') return _save.ranger?.upgrades ?? []
-  if (c === 'engineer') return _save.engineer?.upgrades ?? []
-  if (c === 'mage') return _save.mage?.upgrades ?? []
-  if (c === 'vampire') return _save.vampire?.upgrades ?? []
-  if (c === 'necromancer') return _save.necromancer?.upgrades ?? []
-  return _save.warrior?.upgrades ?? []
+  if (c === 'ranger') return session.save.ranger?.upgrades ?? []
+  if (c === 'engineer') return session.save.engineer?.upgrades ?? []
+  if (c === 'mage') return session.save.mage?.upgrades ?? []
+  if (c === 'vampire') return session.save.vampire?.upgrades ?? []
+  if (c === 'necromancer') return session.save.necromancer?.upgrades ?? []
+  return session.save.warrior?.upgrades ?? []
 }
 
 /** Ability-pick level-up uses GameState.LEVEL_UP, which is invalid during NPC events — defer until back on the floor. */
 function _shouldDeferLevelUpDueToNpc() {
   if (!GameState.is(States.NPC_INTERACT)) return false
-  const choices = ProgressionSystem.getChoices(run.player, _charKey(), _metaUnlockedForLevelUp())
+  const choices = ProgressionSystem.getChoices(session.run.player, _charKey(), _metaUnlockedForLevelUp())
   return choices.length > 0
 }
 
@@ -8415,16 +1947,16 @@ function _shouldDeferLevelUpDueToNpc() {
  * Handles multiple stacked levels; stops when an ability-pick overlay is shown.
  */
 function _flushDeferredLevelUpXp() {
-  if (!run || GameState.is(States.NPC_INTERACT)) return
+  if (!session.run || GameState.is(States.NPC_INTERACT)) return
   const floatEl = () => document.getElementById('hud-portrait')
-  while (run.player.xp >= _xpNeeded()) {
+  while (session.run.player.xp >= _xpNeeded()) {
     if (_shouldDeferLevelUpDueToNpc()) break
-    run.player.xp -= _xpNeeded()
-    run.player.level++
-    UI.spawnFloat(floatEl(), `⬆️ Lv ${run.player.level}!`, 'xp')
-    EventBus.emit('player:levelup', { newLevel: run.player.level })
+    session.run.player.xp -= _xpNeeded()
+    session.run.player.level++
+    UI.spawnFloat(floatEl(), `⬆️ Lv ${session.run.player.level}!`, 'xp')
+    EventBus.emit('player:levelup', { newLevel: session.run.player.level })
     EventBus.emit('audio:play', { sfx: 'levelup' })
-    const choices = ProgressionSystem.getChoices(run.player, _charKey(), _metaUnlockedForLevelUp())
+    const choices = ProgressionSystem.getChoices(session.run.player, _charKey(), _metaUnlockedForLevelUp())
     if (choices.length === 0) {
       _triggerLevelUp()
       continue
@@ -8432,31 +1964,31 @@ function _flushDeferredLevelUpXp() {
     _triggerLevelUp()
     break
   }
-  UI.updateXP(run.player.xp, _xpNeeded())
+  UI.updateXP(session.run.player.xp, _xpNeeded())
 }
 
 function _triggerLevelUp() {
   const char     = _charKey()
-  const count    = run.player.extraAbilityChoice ? 4 : 3
-  const descs    = ProgressionSystem.getChoices(run.player, char, _metaUnlockedForLevelUp(), count)
+  const count    = session.run.player.extraAbilityChoice ? 4 : 3
+  const descs    = ProgressionSystem.getChoices(session.run.player, char, _metaUnlockedForLevelUp(), count)
   if (descs.length === 0) {
-    run.player.hp = Math.min(run.player.maxHp, run.player.hp + 10)
-    UI.updateHP(run.player.hp, run.player.maxHp)
-    run.levelUpLog.push({
-      level:     run.player.level,
+    session.run.player.hp = Math.min(session.run.player.maxHp, session.run.player.hp + 10)
+    UI.updateHP(session.run.player.hp, session.run.player.maxHp)
+    session.run.levelUpLog.push({
+      level:     session.run.player.level,
       abilityId: null,
       name:      '+10 HP (all choices mastered)',
       icon:      '❤️',
     })
     _appendLevelSnapshot('levelUpMasteryHp')
-    UI.setMessage(`Level ${run.player.level}! Fully mastered. (+10 HP)`)
+    UI.setMessage(`Level ${session.run.player.level}! Fully mastered. (+10 HP)`)
     return
   }
 
   GameState.transition(States.LEVEL_UP)
 
   // First-pick mode: every choice is a `kind:'active'` and player.level just hit 2.
-  const isFirstActivePick = run.player.level === 2 && descs.every(d => d.kind === 'active')
+  const isFirstActivePick = session.run.player.level === 2 && descs.every(d => d.kind === 'active')
   const subtitle = isFirstActivePick
     ? 'Choose your first active ability!'
     : 'Choose an ability'
@@ -8466,7 +1998,7 @@ function _triggerLevelUp() {
     const data = { id: d.id, ...def }
     if (d.kind === 'coins') {
       data.name = 'Coin Pouch'
-      data.desc = `+${run.floor} gold (filler — pool was empty).`
+      data.desc = `+${session.run.floor} gold (filler — pool was empty).`
     }
     if (d.kind === 'active') data.tag = 'NEW ACTIVE'
     return data
@@ -8474,24 +2006,24 @@ function _triggerLevelUp() {
 
     UI.setLevelUpSubtitle(subtitle)
     UI.showLevelUpOverlay(choiceData, (abilityId) => {
-      ProgressionSystem.applyAbility(abilityId, run.player, char, { floor: run.floor })
+      ProgressionSystem.applyAbility(abilityId, session.run.player, char, { floor: session.run.floor })
       const def = ProgressionSystem.getAbilityDef(abilityId, char)
-      run.levelUpLog.push({
-        level:     run.player.level,
+      session.run.levelUpLog.push({
+        level:     session.run.player.level,
         abilityId,
         name:      def?.name ?? abilityId,
         icon:      def?.icon ?? '✨',
       })
       _appendLevelSnapshot('levelUp')
       UI.hideLevelUpOverlay()
-    UI.updateHP(run.player.hp, run.player.maxHp)
-    UI.updateMana(run.player.mana, run.player.maxMana)
-    UI.updateGold(run.player.gold)
+    UI.updateHP(session.run.player.hp, session.run.player.maxHp)
+    UI.updateMana(session.run.player.mana, session.run.player.maxMana)
+    UI.updateGold(session.run.player.gold)
     {
-      const [d0, d1] = _playerDamageRange(run.player)
+      const [d0, d1] = _playerDamageRange(session.run.player)
       UI.updateDamageRange(d0, d1)
     }
-    UI.setMessage(`${def?.name ?? abilityId} acquired! Level ${run.player.level}.`)
+    UI.setMessage(`${def?.name ?? abilityId} acquired! Level ${session.run.player.level}.`)
     if (char === 'ranger')         _refreshRangerActiveHud()
     else if (char === 'engineer')  _refreshEngineerHud()
     else if (char === 'mage')      _refreshMageHud()
@@ -8507,343 +2039,62 @@ function _triggerLevelUp() {
   })
 }
 
-function _xpNeeded() {
-  return CONFIG.xp.levelUpAt * run.player.level
-}
 
-function _playerDamageRange(player) {
-  const bonus       = player.damageBonus ?? 0
-  const maskPenalty = player.inventory?.some(e => e?.id === 'plague-mask')    ? 1 : 0
-  const collarBonus = player.inventory?.some(e => e?.id === 'spiked-collar')  ? 3 : 0
-  const soulBonus   = Math.floor(player.soulboundBonus ?? 0)
-  const hasRazor    = player.inventory?.some(e => e?.id === 'razors-edge')
-  if (player.isRanger) {
-    const [lo, hi] = RANGER_BASE.damage
-    const max = Math.max(1, hi + bonus + collarBonus + soulBonus - maskPenalty)
-    return hasRazor
-      ? [max, max]
-      : [Math.max(1, lo + bonus + collarBonus + soulBonus - maskPenalty), max]
-  }
-  if (player.isVampire) {
-    const b = VAMPIRE_BASE.damage + bonus + collarBonus + soulBonus - maskPenalty
-    const max = Math.max(1, b)
-    return hasRazor ? [max, max] : [max, max]
-  }
-  const base = CONFIG.player.baseDamage
-  const b = Array.isArray(base) ? base[0] : base
-  const max = Math.max(1, b + bonus + collarBonus + soulBonus - maskPenalty)
-  return [max, max]   // warrior is always fixed (same lo/hi), razor's edge is a no-op here but kept for clarity
-}
 
-function _avgMeleeDamage() {
-  const [lo, hi] = _playerDamageRange(run.player)
-  return (lo + hi) / 2
-}
 
-function _slamMultFromStacks(stacks) {
-  const baseTenths = Math.round(CONFIG.ability.slamPerTargetMult * 10)
-  return (baseTenths + stacks) / 10
-}
 
-function _blindingLightMultFromStacks(stacks) {
-  const baseTenths = Math.round(CONFIG.ability.blindingLightStunMult * 10)
-  return (baseTenths + stacks) / 10
-}
+
+
+
+
+
 
 /** Stun turns only — same avgMelee × mult formula as old “damage”; no HP loss. Minimum 2 turns. */
-function _blindingLightStunTurns() {
-  const avg = _avgMeleeDamage()
-  const m = _blindingLightMultFromStacks(run.player.blindingLightMasteryStacks ?? 0)
-  return Math.max(2, Math.round(avg * m))
-}
 
-function _slamDamagePerTarget() {
-  const avg    = _avgMeleeDamage()
-  const stacks = run.player.slamMasteryStacks ?? 0
-  const m      = _slamMultFromStacks(stacks)
-  return Math.max(CombatResolver.abilityDmgFloor(run.floor), Math.round(avg * m))
-}
 
-/** For Slam info modal — null if no active run or not warrior. */
-function getSlamDamageBreakdown() {
-  if (!run || run.player?.isRanger) return null
-  const avg = _avgMeleeDamage()
-  const baseTenths = Math.round(CONFIG.ability.slamPerTargetMult * 10)
-  const stacks = run.player.slamMasteryStacks ?? 0
-  const m = _slamMultFromStacks(stacks)
-  const final = Math.max(1, Math.round(avg * m))
-  return { avgMelee: avg, baseTenths, stacks, mult: m, final }
-}
 
-function getDivineLightBreakdown() {
-  if (!run || run.player?.isRanger) return null
-  const avg  = _avgMeleeDamage()
-  const smite = Math.max(1, Math.round(avg))
-  const heal  = Math.max(1, Math.floor(run.player.maxHp * 0.10))
-  return { avgMelee: avg, smite, heal, maxHp: run.player.maxHp }
-}
 
-function getBlindingLightBreakdown() {
-  if (!run || run.player?.isRanger) return null
-  const avg = _avgMeleeDamage()
-  const baseTenths = Math.round(CONFIG.ability.blindingLightStunMult * 10)
-  const stacks = run.player.blindingLightMasteryStacks ?? 0
-  const m = _blindingLightMultFromStacks(stacks)
-  const stunTurns = Math.max(2, Math.round(avg * m))
-  return { avgMelee: avg, baseTenths, stacks, mult: m, stunTurns, final: stunTurns }
-}
+/** For Slam info modal — null if no active session.run or not warrior. */
 
-function getBloodTitheBreakdown() {
-  if (!run || _charKey() !== 'vampire') return null
-  return {
-    hpCost:   _bloodTitheHpCost(),
-    manaGain: _bloodTitheManaGain(),
-    tier:     run.player.bloodTitheMasteryTier ?? 1,
-  }
-}
 
-function _hasRicochetArcMasteryMeta() {
-  return (_save.ranger?.upgrades ?? []).includes('ricochet-arc-mastery')
-}
+
+
+
+
+
+
+
 
 /** Returns [1st, 2nd, 3rd] shot damage for Ricochet (length matches targets). Ricochet only: 4:3:2 with meta Ricochet Mastery. */
-function _ricochetDamageSequence(targetCount, abilityKey = 'ricochet') {
-  const avg = _avgMeleeDamage()
-  const m   = CONFIG.ability.ricochetUnitMult
-  const mult = _rangerActiveDamageMult(abilityKey)
-  const unit = Math.max(1, Math.round(avg * m * mult))
-  const weights =
-    abilityKey === 'ricochet' && _hasRicochetArcMasteryMeta() ? [4, 3, 2] : [3, 2, 1]
-  const seq = weights.map(w => w * unit)
-  return seq.slice(0, targetCount)
-}
 
-function getRicochetBreakdown() {
-  if (!run || !run.player?.isRanger) return null
-  const arc = _hasRicochetArcMasteryMeta()
-  const seq = _ricochetDamageSequence(3, 'ricochet')
-  const weights = arc ? [4, 3, 2] : [3, 2, 1]
-  const unit = seq[0] / weights[0]
-  return { shots: seq, unit, patternLabel: arc ? '4 : 3 : 2' : '3 : 2 : 1' }
-}
+
+
 
 /** Poison Arrow initial hit + each DoT tick — same unit formula as Ricochet’s 1× shot. */
-function _poisonArrowUnitDamage() {
-  const avg = _avgMeleeDamage()
-  const m   = CONFIG.ability.ricochetUnitMult
-  const mult = _rangerActiveDamageMult('poison-arrow-shot')
-  return Math.max(1, Math.round(avg * m * mult))
-}
 
-function getArrowBarrageBreakdown() {
-  if (!run || !run.player?.isRanger) return null
-  const avg = _avgMeleeDamage()
-  const pct = CONFIG.ability.tripleVolleyHeroDamagePct
-  const mult = _rangerActiveDamageMult('arrow-barrage')
-  const perEnemy = Math.max(1, Math.round(avg * pct * mult))
-  return { perEnemy, avgMelee: avg, heroDamagePct: pct, mult, area: '3×3' }
-}
 
-function getPoisonArrowShotBreakdown() {
-  if (!run || !run.player?.isRanger) return null
-  const per = _poisonArrowUnitDamage()
-  return { perHit: per, initial: per, flipTicks: 3, dotTotal: per * 3 }
-}
 
-// ── Blacksmith ───────────────────────────────────────────────
 
-function _adjustScrap(delta) {
-  _save.scrap = Math.max(0, (_save.scrap ?? 0) + delta)
-}
 
-function _applyGearUpgrade(piece) {
-  for (const key of Object.keys(piece.stats)) {
-    const val = piece.stats[key]
-    if (val <= 0) continue
-    if (key === 'negation') {
-      piece.stats[key] = Math.round(val * 1.25 * 1000) / 1000
-    } else {
-      piece.stats[key] = Math.round(val * 1.25)
-    }
-  }
-  piece.upgradeCount++
-}
-
-/** Between-runs only. Upgrades the gear in the given slot. Returns { success, failed, noGear, maxed, cantAfford }. */
-function _upgradeGear(slot) {
-  const gear = _save.equippedGear
-  if (!gear) return { noGear: true }
-  const piece = gear[slot]
-  if (!piece) return { noGear: true }
-  if (piece.upgradeCount >= 3) return { maxed: true }
-
-  const upgradeNum = piece.upgradeCount + 1
-  const cost = CONFIG.blacksmith.upgradeCosts[piece.tier]?.[upgradeNum]
-  if (!cost) return { noGear: true }
-
-  if ((_save.persistentGold ?? 0) < cost.gold || (_save.scrap ?? 0) < cost.scrap) return { cantAfford: true }
-
-  _save.persistentGold -= cost.gold
-  _adjustScrap(-cost.scrap)
-
-  if (true) { // always succeeds — success rate temporarily set to 100%
-    _applyGearUpgrade(piece)
-    SaveManager.save(_save).catch(() => {})
-    return { success: true, piece }
-  }
-
-  SaveManager.save(_save).catch(() => {})
-  return { failed: true, piece }
-}
-
-/** Between-runs only. Destroys the gear in the given slot and yields scrap. */
-function _disassembleGear(slot) {
-  const gear = _save.equippedGear
-  if (!gear) return { noGear: true }
-  const piece = gear[slot]
-  if (!piece) return { noGear: true }
-
-  const [lo, hi] = CONFIG.blacksmith.scrapYield[piece.tier] ?? [2, 4]
-  const yield_ = _rand(lo, hi)
-  _adjustScrap(yield_)
-  gear[slot] = null
-  SaveManager.save(_save).catch(() => {})
-  return { success: true, scrapGained: yield_, piece }
-}
-
-/** Between-runs only. Reduces a detriment stat on the piece by 25%, floored at -1. */
-function _reduceDetriment(slot, statKey) {
-  const gear = _save.equippedGear
-  if (!gear) return { noGear: true }
-  const piece = gear[slot]
-  if (!piece) return { noGear: true }
-  if (piece.upgradeCount < 3) return { notUnlocked: true }
-
-  const val = piece.stats[statKey]
-  if (val === undefined || val >= 0) return { notDetriment: true }
-  if (val === -1) return { atFloor: true }
-
-  const cost = CONFIG.blacksmith.detrimentReduceCost[piece.tier]
-  if (!cost) return { noGear: true }
-  if ((_save.persistentGold ?? 0) < cost.gold || (_save.scrap ?? 0) < cost.scrap) return { cantAfford: true }
-
-  _save.persistentGold -= cost.gold
-  _adjustScrap(-cost.scrap)
-
-  const newVal = Math.min(-1, Math.ceil(val * 0.75))  // min keeps value ≤ -1 (stays a detriment)
-  piece.stats[statKey] = newVal
-  SaveManager.save(_save).catch(() => {})
-  return { success: true, piece, statKey, newVal }
-}
 
 // ── Death ────────────────────────────────────────────────────
 
-function _die(killerData = null, opts = {}) {
-  const explicitCause = opts.deathCause
-  let resolved = killerData
-  let killerInferred = false
-  if (!resolved?.enemyId && run?.activeCombatTile?.enemyData) {
-    const e = run.activeCombatTile.enemyData
-    if (!e._slain) {
-      resolved = e
-      killerInferred = true
-    }
-  }
+function _die(killerData = null, opts = {}) { GSH.die(_stateCtx(), killerData, opts) }
 
-  Logger.info('[GameController] Player died', {
-    floor: run?.floor,
-    hero: run?.heroId,
-    hp: run?.player?.hp,
-    cause: explicitCause ?? resolved?.enemyId ?? 'unknown',
-    killer: resolved?.label ?? null,
-    isBoss: !!(resolved?.isBoss),
-    inventory: run?.player?.inventory?.map(e => e.id) ?? [],
-  })
+function _runStats() { return GSH.runStats(_stateCtx()) }
 
-  _spellTargeting         = false
-  _combatBusy             = false
-  _clearAllCombatEngagement()
-  _lanternTargeting       = false
-  _spyglassTargeting      = false
-  _blindingLightTargeting = false
-  _divineLightSelecting   = false
-  UI.setDivineLightActive(false)
-  _cancelRicochetMode()
-  _cancelArrowBarrageMode()
-  _cancelPoisonArrowShotMode()
-  if (run?.player) { run.player.tearyEyesTurns = 0; UI.setTearyEyes(0); run.player.freezingHitStacks = 0; UI.setFreezingHit(0); run.player.burnStacks = 0; UI.setBurnOverlay(0); run.player.poisonStacks = 0; UI.setPlayerPoison(0); run.player.corruptionStacks = 0; if (run.player.corruptionBaseMaxHp) { run.player.maxHp = run.player.corruptionBaseMaxHp; run.player.corruptionBaseMaxHp = 0 } if (run.player.corruptionBaseMaxMana) { run.player.maxMana = run.player.corruptionBaseMaxMana; run.player.corruptionBaseMaxMana = 0 } UI.setCorruption(0) }
-  const deathExtras = {
-    killerEnemyId: resolved?.enemyId ?? null,
-    killerLabel:   resolved?.label ?? null,
-    killerIsBoss:  !!(resolved?.isBoss),
-    hpAtDeath:     run?.player?.hp ?? 0,
-  }
-  if (explicitCause === 'witching_stone' && resolved?.enemyId) {
-    // HP death from Witching Stone during combat — attribute killer, not the item.
-  } else if (explicitCause) {
-    deathExtras.deathCause = explicitCause
-  } else if (!resolved?.enemyId) {
-    deathExtras.deathCause = 'unknown'
-  }
-  if (killerInferred && !killerData?.enemyId) deathExtras.killerInferred = true
-  _finalizeRunTelemetry('death', deathExtras)
-  if (run?.player?.equippedGear) _save.equippedGear = structuredClone(run.player.equippedGear)
-  _clearActiveRun()
-  UI.setPortraitAnim('death')
-  GameState.transition(States.DEATH)
-  UI.hideActionPanel()
-  UI.hideRetreat()
-  UI.hideEventOverlays()
-  UI.clearFloorModifier()
-  UI.setMessage('💀 You have perished in the depths...', true)
-  EventBus.emit('audio:play', { sfx: 'death' })
+function _finalizeRunTelemetry(outcomeType, extras = {}) { GSH.finalizeRunTelemetry(_stateCtx(), outcomeType, extras) }
 
-  const stats = _runStats()
-  const { xpEarned, xpRetained, xpLost, goldBanked } = MetaProgression.endRun(_save, stats, 'death')
-  EventBus.emit('player:death', { runStats: stats })
-
-  // Build killer card data for the summary screen
-  const killer = resolved ? _buildKillerCard(resolved) : null
-
-  setTimeout(() => {
-    UI.showRunSummary('death', { ...stats, xpEarned, xpRetained, xpLost, goldBanked, killer })
-    _wireRunSummaryBtn()
-  }, 800)
-}
-
-function _buildKillerCard(e) {
-  const sprites = ENEMY_SPRITES[e.enemyId]
-  return {
-    name:      e.label,
-    emoji:     e.emoji,
-    spriteSrc: sprites?.idle ? MONSTER_ICONS_BASE + sprites.idle : null,
-    hp:        e.hp,
-    dmg:       Array.isArray(e.dmg) ? `${e.dmg[0]}–${e.dmg[1]}` : e.dmg,
-    blurb:     e.blurb ?? '',
-    type:      e.type ?? '',
-    attributes: e.attributes ?? [],
-  }
-}
-
-function _runStats() {
-  return {
-    gold:          run.player.gold,
-    safeGold:      run.player.safeGold,
-    level:         run.player.level,
-    floor:         run.floor,
-    tilesRevealed: run.tilesRevealed,
-    character:     _charKey(),
-  }
-}
+function _wireRunSummaryBtn() { GSH.wireRunSummaryBtn(_stateCtx()) }
 
 function _appendLevelSnapshot(trigger) {
-  if (!run?.telemetry || !run.player) return
-  const [d0, d1] = _playerDamageRange(run.player)
-  run.telemetry.levelSnapshots.push(
+  if (!session.run?.telemetry || !session.run.player) return
+  const [d0, d1] = _playerDamageRange(session.run.player)
+  session.run.telemetry.levelSnapshots.push(
     buildLevelSnapshotRecord({
       trigger,
-      floor: run.floor,
-      player: run.player,
+      floor: session.run.floor,
+      player: session.run.player,
       xpToNext: _xpNeeded(),
       meleeDamageRange: [d0, d1],
     }),
@@ -8851,38 +2102,38 @@ function _appendLevelSnapshot(trigger) {
 }
 
 function _telemetryBumpDamageTaken(floor, amount) {
-  if (!run?.telemetry || amount <= 0) return
+  if (!session.run?.telemetry || amount <= 0) return
   const k = String(floor)
-  if (!run.telemetry.damageByFloor[k]) run.telemetry.damageByFloor[k] = { taken: 0, dealt: 0 }
-  run.telemetry.damageByFloor[k].taken += amount
+  if (!session.run.telemetry.damageByFloor[k]) session.run.telemetry.damageByFloor[k] = { taken: 0, dealt: 0 }
+  session.run.telemetry.damageByFloor[k].taken += amount
 }
 
 function _telemetryBumpDamageDealt(floor, amount) {
-  if (!run?.telemetry || amount <= 0) return
+  if (!session.run?.telemetry || amount <= 0) return
   const k = String(floor)
-  if (!run.telemetry.damageByFloor[k]) run.telemetry.damageByFloor[k] = { taken: 0, dealt: 0 }
-  run.telemetry.damageByFloor[k].dealt += amount
+  if (!session.run.telemetry.damageByFloor[k]) session.run.telemetry.damageByFloor[k] = { taken: 0, dealt: 0 }
+  session.run.telemetry.damageByFloor[k].dealt += amount
 }
 
 function _telemetryBumpDamageSource(source, amount) {
-  if (!run?.telemetry || amount <= 0) return
-  run.telemetry.damageSources[source] = (run.telemetry.damageSources[source] ?? 0) + amount
+  if (!session.run?.telemetry || amount <= 0) return
+  session.run.telemetry.damageSources[source] = (session.run.telemetry.damageSources[source] ?? 0) + amount
 }
 
 function _telemetryBumpKill(floor) {
-  if (!run?.telemetry) return
+  if (!session.run?.telemetry) return
   const k = String(floor)
-  run.telemetry.killsByFloor[k] = (run.telemetry.killsByFloor[k] ?? 0) + 1
+  session.run.telemetry.killsByFloor[k] = (session.run.telemetry.killsByFloor[k] ?? 0) + 1
 }
 
 function _telemetryBumpGold(floor, amount) {
-  if (!run?.telemetry || amount <= 0) return
+  if (!session.run?.telemetry || amount <= 0) return
   const k = String(floor)
-  run.telemetry.goldByFloor[k] = (run.telemetry.goldByFloor[k] ?? 0) + amount
+  session.run.telemetry.goldByFloor[k] = (session.run.telemetry.goldByFloor[k] ?? 0) + amount
 }
 
 function _appendFloorSnapshot(trigger) {
-  if (!run?.telemetry) return
+  if (!session.run?.telemetry) return
   const grid = TileEngine.getGrid()
   let locked = 0
   let unrevealedUnlocked = 0
@@ -8899,206 +2150,60 @@ function _appendFloorSnapshot(trigger) {
       }
     }
   }
-  const isBossFloor = CONFIG.bossFloors.includes(run.floor) && !run.atRest
-  run.telemetry.floorSnapshots.push({
+  const isBossFloor = CONFIG.bossFloors.includes(session.run.floor) && !session.run.atRest
+  session.run.telemetry.floorSnapshots.push({
     at: Date.now(),
     trigger,
-    floor: run.floor,
-    atRest: !!run.atRest,
+    floor: session.run.floor,
+    atRest: !!session.run.atRest,
     isBossFloor,
-    level: run.player.level,
-    hp: run.player.hp,
-    gold: run.player.gold,
-    tilesRevealed: run.tilesRevealed,
+    level: session.run.player.level,
+    hp: session.run.player.hp,
+    gold: session.run.player.gold,
+    tilesRevealed: session.run.tilesRevealed,
     grid: { locked, unrevealedUnlocked, revealed, livingEnemies },
   })
 }
 
-function _buildRunEndSummary(outcomeType, extras = {}) {
-  const rs = _runStats()
-  const tel = run.telemetry
-  const taken = tel?.totalDamageTaken ?? 0
-  const gold = rs.gold ?? 0
-  return {
-    outcome: outcomeType,
-    floor: rs.floor,
-    level: rs.level,
-    character: rs.character,
-    gold,
-    tilesRevealed: rs.tilesRevealed,
-    totalDamageTaken: taken,
-    totalDamageDealtToEnemies: tel?.totalDamageDealtToEnemies ?? 0,
-    goldPerHpLost: taken > 0 ? gold / taken : null,
-    ...extras,
-  }
-}
-
-function _finalizeRunTelemetry(outcomeType, extras = {}) {
-  if (!run?.telemetry) return
-  run.telemetry.outcome = {
-    type: outcomeType,
-    endedAt: Date.now(),
-    runStats: _runStats(),
-    runEndSummary: _buildRunEndSummary(outcomeType, extras),
-    ...extras,
-  }
-  _lastRunTelemetrySnapshot = {
-    telemetry: structuredClone(run.telemetry),
-    levelUpLog: (run.levelUpLog ?? []).slice(),
-    runStats: _runStats(),
-  }
-}
-
-function _wireRunSummaryBtn() {
-  const btn = document.getElementById('try-again-btn')
-  if (btn) btn.addEventListener('click', () => {
-    UI.hideRunSummary()
-    returnToMenu(true)
-  }, { once: true })
-}
 
 function _rand(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min
 }
 
-// ── Inventory / backpack ─────────────────────────────────────
-
-async function _addToBackpack(id) {
-  const inv   = run.player.inventory
-  const item  = ITEMS[id]
-  if (!item) return
-  // Philosopher's Coin: potions become gold instead
-  if ((id === 'potion-red' || id === 'potion-blue') && inv.some(e => e?.id === 'philosophers-coin')) {
-    const goldAmt = id === 'potion-red' ? 3 : 5
-    run.player.gold += goldAmt
-    UI.updateGold(run.player.gold)
-    UI.spawnFloat(document.getElementById('hud-portrait'), `🥇 +${goldAmt}🪙`, 'gold')
-    return
-  }
-  if (item.stackable) {
-    const maxS = item.maxStack ?? Number.POSITIVE_INFINITY
-    const existing = inv.find(e => e?.id === id && e.qty < maxS)
-    if (existing) {
-      existing.qty++
-      return
-    }
-  }
-  // Count only real items (nulls are empty slots left by gear swaps)
-  const usedSlots = inv.filter(e => e !== null).length
-  if (usedSlots >= BACKPACK_MAX_SLOTS) {
-    EventBus.emit('backpack:full', { id })
-    return
-  }
-  // Fill a vacated null slot before growing the array
-  const nullIdx = inv.indexOf(null)
-  if (nullIdx >= 0) {
-    inv[nullIdx] = { id, qty: 1 }
-  } else {
-    inv.push({ id, qty: 1 })
-  }
-  // Trinket Codex: show discovery card first time this trinket is seen
-  if (TrinketCodex.registerIfNew(_save, id)) {
-    Logger.info(`[GameController] New trinket discovered: ${id} (floor ${run?.floor})`)
-    await SaveManager.save(_save).catch(() => {})
-    await UI.showTrinketDiscovery(id)
-  }
-  // Blood Pact: apply on equip
-  if (id === 'blood-pact') {
-    run.player.damageBonus = (run.player.damageBonus ?? 0) + 2
-    run.player.maxHp = Math.max(1, run.player.maxHp - 3)
-    run.player.hp = Math.min(run.player.hp, run.player.maxHp)
-    UI.updateHP(run.player.hp, run.player.maxHp)
-    const [d0, d1] = _playerDamageRange(run.player)
-    UI.updateDamageRange(d0, d1)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '🩸 Pact!', 'damage')
-  }
-  // Forsaken Idol: halve max HP on equip
-  if (id === 'forsaken-idol') {
-    const halved = Math.max(1, Math.floor(run.player.maxHp / 2))
-    run.player.maxHp = halved
-    run.player.hp = Math.min(run.player.hp, halved)
-    UI.updateHP(run.player.hp, run.player.maxHp)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '🗿 Max HP halved!', 'damage')
-  }
-  // Hollowed Acorn: +10 max mana on equip
-  if (id === 'hollowed-acorn') {
-    run.player.maxMana = (run.player.maxMana ?? CONFIG.player.maxMana) + 10
-    UI.updateMana(run.player.mana, run.player.maxMana)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '🌰 +10 Mana!', 'mana')
-  }
-  // Mana Crucible: +15 max mana on equip
-  if (id === 'mana-crucible') {
-    run.player.maxMana = (run.player.maxMana ?? CONFIG.player.maxMana) + 15
-    UI.updateMana(run.player.mana, run.player.maxMana)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '🫙 +15 Mana!', 'mana')
-  }
-  // Sanguine Covenant: +3 dmg, halve max HP on equip
-  if (id === 'sanguine-covenant') {
-    run.player.damageBonus = (run.player.damageBonus ?? 0) + 3
-    const halved = Math.max(1, Math.floor(run.player.maxHp / 2))
-    run.player.maxHp = halved
-    run.player.hp    = Math.min(run.player.hp, halved)
-    UI.updateHP(run.player.hp, run.player.maxHp)
-    const [d0, d1] = _playerDamageRange(run.player)
-    UI.updateDamageRange(d0, d1)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '⚗️ Covenant!', 'damage')
-  }
-  // Razor's Edge: −10 max HP on equip
-  if (id === 'razors-edge') {
-    run.player.maxHp = Math.max(1, run.player.maxHp - 10)
-    run.player.hp    = Math.min(run.player.hp, run.player.maxHp)
-    UI.updateHP(run.player.hp, run.player.maxHp)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '💠 −10 Max HP', 'damage')
-  }
-  // Honed Edge: +1 permanent attack damage
-  if (id === 'honed-edge') {
-    run.player.damageBonus = (run.player.damageBonus ?? 0) + 1
-    const [d0, d1] = _playerDamageRange(run.player)
-    UI.updateDamageRange(d0, d1)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '⚔️ +1 ATK', 'xp')
+// Inventory / backpack (InventoryController)
+function _inventoryCtx() {
+  return {
+    ..._revealCtx(),
+    die: _die,
+    restoreHourglassSnapshot: _restoreHourglassSnapshot,
+    lanternAction,
+    dowsingRodAction,
+    spyglassAction,
+    hourglassAction,
   }
 }
 
-function _canAddToBackpack(id) {
-  const inv  = run.player.inventory
-  const item = ITEMS[id]
-  if (!item) return false
-  if (item.stackable) {
-    const maxS = item.maxStack ?? Number.POSITIVE_INFINITY
-    if (inv.some(e => e?.id === id && e.qty < maxS)) return true
-  }
-  return inv.filter(e => e !== null).length < BACKPACK_MAX_SLOTS
-}
+async function _addToBackpack(id) { return InventoryController.addToBackpack(_inventoryCtx(), id) }
+function _canAddToBackpack(id) { return InventoryController.canAddToBackpack(_inventoryCtx(), id) }
+function useItem(id) { InventoryController.useItem(_inventoryCtx(), id) }
+function dropItem(id) { InventoryController.dropItem(_inventoryCtx(), id) }
+async function forceReplaceItem(oldId, newId) { return InventoryController.forceReplaceItem(_inventoryCtx(), oldId, newId) }
 
-function _triggerStormcallerLightning(sourceTile, playerDmg) {
-  const grid = TileEngine.getGrid()
-  const lightningDmg = Math.max(1, Math.floor(playerDmg * 0.2))
-  let victims = 0
-  for (const row of grid) {
-    for (const t of row) {
-      if (t.revealed && t.enemyData && !t.enemyData._slain && t !== sourceTile) {
-        t.enemyData.currentHP = Math.max(0, t.enemyData.currentHP - lightningDmg)
-        UI.spawnFloat(t.element, `⚡ ${lightningDmg}`, 'damage')
-        UI.updateEnemyHP(t.element, t.enemyData.currentHP)
-        victims++
-        if (t.enemyData.currentHP <= 0) {
-          _gainGold(t.enemyData.goldDrop ? _rand(...t.enemyData.goldDrop) : 1, t.element, true)
-          _gainXP(t.enemyData.xpDrop ?? 0, t.element)
-          _endCombatVictory(t)
-        }
-      }
-    }
-  }
-  if (victims > 0) {
-    UI.spawnFloat(sourceTile.element, '⚡ Storm!', 'xp')
-    EventBus.emit('audio:play', { sfx: 'spell' })
-  }
+/** Swap PNG→GIF reliably (restart animation from frame 0) across browsers. */
+function _forcePlayChestGif(img, gifSrc) {
+  if (!img || img.tagName !== 'IMG') return
+  img.removeAttribute('src')
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      img.src = gifSrc
+    })
+  })
 }
 
 function _checkFloorCleared() {
-  if (run.atRest) return
-  if (CONFIG.bossFloors.includes(run.floor)) return
-  if (run.floorKeyAwarded) return
+  if (session.run.atRest) return
+  if (CONFIG.bossFloors.includes(session.run.floor)) return
+  if (session.run.floorKeyAwarded) return
   const grid = TileEngine.getGrid()
   for (const row of grid) {
     for (const tile of row) {
@@ -9107,17 +2212,17 @@ function _checkFloorCleared() {
       }
     }
   }
-  run.floorKeyAwarded = true
-  run.player.goldenKeys = (run.player.goldenKeys ?? 0) + 1
-  UI.updateGoldenKeys(run.player.goldenKeys)
+  session.run.floorKeyAwarded = true
+  session.run.player.goldenKeys = (session.run.player.goldenKeys ?? 0) + 1
+  UI.updateGoldenKeys(session.run.player.goldenKeys)
   _syncMagicChestKeyGlow()
   UI.spawnFloat(document.getElementById('hud-portrait'), '🗝️ Golden Key!', 'xp')
-  UI.setMessage(`Floor cleared! You find a 🗝️ Golden Key. (${run.player.goldenKeys} total) Spend it at the Magic Chest in the sanctuary.`)
+  UI.setMessage(`Floor cleared! You find a 🗝️ Golden Key. (${session.run.player.goldenKeys} total) Spend it at the Magic Chest in the sanctuary.`)
   EventBus.emit('audio:play', { sfx: 'gold' })
 }
 
 function _openMagicChest(tile) {
-  const keys = run.player.goldenKeys ?? 0
+  const keys = session.run.player.goldenKeys ?? 0
   if (keys <= 0) {
     UI.setMessage('The Magic Chest glimmers… but you have no 🗝️ Golden Keys. Clear a floor without fleeing to earn one.')
     return
@@ -9126,35 +2231,34 @@ function _openMagicChest(tile) {
   const item = ITEMS[loot.type]
   if (loot.type === 'gold') {
     const amt = loot.amount ?? _rand(...CONFIG.chest.goldDrop)
-    run.player.goldenKeys--
-    UI.updateGoldenKeys(run.player.goldenKeys)
+    session.run.player.goldenKeys--
+    UI.updateGoldenKeys(session.run.player.goldenKeys)
     _syncMagicChestKeyGlow()
     tile.pendingLoot = null
-    run.player.gold += amt
-    UI.updateGold(run.player.gold)
-    EventBus.emit('player:goldChange', { amount: amt, newTotal: run.player.gold })
+    session.run.player.gold += amt
+    UI.updateGold(session.run.player.gold)
+    EventBus.emit('player:goldChange', { amount: amt, newTotal: session.run.player.gold })
     EventBus.emit('audio:play', { sfx: 'chest' })
     _animateMagicChestOpenClose(tile, `+${amt}🪙`)
-    UI.setMessage(`The Magic Chest spills ${amt} gold! (${run.player.goldenKeys} keys left)`)
+    UI.setMessage(`The Magic Chest spills ${amt} gold! (${session.run.player.goldenKeys} keys left)`)
     return
   }
-  // Smiths-tools: always apply instantly, no slot needed
   if (loot.type === 'smiths-tools') {
-    run.player.goldenKeys--
-    UI.updateGoldenKeys(run.player.goldenKeys)
+    session.run.player.goldenKeys--
+    UI.updateGoldenKeys(session.run.player.goldenKeys)
     _syncMagicChestKeyGlow()
     tile.pendingLoot = null
     const def = ITEMS['smiths-tools']
     const amt = def?.effect?.amount ?? 1
-    run.player.damageBonus = (run.player.damageBonus ?? 0) + amt
+    session.run.player.damageBonus = (session.run.player.damageBonus ?? 0) + amt
     {
-      const [d0, d1] = _playerDamageRange(run.player)
+      const [d0, d1] = _playerDamageRange(session.run.player)
       UI.updateDamageRange(d0, d1)
     }
     const floatLabel = `🔧 ${def.name}`
     EventBus.emit('audio:play', { sfx: 'chest' })
     _animateMagicChestOpenClose(tile, floatLabel)
-    UI.setMessage(`The Magic Chest grants ${def.name}! +${amt} attack damage. (${run.player.goldenKeys} keys left)`)
+    UI.setMessage(`The Magic Chest grants ${def.name}! +${amt} attack damage. (${session.run.player.goldenKeys} keys left)`)
     return
   }
   if (!_canAddToBackpack(loot.type)) {
@@ -9162,8 +2266,8 @@ function _openMagicChest(tile) {
     UI.setMessage(`Your backpack is full! Drop an item, then tap the Magic Chest again to claim your ${item?.name ?? loot.type}.`)
     return
   }
-  run.player.goldenKeys--
-  UI.updateGoldenKeys(run.player.goldenKeys)
+  session.run.player.goldenKeys--
+  UI.updateGoldenKeys(session.run.player.goldenKeys)
   _syncMagicChestKeyGlow()
   tile.pendingLoot = null
   _addToBackpack(loot.type)
@@ -9171,7 +2275,7 @@ function _openMagicChest(tile) {
   const floatLabel = item ? `${item.icon} ${item.name}` : `✨ ${loot.type}`
   EventBus.emit('audio:play', { sfx: 'chest' })
   _animateMagicChestOpenClose(tile, floatLabel)
-  UI.setMessage(`✨ The Magic Chest bestows: ${item?.name ?? loot.type}! (${run.player.goldenKeys} keys left)`)
+  UI.setMessage(`✨ The Magic Chest bestows: ${item?.name ?? loot.type}! (${session.run.player.goldenKeys} keys left)`)
 }
 
 function _animateMagicChestOpenClose(tile, floatText) {
@@ -9218,688 +2322,35 @@ function _animateMagicChestOpenClose(tile, floatText) {
   requestAnimationFrame(finish)
 }
 
-function useItem(id) {
-  const inv   = run.player.inventory
-  const entry = inv.find(e => e?.id === id)
-  if (!entry) return
-  const item = ITEMS[id]
-  if (!item) return
-
-  const { effect } = item
-
-  if (effect.type.startsWith('passive-')) {
-    UI.setMessage(`${item.name} is a passive item — it's always active in your bag.`, true)
-    return
-  }
-
-  if (effect.type === 'lantern') {
-    lanternAction()
-    return
-  }
-  if (effect.type === 'dowsing-rod') {
-    dowsingRodAction()
-    return
-  }
-  if (effect.type === 'spyglass') {
-    spyglassAction()
-    return
-  }
-  if (effect.type === 'hourglass-sand') {
-    hourglassAction()
-    return
-  }
-  if (effect.type === 'temporal-wick') {
-    if (!run._hourglassSnapshot) { UI.setMessage('Nothing to rewind yet.', true); return }
-    if (_combatBusy) { UI.setMessage('Not while combat is resolving.', true); return }
-    if (_isCombatCommitmentLocked()) { UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true); return }
-    if (GameState.is(States.LEVEL_UP)) { UI.setMessage('Cannot rewind during level-up.', true); return }
-    const p = run.player
-    if (p.gold < 1) { UI.setMessage('You need 1 gold to use Temporal Wick.', true); return }
-    _restoreHourglassSnapshot(run._hourglassSnapshot)
-    _spyglassTargeting = false; _lanternTargeting = false
-    UI.setLanternTargeting(false)
-    p.mana = 0; p.hp -= 1; p.gold -= 1
-    const wickHeal = Math.max(1, Math.floor(p.maxHp * 0.15))
-    p.hp = Math.min(p.maxHp, p.hp + wickHeal)
-    UI.updateMana(p.mana, p.maxMana)
-    UI.updateHP(p.hp, p.maxHp)
-    UI.updateGold(p.gold)
-    if (p.hp <= 0) { _die(null, { deathCause: 'temporal_wick' }); return }
-    UI.setMessage(`⏳ The wick flickers — your last step is undone. +${wickHeal} HP restored.`)
-    EventBus.emit('audio:play', { sfx: 'spell' })
-    return
-  }
-  if (effect.type === 'navigators-chart') {
-    if (_isCombatCommitmentLocked()) {
-      UI.setMessage(MSG_COMBAT_ACTION_BLOCKED, true)
-      return
-    }
-    if (run.player.navigatorsChartUsed) {
-      UI.setMessage("🗺️ Navigator's Chart — already used this floor. Renews on the next floor.", true); return
-    }
-    run.player.navigatorsChartUsed = true
-    const grid = TileEngine.getGrid()
-    const unrevealed = []
-    for (const row of grid) { for (const t of row) { if (!t.revealed) unrevealed.push(t) } }
-    unrevealed.forEach((t, i) => setTimeout(() => revealTile(t), i * 50))
-    UI.setMessage("🗺️ Navigator's Chart — the entire floor is revealed!")
-    EventBus.emit('audio:play', { sfx: 'spell' })
-    return
-  }
-  if (effect.type === 'field-kit') {
-    if (run.player.mana < 5) { UI.setMessage('Not enough mana! Field Kit costs 5 mana.', true); return }
-    run.player.mana -= 5
-    UI.updateMana(run.player.mana, run.player.maxMana)
-    run.player.burnStacks = 0; UI.setBurnOverlay(0)
-    run.player.poisonStacks = 0; UI.setPlayerPoison(0)
-    run.player.tearyEyesTurns = 0; UI.setTearyEyes(0)
-    run.player.freezingHitStacks = 0; UI.setFreezingHit(0)
-    if (run.player.corruptionStacks > 0) {
-      if (run.player.corruptionBaseMaxHp)   { run.player.maxHp  = run.player.corruptionBaseMaxHp;  run.player.corruptionBaseMaxHp  = 0 }
-      if (run.player.corruptionBaseMaxMana) { run.player.maxMana = run.player.corruptionBaseMaxMana; run.player.corruptionBaseMaxMana = 0 }
-      run.player.corruptionStacks = 0; UI.setCorruption(0)
-    }
-    const kitHeal = Math.min(5, run.player.maxHp - run.player.hp)
-    run.player.hp = Math.min(run.player.maxHp, run.player.hp + kitHeal)
-    UI.updateHP(run.player.hp, run.player.maxHp)
-    UI.spawnFloat(document.getElementById('hud-portrait'), `🧰 +${kitHeal} HP`, 'heal')
-    UI.setMessage(`🧰 Field Kit — +${kitHeal} HP and all debuffs cleared. (5 mana)`)
-    EventBus.emit('audio:play', { sfx: 'heal' })
-    return
-  }
-  if (effect.type === 'twin-blades') {
-    if (run.player.mana < 5) { UI.setMessage('Not enough mana! Twin Blades costs 5 mana.', true); return }
-    run.player.mana -= 5
-    UI.updateMana(run.player.mana, run.player.maxMana)
-    _twinBladesTargeting = true
-    UI.setMessage('⚔️ Twin Blades — tap any revealed living enemy to strike for 5 damage (no counter). (5 mana)')
-    EventBus.emit('audio:play', { sfx: 'menu' })
-    return
-  }
-  if (effect.type === 'smoke-bomb') {
-    const combatTile = run.activeCombatTile
-    if (!combatTile || !combatTile.enemyData || combatTile.enemyData._slain) {
-      UI.setMessage('Smoke Bomb can only be used during combat.', true); return
-    }
-    if (run.player.mana < 5) { UI.setMessage('Not enough mana! Smoke Bomb costs 5 mana.', true); return }
-    run.player.mana -= 5
-    UI.updateMana(run.player.mana, run.player.maxMana)
-    combatTile.enemyData.stunTurns = (combatTile.enemyData.stunTurns ?? 0) + 3
-    UI.spawnFloat(combatTile.element, '💨 Stunned 3!', 'xp')
-    UI.setMessage('💨 Smoke Bomb — enemy stunned for 3 turns! (5 mana)')
-    UI.updateEnemyStatus(combatTile.element, combatTile.enemyData)
-    EventBus.emit('audio:play', { sfx: 'spell' })
-    return
-  }
-
-  // ── Common consumables ────────────────────────────────────────
-  if (effect.type === 'rope-coil') {
-    if (run.player.trapImmune) { UI.setMessage('Rope Coil already active — next trap is blocked.', true); return }
-    run.player.trapImmune = true
-    UI.spawnFloat(document.getElementById('hud-portrait'), '🪢 Ready!', 'heal')
-    UI.setMessage('🪢 Rope Coil readied — the next trap you reveal will be completely negated.')
-    entry.qty--
-    if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
-    EventBus.emit('audio:play', { sfx: 'menu' })
-    return
-  }
-  if (effect.type === 'bandage-roll') {
-    const immediate = 3
-    run.player.hp = Math.min(run.player.maxHp, run.player.hp + immediate)
-    run.player.regenTurns   = 3
-    run.player.regenPerTurn = 1
-    UI.updateHP(run.player.hp, run.player.maxHp)
-    UI.spawnFloat(document.getElementById('hud-portrait'), `🩹 +${immediate} HP`, 'heal')
-    UI.setMessage(`🩹 Bandage applied — +${immediate} HP now, +1 HP per turn for 3 turns.`)
-    entry.qty--
-    if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
-    EventBus.emit('audio:play', { sfx: 'heal' })
-    return
-  }
-  if (effect.type === 'shield-shard') {
-    if (run.player.shieldShard) { UI.setMessage('Shield Shard already active — next hit is blocked.', true); return }
-    run.player.shieldShard = true
-    UI.spawnFloat(document.getElementById('hud-portrait'), '🛡️ Raised!', 'heal')
-    UI.setMessage('🛡️ Shield Shard raised — the very next enemy hit will be absorbed completely.')
-    entry.qty--
-    if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
-    EventBus.emit('audio:play', { sfx: 'menu' })
-    return
-  }
-  if (effect.type === 'smelling-salts') {
-    run.player.tearyEyesTurns = 0
-    UI.setTearyEyes(0)
-    const grid = TileEngine.getGrid()
-    for (const row of grid) {
-      for (const t of row) {
-        if (t.enemyData && !t.enemyData._slain) {
-          t.enemyData.burnTurns   = 0
-          t.enemyData.poisonTurns = 0
-        }
-      }
-    }
-    UI.spawnFloat(document.getElementById('hud-portrait'), '💨 Cleared!', 'heal')
-    UI.setMessage('💨 Smelling Salts — all debuffs cleared.')
-    entry.qty--
-    if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
-    EventBus.emit('audio:play', { sfx: 'heal' })
-    return
-  }
-  if (effect.type === 'sonic-ear') {
-    const grid = TileEngine.getGrid()
-    let count = 0
-    for (const row of grid) {
-      for (const t of row) {
-        if ((t.type === 'enemy' || t.type === 'enemy_fast' || t.type === 'boss') && !t.enemyData?._slain) count++
-      }
-    }
-    UI.setMessage(`👂 Sonic Ear — ${count} living enem${count === 1 ? 'y' : 'ies'} remain on this floor.`)
-    entry.qty--
-    if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
-    EventBus.emit('audio:play', { sfx: 'menu' })
-    return
-  }
-  if (effect.type === 'throwing-knife') {
-    _throwingKnifeTargeting = true
-    UI.setMessage('🗡️ Throwing Knife — tap any revealed living enemy to strike for 3 damage (no counter).')
-    EventBus.emit('audio:play', { sfx: 'menu' })
-    entry.qty--
-    if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
-    return
-  }
-  if (effect.type === 'flash-powder') {
-    const combatTile = run.activeCombatTile
-    if (!combatTile || !combatTile.enemyData || combatTile.enemyData._slain) {
-      UI.setMessage('Flash Powder can only be used during combat.', true)
-      return
-    }
-    combatTile.enemyData.stunTurns = (combatTile.enemyData.stunTurns ?? 0) + 2
-    UI.spawnFloat(combatTile.element, '✨ Stunned!', 'xp')
-    UI.setMessage('✨ Flash Powder — enemy stunned for 2 turns! No counter-attacks.')
-    UI.updateEnemyStatus(combatTile.element, combatTile.enemyData)
-    entry.qty--
-    if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
-    EventBus.emit('audio:play', { sfx: 'spell' })
-    return
-  }
-  if (effect.type === 'rusty-nail') {
-    _rustyNailTargeting = true
-    UI.setMessage('📌 Rusty Nail — tap any revealed living enemy to poison them (1 dmg/turn × 5 turns).')
-    EventBus.emit('audio:play', { sfx: 'menu' })
-    entry.qty--
-    if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
-    return
-  }
-  if (effect.type === 'loose-pouch') {
-    const gold = _rand(3, 6)
-    _gainGold(gold, document.getElementById('hud-portrait'), true)
-    UI.setMessage(`💰 Loose Pouch — +${gold} gold spills out.`)
-    entry.qty--
-    if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
-    EventBus.emit('audio:play', { sfx: 'gold' })
-    return
-  }
-  if (effect.type === 'whetstone') {
-    run.player.whettsoneHits = (run.player.whettsoneHits ?? 0) + 3
-    UI.spawnFloat(document.getElementById('hud-portrait'), '⚔️ +1 dmg ×3', 'xp')
-    UI.setMessage(`🪨 Whetstone — your next 3 melee hits deal +1 damage.`)
-    entry.qty--
-    if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
-    EventBus.emit('audio:play', { sfx: 'hit' })
-    return
-  }
-
-  if (effect.type === 'bone-dice') {
-    if (run.player.mana < 10) { UI.setMessage('Not enough mana! Bone Dice costs 10 mana.', true); return }
-    run.player.mana -= 10
-    UI.updateMana(run.player.mana, run.player.maxMana)
-    const grid = TileEngine.getGrid()
-    let count = 0
-    for (const row of grid) {
-      for (const t of row) {
-        if (t.revealed && t.enemyData && !t.enemyData._slain) {
-          TileEngine.refreshEnemyDamageOnTile(t, run.floor)
-          UI.updateEnemyHP(t.element, t.enemyData.currentHP)
-          count++
-        }
-      }
-    }
-    UI.setMessage(`🎲 Bone Dice rerolled ${count} enem${count === 1 ? 'y' : 'ies'} — better or worse? (10 mana)`)
-    EventBus.emit('audio:play', { sfx: 'menu' })
-    return
-  }
-
-  EventBus.emit('audio:play', { sfx: 'heal' })
-  if (effect.type === 'heal') {
-    const missing = run.player.maxHp - run.player.hp
-    if (missing <= 0) { UI.setMessage('Already at full health!', true); return }
-    const healed = Math.min(effect.amount, missing)
-    run.player.hp += healed
-    UI.updateHP(run.player.hp, run.player.maxHp)
-    UI.spawnFloat(document.getElementById('hud-portrait'), `+${healed} HP`, 'heal')
-    UI.setMessage(`❤️ You drink a ${item.name} and restore ${healed} HP.`)
-  } else if (effect.type === 'mana') {
-    const missing = run.player.maxMana - run.player.mana
-    if (missing <= 0) { UI.setMessage('Already at full mana!', true); return }
-    const hasAcorn  = run.player.inventory.some(e => e?.id === 'hollowed-acorn')
-    const baseAmt   = hasAcorn ? Math.max(1, Math.floor(effect.amount / 2)) : effect.amount
-    const restored  = Math.min(baseAmt, missing)
-    run.player.mana += restored
-    UI.updateMana(run.player.mana, run.player.maxMana)
-    UI.spawnFloat(document.getElementById('hud-portrait'), `+${restored} MP`, 'mana')
-    UI.setMessage(`🔵 You drink a ${item.name} and restore ${restored} mana.${hasAcorn ? ' (Hollowed Acorn halved)' : ''}`)
-  } else if (effect.type === 'mystery-potion') {
-    const roll = Math.random()
-    entry.qty--
-    if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
-    if (roll < 1 / 3) {
-      // Heal (same as red potion)
-      const missing = run.player.maxHp - run.player.hp
-      if (missing <= 0) {
-        UI.setMessage("🤍 The mystery potion fizzes... but you're already at full health.")
-      } else {
-        const healed = Math.min(5, missing)
-        run.player.hp += healed
-        UI.updateHP(run.player.hp, run.player.maxHp)
-        UI.spawnFloat(document.getElementById('hud-portrait'), `+${healed} HP`, 'heal')
-        UI.setMessage(`🤍 The mystery potion tastes sweet — it heals ${healed} HP.`)
-      }
-    } else if (roll < 2 / 3) {
-      // Mana (same as blue potion)
-      const missing = run.player.maxMana - run.player.mana
-      if (missing <= 0) {
-        UI.setMessage("🤍 The mystery potion crackles... but your mana is already full.")
-      } else {
-        const hasAcorn = run.player.inventory.some(e => e?.id === 'hollowed-acorn')
-        const baseAmt  = hasAcorn ? Math.max(1, Math.floor(20 / 2)) : 20
-        const restored = Math.min(baseAmt, missing)
-        run.player.mana += restored
-        UI.updateMana(run.player.mana, run.player.maxMana)
-        UI.spawnFloat(document.getElementById('hud-portrait'), `+${restored} MP`, 'mana')
-        UI.setMessage(`🤍 The mystery potion hums with energy — restores ${restored} mana.${hasAcorn ? ' (Hollowed Acorn halved)' : ''}`)
-      }
-    } else {
-      // Damage — same magnitude as the heal case
-      const dmg = 5
-      run.player.hp = Math.max(0, run.player.hp - dmg)
-      UI.updateHP(run.player.hp, run.player.maxHp)
-      UI.spawnFloat(document.getElementById('hud-portrait'), `-${dmg} HP`, 'damage')
-      UI.setMessage(`🤍 The mystery potion turns bitter — it burns for ${dmg} damage!`, true)
-      if (run.player.hp <= 0) { _die(null, { deathCause: 'mystery_potion' }); return }
-    }
-    return  // qty already decremented above
-  }
-
-  entry.qty--
-  if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
-}
-
-function getInventory() { return run?.player.inventory ?? [] }
+function getInventory() { return session.run?.player.inventory ?? [] }
 
 function getLevelUpLog() {
-  return run?.levelUpLog ? [...run.levelUpLog] : []
-}
-
-/** Backpack items the balance bot may use without targeting toggles or special HUD flows. */
-const _BOT_SAFE_USE_EFFECT_TYPES = new Set([
-  'rope-coil', 'bandage-roll', 'shield-shard', 'smelling-salts', 'sonic-ear', 'loose-pouch',
-  'whetstone', 'heal', 'mana', 'field-kit', 'bone-dice', 'navigators-chart',
-])
-
-function getBalanceBotUseItemCandidates() {
-  if (!run || !GameState.is(States.FLOOR_EXPLORE) || _combatBusy) return []
-  if (_spellTargeting || _lanternTargeting || _spyglassTargeting) return []
-  if (_engineerPendingTile) return []
-  const inv = run.player.inventory ?? []
-  const out = []
-  for (const entry of inv) {
-    if (!entry || entry.qty <= 0) continue
-    const item = ITEMS[entry.id]
-    if (!item?.effect) continue
-    const { effect } = item
-    if (effect.type.startsWith('passive-')) continue
-    if (effect.type === 'smoke-bomb' || effect.type === 'flash-powder') {
-      const ct = run.activeCombatTile
-      if (!ct?.enemyData || ct.enemyData._slain) continue
-    } else if (!_BOT_SAFE_USE_EFFECT_TYPES.has(effect.type)) {
-      continue
-    }
-    if (effect.type === 'heal' && run.player.hp >= run.player.maxHp) continue
-    if (effect.type === 'mana' && run.player.mana >= run.player.maxMana) continue
-    if (effect.type === 'field-kit' && run.player.mana < 5) continue
-    if (effect.type === 'bone-dice' && run.player.mana < 10) continue
-    if (effect.type === 'navigators-chart' && run.player.navigatorsChartUsed) continue
-    out.push(entry.id)
-  }
-  return out
-}
-
-/** Revealed living enemy that is not spell-immune (Slam / Spell / Blinding Light). */
-function _balanceBotHasSpellableEnemy() {
-  const grid = TileEngine.getGrid()
-  if (!grid) return false
-  for (const row of grid) {
-    for (const t of row) {
-      if (t.revealed && t.enemyData && !t.enemyData._slain && !t.enemyData.spellImmune) return true
-    }
-  }
-  return false
-}
-
-/** Any revealed, living enemy (knife / poison shot / twin blades). */
-function _balanceBotHasAnyLivingEnemy() {
-  const grid = TileEngine.getGrid()
-  if (!grid) return false
-  for (const row of grid) {
-    for (const t of row) {
-      if (t.revealed && t.enemyData && !t.enemyData._slain) return true
-    }
-  }
-  return false
-}
-
-/**
- * Spell / blinding / item targeting modes that require an enemy tile become orphans when no valid
- * targets exist (e.g. abilities policy toggled Spell at run start). Clear them so the bot can flip tiles.
- */
-function _balanceBotUnstickOrphanTargeting() {
-  if (!run || !GameState.is(States.FLOOR_EXPLORE) || _combatBusy) return
-
-  const hasSpellable = _balanceBotHasSpellableEnemy()
-  const hasAnyEnemy = _balanceBotHasAnyLivingEnemy()
-
-  if (_spellTargeting && !hasSpellable) {
-    _spellTargeting = false
-    const effectiveCost = _previewSpellManaCostForUi()
-    UI.setSpellTargeting(false, effectiveCost)
-  }
-  if (_blindingLightTargeting && !hasSpellable) {
-    _blindingLightTargeting = false
-    UI.setBlindingLightActive(false)
-  }
-  if (_divineLightSelecting && !hasSpellable) {
-    if (run.player.hp < run.player.maxHp) {
-      const cost = _stillWaterManaCost(WARRIOR_UPGRADES['divine-light'].manaCost + _tearyExtraCost())
-      if (run.player.mana >= cost) {
-        divineLightHealAction()
-      } else {
-        _divineLightSelecting = false
-        UI.setDivineLightActive(false)
-      }
-    } else {
-      _divineLightSelecting = false
-      UI.setDivineLightActive(false)
-    }
-  }
-  if ((_throwingKnifeTargeting || _twinBladesTargeting || _rustyNailTargeting) && !hasAnyEnemy) {
-    _throwingKnifeTargeting = false
-    _twinBladesTargeting = false
-    _rustyNailTargeting = false
-    UI.setMessage('')
-  }
-  if (_poisonArrowShotSelecting && !hasAnyEnemy) {
-    _cancelPoisonArrowShotMode()
-  }
-}
-
-/**
- * While combat commitment is active, only the focused enemy tile produces progress on tap
- * (matches onTileTap + _canAttackEnemy). Returns null when not locked.
- */
-function _balanceBotFocusedEnemyCandidatesIfCombatLocked() {
-  if (!_isCombatCommitmentLocked()) return null
-  const t = _combatEngagementTile && _getActiveTileAt(_combatEngagementTile.row, _combatEngagementTile.col)
-  if (t?.revealed && t.enemyData && !t.enemyData._slain) {
-    return [{ row: t.row, col: t.col }]
-  }
-  return []
-}
-
-/**
- * Balance bot: legal taps — targeting modes, chests, reachable tiles, enemies,
- * and progression tiles (exit / event / rope / forge) so a cleared floor still has candidates.
- * Spell / lantern / spyglass / ricochet / volley / engineer construct are handled here so the bot does not stall.
- */
-function getBalanceBotTapCandidates() {
-  if (!run || !GameState.is(States.FLOOR_EXPLORE) || _combatBusy) return []
-  _balanceBotUnstickOrphanTargeting()
-  const grid = TileEngine.getGrid()
-  if (!grid) return []
-
-  const revealedEnemies = () => {
-    const out = []
-    for (const row of grid) {
-      for (const t of row) {
-        if (t.revealed && t.enemyData && !t.enemyData._slain) {
-          out.push({ row: t.row, col: t.col })
-        }
-      }
-    }
-    return out
-  }
-
-  if (_spellTargeting) {
-    const foc = _balanceBotFocusedEnemyCandidatesIfCombatLocked()
-    if (foc !== null) return foc
-    return revealedEnemies()
-  }
-
-  if (_lanternTargeting || _spyglassTargeting) {
-    if (_isCombatCommitmentLocked()) return []
-    const out = []
-    for (const row of grid) {
-      for (const t of row) {
-        if (!t.revealed && !t.locked) out.push({ row: t.row, col: t.col })
-      }
-    }
-    return out
-  }
-
-  if (_throwingKnifeTargeting || _twinBladesTargeting || _rustyNailTargeting ||
-      _blindingLightTargeting || _divineLightSelecting || _poisonArrowShotSelecting) {
-    const foc = _balanceBotFocusedEnemyCandidatesIfCombatLocked()
-    if (foc !== null) return foc
-    return revealedEnemies()
-  }
-
-  if (_ricochetSelecting) {
-    const out = []
-    for (const row of grid) {
-      for (const t of row) {
-        if (!t.revealed || !t.enemyData || t.enemyData._slain) continue
-        const marked = _ricochetTiles.some(x => x.row === t.row && x.col === t.col)
-        if (!marked && _ricochetTiles.length < 3) out.push({ row: t.row, col: t.col })
-      }
-    }
-    return out.length ? out : revealedEnemies()
-  }
-
-  if (_arrowBarrageSelecting) {
-    if (_tripleVolleyCenter) {
-      return [{ row: _tripleVolleyCenter.row, col: _tripleVolleyCenter.col }]
-    }
-    const out = []
-    for (const row of grid) {
-      for (const t of row) {
-        if (t.revealed) out.push({ row: t.row, col: t.col })
-      }
-    }
-    return out
-  }
-
-  if (_isCombatCommitmentLocked()) {
-    const focusedOnly = _balanceBotFocusedEnemyCandidatesIfCombatLocked() ?? []
-    if (_charKey() === 'engineer') {
-      const merged = [...focusedOnly]
-      const seen = new Set(merged.map((c) => `${c.row},${c.col}`))
-      const tr = run.turret
-      for (const row of grid) {
-        for (const tile of row) {
-          const onTurret = tr && tile.row === tr.row && tile.col === tr.col
-          const emptyBuild = tile.revealed && tile.type === 'empty' && !tile.locked
-          if (onTurret || emptyBuild) {
-            const k = `${tile.row},${tile.col}`
-            if (!seen.has(k)) {
-              seen.add(k)
-              merged.push({ row: tile.row, col: tile.col })
-            }
-          }
-        }
-      }
-      if (merged.length) return merged
-    }
-    return focusedOnly
-  }
-
-  const out = []
-  for (const row of grid) {
-    for (const t of row) {
-      if (!t.revealed && !t.locked && (t.reachable || run.player.eagleEyeFreeFlip)) {
-        out.push({ row: t.row, col: t.col })
-      }
-      if (t.revealed && t.enemyData && !t.enemyData._slain) {
-        out.push({ row: t.row, col: t.col })
-      }
-      if (t.revealed && t.type === 'chest' && t.chestReady && !t.chestLooted) {
-        out.push({ row: t.row, col: t.col })
-      }
-      // Magic chest with 0 keys only shows UI message — no state change, so exclude or the bot loops forever.
-      if (t.revealed && t.type === 'magic_chest' && t.magicChestReady && (run.player.goldenKeys ?? 0) > 0) {
-        out.push({ row: t.row, col: t.col })
-      }
-      if (t.revealed && t.type === 'exit' && !t.exitResolved) {
-        // During sanctuary: hold off tapping exit until every other tile is revealed
-        if (!run.atRest) {
-          out.push({ row: t.row, col: t.col })
-        }
-      }
-      if (t.revealed && t.type === 'event' && !t.eventResolved) {
-        out.push({ row: t.row, col: t.col })
-      }
-      if (t.revealed && t.type === 'rope' && !t.ropeResolved) {
-        out.push({ row: t.row, col: t.col })
-      }
-      if (t.revealed && t.type === 'forge' && !t.forgeUsed) {
-        out.push({ row: t.row, col: t.col })
-      }
-    }
-  }
-  // Sanctuary exit: only add once all tiles are revealed (bot must explore every tile first)
-  if (run.atRest) {
-    let allRevealed = true
-    let exitTile = null
-    for (const row of grid) {
-      for (const t of row) {
-        if (!t.revealed) { allRevealed = false }
-        if (t.revealed && t.type === 'exit' && !t.exitResolved) { exitTile = t }
-      }
-    }
-    if (allRevealed && exitTile) {
-      out.push({ row: exitTile.row, col: exitTile.col })
-    }
-  }
-  return out
-}
-
-/**
- * When there are no tap candidates but hidden, non-locked tiles still exist, they may be unreachable by
- * normal adjacency — lantern/spyglass can target any such tile. Opens lantern (preferred) or spyglass mode.
- */
-function balanceBotTryOpenRevealTool() {
-  if (!run || !GameState.is(States.FLOOR_EXPLORE) || _combatBusy) return false
-  if (_isCombatCommitmentLocked()) return false
-  if (_spellTargeting || _lanternTargeting || _spyglassTargeting) return false
-  if (_ricochetSelecting || _arrowBarrageSelecting || _poisonArrowShotSelecting) return false
-  if (_throwingKnifeTargeting || _twinBladesTargeting || _rustyNailTargeting) return false
-  if (_blindingLightTargeting || _divineLightSelecting) return false
-  if (_engineerPendingTile) return false
-
-  const grid = TileEngine.getGrid()
-  if (!grid) return false
-  let hasHiddenUnlocked = false
-  for (const row of grid) {
-    for (const t of row) {
-      if (!t.revealed && !t.locked) {
-        hasHiddenUnlocked = true
-        break
-      }
-    }
-    if (hasHiddenUnlocked) break
-  }
-  if (!hasHiddenUnlocked) return false
-
-  const inv = run.player.inventory ?? []
-  const hasLantern = inv.some(e => e?.id === 'lantern' && e.qty > 0)
-  const hasSpy = inv.some(e => e?.id === 'spyglass' && e.qty > 0)
-  if (hasLantern) {
-    lanternAction()
-    return true
-  }
-  if (hasSpy) {
-    spyglassAction()
-    return true
-  }
-  return false
+  return session.run?.levelUpLog ? [...session.run.levelUpLog] : []
 }
 
 function getRunTelemetry() {
-  if (run?.telemetry) {
+  if (session.run?.telemetry) {
     return {
-      telemetry: structuredClone(run.telemetry),
-      levelUpLog: (run.levelUpLog ?? []).slice(),
+      telemetry: structuredClone(session.run.telemetry),
+      levelUpLog: (session.run.levelUpLog ?? []).slice(),
       runStats: _runStats(),
     }
   }
-  if (_lastRunTelemetrySnapshot) {
+  if (session.lastRunTelemetrySnapshot) {
     return {
-      telemetry: structuredClone(_lastRunTelemetrySnapshot.telemetry),
-      levelUpLog: _lastRunTelemetrySnapshot.levelUpLog.slice(),
-      runStats: { ..._lastRunTelemetrySnapshot.runStats },
+      telemetry: structuredClone(session.lastRunTelemetrySnapshot.telemetry),
+      levelUpLog: session.lastRunTelemetrySnapshot.levelUpLog.slice(),
+      runStats: { ...session.lastRunTelemetrySnapshot.runStats },
     }
   }
   return null
 }
 
-/** Live snapshot for balance-bot / Playwright — not persisted as run telemetry until the run ends. */
-/** Current HP fraction (0–1) for test-bot-ongoing low-HP retreat; null if no run. */
+/** Live snapshot for balance-bot / Playwright — not persisted as session.run telemetry until the session.run ends. */
+/** Current HP fraction (0–1) for test-bot-ongoing low-HP retreat; null if no session.run. */
 function getPlayerHpRatio() {
-  if (!run?.player?.maxHp) return null
-  return run.player.hp / run.player.maxHp
-}
-
-function getBalanceBotDiagnostics() {
-  const tap = getBalanceBotTapCandidates()
-  const use = getBalanceBotUseItemCandidates()
-  const targeting = []
-  if (_spellTargeting) targeting.push('spell')
-  if (_lanternTargeting) targeting.push('lantern')
-  if (_spyglassTargeting) targeting.push('spyglass')
-  if (_blindingLightTargeting) targeting.push('blindingLight')
-  if (_divineLightSelecting) targeting.push('divineLight')
-  if (_ricochetSelecting) targeting.push('ricochet')
-  if (_arrowBarrageSelecting) targeting.push('arrowBarrage')
-  if (_tripleVolleyCenter) targeting.push('volleyConfirm')
-  if (_poisonArrowShotSelecting) targeting.push('poisonArrow')
-  if (_engineerPendingTile) targeting.push('engineerConstruct')
-  if (_throwingKnifeTargeting) targeting.push('throwingKnife')
-  if (_twinBladesTargeting) targeting.push('twinBlades')
-  if (_rustyNailTargeting) targeting.push('rustyNail')
-  return {
-    gameState: GameState.current(),
-    combatBusy: _combatBusy,
-    combatLocked: _isCombatCommitmentLocked(),
-    combatEngagement: _combatEngagementTile ? { ..._combatEngagementTile } : null,
-    runActive: !!run,
-    floor: run?.floor ?? null,
-    tilesRevealed: run?.tilesRevealed ?? null,
-    tapCandidates: tap.length,
-    useItemCandidates: use.length,
-    targeting: targeting.length ? targeting.join('+') : null,
-    hp: run?.player?.hp ?? null,
-    maxHp: run?.player?.maxHp ?? null,
-    meleeDmg: run?.player ? _playerDamageRange(run.player)[0] : null,
-    hero: _charKey() ?? null,
-  }
+  if (!session.run?.player?.maxHp) return null
+  return session.run.player.hp / session.run.player.maxHp
 }
 
 /**
@@ -9908,9 +2359,9 @@ function getBalanceBotDiagnostics() {
  * (they have their own exits / sanctuary loop). Returns false during combat / overlays / animations.
  */
 function _isPlayerDeadlocked() {
-  if (!run || _isInSubFloor() || run.atRest) return false
+  if (!session.run || _isInSubFloor() || session.run.atRest) return false
   if (!GameState.is(States.FLOOR_EXPLORE)) return false
-  if (_combatBusy) return false
+  if (session.tap.combatBusy) return false
   const grid = TileEngine.getGrid()
   if (!grid) return false
   // Refresh reachability from revealed tiles — stale .reachable on unrevealed cells (e.g. after
@@ -9938,42 +2389,8 @@ function _isPlayerDeadlocked() {
  * Idempotent — running again with an existing escape tile re-asserts the message but won't
  * mark a second tile.
  */
-function _maybeOfferDeadlockEscape() {
-  if (!run || !_isPlayerDeadlocked()) return
-  const grid = TileEngine.getGrid()
-  if (!grid) return
-  // Already offered? Just re-show the prompt so the player isn't confused.
-  for (const row of grid) {
-    for (const t of row) {
-      if (t.deadlockEscape) {
-        UI.setMessage('No path forward — tap the highlighted hazard to clear a path.')
-        return
-      }
-    }
-  }
-  let pick = null
-  for (const row of grid) {
-    for (const t of row) {
-      if (!t.revealed || (t.type !== 'hole' && t.type !== 'blockage')) continue
-      const adj = TileEngine.getOrthogonalTiles(t.row, t.col)
-      const hasWalkable = adj.some(n => n.revealed && n.type !== 'hole' && n.type !== 'blockage')
-      if (!hasWalkable) continue
-      pick = t
-      break
-    }
-    if (pick) break
-  }
-  if (!pick) {
-    UI.setMessage('No path forward and no hazard to clear. Use the Retreat button to escape this floor.', true)
-    return
-  }
-  pick.deadlockEscape = true
-  if (pick.element) pick.element.classList.add('deadlock-escape')
-  UI.setMessage('No path forward — tap the highlighted tile to clear a path.', true)
-}
-
 function _climbThroughHazard(tile) {
-  if (!run || !tile?.deadlockEscape) return
+  if (!session.run || !tile?.deadlockEscape) return
   tile.deadlockEscape = false
   tile.element?.classList.remove('deadlock-escape')
   TileEngine.replaceTileWithEmptyPreserveState(tile.row, tile.col)
@@ -9984,345 +2401,147 @@ function _climbThroughHazard(tile) {
   UI.setMessage('You clear the hazard and find a new path.')
 }
 
-/** Grid stats when the bot has zero tap candidates (deadlock analysis). */
-function getBalanceBotDeadlockDiagnostics() {
-  const grid = TileEngine.getGrid()
-  if (!grid) return { error: 'no_grid' }
-  let locked = 0
-  let unrevealedUnlocked = 0
-  let unrevealedReachable = 0
-  let revealed = 0
-  let livingEnemies = 0
-  for (const row of grid) {
-    for (const t of row) {
-      if (t.revealed) {
-        revealed++
-        if (t.enemyData && !t.enemyData._slain) livingEnemies++
-      } else if (t.locked) {
-        locked++
-      } else {
-        unrevealedUnlocked++
-        if (t.reachable) unrevealedReachable++
-      }
-    }
-  }
+/** Remove one item from backpack (stack −1 or remove slot). Does not apply use effects. */
+// ── Balance bot bridge + cheat (extracted controllers) ───────
+
+function _botFlags() {
   return {
-    floor: run?.floor ?? null,
-    atRest: !!run?.atRest,
-    tilesRevealed: run?.tilesRevealed ?? null,
-    locked,
-    unrevealedUnlocked,
-    unrevealedReachable,
-    revealed,
-    livingEnemies,
-    combatBusy: _combatBusy,
-    gameState: GameState.current(),
+    get spellTargeting() { return session.tap.spellTargeting },
+    set spellTargeting(v) { session.tap.spellTargeting = v },
+    get lanternTargeting() { return session.tap.lanternTargeting },
+    set lanternTargeting(v) { session.tap.lanternTargeting = v },
+    get spyglassTargeting() { return session.tap.spyglassTargeting },
+    set spyglassTargeting(v) { session.tap.spyglassTargeting = v },
+    get blindingLightTargeting() { return session.tap.blindingLightTargeting },
+    set blindingLightTargeting(v) { session.tap.blindingLightTargeting = v },
+    get divineLightSelecting() { return session.tap.divineLightSelecting },
+    set divineLightSelecting(v) { session.tap.divineLightSelecting = v },
+    get ricochetSelecting() { return session.tap.ricochetSelecting },
+    set ricochetSelecting(v) { session.tap.ricochetSelecting = v },
+    get arrowBarrageSelecting() { return session.tap.arrowBarrageSelecting },
+    set arrowBarrageSelecting(v) { session.tap.arrowBarrageSelecting = v },
+    get poisonArrowShotSelecting() { return session.tap.poisonArrowShotSelecting },
+    set poisonArrowShotSelecting(v) { session.tap.poisonArrowShotSelecting = v },
+    get engineerPendingTile() { return session.tap.engineerPendingTile },
+    set engineerPendingTile(v) { session.tap.engineerPendingTile = v },
+    get throwingKnifeTargeting() { return session.tap.throwingKnifeTargeting },
+    set throwingKnifeTargeting(v) { session.tap.throwingKnifeTargeting = v },
+    get twinBladesTargeting() { return session.tap.twinBladesTargeting },
+    set twinBladesTargeting(v) { session.tap.twinBladesTargeting = v },
+    get rustyNailTargeting() { return session.tap.rustyNailTargeting },
+    set rustyNailTargeting(v) { session.tap.rustyNailTargeting = v },
+    get tripleVolleyCenter() { return session.tap.tripleVolleyCenter },
   }
 }
 
-/** Force-recompute tile reachability from all currently-revealed tiles. Fixes stale flags. */
+function _botDeps() {
+  return {
+    getRun: () => session.run,
+    getSave: () => session.save,
+    GameState,
+    States,
+    UI,
+    TileEngine,
+    ITEMS,
+    WARRIOR_UPGRADES,
+    getCombatBusy: () => session.tap.combatBusy,
+    flags: _botFlags(),
+    charKey: _charKey,
+    closeEventSession: _closeEventSession,
+    flushDeferredLevelUpXp: _flushDeferredLevelUpXp,
+    previewSpellManaCostForUi: _previewSpellManaCostForUi,
+    stillWaterManaCost: _stillWaterManaCost,
+    tearyExtraCost: _tearyExtraCost,
+    isCombatCommitmentLocked: _isCombatCommitmentLocked,
+    getActiveTileAt: _getActiveTileAt,
+    getCombatEngagementTile: () => session.tap.combatEngagementTile,
+    getRicochetTiles: () => session.tap.ricochetTiles,
+    getTripleVolleyCenter: () => session.tap.tripleVolleyCenter,
+    cancelPoisonArrowShotMode: _cancelPoisonArrowShotMode,
+    divineLightHealAction,
+    lanternAction,
+    spyglassAction,
+    spellAction,
+    slamAction,
+    blindingLightAction,
+    divineLightAction,
+    playerDamageRange: _playerDamageRange,
+    markReachableUi: _markReachableUi,
+  }
+}
+
+function _cheatDeps() {
+  return {
+    getSave: () => session.save,
+    getRun: () => session.run,
+    GameState,
+    States,
+    UI,
+    EventBus,
+    SaveManager,
+    xpNeeded: _xpNeeded,
+    playerDamageRange: _playerDamageRange,
+    triggerLevelUp: _triggerLevelUp,
+    syncMagicChestKeyGlow: _syncMagicChestKeyGlow,
+    nextFloor: _nextFloor,
+    startFloor: _startFloor,
+    runMusicTrack: _runMusicTrack,
+  }
+}
+
+function getBalanceBotUseItemCandidates() {
+  return BalanceBotBridge.getBalanceBotUseItemCandidates(_botDeps())
+}
+
+function getBalanceBotTapCandidates() {
+  return BalanceBotBridge.getBalanceBotTapCandidates(_botDeps())
+}
+
+function balanceBotTryOpenRevealTool() {
+  return BalanceBotBridge.balanceBotTryOpenRevealTool(_botDeps())
+}
+
+function getBalanceBotDiagnostics() {
+  return BalanceBotBridge.getBalanceBotDiagnostics(_botDeps())
+}
+
+function getBalanceBotDeadlockDiagnostics() {
+  return BalanceBotBridge.getBalanceBotDeadlockDiagnostics(_botDeps())
+}
+
 function balanceBotRepairReachability() {
-  if (!run) return false
-  TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
-  return true
+  return BalanceBotBridge.balanceBotRepairReachability(_botDeps())
 }
 
-/**
- * Softlock recovery: clear ALL tile locks (red X's) not justified by a living enemy,
- * then rebuild reachability. Returns count of now-available unrevealed tiles.
- */
 function balanceBotForceUnlockAll() {
-  if (!run) return 0
-  TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
-  TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
-  const grid = TileEngine.getGrid()
-  let unlocked = 0
-  for (const row of grid) {
-    for (const t of row) {
-      if (!t.revealed && !t.locked) unlocked++
-    }
-  }
-  return unlocked
+  return BalanceBotBridge.balanceBotForceUnlockAll(_botDeps())
 }
 
-function _weightedAbilityPick(weights, ids) {
-  let sum = 0
-  for (const id of ids) sum += Math.max(0, weights[id] ?? 0)
-  if (sum <= 0) return null
-  let r = Math.random() * sum
-  for (const id of ids) {
-    const w = Math.max(0, weights[id] ?? 0)
-    r -= w
-    if (r <= 0) return id
-  }
-  return ids[ids.length - 1]
-}
-
-function _balanceBotHasSlamTarget() {
-  return _balanceBotHasSpellableEnemy()
-}
-
-/**
- * Balance bot: when policy uses abilities, try a weighted warrior action (Slam / Blinding / Spell / Divine).
- * Returns true if an action was started (including targeting toggles); false to fall back to tile taps.
- */
 function balanceBotTryWarriorAbilities(abilityWeights = {}) {
-  const w = {
-    slam: 4,
-    'blinding-light': 2,
-    spell: 2,
-    'divine-light': 1,
-    ...abilityWeights,
-  }
-  if (!run || !GameState.is(States.FLOOR_EXPLORE) || _combatBusy) return false
-  if (_spellTargeting || _lanternTargeting || _spyglassTargeting) return false
-  if (_blindingLightTargeting || _divineLightSelecting) return false
-  if (_ricochetSelecting || _arrowBarrageSelecting || _poisonArrowShotSelecting) return false
-  if (_throwingKnifeTargeting || _twinBladesTargeting || _rustyNailTargeting) return false
-  if (_engineerPendingTile) return false
-  if (_charKey() !== 'warrior') return false
-
-  const upgrades = _save.warrior?.upgrades ?? []
-  const candidates = []
-  const push = (id) => {
-    if ((w[id] ?? 0) <= 0) return
-    candidates.push(id)
-  }
-  const hasSpellTgt = _balanceBotHasSpellableEnemy()
-  const slamCost = _stillWaterManaCost(WARRIOR_UPGRADES.slam.manaCost)
-  if (upgrades.includes('slam') && run.player.mana >= slamCost && hasSpellTgt) push('slam')
-  const blindCost = _stillWaterManaCost(WARRIOR_UPGRADES['blinding-light'].manaCost + _tearyExtraCost())
-  if (upgrades.includes('blinding-light') && run.player.mana >= blindCost && hasSpellTgt) push('blinding-light')
-  const spellCost = _previewSpellManaCostForUi()
-  if (run.player.mana >= spellCost && hasSpellTgt) push('spell')
-  const divineCost = _stillWaterManaCost(WARRIOR_UPGRADES['divine-light'].manaCost + _tearyExtraCost())
-  if (upgrades.includes('divine-light') && run.player.mana >= divineCost) {
-    if (hasSpellTgt || run.player.hp < run.player.maxHp) push('divine-light')
-  }
-  if (candidates.length === 0) return false
-
-  const pick = _weightedAbilityPick(w, candidates)
-  if (!pick) return false
-
-  const mana0 = run.player.mana
-  if (pick === 'slam') {
-    slamAction()
-    return run.player.mana < mana0 || _combatBusy
-  }
-  if (pick === 'blinding-light') {
-    blindingLightAction()
-    return _blindingLightTargeting
-  }
-  if (pick === 'spell') {
-    spellAction()
-    return _spellTargeting
-  }
-  if (pick === 'divine-light') {
-    divineLightAction()
-    return _divineLightSelecting
-  }
-  return false
-}
-
-/** Ranger / engineer: open spell targeting when mana allows (abilities policy fallback). */
-function balanceBotTryGenericSpellAbility() {
-  if (!run || !GameState.is(States.FLOOR_EXPLORE) || _combatBusy) return false
-  if (_spellTargeting || _lanternTargeting || _spyglassTargeting) return false
-  if (_ricochetSelecting || _arrowBarrageSelecting || _poisonArrowShotSelecting) return false
-  if (_throwingKnifeTargeting || _twinBladesTargeting || _rustyNailTargeting) return false
-  if (_engineerPendingTile) return false
-  if (run.player.mana < _previewSpellManaCostForUi()) return false
-  if (!_balanceBotHasSpellableEnemy()) return false
-  spellAction()
-  return _spellTargeting
+  return BalanceBotBridge.balanceBotTryWarriorAbilities(_botDeps(), abilityWeights)
 }
 
 function balanceBotTryAbilitiesPolicy(abilityWeights = {}) {
-  if (_charKey() === 'warrior') return balanceBotTryWarriorAbilities(abilityWeights)
-  return balanceBotTryGenericSpellAbility()
+  return BalanceBotBridge.balanceBotTryAbilitiesPolicy(_botDeps(), abilityWeights)
 }
 
-/** Remove one item from backpack (stack −1 or remove slot). Does not apply use effects. */
-function dropItem(id) {
-  if (!run) return
-  const inv = run.player.inventory
-  const entry = inv.find(e => e?.id === id)
-  if (!entry) return
-  const item = ITEMS[id]
-  entry.qty--
-  if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
-  // Blood Pact: revert on drop
-  if (id === 'blood-pact') {
-    run.player.damageBonus = Math.max(0, (run.player.damageBonus ?? 0) - 2)
-    run.player.maxHp += 3
-    UI.updateHP(run.player.hp, run.player.maxHp)
-    const [d0, d1] = _playerDamageRange(run.player)
-    UI.updateDamageRange(d0, d1)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '🩸 Pact broken', 'heal')
-  }
-  // Forsaken Idol: restore max HP on drop
-  if (id === 'forsaken-idol') {
-    run.player.maxHp = Math.max(1, run.player.maxHp * 2)
-    UI.updateHP(run.player.hp, run.player.maxHp)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '🗿 Max HP restored', 'heal')
-  }
-  // Hollowed Acorn: revert max mana on drop
-  if (id === 'hollowed-acorn') {
-    run.player.maxMana = Math.max(1, (run.player.maxMana ?? CONFIG.player.maxMana) - 10)
-    run.player.mana = Math.min(run.player.mana, run.player.maxMana)
-    UI.updateMana(run.player.mana, run.player.maxMana)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '🌰 −10 Mana', 'damage')
-  }
-  // Mana Crucible: revert max mana on drop
-  if (id === 'mana-crucible') {
-    run.player.maxMana = Math.max(1, (run.player.maxMana ?? CONFIG.player.maxMana) - 15)
-    run.player.mana = Math.min(run.player.mana, run.player.maxMana)
-    UI.updateMana(run.player.mana, run.player.maxMana)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '🫙 −15 Mana', 'damage')
-  }
-  // Sanguine Covenant: revert on drop
-  if (id === 'sanguine-covenant') {
-    run.player.damageBonus = Math.max(0, (run.player.damageBonus ?? 0) - 3)
-    run.player.maxHp = Math.max(1, run.player.maxHp * 2)
-    UI.updateHP(run.player.hp, run.player.maxHp)
-    const [d0, d1] = _playerDamageRange(run.player)
-    UI.updateDamageRange(d0, d1)
-  }
-  // Razor's Edge: restore max HP on drop
-  if (id === 'razors-edge') {
-    run.player.maxHp += 10
-    UI.updateHP(run.player.hp, run.player.maxHp)
-  }
-  // Honed Edge: revert damage on drop
-  if (id === 'honed-edge') {
-    run.player.damageBonus = Math.max(0, (run.player.damageBonus ?? 0) - 1)
-    const [d0, d1] = _playerDamageRange(run.player)
-    UI.updateDamageRange(d0, d1)
-  }
-  UI.setMessage(item ? `Dropped ${item.name}.` : 'Item removed.')
-  EventBus.emit('audio:play', { sfx: 'menu' })
-}
-
-/** Trash the item currently sitting in the backpack:full pending slot (no-op if pack isn't full). */
-async function forceReplaceItem(oldId, newId) {
-  if (!run) return
-  dropItem(oldId)
-  await _addToBackpack(newId)
-  EventBus.emit('inventory:changed')
-}
-
-// ── Cheat helpers ─────────────────────────────────────────────
-
-function cheatSkipFloor() {
-  if (!_save?.settings?.cheats?.skipFloorButton || !run) return
-  if (!GameState.is(States.FLOOR_EXPLORE)) {
-    UI.setMessage('[Cheat] Skip floor only works while exploring.', true)
-    return
-  }
-  run.bossFloorExitPending = false
-  if (run.atRest) {
-    run.atRest = false
-    run.floorKeyAwarded = false
-    run.floor++
-    EventBus.emit('audio:crossfade', { track: _runMusicTrack(), duration: 1500 })
-    EventBus.emit('audio:play', { sfx: 'footsteps' })
-    UI.setMessage(`[Cheat] Skipped sanctuary → floor ${run.floor}`)
-    EventBus.emit('run:floorAdvance', { newFloor: run.floor })
-    UI.runFloorTransition(3000, () => {
-      GameState.set(States.BOOT)
-      _startFloor()
-    }, run.floor)
-    return
-  }
-  _nextFloor()
+function balanceBotDismissNpcEvent() {
+  return BalanceBotBridge.balanceBotDismissNpcEvent(_botDeps())
 }
 
 function applyCheat(key, enabled) {
-  if (!_save.settings.cheats) _save.settings.cheats = {}
-  _save.settings.cheats[key] = enabled
-
-  if (key === 'skipFloorButton') {
-    UI.refreshSkipFloorButton(_save)
-  }
-  if (key === 'increaseStats') {
-    document.body.classList.toggle('cheat-increase-stats', enabled)
-  }
-
-  if (!run) return
-  if (key === 'gold999' && enabled) {
-    run.player.gold = 999
-    UI.updateGold(run.player.gold)
-  }
-  if (key === 'xp999' && enabled) {
-    run.player.xp = 999
-    UI.updateXP(run.player.xp, _xpNeeded())
-  }
+  CheatController.applyCheat(_cheatDeps(), key, enabled)
 }
 
-/**
- * Cheat "Increase stats": tap HUD HP/mana/gold (+10 each), attack (+1 damageBonus), XP bar (+10% to next level), or golden key slot (+1 key).
- * Caller should ensure main menu is hidden (in a run).
- */
+function cheatSkipFloor() {
+  CheatController.cheatSkipFloor(_cheatDeps())
+}
+
 function cheatHudStatBoost(stat) {
-  if (!_save?.settings?.cheats?.increaseStats || !run) return
-  if (GameState.is(States.DEATH)) return
-  stat = String(stat ?? '').trim().toLowerCase()
-  if (stat === 'xp' && GameState.is(States.LEVEL_UP)) return
-
-  const playable =
-    GameState.is(States.FLOOR_EXPLORE) ||
-    GameState.is(States.COMBAT) ||
-    GameState.is(States.NPC_INTERACT) ||
-    GameState.is(States.LEVEL_UP) ||
-    GameState.is(States.RETREAT_CONFIRM)
-  if (!playable) return
-
-  const p = run.player
-  if (stat === 'hp') {
-    p.hp = Math.min(p.maxHp, p.hp + 10)
-    UI.updateHP(p.hp, p.maxHp)
-    return
-  }
-  if (stat === 'mana') {
-    p.mana = Math.min(p.maxMana, p.mana + 10)
-    UI.updateMana(p.mana, p.maxMana)
-    return
-  }
-  if (stat === 'gold') {
-    p.gold += 10
-    UI.updateGold(p.gold)
-    EventBus.emit('player:goldChange', { amount: 10, newTotal: p.gold })
-    return
-  }
-  if (stat === 'goldenkey') {
-    p.goldenKeys = (p.goldenKeys ?? 0) + 1
-    UI.updateGoldenKeys(p.goldenKeys)
-    _syncMagicChestKeyGlow()
-    return
-  }
-  if (stat === 'dmg') {
-    p.damageBonus = (p.damageBonus ?? 0) + 1
-    {
-      const [d0, d1] = _playerDamageRange(p)
-      UI.updateDamageRange(d0, d1)
-    }
-    return
-  }
-  if (stat === 'xp') {
-    const add = Math.max(1, Math.round(_xpNeeded() * 0.1))
-    p.xp += add
-    if (p.xp >= _xpNeeded()) {
-      p.xp -= _xpNeeded()
-      p.level++
-      const xpEl = document.getElementById('xp-bar-container')
-      if (xpEl) UI.spawnFloat(xpEl, `⬆️ Lv ${p.level}!`, 'xp')
-      EventBus.emit('player:levelup', { newLevel: p.level })
-      EventBus.emit('audio:play', { sfx: 'levelup' })
-      _triggerLevelUp()
-    }
-    UI.updateXP(p.xp, _xpNeeded())
-  }
+  CheatController.cheatHudStatBoost(_cheatDeps(), stat)
 }
+
+const uiButtonHaptic = Haptics.uiButtonHaptic
 
 // ── Test harness (?testHarness=1 — inert in normal play) ───────
 
@@ -10341,38 +2560,38 @@ function _deepMergeSaveOverrides(target, overrides) {
 
 function testHarnessSetupRun(opts = {}) {
   const { hero = 'warrior', floor = 1, saveOverrides = {}, playerOverrides = {} } = opts
-  if (!_save) return false
-  if (hero) _save.selectedCharacter = hero
-  _save.settings = _save.settings ?? {}
-  _save.settings.firstRunIntroDismissed = true
-  _save.settings.parryChoiceDismissed = true
-  _save.settings.parryEnabled = false
-  _deepMergeSaveOverrides(_save, saveOverrides)
-  if (run) {
+  if (!session.save) return false
+  if (hero) session.save.selectedCharacter = hero
+  session.save.settings = session.save.settings ?? {}
+  session.save.settings.firstRunIntroDismissed = true
+  session.save.settings.parryChoiceDismissed = true
+  session.save.settings.parryEnabled = false
+  _deepMergeSaveOverrides(session.save, saveOverrides)
+  if (session.run) {
     _clearActiveRun()
-    run = null
-  } else if (_save.activeRun) {
-    delete _save.activeRun
+    session.run = null
+  } else if (session.save.activeRun) {
+    delete session.save.activeRun
   }
   newGame()
-  if (!run) return false
-  if (floor !== run.floor) run.floor = floor
-  if (Object.keys(playerOverrides).length) Object.assign(run.player, playerOverrides)
-  UI.updateFloor(run.floor, { rest: run.atRest })
-  UI.updateHP(run.player.hp, run.player.maxHp)
-  UI.updateMana(run.player.mana, run.player.maxMana)
-  UI.updateGold(run.player.gold)
-  UI.updateXP(run.player.xp, _xpNeeded())
+  if (!session.run) return false
+  if (floor !== session.run.floor) session.run.floor = floor
+  if (Object.keys(playerOverrides).length) Object.assign(session.run.player, playerOverrides)
+  UI.updateFloor(session.run.floor, { rest: session.run.atRest })
+  UI.updateHP(session.run.player.hp, session.run.player.maxHp)
+  UI.updateMana(session.run.player.mana, session.run.player.maxMana)
+  UI.updateGold(session.run.player.gold)
+  UI.updateXP(session.run.player.xp, _xpNeeded())
   {
-    const [d0, d1] = _playerDamageRange(run.player)
+    const [d0, d1] = _playerDamageRange(session.run.player)
     UI.updateDamageRange(d0, d1)
   }
   return true
 }
 
 function testHarnessImportGrid(snapshot) {
-  if (!run || !snapshot) return false
-  const ok = TileEngine.importGridFromSnapshot(snapshot, run.floor, { rest: run.atRest })
+  if (!session.run || !snapshot) return false
+  const ok = TileEngine.importGridFromSnapshot(snapshot, session.run.floor, { rest: session.run.atRest })
   if (!ok) return false
   let revealed = 0
   let startRow = null
@@ -10389,10 +2608,10 @@ function testHarnessImportGrid(snapshot) {
       }
     }
   }
-  run.tilesRevealed = revealed
+  session.run.tilesRevealed = revealed
   if (startRow != null) {
-    run.floorStartRow = startRow
-    run.floorStartCol = startCol
+    session.run.floorStartRow = startRow
+    session.run.floorStartCol = startCol
   }
   TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
   TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
@@ -10405,12 +2624,12 @@ function testHarnessGetSnapshot() {
   const grid = TileEngine.getGrid()
   return {
     gameState: GameState.current(),
-    playerHp: run?.player?.hp ?? null,
-    playerMaxHp: run?.player?.maxHp ?? null,
-    playerGold: run?.player?.gold ?? null,
-    playerXp: run?.player?.xp ?? null,
-    floor: run?.floor ?? null,
-    inventory: run?.player?.inventory?.map(e => e?.id ?? null) ?? null,
+    playerHp: session.run?.player?.hp ?? null,
+    playerMaxHp: session.run?.player?.maxHp ?? null,
+    playerGold: session.run?.player?.gold ?? null,
+    playerXp: session.run?.player?.xp ?? null,
+    floor: session.run?.floor ?? null,
+    inventory: session.run?.player?.inventory?.map(e => e?.id ?? null) ?? null,
     grid: grid
       ? grid.map(row => row.map(t => ({
         type: t.type,
@@ -10423,38 +2642,38 @@ function testHarnessGetSnapshot() {
 }
 
 function testHarnessForceLevelUp() {
-  if (!run) return false
+  if (!session.run) return false
   if (_shouldDeferLevelUpDueToNpc()) return false
   const needed = _xpNeeded()
-  run.player.xp = needed
-  run.player.xp -= needed
-  run.player.level++
-  UI.spawnFloat(document.getElementById('hud-portrait'), `⬆️ Lv ${run.player.level}!`, 'xp')
+  session.run.player.xp = needed
+  session.run.player.xp -= needed
+  session.run.player.level++
+  UI.spawnFloat(document.getElementById('hud-portrait'), `⬆️ Lv ${session.run.player.level}!`, 'xp')
   _triggerLevelUp()
   return GameState.is(States.LEVEL_UP)
 }
 
 function testHarnessPickLevelUp(abilityId) {
-  if (!run || !GameState.is(States.LEVEL_UP)) return false
+  if (!session.run || !GameState.is(States.LEVEL_UP)) return false
   const char = _charKey()
-  ProgressionSystem.applyAbility(abilityId, run.player, char, { floor: run.floor })
+  ProgressionSystem.applyAbility(abilityId, session.run.player, char, { floor: session.run.floor })
   const def = ProgressionSystem.getAbilityDef(abilityId, char)
-  run.levelUpLog.push({
-    level: run.player.level,
+  session.run.levelUpLog.push({
+    level: session.run.player.level,
     abilityId,
     name: def?.name ?? abilityId,
     icon: def?.icon ?? '✨',
   })
   _appendLevelSnapshot('levelUp')
   UI.hideLevelUpOverlay()
-  UI.updateHP(run.player.hp, run.player.maxHp)
-  UI.updateMana(run.player.mana, run.player.maxMana)
-  UI.updateGold(run.player.gold)
+  UI.updateHP(session.run.player.hp, session.run.player.maxHp)
+  UI.updateMana(session.run.player.mana, session.run.player.maxMana)
+  UI.updateGold(session.run.player.gold)
   {
-    const [d0, d1] = _playerDamageRange(run.player)
+    const [d0, d1] = _playerDamageRange(session.run.player)
     UI.updateDamageRange(d0, d1)
   }
-  UI.setMessage(`${def?.name ?? abilityId} acquired! Level ${run.player.level}.`)
+  UI.setMessage(`${def?.name ?? abilityId} acquired! Level ${session.run.player.level}.`)
   GameState.transition(States.FLOOR_EXPLORE)
   _flushDeferredLevelUpXp()
   return true
@@ -10462,7 +2681,7 @@ function testHarnessPickLevelUp(abilityId) {
 
 export default {
   init,
-  getSave() { return _save },
+  getSave() { return session.save },
   isRangerActiveUnlocked: _isRangerActiveUnlocked,
   isMageActiveUnlocked:   _isMageActiveUnlocked,
   getSlamDamageBreakdown,
@@ -10490,9 +2709,9 @@ export default {
   chainLightningAction,
   telekineticThrowAction,
   manaShieldAction,
-  getManaShieldStacks: () => run?.player?.mageActiveStacks?.['mana-shield'] ?? 0,
+  getManaShieldStacks: Mage.getManaShieldStacks,
   lifeTapAction,
-  getLifeTapStacks: () => run?.player?.mageActiveStacks?.['life-tap'] ?? 0,
+  getLifeTapStacks: Mage.getLifeTapStacks,
   strengthenMinionAction,
   corpseExplosionAction,
   bloodTitheAction,
@@ -10513,25 +2732,17 @@ export default {
   dropItem,
   forceReplaceItem,
   getInventory,
-  getArmor()        { return run?.player?.armor    ?? 0 },
-  getNegation()     { return run?.player?.negation  ?? 0 },
-  getEquippedGear() { return run?.player?.equippedGear ?? { weapon: null, breastplate: null, offhand: null } },
-  getScrap()        { return _save?.scrap ?? 0 },
-  getSavedEquippedGear() { return _save?.equippedGear ?? { weapon: null, breastplate: null, offhand: null } },
+  getArmor()        { return session.run?.player?.armor    ?? 0 },
+  getNegation()     { return session.run?.player?.negation  ?? 0 },
+  getEquippedGear() { return session.run?.player?.equippedGear ?? { weapon: null, breastplate: null, offhand: null } },
+  getScrap()        { return session.save?.scrap ?? 0 },
+  getSavedEquippedGear() { return session.save?.equippedGear ?? { weapon: null, breastplate: null, offhand: null } },
   upgradeGear(slot)                    { return _upgradeGear(slot) },
   disassembleGear(slot)                { return _disassembleGear(slot) },
   reduceDetriment(slot, statKey)       { return _reduceDetriment(slot, statKey) },
   equipGear(inventoryIndex)            { _equipGear(inventoryIndex) },
   unequipGear(slot, inventoryIndex)    { _unequipGear(slot, inventoryIndex) },
-  trashGear(inventoryIndex)  {
-    if (!run) return
-    const piece = run.player.inventory[inventoryIndex]
-    if (piece?.uid) {
-      _adjustScrap(CONFIG.blacksmith.trashScrapYield[piece.tier] ?? 1)
-    }
-    run.player.inventory[inventoryIndex] = null
-    EventBus.emit('inventory:changed')
-  },
+  trashGear(inventoryIndex) { _trashGear(inventoryIndex) },
   openForge: _openForge,
   getLevelUpLog,
   getPlayerHpRatio,
@@ -10543,18 +2754,18 @@ export default {
   balanceBotRepairReachability,
   balanceBotForceUnlockAll,
   balanceBotClearCombatBusy() {
-    _combatBusy = false
+    session.tap.combatBusy = false
     _clearAllCombatEngagement()
   },
   balanceBotTryWarriorAbilities,
   balanceBotTryAbilitiesPolicy,
   balanceBotDismissNpcEvent,
   getRunTelemetry,
-  getTearyEyesTurns()    { return run?.player?.tearyEyesTurns ?? 0 },
-  getFreezingHitStacks() { return run?.player?.freezingHitStacks ?? 0 },
-  getBurnStacks()        { return run?.player?.burnStacks ?? 0 },
-  hasActiveRun()      { return !!_save?.activeRun },
-  getActiveRunInfo()  { return _save?.activeRun ?? null },
+  getTearyEyesTurns()    { return session.run?.player?.tearyEyesTurns ?? 0 },
+  getFreezingHitStacks() { return session.run?.player?.freezingHitStacks ?? 0 },
+  getBurnStacks()        { return session.run?.player?.burnStacks ?? 0 },
+  hasActiveRun()      { return !!session.save?.activeRun },
+  getActiveRunInfo()  { return session.save?.activeRun ?? null },
   resumeRun,
   abandonRun,
   persistActiveRun()  { _saveActiveRun() },

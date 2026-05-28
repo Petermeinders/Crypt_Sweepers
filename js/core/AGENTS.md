@@ -6,10 +6,21 @@ The core directory contains the game's runtime backbone: the master orchestrator
 
 | File | Purpose |
 |------|---------|
-| `GameController.js` | Master game loop. Owns the live `run` object. Routes all player actions (tile reveal, combat, abilities, shop, floor transitions). The only caller of `UI.*`, `SaveManager`, and most `*System` modules. |
+| `GameController.js` | Master game loop facade. Routes player actions; delegates init/persistence/death to `GameStateHandlers.js`. |
+| `RunContext.js` | Session accessor: `session.save`, `session.run`, `session.tap`, `session.lastRunTelemetrySnapshot`, `charKey()`. |
+| `tapState.js` | Factory for `session.tap` — combat-busy, targeting modes, combat engagement tile ref. |
+| `GameStateHandlers.js` | Init, newGame, persistence, menu, retreat, death — receives `ctx` deps, never imports GameController. |
 | `GameState.js` | Finite state machine. Exports `States` enum and `GameState` singleton. `transition(newState)` validates against a `TRANSITIONS` map and rejects invalid moves. |
 | `EventBus.js` | Synchronous string-keyed pub/sub. Narrowly scoped — only `AudioManager` and `UI` subscribe. All other cross-module calls go through `GameController` directly. |
 | `Logger.js` | Thin console wrapper. All modules use `Logger.*`; no raw `console.*` calls. `Logger.debug` is gated on `CONFIG.debug`. |
+
+## Extracted controllers (refactor)
+
+| Module | Role |
+|--------|------|
+| `../controllers/CheatController.js` | Dev cheat surface (`cheatSkipFloor`, `applyCheat`, `cheatHudStatBoost`) — wired via deps from `GameController` |
+| `../controllers/BalanceBotBridge.js` | Balance-bot / test-bot tap candidates, diagnostics, ability policy — 11 public methods re-exported on `GameController` |
+| `../controllers/TileTapRouter.js` | Active grid + combat engagement + `onTileTap` — flags on `session.tap` |
 
 ## Patterns
 
@@ -21,7 +32,7 @@ The core directory contains the game's runtime backbone: the master orchestrator
 
 ## Data Models
 
-**`run` object** (owned by `GameController`, passed to systems as needed):
+**`run` object** (owned via `RunContext.session.run`, passed to systems as needed):
 - `player` — live stat object (hp, mana, gold, inventory, abilities, damageBonus, …)
 - `floor` — current floor number
 - `floorModifier` — active `FloorModifiers` entry or `null`
@@ -50,4 +61,4 @@ The core directory contains the game's runtime backbone: the master orchestrator
 
 ## Notes
 
-`GameController.js` is the largest file in the codebase (~10k+ lines). When editing it, search for the specific handler method rather than reading top-to-bottom. Loot pools (`COMMON_LOOT_IDS`, `RARE_TRINKET_IDS`, etc.) are defined at the top of the file, not in `js/data/`.
+`GameController.js` is a facade (~2.8k lines) that wires `js/controllers/*` and `js/heroes/*` via `ctx` objects. Domain logic lives in those modules — search there first. See `docs/refactor/README.md` for the full map. Loot pools: `js/systems/LootTables.js`; haptics: `js/systems/Haptics.js`.

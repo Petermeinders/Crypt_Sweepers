@@ -6,7 +6,7 @@ The `js/` directory contains all game source code. Two files live at this level;
 
 | File | Purpose |
 |------|---------|
-| `main.js` | Entry point. Bootstraps `AudioManager`, `UI`, and `GameController` on DOM ready. Wires all top-level event listeners (menu buttons, settings, keyboard shortcuts). Conditionally imports balance-bot modules based on URL params. |
+| `main.js` | Thin entry point. Hero carousel, service worker registration, delegates to `boot/boot.js`. |
 | `config.js` | Exports `CONFIG` (all tunable gameplay constants) and `SETTINGS` (player preferences, overwritten by `SaveManager` on boot). The authoritative source for all magic numbers. |
 
 ## CONFIG Notes
@@ -25,11 +25,36 @@ The `js/` directory contains all game source code. Two files live at this level;
 | `core/` | Game orchestrator, state machine, event bus, logger |
 | `systems/` | Game systems (tile engine, combat, progression, audio, etc.) |
 | `ui/` | All DOM writes; zero game logic |
+| `ui/menus/` | Menu panel modules — each exports `wireX(ctx)`; listeners call `GameController.*` only |
+| `main/` | Shell wiring — HUD, menus, keyboard |
 | `data/` | Static content — enemies, items, tiles, upgrades, abilities |
 | `save/` | IndexedDB persistence wrapper |
 | `balance/` | Static analysis, telemetry shapes, balance targets |
-| `dev/` | In-browser balance bot (URL-param activated only) |
+| `boot/` | Save migration, dev URL tooling, boot orchestration, persistence listeners |
+| `controllers/` | Extracted GameController domains (tile tap router, cheats, balance-bot bridge) — wired via deps, no GameController imports |
+| `heroes/` | Per-hero active ability modules — ctx from GameController, session via RunContext |
 | `lib/` | Third-party vendored libraries (Matter.js, omggif.js) |
+
+## js/main/
+
+| File | Purpose |
+|------|---------|
+| `wireHud.js` | In-run HUD: resume prompt, ability hold-to-inspect, retreat, cheat stat boosts |
+| `wireMenus.js` | Main menu overlays, export/import, PWA nudge; delegates to `ui/menus/*` panels |
+| `wireKeyboard.js` | Keyboard shortcuts (stub — extend as bindings are added) |
+
+## js/ui/menus/
+
+| File | Purpose |
+|------|---------|
+| `shared.js` | `metaCharSave`, `heroIsGoldLocked` helpers shared by hero select |
+| `HeroSelect.js` | Hero carousel, upgrade grid, unlock/select |
+| `GoldShopPanel.js` | Persistent gold shop + global passive upgrades |
+| `BlacksmithPanel.js` | Gear upgrade, disassemble, detriment reduction |
+| `BackpackPanel.js` | Inventory render, full-backpack pickup flows |
+| `EquipmentOverlay.js` | Equipped gear slots + compare/equip modal |
+| `SettingsPanel.js` | Settings toggles, cheats, delete save |
+| `Changelog.js` | Latest updates overlay content |
 
 ## Context Tree
 
@@ -39,4 +64,6 @@ The `js/` directory contains all game source code. Two files live at this level;
 - @js/data/AGENTS.md
 - @js/save/AGENTS.md
 - @js/balance/AGENTS.md
-- @js/dev/AGENTS.md
+- @js/boot/AGENTS.md
+- @js/controllers/AGENTS.md
+- @js/heroes/AGENTS.md

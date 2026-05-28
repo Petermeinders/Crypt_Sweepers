@@ -22,6 +22,7 @@ The data directory is the game's content layer. Every file is a plain JS export 
 | `tileIcons.js` | Sprite path maps: `ENEMY_SPRITES`, `TILE_TYPE_ICON_FILES`, `ITEM_ICONS_BASE`, etc. Used by `TileEngine` and `UI`. |
 | `tileBlurbs.js` | `TILE_BLURBS` — flavour text strings keyed by tile type, shown in the info bar on reveal. |
 | `changelog.js` | In-game changelog entries shown on the main menu. Not game logic. |
+| `characters.js` | `CHARACTERS` hero roster for hero-select UI + `SELECTABLE_HEROES` guard for `SaveMigrator`. Imports upgrade maps and `CONFIG` unlock costs. |
 
 ## Patterns
 
@@ -33,7 +34,7 @@ The data directory is the game's content layer. Every file is a plain JS export 
   - `{ biomes: ['id', ...] }` — only listed biomes
   - `{ minFloor: N }` — floor N and deeper
 - **Enemy `behaviour` field** controls spawn routing in `TileEngine`: `'standard'`, `'fast'`, `'boss'`, `'archer'` (archer is never spawned via normal pool — only via `_spawnArcherGoblin()`).
-- **Item `rarity`** controls loot pool assignment in `GameController`: `'common'` → `COMMON_LOOT_IDS`, `'rare'` → `RARE_TRINKET_IDS`, `'legendary'` → `LEGENDARY_TRINKET_IDS`. Magic-chest-exclusive items are in a separate list in `GameController`, not in `items.js`.
+- **Item `rarity`** controls loot pool assignment in `js/systems/LootTables.js`: `'common'` → `COMMON_LOOT_IDS`, `'rare'` → `RARE_TRINKET_IDS`, `'legendary'` → `LEGENDARY_TRINKET_IDS`. Magic-chest-exclusive items are in `MAGIC_CHEST_EXCLUSIVE_IDS` in `LootTables.js`, not in `items.js`.
 - **`dowsing-rod`** (common, stacks to 10) — one-time use, instantly reveals the nearest unrevealed trap. Uses safe reveal (sets `tile.revealed = true` + `patchMainGridTileAt`) so the trap is exposed but does NOT trigger trap damage. Handled by `dowsingRodAction()` in `GameController`.
 - **Upgrade `requires`** is a single prerequisite upgrade ID. `MetaProgression` enforces this gate before purchase.
 - **Balance impact warning.** Changes to `enemies.js`, `passives.js`, `upgrades.js`, or `config.js` affect balance snapshot tests (`npm test`). Run `npm run balance-report` after edits to review the impact.

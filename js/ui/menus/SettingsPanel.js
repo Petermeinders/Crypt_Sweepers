@@ -1,0 +1,124 @@
+/** Settings overlay toggles + cheat switches. */
+
+function _populateSettingsForm(s) {
+  const c = s.settings.cheats ?? {}
+  document.getElementById('setting-music').checked        = s.settings.musicOn    ?? true
+  document.getElementById('setting-sfx').checked          = s.settings.sfxOn      ?? true
+  document.getElementById('setting-tile-colors').checked  = s.settings.tileColors ?? false
+  document.getElementById('setting-haptic').checked       = s.settings.hapticFeedback ?? true
+  document.getElementById('setting-sub-levels').checked   = s.settings.subLevelsEnabled ?? true
+  document.getElementById('setting-auto-potions').checked = s.settings.autoPotions ?? false
+  document.getElementById('setting-parry').checked         = s.settings.parryEnabled ?? true
+  document.getElementById('setting-child-mode').checked   = s.settings.childMode    ?? false
+  document.getElementById('cheat-god-mode').checked       = c.godMode      ?? false
+  document.getElementById('cheat-instant-kill').checked   = c.instantKill  ?? false
+  document.getElementById('cheat-999-gold').checked       = c.gold999      ?? false
+  document.getElementById('cheat-999-xp').checked         = c.xp999        ?? false
+  document.getElementById('cheat-skip-floor-btn').checked = c.skipFloorButton ?? false
+  document.getElementById('cheat-increase-stats').checked = c.increaseStats ?? false
+}
+
+function _openSettingsOverlay(ctx) {
+  _populateSettingsForm(ctx.GameController.getSave())
+  document.getElementById('settings-overlay').classList.remove('hidden')
+}
+
+export function wireSettingsPanel(ctx) {
+  const { GameController, SaveManager, AudioManager } = ctx
+
+  document.getElementById('hud-settings-btn').addEventListener('click', () => _openSettingsOverlay(ctx))
+  document.getElementById('settings-btn').addEventListener('click', () => _openSettingsOverlay(ctx))
+  document.getElementById('settings-back').addEventListener('click', () => {
+    document.getElementById('settings-overlay').classList.add('hidden')
+  })
+
+  document.getElementById('setting-music').addEventListener('change', e => {
+    const s = GameController.getSave()
+    s.settings.musicOn = e.target.checked
+    AudioManager.setMusicEnabled(e.target.checked)
+    SaveManager.save(s)
+  })
+  document.getElementById('setting-sfx').addEventListener('change', e => {
+    const s = GameController.getSave()
+    s.settings.sfxOn = e.target.checked
+    AudioManager.setSfxEnabled(e.target.checked)
+    SaveManager.save(s)
+  })
+
+  const tileColorsCb = document.getElementById('setting-tile-colors')
+  tileColorsCb.addEventListener('change', () => {
+    const s = GameController.getSave()
+    s.settings.tileColors = tileColorsCb.checked
+    document.body.classList.toggle('tile-colors', tileColorsCb.checked)
+    SaveManager.save(s)
+  })
+
+  document.getElementById('setting-haptic').addEventListener('change', e => {
+    const s = GameController.getSave()
+    s.settings.hapticFeedback = e.target.checked
+    SaveManager.save(s)
+    if (e.target.checked && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      try { navigator.vibrate(22) } catch (_) { /* Firefox / privacy mode may block */ }
+    }
+  })
+
+  document.getElementById('setting-sub-levels').addEventListener('change', e => {
+    const s = GameController.getSave()
+    s.settings.subLevelsEnabled = e.target.checked
+    SaveManager.save(s)
+  })
+
+  document.getElementById('setting-auto-potions').addEventListener('change', e => {
+    const s = GameController.getSave()
+    s.settings.autoPotions = e.target.checked
+    SaveManager.save(s)
+  })
+
+  document.getElementById('setting-parry').addEventListener('change', e => {
+    const s = GameController.getSave()
+    s.settings.parryEnabled = e.target.checked
+    SaveManager.save(s)
+  })
+
+  document.getElementById('setting-child-mode').addEventListener('change', e => {
+    const s = GameController.getSave()
+    s.settings.childMode = e.target.checked
+    SaveManager.save(s)
+  })
+
+  const _cheatMap = [
+    { id: 'cheat-god-mode',     key: 'godMode'     },
+    { id: 'cheat-instant-kill', key: 'instantKill' },
+    { id: 'cheat-999-gold',     key: 'gold999'     },
+    { id: 'cheat-999-xp',       key: 'xp999'       },
+    { id: 'cheat-skip-floor-btn', key: 'skipFloorButton' },
+    { id: 'cheat-increase-stats', key: 'increaseStats' },
+  ]
+  _cheatMap.forEach(({ id, key }) => {
+    document.getElementById(id).addEventListener('change', e => {
+      GameController.applyCheat(key, e.target.checked)
+      SaveManager.save(GameController.getSave())
+    })
+  })
+
+  document.getElementById('debug-accordion-toggle').addEventListener('click', () => {
+    document.getElementById('debug-accordion').classList.toggle('open')
+  })
+
+  document.getElementById('cheat-accordion-toggle').addEventListener('click', () => {
+    document.getElementById('cheat-accordion').classList.toggle('open')
+  })
+
+  document.getElementById('delete-save-btn').addEventListener('click', () => {
+    document.getElementById('delete-save-confirm').classList.remove('hidden')
+    document.getElementById('delete-save-btn').classList.add('hidden')
+  })
+  document.getElementById('delete-save-no').addEventListener('click', () => {
+    document.getElementById('delete-save-confirm').classList.add('hidden')
+    document.getElementById('delete-save-btn').classList.remove('hidden')
+  })
+  document.getElementById('delete-save-yes').addEventListener('click', async () => {
+    await SaveManager.clear()
+    location.reload()
+  })
+}

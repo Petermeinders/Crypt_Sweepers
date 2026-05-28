@@ -15,6 +15,10 @@ The systems directory contains all stateful and stateless game systems that are 
 | `AudioManager.js` | Web Audio API wrapper. Subscribes to `EventBus` events (`audio:play`, `audio:music`, `audio:crossfade`, `audio:stop`). Loads SFX on first user interaction (iOS requirement). |
 | `Bestiary.js` | Persistent discovery log for enemy types. Reads/writes `save.bestiarySeen[]`. Stateless utility — all functions take `save` as a parameter. |
 | `TrinketCodex.js` | Persistent discovery log for item/trinket IDs. Reads/writes `save.trinketsSeen[]`. Same stateless utility pattern as `Bestiary`. |
+| `LootTables.js` | Chest loot pools (`COMMON_LOOT_IDS`, rare/legendary IDs) and roll helpers (`rollChestLoot`, `rollMagicChestLoot`). Called by `GameController`. |
+| `Haptics.js` | Vibration helpers; gesture listeners register on import. `bindHaptics()` wired from `GameController.init`. |
+| `PlayerStats.js` | `xpNeeded`, `playerDamageRange`, `computeEffectiveDamageTaken`, outgoing damage mult/scale (freezing/corruption). |
+| `EnemyMechanics.js` | Player debuffs (freezing, corruption, burn, poison) and Drowned Hulk crew-buff aura. |
 
 ## Patterns
 
