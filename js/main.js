@@ -1934,7 +1934,7 @@ function _spawnBlacksmithEmbers() {
   const container = document.querySelector('.bs-embers')
   if (!container || container.dataset.spawned) return
   container.dataset.spawned = '1'
-  const bannerH = document.querySelector('.bs-banner')?.offsetHeight ?? 175
+  const bannerH = document.querySelector('.bs-forge-section')?.offsetHeight ?? 280
   const colors  = ['#ff8c00', '#ffa520', '#ff6600', '#ffbb44', '#ff7722']
   for (let i = 0; i < 24; i++) {
     const mote = document.createElement('span')

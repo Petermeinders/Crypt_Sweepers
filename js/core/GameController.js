@@ -8682,7 +8682,7 @@ function _upgradeGear(slot) {
   _save.persistentGold -= cost.gold
   _adjustScrap(-cost.scrap)
 
-  if (Math.random() < cost.rate) {
+  if (true) { // always succeeds — success rate temporarily set to 100%
     _applyGearUpgrade(piece)
     SaveManager.save(_save).catch(() => {})
     return { success: true, piece }
