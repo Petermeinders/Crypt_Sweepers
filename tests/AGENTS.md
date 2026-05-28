@@ -1,31 +1,72 @@
 # AGENTS.md — tests/
 
-The tests directory contains automated tests for the balance system. The framework is Node's built-in test runner (`node:test`) — no external test library.
+Automated tests for Crypt Sweepers. Framework: Node's built-in test runner (`node:test`) + `node:assert/strict` — no Jest, no Vitest. E2E uses Playwright against the in-browser test harness.
 
-## Key Files
+Human-oriented overview: [`docs/tests/README.md`](../docs/tests/README.md).
 
-| File | Purpose |
-|------|---------|
-| `balance-snapshot.test.mjs` | Compares the live output of `computeBalanceSnapshot()` against a committed fixture. Asserts that balance pillars, tuning order, meta gap profile, and all per-floor/per-enemy rows match exactly. |
-| `fixtures/balance-snapshot.json` | Golden-file fixture. The source of truth for what balance numbers should be. Committed intentionally — a diff here means balance values changed. |
+## Layout
+
+```
+tests/
+├── helpers/
+│   ├── mockRandom.mjs         — withRandomSequence(values, fn) for deterministic Math.random
+│   ├── mockSave.mjs           — createSave(overrides) wrapping MetaProgression.defaultSave()
+│   ├── gridFixtures.mjs       — minimal grid snapshot builders for TileEngine unit tests
+│   ├── scenarioGrids.mjs      — grid builders for E2E scenario fixtures
+│   └── playwrightHarness.mjs  — server spawn, launchGame, evalHarness, console guards
+├── unit/                      — fast pure-logic unit tests (*.test.mjs)
+├── integration/
+│   ├── game-controller-api.test.mjs  — GameController export contract
+│   └── scenarios.test.mjs              — Playwright E2E scenario runner
+├── fixtures/
+│   ├── balance-snapshot.json
+│   ├── game-controller-api.json
+│   └── scenarios/             — one JSON file per E2E scenario
+└── balance-snapshot.test.mjs
+```
+
+## Commands
+
+| Command | Purpose |
+|---------|---------|
+| `npm test` | Fast CI: unit tests + balance snapshot + API contract |
+| `npm run test:unit` | Same as `npm test` |
+| `npm run test:e2e` | Playwright scenarios (spawns serve on :3456 if needed) |
+| `npm run test:all` | Unit + e2e — pre-refactor gate |
 
 ## Patterns
 
-- **Run with:** `npm test`
-- **Framework:** `node:test` + `node:assert/strict` — no Jest, no Vitest.
-- **The snapshot test is a regression gate, not a pass/fail oracle.** When you intentionally change balance values, regenerate the fixture and commit it alongside the code change. A failing snapshot means "something changed" — it's your job to decide if the change was intended.
-- **Regenerate fixture:** compute the new snapshot and overwrite the file:
-  ```bash
-  node --input-type=module <<'EOF' > tests/fixtures/balance-snapshot.json
-  import { computeBalanceSnapshot } from './js/balance/snapshot.js'
-  process.stdout.write(JSON.stringify(computeBalanceSnapshot(), null, 2))
-  EOF
-  ```
-- **Test files use `.mjs` extension** (ES module). The `package.json` `"type": "module"` field applies, but the explicit `.mjs` makes the runner unambiguous.
-- **No DOM in tests.** `computeBalanceSnapshot()` is Node-safe by design (see `js/balance/AGENTS.md`). If a new test needs browser APIs, use Playwright via `scripts/balance-bot-batch.mjs` instead.
+- **Test files use `.mjs`** — explicit ES module extension for the runner.
+- **No DOM in unit tests.** Pure systems import directly from `js/`. Browser scenarios use `?testHarness=1` via Playwright.
+- **Use helpers** — `withRandomSequence` for `Math.random`; `createSave` for save fixtures; `buildMinimalGridSnapshot` / `scenarioGrids` for grids (match `CONFIG.gridSize`, not ad-hoc dimensions).
+- **TileEngine isolation** — call `TileEngine.importGridFromSnapshot()` in `beforeEach` to reset module `_grid` state. Do not call `generateGrid` in unit tests.
+- **Balance snapshot** — regression gate for `js/data/` changes. Regenerate intentionally when balance changes.
+- **GameController API test** — refactor contract. Update fixture when adding/removing default export keys.
+- **E2E determinism** — pin `enemyData.hitDamage` in scenario grids; fail on `[GameState] Invalid transition` in console.
+
+## Fixture regeneration
+
+**Balance snapshot** (after edits to `js/data/` or `js/config.js`):
+
+```bash
+node --input-type=module <<'EOF' > tests/fixtures/balance-snapshot.json
+import { computeBalanceSnapshot } from './js/balance/snapshot.js'
+process.stdout.write(JSON.stringify(computeBalanceSnapshot(), null, 2))
+EOF
+```
+
+**GameController API keys** (after changing default export):
+
+```bash
+node --input-type=module -e "import GameController from './js/core/GameController.js'; process.stdout.write(JSON.stringify(Object.keys(GameController).sort(), null, 2))" > tests/fixtures/game-controller-api.json
+```
 
 ## External Dependencies
 
-- **Imports:** `js/balance/snapshot.js`, `js/balance/balanceTargets.js`
-- **Run by:** `npm test` → `node --test tests/**/*.test.mjs`
-- **Playwright tests** (if added) belong in `tests/` and require `npm start` running first
+- **Imports:** `js/balance/snapshot.js`, `js/systems/*`, `js/core/GameState.js`, `js/core/GameController.js`, `js/boot/SaveMigrator.js`
+- **E2E:** Playwright + `js/dev/testHarness.js` (URL param `?testHarness=1`)
+- **Save migration:** `js/boot/SaveMigrator.js` — tested by `tests/unit/save-migration.test.mjs`
+
+## Adding scenarios
+
+See [`docs/tests/adding-scenarios.md`](../docs/tests/adding-scenarios.md). Drop a new JSON file in `tests/fixtures/scenarios/` — the runner auto-discovers it.

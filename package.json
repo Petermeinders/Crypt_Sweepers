@@ -8,7 +8,10 @@
   },
   "scripts": {
     "start": "npx --yes serve@14 . -p 3456",
-    "test": "node --test tests/**/*.test.mjs",
+    "test": "node --test tests/unit/**/*.test.mjs tests/balance-snapshot.test.mjs tests/integration/game-controller-api.test.mjs",
+    "test:unit": "node --test tests/unit/**/*.test.mjs tests/balance-snapshot.test.mjs tests/integration/game-controller-api.test.mjs",
+    "test:e2e": "node --test tests/integration/scenarios.test.mjs",
+    "test:all": "npm run test:unit && npm run test:e2e",
     "balance-report": "node scripts/balance-report.mjs",
     "balance-bot": "node scripts/balance-bot-batch.mjs",
     "balance-bot:once": "node scripts/balance-bot-batch.mjs 1",

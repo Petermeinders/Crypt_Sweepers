@@ -2467,7 +2467,9 @@ function _startFloor() {
     _revealStartTile()
   }
   // First-run intro: show once on floor 1 (skipped during bot runs)
-  const _isBot = new URLSearchParams(location.search).has('balanceBot') || new URLSearchParams(location.search).has('testBotOngoing')
+  const _isBot = new URLSearchParams(location.search).has('balanceBot')
+    || new URLSearchParams(location.search).has('testBotOngoing')
+    || new URLSearchParams(location.search).has('testHarness')
   // Floor modifier modal: shown once per new floor when a modifier is active
   if (!_isBot && !gridRestored && run.floorModifier) {
     UI.showFloorModifierModal(run.floorModifier, () => {})
@@ -5984,7 +5986,9 @@ function fightAction(tile) {
 
       // Enemy counter-attack — telegraphing enemies show a parry window first
       if (!isStunned && _shouldShowParryWindow(tile)) {
-        const _isBot = new URLSearchParams(location.search).has('balanceBot') || new URLSearchParams(location.search).has('testBotOngoing')
+        const _isBot = new URLSearchParams(location.search).has('balanceBot')
+          || new URLSearchParams(location.search).has('testBotOngoing')
+          || new URLSearchParams(location.search).has('testHarness')
         const _doParryWindow = () => {
         UI.showParryWindow(tile.enemyData, (parryResult) => {
           if (!run || !tile.enemyData || tile.enemyData._slain) { _combatBusy = false; return }
@@ -10320,6 +10324,142 @@ function cheatHudStatBoost(stat) {
   }
 }
 
+// ── Test harness (?testHarness=1 — inert in normal play) ───────
+
+function _deepMergeSaveOverrides(target, overrides) {
+  for (const [k, v] of Object.entries(overrides ?? {})) {
+    if (
+      v && typeof v === 'object' && !Array.isArray(v)
+      && target[k] && typeof target[k] === 'object' && !Array.isArray(target[k])
+    ) {
+      _deepMergeSaveOverrides(target[k], v)
+    } else {
+      target[k] = v
+    }
+  }
+}
+
+function testHarnessSetupRun(opts = {}) {
+  const { hero = 'warrior', floor = 1, saveOverrides = {}, playerOverrides = {} } = opts
+  if (!_save) return false
+  if (hero) _save.selectedCharacter = hero
+  _save.settings = _save.settings ?? {}
+  _save.settings.firstRunIntroDismissed = true
+  _save.settings.parryChoiceDismissed = true
+  _save.settings.parryEnabled = false
+  _deepMergeSaveOverrides(_save, saveOverrides)
+  if (run) {
+    _clearActiveRun()
+    run = null
+  } else if (_save.activeRun) {
+    delete _save.activeRun
+  }
+  newGame()
+  if (!run) return false
+  if (floor !== run.floor) run.floor = floor
+  if (Object.keys(playerOverrides).length) Object.assign(run.player, playerOverrides)
+  UI.updateFloor(run.floor, { rest: run.atRest })
+  UI.updateHP(run.player.hp, run.player.maxHp)
+  UI.updateMana(run.player.mana, run.player.maxMana)
+  UI.updateGold(run.player.gold)
+  UI.updateXP(run.player.xp, _xpNeeded())
+  {
+    const [d0, d1] = _playerDamageRange(run.player)
+    UI.updateDamageRange(d0, d1)
+  }
+  return true
+}
+
+function testHarnessImportGrid(snapshot) {
+  if (!run || !snapshot) return false
+  const ok = TileEngine.importGridFromSnapshot(snapshot, run.floor, { rest: run.atRest })
+  if (!ok) return false
+  let revealed = 0
+  let startRow = null
+  let startCol = null
+  for (let r = 0; r < snapshot.length; r++) {
+    for (let c = 0; c < snapshot[r].length; c++) {
+      const st = snapshot[r][c]
+      if (st.revealed) {
+        revealed++
+        if (st.type === 'empty' && startRow == null) {
+          startRow = r
+          startCol = c
+        }
+      }
+    }
+  }
+  run.tilesRevealed = revealed
+  if (startRow != null) {
+    run.floorStartRow = startRow
+    run.floorStartCol = startCol
+  }
+  TileEngine.recomputeReachabilityFromRevealed(_markReachableUi)
+  TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
+  _syncGridDomClassesFromModel()
+  TileEngine.renderGrid(UI.getGridEl(), onTileTap, onTileHold)
+  return true
+}
+
+function testHarnessGetSnapshot() {
+  const grid = TileEngine.getGrid()
+  return {
+    gameState: GameState.current(),
+    playerHp: run?.player?.hp ?? null,
+    playerMaxHp: run?.player?.maxHp ?? null,
+    playerGold: run?.player?.gold ?? null,
+    playerXp: run?.player?.xp ?? null,
+    floor: run?.floor ?? null,
+    inventory: run?.player?.inventory?.map(e => e?.id ?? null) ?? null,
+    grid: grid
+      ? grid.map(row => row.map(t => ({
+        type: t.type,
+        revealed: t.revealed,
+        enemySlain: !!(t.enemyData?._slain),
+        chestLooted: !!t.chestLooted,
+      })))
+      : null,
+  }
+}
+
+function testHarnessForceLevelUp() {
+  if (!run) return false
+  if (_shouldDeferLevelUpDueToNpc()) return false
+  const needed = _xpNeeded()
+  run.player.xp = needed
+  run.player.xp -= needed
+  run.player.level++
+  UI.spawnFloat(document.getElementById('hud-portrait'), `⬆️ Lv ${run.player.level}!`, 'xp')
+  _triggerLevelUp()
+  return GameState.is(States.LEVEL_UP)
+}
+
+function testHarnessPickLevelUp(abilityId) {
+  if (!run || !GameState.is(States.LEVEL_UP)) return false
+  const char = _charKey()
+  ProgressionSystem.applyAbility(abilityId, run.player, char, { floor: run.floor })
+  const def = ProgressionSystem.getAbilityDef(abilityId, char)
+  run.levelUpLog.push({
+    level: run.player.level,
+    abilityId,
+    name: def?.name ?? abilityId,
+    icon: def?.icon ?? '✨',
+  })
+  _appendLevelSnapshot('levelUp')
+  UI.hideLevelUpOverlay()
+  UI.updateHP(run.player.hp, run.player.maxHp)
+  UI.updateMana(run.player.mana, run.player.maxMana)
+  UI.updateGold(run.player.gold)
+  {
+    const [d0, d1] = _playerDamageRange(run.player)
+    UI.updateDamageRange(d0, d1)
+  }
+  UI.setMessage(`${def?.name ?? abilityId} acquired! Level ${run.player.level}.`)
+  GameState.transition(States.FLOOR_EXPLORE)
+  _flushDeferredLevelUpXp()
+  return true
+}
+
 export default {
   init,
   getSave() { return _save },
@@ -10419,4 +10559,9 @@ export default {
   abandonRun,
   persistActiveRun()  { _saveActiveRun() },
   uiButtonHaptic,
+  testHarnessSetupRun,
+  testHarnessImportGrid,
+  testHarnessGetSnapshot,
+  testHarnessForceLevelUp,
+  testHarnessPickLevelUp,
 }

@@ -14,6 +14,7 @@ import { MAGE_UPGRADES }                    from './data/mage.js'
 import { NECROMANCER_UPGRADES }             from './data/necromancer.js'
 import { VAMPIRE_UPGRADES }                 from './data/vampire.js'
 import { GLOBAL_PASSIVE_UPGRADES, GLOBAL_PASSIVE_IDS } from './data/passives.js'
+import { migrateSave } from './boot/SaveMigrator.js'
 import { CHANGELOG } from './data/changelog.js'
 
 function _changelogTagClass(tag) {
@@ -216,35 +217,11 @@ async function boot() {
     save = MetaProgression.defaultSave()
     await SaveManager.save(save)
   }
-  // Migrate old saves missing keys
-  if (save.scrap == null) save.scrap = 0
-  // Migrate gear stats from pre-rename saves (maxHp flat → maxHpPct %, maxMana flat → maxManaPct %)
-  if (save.equippedGear) {
-    let _gearMigrated = false
-    for (const slot of ['weapon', 'breastplate', 'offhand']) {
-      const piece = save.equippedGear[slot]
-      if (!piece?.stats) continue
-      if ('maxHp' in piece.stats)   { piece.stats.maxHpPct  = piece.stats.maxHp;   delete piece.stats.maxHp;   _gearMigrated = true }
-      if ('maxMana' in piece.stats) { piece.stats.maxManaPct = piece.stats.maxMana; delete piece.stats.maxMana; _gearMigrated = true }
-    }
-    if (_gearMigrated) await SaveManager.save(save)
-  }
-  if (save.settings.tileColors === undefined) save.settings.tileColors = false
-  if (save.settings.musicOn === undefined)    save.settings.musicOn    = true
-  if (save.settings.sfxOn   === undefined)    save.settings.sfxOn      = true
-  if (save.settings.subLevelsEnabled === undefined) save.settings.subLevelsEnabled = true
-  if (save.settings.warBannerIntroSeen === undefined) save.settings.warBannerIntroSeen = false
-  if (!save.settings.cheats) save.settings.cheats = {}
-  if (!save.globalPassives) save.globalPassives = []
   {
-    const _validPassive = new Set(GLOBAL_PASSIVE_IDS)
-    const _gp = save.globalPassives.filter((id) => _validPassive.has(id))
-    if (_gp.length !== save.globalPassives.length) {
-      save.globalPassives = _gp
-      await SaveManager.save(save)
-    }
+    const migrated = migrateSave(save)
+    save = migrated.save
+    if (migrated.changed) await SaveManager.save(save)
   }
-  if (!Array.isArray(save.bestiarySeen)) save.bestiarySeen = []
   document.body.classList.toggle('cheat-increase-stats', save.settings.cheats?.increaseStats === true)
 
   // Apply saved visual/audio settings immediately
@@ -252,50 +229,10 @@ async function boot() {
   AudioManager.setMusicEnabled(save.settings.musicOn ?? true)
   AudioManager.setSfxEnabled(save.settings.sfxOn ?? true)
 
-  // Migrate old saves missing ranger key
-  if (!save.ranger) {
-    save.ranger = { unlocked: false, totalXP: 0, upgrades: [] }
-    await SaveManager.save(save)
-  }
-  if (!save.engineer) {
-    save.engineer = { totalXP: 0, upgrades: [] }
-    await SaveManager.save(save)
-  }
-  if (!save.mage) {
-    save.mage = { totalXP: 0, upgrades: [] }
-    await SaveManager.save(save)
-  }
-  if (!save.vampire) {
-    save.vampire = { totalXP: 0, upgrades: [] }
-    await SaveManager.save(save)
-  }
-  if (!save.necromancer) {
-    save.necromancer = { totalXP: 0, upgrades: [] }
-    await SaveManager.save(save)
-  }
-  if (!save.selectedCharacter) {
-    save.selectedCharacter = 'warrior'
-  }
-
-  // Ensure warrior always has the base Slam unlock (retroactive for existing saves)
-  if (!save.warrior.upgrades.includes('slam')) {
-    save.warrior.upgrades.push('slam')
-    await SaveManager.save(save)
-  }
-
-  MetaProgression.normalizeUnlockedHeroes(save)
-  {
-    const selId = save.selectedCharacter ?? 'warrior'
-    const selCh = CHARACTERS.find(c => c.id === selId)
-    if (selCh && (selCh.comingSoon || (selCh.unlockCost != null && !MetaProgression.isHeroUnlocked(save, selId)))) {
-      save.selectedCharacter = 'warrior'
-      await SaveManager.save(save)
-    }
-  }
-
   const urlParams = new URLSearchParams(typeof location !== 'undefined' ? location.search : '')
+  const hasTestHarness = urlParams.has('testHarness')
   const hasTestBotOngoing = urlParams.has('testBotOngoing')
-  const hasBalanceBot = urlParams.has('balanceBot') && !hasTestBotOngoing
+  const hasBalanceBot = urlParams.has('balanceBot') && !hasTestBotOngoing && !hasTestHarness
   const balanceBotPreset =
     urlParams.get('balanceBotPreset') ||
     (urlParams.has('balanceBotBeginner') ? 'beginner' : null) ||
@@ -307,6 +244,13 @@ async function boot() {
     const balanceBotHero = urlParams.get('balanceBotHero') || 'warrior'
     applyBalanceBotSavePreset(save, balanceBotPreset, balanceBotHero)
     await SaveManager.save(save)
+  }
+
+  if (hasTestHarness) {
+    save.settings = save.settings ?? {}
+    save.settings.firstRunIntroDismissed = true
+    save.settings.parryChoiceDismissed = true
+    save.settings.parryEnabled = false
   }
 
   GameController.init(save)
@@ -1058,15 +1002,17 @@ async function boot() {
     e.target.value = ''
   })
 
-  // PWA install nudge
-  _wireInstallNudge()
+  // PWA install nudge (skipped for headless harness / balance bots)
+  if (!hasTestHarness && !hasBalanceBot && !hasTestBotOngoing) {
+    _wireInstallNudge()
+  }
 
   // ── Auto-resume or main menu ─────────────────────────────
   _updateMenuHeroPreview()
   UI.setActiveDifficulty(save.settings.difficulty)
   EventBus.emit('audio:music', { track: 'menu' })
   if (GameController.hasActiveRun()) {
-    if (hasBalanceBot || hasTestBotOngoing) {
+    if (hasBalanceBot || hasTestBotOngoing || hasTestHarness) {
       GameController.abandonRun()
       UI.showMainMenu()
     } else {
@@ -1076,7 +1022,11 @@ async function boot() {
     UI.showMainMenu()
   }
 
-  if (hasTestBotOngoing) {
+  if (hasTestHarness) {
+    const { attachTestHarness } = await import('./dev/testHarness.js')
+    attachTestHarness()
+    window.__testHarnessReady = true
+  } else if (hasTestBotOngoing) {
     const policy = urlParams.get('policy') || 'abilities'
     let levelUpWeights = null
     const lw = urlParams.get('levelUpWeights')

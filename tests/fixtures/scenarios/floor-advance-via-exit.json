@@ -1,0 +1,311 @@
+{
+  "id": "floor-advance-via-exit",
+  "hero": "warrior",
+  "floor": 1,
+  "gridSnapshot": [
+    [
+      {
+        "type": "empty",
+        "revealed": true,
+        "locked": false,
+        "reachable": true,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "exit",
+        "revealed": true,
+        "locked": false,
+        "reachable": true,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null,
+        "exitResolved": false
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      }
+    ],
+    [
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      }
+    ],
+    [
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      }
+    ],
+    [
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      }
+    ],
+    [
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      }
+    ],
+    [
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      },
+      {
+        "type": "empty",
+        "revealed": false,
+        "locked": false,
+        "reachable": false,
+        "enemyData": null,
+        "itemData": null,
+        "chestLoot": null
+      }
+    ]
+  ],
+  "steps": [
+    {
+      "action": "setupRun"
+    },
+    {
+      "action": "importGrid"
+    },
+    {
+      "action": "onTileTap",
+      "row": 0,
+      "col": 1
+    },
+    {
+      "action": "wait",
+      "ms": 3500
+    }
+  ],
+  "expect": {
+    "gameState": "floor-explore",
+    "floor": 2
+  }
+}
