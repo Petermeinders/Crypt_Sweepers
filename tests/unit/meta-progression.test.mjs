@@ -15,10 +15,10 @@ describe('MetaProgression.applyToPlayer', () => {
 
 describe('MetaProgression buyUpgrade', () => {
   test('canBuyUpgrade and buyUpgrade deduct XP', () => {
-    const save = createSave({ warrior: { totalXP: 50, upgrades: ['slam'], shopCart: [] } })
+    const save = createSave({ warrior: { totalXP: 400, upgrades: ['slam'], shopCart: [] } })
     assert.equal(MetaProgression.canBuyUpgrade(save, 'slam-mastery-1'), true)
     assert.equal(MetaProgression.buyUpgrade(save, 'slam-mastery-1'), true)
-    assert.equal(save.warrior.totalXP, 10)
+    assert.equal(save.warrior.totalXP, 100)
     assert.ok(save.warrior.upgrades.includes('slam-mastery-1'))
     assert.equal(MetaProgression.canBuyUpgrade(save, 'slam-mastery-1'), false)
   })
