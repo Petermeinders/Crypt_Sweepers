@@ -148,6 +148,18 @@ export function trashGear(ctx, inventoryIndex) {
   EventBus.emit('inventory:changed')
 }
 
+/** Full-backpack gear pickup: replace the backpack item at inventoryIndex with piece. */
+export function acceptPendingGearAtSlot(ctx, inventoryIndex, piece) {
+  if (!session.run || !piece?.slot) return
+  const inv = session.run.player.inventory
+  const old = inv[inventoryIndex]
+  if (!old?.slot || old.slot !== piece.slot) return
+  inv[inventoryIndex] = piece
+  EventBus.emit('inventory:changed')
+  EventBus.emit('gear:pickedUp')
+  UI.setMessage(`${piece.name} swapped into your backpack.`)
+}
+
 /** Push a gear piece into the backpack, or emit backpack:full if no room. */
 export function handleGearPickup(ctx, piece) {
   const inv = session.run.player.inventory

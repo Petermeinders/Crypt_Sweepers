@@ -384,7 +384,7 @@ export const ModalsMethods = {
     grid.innerHTML = ''
     grid.classList.toggle('replace-mode', replaceMode)
 
-    const { filterSlot, filterTrinket, onCompare, onCompareTrinket, onUnequip } = opts
+    const { filterSlot, filterTrinket, onCompare, onCompareTrinket, onUnequip, onReplaceIndex, gearPickupMode } = opts
 
     const isPassiveTrinketEntry = (e) => {
       if (!e?.id) return false
@@ -440,7 +440,7 @@ export const ModalsMethods = {
 
       if (isGear(entry)) {
         const filteredOut = filterSlot && entry.slot !== filterSlot
-        if (filterTrinket || filteredOut) {
+        if (filterTrinket || filteredOut || (replaceMode && !gearPickupMode)) {
           slot.className = 'backpack-slot backpack-cell-filtered-out'
           grid.appendChild(slot)
           return
@@ -479,7 +479,9 @@ export const ModalsMethods = {
           grid.appendChild(slot)
           return
         }
-        if (replaceMode) {
+        if (replaceMode && onReplaceIndex) {
+          slot.addEventListener('click', () => onReplaceIndex(index))
+        } else if (replaceMode) {
           slot.addEventListener('click', () => onUse(entry.id))
         } else {
           let _timer = null, _didHold = false, _sx = 0, _sy = 0

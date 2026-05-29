@@ -1,6 +1,7 @@
 [
   "abandonRun",
   "abilitySlotAAction",
+  "acceptPendingGearAtSlot",
   "applyCheat",
   "arrowBarrageAction",
   "balanceBotClearCombatBusy",
@@ -27,6 +28,7 @@
   "equipGear",
   "equipSafePocket",
   "forceReplaceItem",
+  "forceReplaceItemAtIndex",
   "getActiveRunInfo",
   "getArmor",
   "getArrowBarrageBreakdown",

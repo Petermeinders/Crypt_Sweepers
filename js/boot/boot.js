@@ -18,6 +18,8 @@ import {
   toggleBackpack,
   openBackpackFiltered,
   openBackpackFilteredTrinkets,
+  clearPendingGear,
+  getPendingGearPiece,
 } from '../ui/menus/BackpackPanel.js'
 import {
   wireEquipmentOverlay,
@@ -25,6 +27,7 @@ import {
   closeEquipment,
   openCompareModal,
   openSafePocketCompareModal,
+  openGearPickupCompareModal,
 } from '../ui/menus/EquipmentOverlay.js'
 
 /** Boot orchestration: save load, GameController init, wire all shell modules. */
@@ -70,7 +73,10 @@ export async function boot() {
     openBackpackFiltered: (slot) => openBackpackFiltered(ctx, slot),
     openBackpackFilteredTrinkets: () => openBackpackFilteredTrinkets(ctx),
     openCompareModal: (idx) => openCompareModal(ctx, idx),
+    openGearPickupCompareModal: (idx) => openGearPickupCompareModal(ctx, idx),
     openSafePocketCompareModal: (idx) => openSafePocketCompareModal(ctx, idx),
+    getPendingGearPiece,
+    clearPendingGear: () => clearPendingGear(ctx),
     openEquipment: () => openEquipment(ctx),
     closeEquipment: () => closeEquipment(ctx),
   }

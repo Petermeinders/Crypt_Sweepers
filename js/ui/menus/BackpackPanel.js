@@ -2,6 +2,18 @@ import { ITEMS } from '../../data/items.js'
 import { adjustScrap, trinketTrashScrapYield } from '../../controllers/GearController.js'
 
 let _pendingPickupId = null
+let _pendingGearPiece = null
+
+const GEAR_IMGS = {
+  weapon:     { default: 'assets/sprites/Items/sword.png', common: 'assets/sprites/gear/weapon/common.webp', rare: 'assets/sprites/gear/weapon/rare.webp', epic: 'assets/sprites/gear/weapon/epic.webp', legendary: 'assets/sprites/gear/weapon/legendary.webp' },
+  breastplate:{ default: 'assets/sprites/Items/armor.png', common: 'assets/sprites/gear/breastplate/common.webp', rare: 'assets/sprites/gear/breastplate/rare.webp', epic: 'assets/sprites/gear/breastplate/epic.webp', legendary: 'assets/sprites/gear/breastplate/legendary.webp' },
+  offhand:    { default: 'assets/sprites/Items/shield.png', common: 'assets/sprites/gear/offhand/common.webp', rare: 'assets/sprites/gear/offhand/rare.webp', epic: 'assets/sprites/gear/offhand/epic.webp', legendary: 'assets/sprites/gear/offhand/legendary.webp' },
+}
+const _gImg = (slot, tier) => GEAR_IMGS[slot]?.[tier] ?? GEAR_IMGS[slot]?.default ?? ''
+
+export function getPendingGearPiece() {
+  return _pendingGearPiece
+}
 
 export function renderBackpack(ctx, opts = {}) {
   const { GameController, UI } = ctx
@@ -10,10 +22,7 @@ export function renderBackpack(ctx, opts = {}) {
     GameController.getInventory(),
     ITEMS,
     (id) => {
-      if (replaceMode) {
-        doReplace(ctx, id)
-        return
-      }
+      if (replaceMode) return
       GameController.useItem(id)
       const et = ITEMS[id]?.effect?.type
       if (et === 'lantern' || et === 'spyglass' || et === 'hourglass-sand') {
@@ -38,35 +47,51 @@ export function renderBackpack(ctx, opts = {}) {
       )
     },
     replaceMode,
-    { ...opts, onCompare: (idx) => ctx.openCompareModal(idx) },
+    {
+      ...opts,
+      gearPickupMode: _pendingGearPiece !== null,
+      onCompare: (idx) => {
+        if (_pendingGearPiece) ctx.openGearPickupCompareModal(idx)
+        else ctx.openCompareModal(idx)
+      },
+      onReplaceIndex: replaceMode ? (idx) => doReplaceAtIndex(ctx, idx) : undefined,
+    },
   )
   UI.renderBackpackLevelUpLog(GameController.getLevelUpLog())
 }
 
-export function openBackpackFull(ctx, newItemId) {
-  const { UI } = ctx
-  _pendingPickupId = newItemId
-  const item = ITEMS[newItemId]
-
+function _showPendingBar({ artHtml, name, trashLabel = '🗑️ Trash', onTrash }) {
   const bar  = document.getElementById('backpack-pending-bar')
   const art  = document.getElementById('backpack-pending-art')
-  const name = document.getElementById('backpack-pending-name')
-  if (bar && art && name) {
-    art.innerHTML = item?.spriteSrc
-      ? `<img src="${item.spriteSrc}" alt="${item.name ?? ''}">`
-      : `<span>${item?.icon ?? '?'}</span>`
-    name.textContent = item?.name ?? newItemId
+  const nameEl = document.getElementById('backpack-pending-name')
+  if (bar && art && nameEl) {
+    art.innerHTML = artHtml
+    nameEl.textContent = name
     bar.classList.remove('hidden')
   }
-
   const trashBtn = document.getElementById('backpack-pending-trash')
   if (trashBtn) {
-    const scrapGain = trinketTrashScrapYield(item)
     const fresh = trashBtn.cloneNode(true)
+    fresh.textContent = trashLabel
     trashBtn.replaceWith(fresh)
-    fresh.textContent = scrapGain ? `🗑️ Trash (+${scrapGain} ⚙️ scrap)` : '🗑️ Trash'
-    fresh.addEventListener('click', () => clearPendingPickup(ctx, { grantTrashScrap: true }))
+    fresh.addEventListener('click', onTrash)
   }
+}
+
+export function openBackpackFull(ctx, newItemId) {
+  const { UI } = ctx
+  _pendingGearPiece = null
+  _pendingPickupId = newItemId
+  const item = ITEMS[newItemId]
+  const scrapGain = trinketTrashScrapYield(item)
+  _showPendingBar({
+    artHtml: item?.spriteSrc
+      ? `<img src="${item.spriteSrc}" alt="${item.name ?? ''}">`
+      : `<span>${item?.icon ?? '?'}</span>`,
+    name: item?.name ?? newItemId,
+    trashLabel: scrapGain ? `🗑️ Trash (+${scrapGain} ⚙️ scrap)` : '🗑️ Trash',
+    onTrash: () => clearPendingTrinket(ctx, { grantTrashScrap: true }),
+  })
 
   renderBackpack(ctx)
   setBackpackOpen(ctx, true)
@@ -75,30 +100,49 @@ export function openBackpackFull(ctx, newItemId) {
 
 export function openBackpackFullGear(ctx, piece) {
   const { UI } = ctx
-  const SLOT_ICONS = { weapon: '⚔️', breastplate: '🧥', offhand: '🛡️' }
-  const icon = SLOT_ICONS[piece.slot] ?? '🎁'
+  _pendingPickupId = null
+  _pendingGearPiece = piece
+  const slotImg = _gImg(piece.slot, piece.tier)
+  _showPendingBar({
+    artHtml: slotImg ? `<img src="${slotImg}" alt="${piece.name ?? ''}">` : `<span>🎁</span>`,
+    name: piece.name ?? 'Gear',
+    trashLabel: '🗑️ Trash',
+    onTrash: () => clearPendingGear(ctx),
+  })
+
   renderBackpack(ctx, { filterSlot: piece.slot })
   setBackpackOpen(ctx, true)
-  UI.setMessage(`${icon} ${piece.name} found — backpack full! Swap it with an existing item, or close to discard.`, true)
+  const SLOT_ICONS = { weapon: '⚔️', breastplate: '🧥', offhand: '🛡️' }
+  const icon = SLOT_ICONS[piece.slot] ?? '🎁'
+  UI.setMessage(`${icon} ${piece.name} found — backpack full! Tap matching gear to swap, or trash the new item.`, true)
 }
 
-function clearPendingPickup(ctx, { grantTrashScrap = false } = {}) {
+function clearPendingTrinket(ctx, { grantTrashScrap = false } = {}) {
   if (grantTrashScrap && _pendingPickupId) {
     const scrapGain = trinketTrashScrapYield(ITEMS[_pendingPickupId])
     if (scrapGain) adjustScrap(scrapGain)
   }
   _pendingPickupId = null
-  const bar = document.getElementById('backpack-pending-bar')
-  bar?.classList.add('hidden')
+  if (!_pendingGearPiece) {
+    document.getElementById('backpack-pending-bar')?.classList.add('hidden')
+  }
   renderBackpack(ctx)
 }
 
-async function doReplace(ctx, oldId) {
+export function clearPendingGear(ctx) {
+  _pendingGearPiece = null
+  if (!_pendingPickupId) {
+    document.getElementById('backpack-pending-bar')?.classList.add('hidden')
+  }
+  renderBackpack(ctx)
+}
+
+async function doReplaceAtIndex(ctx, index) {
   const { GameController } = ctx
   const newId = _pendingPickupId
   if (!newId) return
-  clearPendingPickup(ctx)
-  await GameController.forceReplaceItem(oldId, newId)
+  clearPendingTrinket(ctx)
+  await GameController.forceReplaceItemAtIndex(index, newId)
   renderBackpack(ctx)
 }
 
@@ -112,7 +156,12 @@ export function setBackpackOpen(ctx, open) {
   btn?.setAttribute('aria-expanded', open ? 'true' : 'false')
   if (open) UI.hideEquipmentOverlay()
   if (open) clearBackpackBadge()
-  if (!open && _pendingPickupId) clearPendingPickup(ctx)
+  if (!open && (_pendingPickupId || _pendingGearPiece)) {
+    UI.setMessage('Pickup discarded — backpack still full.', true)
+    _pendingPickupId = null
+    _pendingGearPiece = null
+    document.getElementById('backpack-pending-bar')?.classList.add('hidden')
+  }
 }
 
 export function showBackpackBadge() {

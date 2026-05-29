@@ -17,6 +17,33 @@ export function closeEquipment(_ctx) {
   UI.hideEquipmentOverlay()
 }
 
+export function openGearPickupCompareModal(ctx, inventoryIndex) {
+  const { GameController, UI } = ctx
+  const pending = ctx.getPendingGearPiece?.()
+  if (!pending) return openCompareModal(ctx, inventoryIndex)
+
+  const inventory = GameController.getInventory()
+  const oldPiece = inventory[inventoryIndex]
+  if (!oldPiece?.slot || oldPiece.slot !== pending.slot) return
+
+  UI.renderCompareModal(
+    pending,
+    oldPiece,
+    () => {
+      GameController.acceptPendingGearAtSlot(inventoryIndex, pending)
+      ctx.clearPendingGear?.()
+      UI.hideCompareModal()
+      ctx.renderBackpack()
+    },
+    () => UI.hideCompareModal(),
+    () => {
+      ctx.clearPendingGear?.()
+      UI.hideCompareModal()
+      UI.setMessage(`${pending.name} discarded.`)
+    },
+  )
+}
+
 export function openCompareModal(ctx, inventoryIndex) {
   const { GameController, UI } = ctx
   _comparePendingIndex = inventoryIndex

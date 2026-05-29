@@ -677,6 +677,7 @@ function _floorCtx() {
 }
 
 function _startFloor() { FloorController.startFloor(_floorCtx()) }
+function _nextFloor() { FloorController.nextFloor(_floorCtx()) }
 function _handleExit() { FloorController.handleExit(_floorCtx()) }
 function _confirmRope(tile) { FloorController.confirmRope(_floorCtx(), tile) }
 function _checkFloorModifierOnReveal(tile) { FloorController.checkFloorModifierOnReveal(_floorCtx(), tile) }
@@ -2202,6 +2203,8 @@ function _canAddToBackpack(id) { return InventoryController.canAddToBackpack(_in
 function useItem(id) { InventoryController.useItem(_inventoryCtx(), id) }
 function dropItem(id) { InventoryController.dropItem(_inventoryCtx(), id) }
 async function forceReplaceItem(oldId, newId) { return InventoryController.forceReplaceItem(_inventoryCtx(), oldId, newId) }
+async function forceReplaceItemAtIndex(index, newId) { return InventoryController.forceReplaceItemAtIndex(_inventoryCtx(), index, newId) }
+function acceptPendingGearAtSlot(index, piece) { GearController.acceptPendingGearAtSlot(_gearCtx(), index, piece) }
 
 /** Swap PNG→GIF reliably (restart animation from frame 0) across browsers. */
 function _forcePlayChestGif(img, gifSrc) {
@@ -2745,6 +2748,8 @@ export default {
   useItem,
   dropItem,
   forceReplaceItem,
+  forceReplaceItemAtIndex,
+  acceptPendingGearAtSlot,
   getInventory,
   getArmor()        { return session.run?.player?.armor    ?? 0 },
   getNegation()     { return session.run?.player?.negation  ?? 0 },

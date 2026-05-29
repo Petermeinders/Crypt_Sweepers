@@ -507,11 +507,36 @@ export function dropItem(ctx, id) {
   EventBus.emit('audio:play', { sfx: 'menu' })
 }
 
-/** Trash the item currently sitting in the backpack:full pending slot (no-op if pack isn't full). */
+/** Swap a backpack trinket slot for a new pickup (full-backpack replace flow). */
+export async function forceReplaceItemAtIndex(ctx, index, newId) {
+  if (!session.run) return
+  const inv = session.run.player.inventory
+  const old = inv[index]
+  if (!old || old.slot) return
+  const item = ITEMS[newId]
+  if (!item) return
+
+  revertTrinketEquipEffects(ctx, old.id)
+  const scrapGain = trinketTrashScrapYield(ITEMS[old.id])
+  if (scrapGain) adjustScrap(scrapGain)
+
+  inv[index] = { id: newId, qty: 1 }
+
+  if (TrinketCodex.registerIfNew(session.save, newId)) {
+    Logger.info(`[GameController] New trinket discovered: ${newId} (floor ${session.run?.floor})`)
+    await SaveManager.save(session.save).catch(() => {})
+    await UI.showTrinketDiscovery(newId)
+  }
+  applyTrinketEquipEffects(ctx, newId)
+  UI.setMessage(`Swapped in ${item.name}.`)
+  EventBus.emit('inventory:changed')
+}
+
+/** @deprecated Prefer forceReplaceItemAtIndex — id lookup fails when qty > 1 on stackables. */
 export async function forceReplaceItem(ctx, oldId, newId) {
   if (!session.run) return
-  dropItem(oldId)
-  await addToBackpack(ctx, newId)
-  EventBus.emit('inventory:changed')
+  const idx = session.run.player.inventory.findIndex(e => e?.id === oldId)
+  if (idx < 0) return
+  await forceReplaceItemAtIndex(ctx, idx, newId)
 }
 
