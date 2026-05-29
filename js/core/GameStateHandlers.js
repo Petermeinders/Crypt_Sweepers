@@ -115,12 +115,14 @@ export function buildRunState(ctx) {
     damageBonus:  0,
     damageReduction: 0,
     equippedGear: { weapon: null, breastplate: null, offhand: null },
+    safePocketTrinket: null,
   }
 
   MetaProgression.applyToPlayer(p, session.save)
   p.baseMaxHp   = p.maxHp    // pre-gear base — used for maxHpPct calculations
   p.baseMaxMana = p.maxMana  // pre-gear base — used for maxManaPct calculations
   ctx.applyEquippedGear(p)
+  ctx.applySafePocket(p)
 
   return {
     player:           p,
@@ -358,6 +360,9 @@ export function doRetreat(ctx, reason = 'player') {
   const { xpEarned, xpRetained, xpLost, goldBanked } = MetaProgression.endRun(session.save, stats, 'retreat')
 
   if (session.run?.player?.equippedGear) session.save.equippedGear = structuredClone(session.run.player.equippedGear)
+  session.save.safePocketTrinket = session.run?.player?.safePocketTrinket
+    ? structuredClone(session.run.player.safePocketTrinket)
+    : null
   // End run immediately
   clearActiveRun(ctx)
   session.run = null
@@ -410,6 +415,9 @@ export function die(ctx, killerData = null, opts = {}) {
   if (killerInferred && !killerData?.enemyId) deathExtras.killerInferred = true
   finalizeRunTelemetry(ctx, 'death', deathExtras)
   if (session.run?.player?.equippedGear) session.save.equippedGear = structuredClone(session.run.player.equippedGear)
+  session.save.safePocketTrinket = session.run?.player?.safePocketTrinket
+    ? structuredClone(session.run.player.safePocketTrinket)
+    : null
   clearActiveRun(ctx)
   UI.setPortraitAnim('death')
   GameState.transition(States.DEATH)

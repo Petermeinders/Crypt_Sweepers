@@ -58,6 +58,7 @@ import * as RevealController from '../controllers/TileRevealController.js'
 import * as CombatController from '../controllers/CombatController.js'
 import * as FloorController from '../controllers/FloorController.js'
 import * as GearController from '../controllers/GearController.js'
+import * as SafePocketController from '../controllers/SafePocketController.js'
 import * as InventoryController from '../controllers/InventoryController.js'
 import * as Warrior from '../heroes/warrior.js'
 import * as Ranger from '../heroes/ranger.js'
@@ -82,7 +83,10 @@ const _hapticFromUserGesture = Haptics.hapticFromUserGesture
 const _hapticFromAsyncTask = Haptics.hapticFromAsyncTask
 const _firefoxPreFlipHapticsIfNeeded = Haptics.firefoxPreFlipHapticsIfNeeded
 
-function hasItem(id) { return session.run?.player?.inventory?.some(e => e?.id === id) ?? false }
+function hasItem(id) {
+  if (session.run?.player?.safePocketTrinket?.id === id) return true
+  return session.run?.player?.inventory?.some(e => e?.id === id) ?? false
+}
 
 // ── Player stats + enemy mechanics (extracted) ───────────────
 const _statsCtx = () => ({ hasItem })
@@ -545,6 +549,7 @@ function _stateCtx() {
   return {
     charKey: _charKey,
     applyEquippedGear: _applyEquippedGear,
+    applySafePocket: _applySafePocket,
     startFloor: _startFloor,
     getCombatEngagementTile: () => session.tap.combatEngagementTile,
     computeEffectiveDamageTaken: _computeEffectiveDamageTaken,
@@ -1091,6 +1096,8 @@ function _gearCtx() {
 }
 
 function _applyEquippedGear(p) { GearController.applyEquippedGear(_gearCtx(), p) }
+function _applySafePocket(p) { SafePocketController.applySafePocket(_inventoryCtx(), p) }
+function _equipSafePocket(inventoryIndex) { SafePocketController.equipSafePocket(_inventoryCtx(), inventoryIndex) }
 function _equipGear(inventoryIndex) { GearController.equipGear(_gearCtx(), inventoryIndex) }
 function _unequipGear(slot, inventoryIndex) { GearController.unequipGear(_gearCtx(), slot, inventoryIndex) }
 function _handleGearPickup(piece) { GearController.handleGearPickup(_gearCtx(), piece) }
@@ -2742,12 +2749,14 @@ export default {
   getArmor()        { return session.run?.player?.armor    ?? 0 },
   getNegation()     { return session.run?.player?.negation  ?? 0 },
   getEquippedGear() { return session.run?.player?.equippedGear ?? { weapon: null, breastplate: null, offhand: null } },
+  getSafePocketTrinket() { return session.run?.player?.safePocketTrinket ?? null },
   getScrap()        { return session.save?.scrap ?? 0 },
   getSavedEquippedGear() { return session.save?.equippedGear ?? { weapon: null, breastplate: null, offhand: null } },
   upgradeGear(slot)                    { return _upgradeGear(slot) },
   disassembleGear(slot)                { return _disassembleGear(slot) },
   reduceDetriment(slot, statKey)       { return _reduceDetriment(slot, statKey) },
   equipGear(inventoryIndex)            { _equipGear(inventoryIndex) },
+  equipSafePocket(inventoryIndex)      { _equipSafePocket(inventoryIndex) },
   unequipGear(slot, inventoryIndex)    { _unequipGear(slot, inventoryIndex) },
   trashGear(inventoryIndex) { _trashGear(inventoryIndex) },
   openForge: _openForge,

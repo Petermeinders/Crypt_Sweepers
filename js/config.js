@@ -249,6 +249,12 @@ export const CONFIG = {
       epic:      10,
       legendary: 30,
     },
+    // Fixed scrap when dropping/trashing passive trinkets (by item rarity)
+    trinketTrashScrapYield: {
+      rare:      2,
+      legendary: 10,
+      merged:    30,
+    },
     // Cost per post-T3 detriment reduction application (placeholder = T3 cost)
     detrimentReduceCost: {
       common:    { gold: 30,  scrap: 20  },

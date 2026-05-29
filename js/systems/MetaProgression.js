@@ -17,6 +17,7 @@ export function defaultSave() {
     persistentGold: 0,
     scrap:          0,
     equippedGear:   null,
+    safePocketTrinket: null,
     /** @type {string[]} enemyId keys from ENEMY_DEFS */
     bestiarySeen:  [],
     globalPassives: [],

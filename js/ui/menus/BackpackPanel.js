@@ -1,4 +1,5 @@
 import { ITEMS } from '../../data/items.js'
+import { adjustScrap, trinketTrashScrapYield } from '../../controllers/GearController.js'
 
 let _pendingPickupId = null
 
@@ -60,9 +61,11 @@ export function openBackpackFull(ctx, newItemId) {
 
   const trashBtn = document.getElementById('backpack-pending-trash')
   if (trashBtn) {
+    const scrapGain = trinketTrashScrapYield(item)
     const fresh = trashBtn.cloneNode(true)
     trashBtn.replaceWith(fresh)
-    fresh.addEventListener('click', () => clearPendingPickup(ctx))
+    fresh.textContent = scrapGain ? `🗑️ Trash (+${scrapGain} ⚙️ scrap)` : '🗑️ Trash'
+    fresh.addEventListener('click', () => clearPendingPickup(ctx, { grantTrashScrap: true }))
   }
 
   renderBackpack(ctx)
@@ -79,7 +82,11 @@ export function openBackpackFullGear(ctx, piece) {
   UI.setMessage(`${icon} ${piece.name} found — backpack full! Swap it with an existing item, or close to discard.`, true)
 }
 
-function clearPendingPickup(ctx) {
+function clearPendingPickup(ctx, { grantTrashScrap = false } = {}) {
+  if (grantTrashScrap && _pendingPickupId) {
+    const scrapGain = trinketTrashScrapYield(ITEMS[_pendingPickupId])
+    if (scrapGain) adjustScrap(scrapGain)
+  }
   _pendingPickupId = null
   const bar = document.getElementById('backpack-pending-bar')
   bar?.classList.add('hidden')
@@ -171,8 +178,21 @@ export function openBackpackFiltered(ctx, slotType) {
     onUnequip: (inventoryIndex) => {
       GameController.unequipGear(slotType, inventoryIndex)
       rerender()
-      UI.renderEquipmentSlots(GameController.getEquippedGear(), UI.getHudCharacterId())
+      UI.renderEquipmentSlots(
+        GameController.getEquippedGear(),
+        UI.getHudCharacterId(),
+        GameController.getSafePocketTrinket(),
+      )
     },
+  })
+  rerender()
+  setBackpackOpen(ctx, true)
+}
+
+export function openBackpackFilteredTrinkets(ctx) {
+  const rerender = () => renderBackpack(ctx, {
+    filterTrinket: true,
+    onCompareTrinket: (idx) => ctx.openSafePocketCompareModal(idx),
   })
   rerender()
   setBackpackOpen(ctx, true)

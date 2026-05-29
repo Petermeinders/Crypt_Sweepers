@@ -10,8 +10,114 @@ import { session } from '../core/RunContext.js'
 import { ITEMS } from '../data/items.js'
 import { BACKPACK_MAX_SLOTS } from '../systems/LootTables.js'
 import { isCombatCommitmentLocked } from './TileTapRouter.js'
+import { adjustScrap, trinketTrashScrapYield } from './GearController.js'
 
 const MSG_COMBAT_ACTION_BLOCKED = 'Cannot perform action when in combat with enemy'
+
+/** One-shot stat changes when a trinket enters the player's owned set. */
+export function applyTrinketEquipEffects(ctx, id, { silent = false } = {}) {
+  if (!session.run) return
+  const float = (text, kind) => {
+    if (!silent) UI.spawnFloat(document.getElementById('hud-portrait'), text, kind)
+  }
+  if (id === 'blood-pact') {
+    session.run.player.damageBonus = (session.run.player.damageBonus ?? 0) + 2
+    session.run.player.maxHp = Math.max(1, session.run.player.maxHp - 3)
+    session.run.player.hp = Math.min(session.run.player.hp, session.run.player.maxHp)
+    UI.updateHP(session.run.player.hp, session.run.player.maxHp)
+    const [d0, d1] = ctx.playerDamageRange(session.run.player)
+    UI.updateDamageRange(d0, d1)
+    float('🩸 Pact!', 'damage')
+  }
+  if (id === 'forsaken-idol') {
+    const halved = Math.max(1, Math.floor(session.run.player.maxHp / 2))
+    session.run.player.maxHp = halved
+    session.run.player.hp = Math.min(session.run.player.hp, halved)
+    UI.updateHP(session.run.player.hp, session.run.player.maxHp)
+    float('🗿 Max HP halved!', 'damage')
+  }
+  if (id === 'hollowed-acorn') {
+    session.run.player.maxMana = (session.run.player.maxMana ?? CONFIG.player.maxMana) + 10
+    UI.updateMana(session.run.player.mana, session.run.player.maxMana)
+    float('🌰 +10 Mana!', 'mana')
+  }
+  if (id === 'mana-crucible') {
+    session.run.player.maxMana = (session.run.player.maxMana ?? CONFIG.player.maxMana) + 15
+    UI.updateMana(session.run.player.mana, session.run.player.maxMana)
+    float('🫙 +15 Mana!', 'mana')
+  }
+  if (id === 'sanguine-covenant') {
+    session.run.player.damageBonus = (session.run.player.damageBonus ?? 0) + 3
+    const halved = Math.max(1, Math.floor(session.run.player.maxHp / 2))
+    session.run.player.maxHp = halved
+    session.run.player.hp    = Math.min(session.run.player.hp, halved)
+    UI.updateHP(session.run.player.hp, session.run.player.maxHp)
+    const [d0, d1] = ctx.playerDamageRange(session.run.player)
+    UI.updateDamageRange(d0, d1)
+    float('⚗️ Covenant!', 'damage')
+  }
+  if (id === 'razors-edge') {
+    session.run.player.maxHp = Math.max(1, session.run.player.maxHp - 10)
+    session.run.player.hp    = Math.min(session.run.player.hp, session.run.player.maxHp)
+    UI.updateHP(session.run.player.hp, session.run.player.maxHp)
+    float('💠 −10 Max HP', 'damage')
+  }
+  if (id === 'honed-edge') {
+    session.run.player.damageBonus = (session.run.player.damageBonus ?? 0) + 1
+    const [d0, d1] = ctx.playerDamageRange(session.run.player)
+    UI.updateDamageRange(d0, d1)
+    float('⚔️ +1 ATK', 'xp')
+  }
+}
+
+/** Undo one-shot stat changes when a trinket leaves the player's owned set. */
+export function revertTrinketEquipEffects(ctx, id, { silent = false } = {}) {
+  if (!session.run) return
+  const float = (text, kind) => {
+    if (!silent) UI.spawnFloat(document.getElementById('hud-portrait'), text, kind)
+  }
+  if (id === 'blood-pact') {
+    session.run.player.damageBonus = Math.max(0, (session.run.player.damageBonus ?? 0) - 2)
+    session.run.player.maxHp += 3
+    UI.updateHP(session.run.player.hp, session.run.player.maxHp)
+    const [d0, d1] = ctx.playerDamageRange(session.run.player)
+    UI.updateDamageRange(d0, d1)
+    float('🩸 Pact broken', 'heal')
+  }
+  if (id === 'forsaken-idol') {
+    session.run.player.maxHp = Math.max(1, session.run.player.maxHp * 2)
+    UI.updateHP(session.run.player.hp, session.run.player.maxHp)
+    float('🗿 Max HP restored', 'heal')
+  }
+  if (id === 'hollowed-acorn') {
+    session.run.player.maxMana = Math.max(1, (session.run.player.maxMana ?? CONFIG.player.maxMana) - 10)
+    session.run.player.mana = Math.min(session.run.player.mana, session.run.player.maxMana)
+    UI.updateMana(session.run.player.mana, session.run.player.maxMana)
+    float('🌰 −10 Mana', 'damage')
+  }
+  if (id === 'mana-crucible') {
+    session.run.player.maxMana = Math.max(1, (session.run.player.maxMana ?? CONFIG.player.maxMana) - 15)
+    session.run.player.mana = Math.min(session.run.player.mana, session.run.player.maxMana)
+    UI.updateMana(session.run.player.mana, session.run.player.maxMana)
+    float('🫙 −15 Mana', 'damage')
+  }
+  if (id === 'sanguine-covenant') {
+    session.run.player.damageBonus = Math.max(0, (session.run.player.damageBonus ?? 0) - 3)
+    session.run.player.maxHp = Math.max(1, session.run.player.maxHp * 2)
+    UI.updateHP(session.run.player.hp, session.run.player.maxHp)
+    const [d0, d1] = ctx.playerDamageRange(session.run.player)
+    UI.updateDamageRange(d0, d1)
+  }
+  if (id === 'razors-edge') {
+    session.run.player.maxHp += 10
+    UI.updateHP(session.run.player.hp, session.run.player.maxHp)
+  }
+  if (id === 'honed-edge') {
+    session.run.player.damageBonus = Math.max(0, (session.run.player.damageBonus ?? 0) - 1)
+    const [d0, d1] = ctx.playerDamageRange(session.run.player)
+    UI.updateDamageRange(d0, d1)
+  }
+}
 
 
 export async function addToBackpack(ctx, id) {
@@ -53,61 +159,7 @@ export async function addToBackpack(ctx, id) {
     await SaveManager.save(session.save).catch(() => {})
     await UI.showTrinketDiscovery(id)
   }
-  // Blood Pact: apply on equip
-  if (id === 'blood-pact') {
-    session.run.player.damageBonus = (session.run.player.damageBonus ?? 0) + 2
-    session.run.player.maxHp = Math.max(1, session.run.player.maxHp - 3)
-    session.run.player.hp = Math.min(session.run.player.hp, session.run.player.maxHp)
-    UI.updateHP(session.run.player.hp, session.run.player.maxHp)
-    const [d0, d1] = ctx.playerDamageRange(session.run.player)
-    UI.updateDamageRange(d0, d1)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '🩸 Pact!', 'damage')
-  }
-  // Forsaken Idol: halve max HP on equip
-  if (id === 'forsaken-idol') {
-    const halved = Math.max(1, Math.floor(session.run.player.maxHp / 2))
-    session.run.player.maxHp = halved
-    session.run.player.hp = Math.min(session.run.player.hp, halved)
-    UI.updateHP(session.run.player.hp, session.run.player.maxHp)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '🗿 Max HP halved!', 'damage')
-  }
-  // Hollowed Acorn: +10 max mana on equip
-  if (id === 'hollowed-acorn') {
-    session.run.player.maxMana = (session.run.player.maxMana ?? CONFIG.player.maxMana) + 10
-    UI.updateMana(session.run.player.mana, session.run.player.maxMana)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '🌰 +10 Mana!', 'mana')
-  }
-  // Mana Crucible: +15 max mana on equip
-  if (id === 'mana-crucible') {
-    session.run.player.maxMana = (session.run.player.maxMana ?? CONFIG.player.maxMana) + 15
-    UI.updateMana(session.run.player.mana, session.run.player.maxMana)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '🫙 +15 Mana!', 'mana')
-  }
-  // Sanguine Covenant: +3 dmg, halve max HP on equip
-  if (id === 'sanguine-covenant') {
-    session.run.player.damageBonus = (session.run.player.damageBonus ?? 0) + 3
-    const halved = Math.max(1, Math.floor(session.run.player.maxHp / 2))
-    session.run.player.maxHp = halved
-    session.run.player.hp    = Math.min(session.run.player.hp, halved)
-    UI.updateHP(session.run.player.hp, session.run.player.maxHp)
-    const [d0, d1] = ctx.playerDamageRange(session.run.player)
-    UI.updateDamageRange(d0, d1)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '⚗️ Covenant!', 'damage')
-  }
-  // Razor's Edge: −10 max HP on equip
-  if (id === 'razors-edge') {
-    session.run.player.maxHp = Math.max(1, session.run.player.maxHp - 10)
-    session.run.player.hp    = Math.min(session.run.player.hp, session.run.player.maxHp)
-    UI.updateHP(session.run.player.hp, session.run.player.maxHp)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '💠 −10 Max HP', 'damage')
-  }
-  // Honed Edge: +1 permanent attack damage
-  if (id === 'honed-edge') {
-    session.run.player.damageBonus = (session.run.player.damageBonus ?? 0) + 1
-    const [d0, d1] = ctx.playerDamageRange(session.run.player)
-    UI.updateDamageRange(d0, d1)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '⚔️ +1 ATK', 'xp')
-  }
+  applyTrinketEquipEffects(ctx, id)
 }
 
 export function canAddToBackpack(ctx, id) {
@@ -447,55 +499,11 @@ export function dropItem(ctx, id) {
   const item = ITEMS[id]
   entry.qty--
   if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
-  // Blood Pact: revert on drop
-  if (id === 'blood-pact') {
-    session.run.player.damageBonus = Math.max(0, (session.run.player.damageBonus ?? 0) - 2)
-    session.run.player.maxHp += 3
-    UI.updateHP(session.run.player.hp, session.run.player.maxHp)
-    const [d0, d1] = ctx.playerDamageRange(session.run.player)
-    UI.updateDamageRange(d0, d1)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '🩸 Pact broken', 'heal')
-  }
-  // Forsaken Idol: restore max HP on drop
-  if (id === 'forsaken-idol') {
-    session.run.player.maxHp = Math.max(1, session.run.player.maxHp * 2)
-    UI.updateHP(session.run.player.hp, session.run.player.maxHp)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '🗿 Max HP restored', 'heal')
-  }
-  // Hollowed Acorn: revert max mana on drop
-  if (id === 'hollowed-acorn') {
-    session.run.player.maxMana = Math.max(1, (session.run.player.maxMana ?? CONFIG.player.maxMana) - 10)
-    session.run.player.mana = Math.min(session.run.player.mana, session.run.player.maxMana)
-    UI.updateMana(session.run.player.mana, session.run.player.maxMana)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '🌰 −10 Mana', 'damage')
-  }
-  // Mana Crucible: revert max mana on drop
-  if (id === 'mana-crucible') {
-    session.run.player.maxMana = Math.max(1, (session.run.player.maxMana ?? CONFIG.player.maxMana) - 15)
-    session.run.player.mana = Math.min(session.run.player.mana, session.run.player.maxMana)
-    UI.updateMana(session.run.player.mana, session.run.player.maxMana)
-    UI.spawnFloat(document.getElementById('hud-portrait'), '🫙 −15 Mana', 'damage')
-  }
-  // Sanguine Covenant: revert on drop
-  if (id === 'sanguine-covenant') {
-    session.run.player.damageBonus = Math.max(0, (session.run.player.damageBonus ?? 0) - 3)
-    session.run.player.maxHp = Math.max(1, session.run.player.maxHp * 2)
-    UI.updateHP(session.run.player.hp, session.run.player.maxHp)
-    const [d0, d1] = ctx.playerDamageRange(session.run.player)
-    UI.updateDamageRange(d0, d1)
-  }
-  // Razor's Edge: restore max HP on drop
-  if (id === 'razors-edge') {
-    session.run.player.maxHp += 10
-    UI.updateHP(session.run.player.hp, session.run.player.maxHp)
-  }
-  // Honed Edge: revert damage on drop
-  if (id === 'honed-edge') {
-    session.run.player.damageBonus = Math.max(0, (session.run.player.damageBonus ?? 0) - 1)
-    const [d0, d1] = ctx.playerDamageRange(session.run.player)
-    UI.updateDamageRange(d0, d1)
-  }
-  UI.setMessage(item ? `Dropped ${item.name}.` : 'Item removed.')
+  revertTrinketEquipEffects(ctx, id)
+  const scrapGain = trinketTrashScrapYield(item)
+  if (scrapGain) adjustScrap(scrapGain)
+  const scrapNote = scrapGain ? ` (+${scrapGain} scrap)` : ''
+  UI.setMessage(item ? `Dropped ${item.name}.${scrapNote}` : 'Item removed.')
   EventBus.emit('audio:play', { sfx: 'menu' })
 }
 

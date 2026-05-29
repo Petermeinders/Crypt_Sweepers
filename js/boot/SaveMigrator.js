@@ -12,6 +12,7 @@ export function migrateSave(save) {
   let changed = false
 
   if (save.scrap == null) save.scrap = 0
+  if (save.safePocketTrinket === undefined) save.safePocketTrinket = null
 
   if (save.equippedGear) {
     let _gearMigrated = false

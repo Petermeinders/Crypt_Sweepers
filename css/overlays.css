@@ -6249,6 +6249,79 @@ body.bestiary-detail-open #app {
 }
 .equipment-close-btn:active { opacity: 0.55; }
 
+/* Safe Pocket — upper-right of hero panel */
+.eq-safe-pocket {
+  position: absolute;
+  top: 28px;
+  right: 38px;
+  z-index: 2;
+  width: 88px;
+  min-height: 96px;
+  padding: 6px 4px 5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(30, 20, 50, 0.88) 0%, rgba(8, 6, 16, 0.96) 100%);
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
+}
+.eq-safe-pocket:active { opacity: 0.75; }
+.eq-safe-pocket-label {
+  font-size: 0.48rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold, #ffd700);
+  text-align: center;
+  line-height: 1.1;
+}
+.eq-safe-pocket-img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.eq-safe-pocket-emoji { font-size: 1.4rem; line-height: 1; }
+.eq-safe-pocket-name {
+  font-size: 0.52rem;
+  font-weight: 700;
+  color: #e8e0d4;
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eq-safe-pocket-empty-label {
+  font-size: 0.55rem;
+  color: #888;
+  font-style: italic;
+}
+.eq-safe-pocket-tap {
+  font-size: 0.46rem;
+  color: #666;
+  margin-top: auto;
+}
+.eq-safe-pocket-filled.rarity-rare      { border-color: rgba(74, 158, 255, 0.55); }
+.eq-safe-pocket-filled.rarity-legendary { border-color: rgba(255, 215, 0, 0.55); }
+.eq-safe-pocket-filled.rarity-merged    { border-color: rgba(200, 120, 255, 0.55); }
+
+.cmp-trinket-details {
+  margin-bottom: 10px;
+  padding: 4px 2px 0;
+  font-family: var(--cmp-font-body);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #3d2c1c;
+}
+.cmp-trinket-blurb { margin: 0 0 8px; line-height: 1.35; }
+.cmp-trinket-effects { display: flex; flex-direction: column; gap: 4px; }
+.cmp-trinket-effect { line-height: 1.3; }
+
 /* ── Gear card row ── */
 .equipment-gear-row {
   display: grid;
@@ -6497,6 +6570,8 @@ body.bestiary-detail-open #app {
 /* ── Gear compare modal ────────────────────────────────────── */
 
 .gear-compare-modal {
+  --cmp-font-title: 'Almendra', Georgia, 'Times New Roman', serif;
+  --cmp-font-body: var(--cmp-font-title);
   position: fixed;
   inset: 0;
   z-index: 290;
@@ -6511,105 +6586,247 @@ body.bestiary-detail-open #app {
 }
 
 .cmp-panel {
-  background: #1a1a2e;
-  border: 2px solid rgba(255,215,0,0.30);
-  border-radius: 14px;
-  padding: 18px 16px 16px;
-  max-width: 320px;
-  width: 90%;
+  position: relative;
+  border: 14px solid transparent;
+  border-image: url('../assets/ui/cmp-panel-bg.png') 20 fill / 9px / 0 round;
+  background: none;
+  padding: 17px 12px 19px;
+  max-width: 400px;
+  width: 92%;
+  font-family: var(--cmp-font-body);
+  font-weight: 700;
+  color: #3d2c1c;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.88);
+}
+
+/* Parchment header strip */
+.cmp-header-paper {
+  background: url('../assets/ui/cmp-btn-paper.png') center/100% 100% no-repeat;
+  padding: 10px 12px 8px;
+  margin-bottom: 8px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.42));
 }
 
 .cmp-header {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  margin-bottom: 12px;
 }
 
 .cmp-candidate, .cmp-equipped {
   flex: 1;
   min-width: 0;
+  display: flex;
+  justify-content: center;
 }
 
-.cmp-candidate-name, .cmp-equipped-name {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #ddd;
-  display: block;
-  white-space: nowrap;
+/* Item chip — icon, tier badge, name (matches equipment card language) */
+.cmp-item-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+}
+
+.cmp-item-art {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 25%;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-color: rgba(0, 0, 0, 0.55);
+  border: 1px solid var(--card-color, rgba(255, 255, 255, 0.15));
+  box-shadow: 0 0 14px var(--card-glow, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.1);
   overflow: hidden;
-  text-overflow: ellipsis;
+  flex-shrink: 0;
 }
 
-.cmp-candidate-tier {
-  font-size: 0.58rem;
-  color: #888;
-  text-transform: capitalize;
-  display: block;
+.cmp-item-art-empty {
+  background-image: url('../assets/ui/common-tile.png');
+  opacity: 0.5;
+  border-style: dashed;
+  border-color: rgba(61, 44, 28, 0.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
+
+.cmp-item-img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  display: block;
+  filter: drop-shadow(0 0 6px var(--card-glow, transparent));
+}
+
+.cmp-item-emoji {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.cmp-item-tier-badge {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  z-index: 2;
+  font-size: 0.38rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.62);
+  border: 1px solid var(--card-color, #888);
+  color: var(--card-color, #888);
+  text-shadow: 0 0 6px var(--card-glow, transparent);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.cmp-item-name {
+  font-family: var(--cmp-font-title);
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: #3d2c1c;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  word-break: break-word;
+  max-width: 118px;
+}
+
+.cmp-item-card.gear-tier-common    { --card-color: #a8a8a8; --card-glow: rgba(160, 160, 160, 0.22); }
+.cmp-item-card.gear-tier-rare      { --card-color: #00c8ff; --card-glow: rgba(0, 200, 255, 0.28); }
+.cmp-item-card.gear-tier-epic      { --card-color: #b06ef7; --card-glow: rgba(168, 85, 247, 0.32); }
+.cmp-item-card.gear-tier-legendary { --card-color: #ffd700; --card-glow: rgba(255, 215, 0, 0.28); }
+.cmp-item-card.trinket-rarity-rare      { --card-color: #00c8ff; --card-glow: rgba(0, 200, 255, 0.28); }
+.cmp-item-card.trinket-rarity-legendary { --card-color: #ffd700; --card-glow: rgba(255, 215, 0, 0.28); }
+.cmp-item-card.trinket-rarity-merged    { --card-color: #c878ff; --card-glow: rgba(200, 120, 255, 0.32); }
 
 .cmp-vs {
-  font-size: 0.7rem;
-  color: #666;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  font-family: var(--cmp-font-title);
+  font-size: 0.69rem;
+  font-weight: 700;
+  color: #3d2c1c;
+  letter-spacing: 0.04em;
+  background: url('../assets/ui/cmp-btn-stone.png') center/cover no-repeat;
+  border-radius: 3px;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.42));
+}
+
+/* Chiseled stone stat block */
+.cmp-stat-panel {
+  border: 16px solid transparent;
+  border-image: url('../assets/ui/cmp-btn-stone.png') 20 fill / 4px / 0 round;
+  background: none;
+  padding: 6px 8px 4px;
+  margin-bottom: 10px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.42));
 }
 
 .cmp-stat-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.65rem;
-  margin-bottom: 14px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #3d2c1c;
 }
 
 .cmp-stat-table th {
-  color: #666;
-  font-weight: 600;
-  padding: 2px 4px;
+  font-family: var(--cmp-font-title);
+  color: #3d2c1c;
+  font-weight: 700;
+  font-size: 0.725rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 4px 5px;
   text-align: left;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  border-bottom: 1px solid rgba(61, 44, 28, 0.35);
 }
 
 .cmp-stat-table td {
-  padding: 3px 4px;
-  color: #bbb;
+  padding: 5px 4px;
+  color: #3d2c1c;
+  font-weight: 700;
+  font-family: var(--cmp-font-body);
 }
 
-.cmp-stat-label { color: #888; }
-.cmp-new-val    { color: #ddd; }
-.cmp-old-val    { color: #666; }
-.delta-pos      { color: #4caf50; font-weight: 700; }
-.delta-neg      { color: #ef5350; font-weight: 700; }
+.cmp-stat-label {
+  color: #3d2c1c;
+  font-weight: 700;
+}
+.cmp-new-val, .cmp-old-val { font-variant-numeric: tabular-nums; font-weight: 700; }
+.cmp-new-val.cmp-val-pos, .cmp-old-val.cmp-val-pos { color: #124d08; }
+.cmp-new-val.cmp-val-neg, .cmp-old-val.cmp-val-neg { color: #9b2222; }
+.cmp-delta.delta-pos { color: #124d08; font-weight: 700; }
+.cmp-delta.delta-neg { color: #9b2222; font-weight: 700; }
 
 .cmp-actions {
   display: flex;
   gap: 10px;
+  padding: 0 2px;
 }
 
-.cmp-actions .menu-btn {
+.cmp-equip-btn,
+.cmp-cancel-btn {
   flex: 1;
-  font-size: 0.8rem;
-  padding: 0.5rem 0.5rem;
+  min-height: 46px;
+  padding: 0.45rem 0.6rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: var(--cmp-font-title);
+  font-size: 0.975rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #3d2c1c;
+  background: url('../assets/ui/cmp-btn-stone.png') center/100% 100% no-repeat;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.42));
+  transition: filter 0.12s ease, transform 0.1s ease;
 }
+.cmp-equip-btn:hover,
+.cmp-cancel-btn:hover { filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.42)) brightness(1.08); }
+.cmp-equip-btn:active,
+.cmp-cancel-btn:active { transform: scale(0.98); filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.42)) brightness(0.95); }
 
 .cmp-trash-row {
   margin-top: 8px;
   display: flex;
   justify-content: center;
+  padding: 0 4px;
 }
 
 .cmp-trash-btn {
-  background: none;
   border: none;
-  color: rgba(255,80,80,0.55);
-  font-size: 0.70rem;
+  color: #3d2c1c;
+  font-size: 0.825rem;
+  font-weight: 700;
   cursor: pointer;
-  padding: 4px 10px;
-  border-radius: 6px;
-  transition: color 0.15s, background 0.15s;
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  padding: 5px 14px;
+  min-height: 32px;
+  min-width: 180px;
+  border-radius: 2px;
+  font-family: var(--cmp-font-body);
+  letter-spacing: 0.03em;
+  background: url('../assets/ui/cmp-btn-paper.png') center/100% 100% no-repeat;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.38));
+  transition: filter 0.12s ease, transform 0.1s ease;
 }
-.cmp-trash-btn:hover { color: #ff5050; background: rgba(255,50,50,0.10); }
-.cmp-trash-btn:active { color: #ff3030; }
+.cmp-trash-btn:hover { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.38)) brightness(1.05); }
+.cmp-trash-btn:active { transform: scale(0.98); filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.38)) brightness(0.94); }
 
 /* ── Gear backpack cells ───────────────────────────────────── */
 

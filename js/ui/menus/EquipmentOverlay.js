@@ -1,9 +1,15 @@
+import { ITEMS } from '../../data/items.js'
+
 let _comparePendingIndex = null
 
 export function openEquipment(ctx) {
   const { GameController, UI } = ctx
   ctx.setBackpackOpen(false)
-  UI.renderEquipmentSlots(GameController.getEquippedGear(), UI.getHudCharacterId())
+  UI.renderEquipmentSlots(
+    GameController.getEquippedGear(),
+    UI.getHudCharacterId(),
+    GameController.getSafePocketTrinket(),
+  )
 }
 
 export function closeEquipment(_ctx) {
@@ -35,11 +41,31 @@ export function openCompareModal(ctx, inventoryIndex) {
     },
     () => {
       GameController.trashGear(inventoryIndex)
-      UI.updateScrap(GameController.getScrap())
       UI.hideCompareModal()
       _comparePendingIndex = null
       ctx.renderBackpack()
     },
+  )
+}
+
+export function openSafePocketCompareModal(ctx, inventoryIndex) {
+  const { GameController, UI } = ctx
+  const inventory = GameController.getInventory()
+  const entry = inventory[inventoryIndex]
+  const candidate = entry?.id ? ITEMS[entry.id] : null
+  if (!candidate) return
+  const equippedId = GameController.getSafePocketTrinket()?.id
+  const equippedDef = equippedId ? ITEMS[equippedId] : null
+  UI.renderSafePocketCompareModal(
+    candidate,
+    equippedDef,
+    () => {
+      GameController.equipSafePocket(inventoryIndex)
+      UI.hideCompareModal()
+      ctx.renderBackpack()
+      openEquipment(ctx)
+    },
+    () => UI.hideCompareModal(),
   )
 }
 
@@ -55,7 +81,11 @@ export function wireEquipmentOverlay(ctx) {
   document.getElementById('equipment-overlay')?.addEventListener('click', (e) => {
     const slotEl = e.target.closest('[data-slot]')
     if (slotEl) {
-      ctx.openBackpackFiltered(slotEl.dataset.slot)
+      if (slotEl.dataset.slot === 'safe-pocket') {
+        ctx.openBackpackFilteredTrinkets()
+      } else {
+        ctx.openBackpackFiltered(slotEl.dataset.slot)
+      }
       return
     }
     if (e.target.id === 'equipment-overlay') closeEquipment(ctx)

@@ -9,6 +9,66 @@ import EventBus from '../core/EventBus.js'
 import { ENEMY_SPRITES, MONSTER_ICONS_BASE } from '../data/tileIcons.js'
 import { el, fillBestiaryCreatureParts, fillTrinketCard, drawSettledDice, PORTRAIT_ANIM } from './uiShared.js'
 
+const CMP_GEAR_IMGS = {
+  weapon:     { default: 'assets/sprites/Items/sword.png', common: 'assets/sprites/gear/weapon/common.webp', rare: 'assets/sprites/gear/weapon/rare.webp', epic: 'assets/sprites/gear/weapon/epic.webp', legendary: 'assets/sprites/gear/weapon/legendary.webp' },
+  breastplate:{ default: 'assets/sprites/Items/armor.png', common: 'assets/sprites/gear/breastplate/common.webp', rare: 'assets/sprites/gear/breastplate/rare.webp', epic: 'assets/sprites/gear/breastplate/epic.webp', legendary: 'assets/sprites/gear/breastplate/legendary.webp' },
+  offhand:    { default: 'assets/sprites/Items/shield.png', common: 'assets/sprites/gear/offhand/common.webp', rare: 'assets/sprites/gear/offhand/rare.webp', epic: 'assets/sprites/gear/offhand/epic.webp', legendary: 'assets/sprites/gear/offhand/legendary.webp' },
+}
+const CMP_TIER_LABELS   = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' }
+const CMP_RARITY_LABELS = { common: 'Common', rare: 'Rare', legendary: 'Legendary', merged: 'Merged' }
+const CMP_TIER_ART_BG = {
+  common:    "url('assets/ui/common-tile.png')",
+  rare:      "url('assets/ui/rare-tile.png')",
+  epic:      "url('assets/ui/rare-tile.png')",
+  legendary: "url('assets/ui/legendary-tile.png')",
+}
+
+function _cmpGearImg(slot, tier) {
+  return CMP_GEAR_IMGS[slot]?.[tier] ?? CMP_GEAR_IMGS[slot]?.default ?? ''
+}
+
+/** Gear or trinket item chip for compare modal header (icon + tier + name). */
+function _renderCompareItemSide(sideEl, item, mode = 'gear') {
+  if (!sideEl) return
+  sideEl.innerHTML = ''
+  const card = document.createElement('div')
+
+  if (!item) {
+    card.className = 'cmp-item-card cmp-item-empty'
+    card.innerHTML = '<div class="cmp-item-art cmp-item-art-empty" aria-hidden="true"></div>'
+    sideEl.appendChild(card)
+    return
+  }
+
+  if (mode === 'gear') {
+    const tier = item.tier ?? 'common'
+    const artBg = CMP_TIER_ART_BG[tier] ?? CMP_TIER_ART_BG.common
+    card.className = `cmp-item-card gear-tier-${tier}`
+    card.innerHTML = `
+      <div class="cmp-item-art" style="background-image:${artBg}">
+        <img class="cmp-item-img" src="${_cmpGearImg(item.slot, tier)}" alt="">
+        <span class="cmp-item-tier-badge tier-${tier}">${CMP_TIER_LABELS[tier] ?? tier}</span>
+      </div>
+      <div class="cmp-item-name">${item.name ?? ''}</div>
+    `
+  } else {
+    const rarity = item.rarity ?? 'common'
+    const artBg = CMP_TIER_ART_BG[rarity] ?? CMP_TIER_ART_BG.common
+    const artInner = item.spriteSrc
+      ? `<img class="cmp-item-img" src="${item.spriteSrc}" alt="">`
+      : `<span class="cmp-item-emoji">${item.icon ?? '🧿'}</span>`
+    card.className = `cmp-item-card trinket-rarity-${rarity}`
+    card.innerHTML = `
+      <div class="cmp-item-art" style="background-image:${artBg}">
+        ${artInner}
+        <span class="cmp-item-tier-badge tier-${rarity}">${CMP_RARITY_LABELS[rarity] ?? rarity}</span>
+      </div>
+      <div class="cmp-item-name">${item.name ?? ''}</div>
+    `
+  }
+  sideEl.appendChild(card)
+}
+
 export function cacheModalElements() {
     el.levelUpOverlay  = document.getElementById('level-up-overlay')
     el.abilityChoices  = document.getElementById('ability-choices')
@@ -156,14 +216,18 @@ export const ModalsMethods = {
     `
 
     if (typeof opts.onDrop === 'function') {
+      const scrapGain = (data.effect && !data.stackable)
+        ? (CONFIG?.blacksmith?.trinketTrashScrapYield?.[data.rarity] ?? 0)
+        : 0
+      const scrapSuffix = scrapGain ? ` (+${scrapGain} ⚙️ scrap)` : ''
       const _wireDropBtn = (actions) => {
-        actions.innerHTML = `<button type="button" class="card-btn card-btn-drop">Drop</button>`
+        actions.innerHTML = `<button type="button" class="card-btn card-btn-drop">Drop${scrapSuffix}</button>`
         actions.querySelector('.card-btn-drop').addEventListener('click', (e) => {
           e.stopPropagation()
           actions.innerHTML = `
-            <span class="card-drop-confirm-label">Drop this item?</span>
+            <span class="card-drop-confirm-label">Drop this item?${scrapGain ? ` You'll receive ${scrapGain} scrap.` : ''}</span>
             <div class="card-drop-confirm-btns">
-              <button type="button" class="card-btn card-btn-drop-confirm">Yes, drop</button>
+              <button type="button" class="card-btn card-btn-drop-confirm">Yes, drop${scrapSuffix}</button>
               <button type="button" class="card-btn card-btn-drop-cancel">Cancel</button>
             </div>`
           actions.querySelector('.card-btn-drop-confirm').addEventListener('click', (e2) => {
@@ -320,12 +384,21 @@ export const ModalsMethods = {
     grid.innerHTML = ''
     grid.classList.toggle('replace-mode', replaceMode)
 
-    const { filterSlot, onCompare, onUnequip } = opts
+    const { filterSlot, filterTrinket, onCompare, onCompareTrinket, onUnequip } = opts
+
+    const isPassiveTrinketEntry = (e) => {
+      if (!e?.id) return false
+      const item = itemRegistry[e.id]
+      return !!(item && !item.stackable && item.effect?.type?.startsWith('passive-'))
+    }
 
     // Slot label banner when filtered
     const filterLabel = document.getElementById('backpack-filter-label')
     if (filterLabel) {
-      if (filterSlot) {
+      if (filterTrinket) {
+        filterLabel.textContent = 'Showing: Trinkets (Safe Pocket)'
+        filterLabel.classList.remove('hidden')
+      } else if (filterSlot) {
         const labels = { weapon: 'Weapons', breastplate: 'Breastplates', offhand: 'Offhands' }
         filterLabel.textContent = `Showing: ${labels[filterSlot] ?? filterSlot}`
         filterLabel.classList.remove('hidden')
@@ -367,7 +440,7 @@ export const ModalsMethods = {
 
       if (isGear(entry)) {
         const filteredOut = filterSlot && entry.slot !== filterSlot
-        if (filteredOut) {
+        if (filterTrinket || filteredOut) {
           slot.className = 'backpack-slot backpack-cell-filtered-out'
           grid.appendChild(slot)
           return
@@ -384,7 +457,7 @@ export const ModalsMethods = {
       }
 
       if (isTrinket(entry)) {
-        if (filterSlot) {
+        if (filterSlot || (filterTrinket && !isPassiveTrinketEntry(entry))) {
           slot.className = 'backpack-slot backpack-cell-filtered-out'
           grid.appendChild(slot)
           return
@@ -401,6 +474,11 @@ export const ModalsMethods = {
           ${entry.qty > 1 ? `<span class="bp-item-qty">${entry.qty}</span>` : ''}
           ${replaceMode ? '<div class="bp-replace-badge">Replace</div>' : ''}
         `
+        if (filterTrinket && onCompareTrinket) {
+          slot.addEventListener('click', () => onCompareTrinket(index))
+          grid.appendChild(slot)
+          return
+        }
         if (replaceMode) {
           slot.addEventListener('click', () => onUse(entry.id))
         } else {
@@ -429,7 +507,15 @@ export const ModalsMethods = {
     })
 
     // No-matching-gear message in filtered view
-    if (filterSlot) {
+    if (filterTrinket) {
+      const hasMatch = inventory.some(e => isPassiveTrinketEntry(e))
+      if (!hasMatch) {
+        const msg = document.createElement('div')
+        msg.className = 'backpack-filter-empty'
+        msg.textContent = 'No trinkets in backpack'
+        grid.appendChild(msg)
+      }
+    } else if (filterSlot) {
       const hasMatch = inventory.some(e => isGear(e) && e.slot === filterSlot)
       if (!hasMatch) {
         const msg = document.createElement('div')
@@ -465,7 +551,7 @@ export const ModalsMethods = {
     div.addEventListener('animationend', () => div.remove())
   },
 
-  renderEquipmentSlots(equippedGear, heroId = 'warrior') {
+  renderEquipmentSlots(equippedGear, heroId = 'warrior', safePocketTrinket = null) {
     const ov = el.equipmentOverlay
     if (!ov) return
 
@@ -602,6 +688,33 @@ export const ModalsMethods = {
       summaryEl.innerHTML = parts.join('')
     }
 
+    const spEl = document.getElementById('equipment-safe-pocket')
+    if (spEl) {
+      const spId = safePocketTrinket?.id
+      const item = spId ? ITEMS[spId] : null
+      if (item) {
+        const rarity = item.rarity ?? 'common'
+        spEl.className = `eq-safe-pocket eq-safe-pocket-filled rarity-${rarity}`
+        const art = item.spriteSrc
+          ? `<img class="eq-safe-pocket-img" src="${item.spriteSrc}" alt="">`
+          : `<span class="eq-safe-pocket-emoji">${item.icon ?? '🧿'}</span>`
+        spEl.innerHTML = `
+          <div class="eq-safe-pocket-label">Safe Pocket</div>
+          ${art}
+          <div class="eq-safe-pocket-name">${item.name}</div>
+          <div class="eq-safe-pocket-tap">Tap to swap</div>
+        `
+      } else {
+        spEl.className = 'eq-safe-pocket eq-safe-pocket-empty'
+        spEl.innerHTML = `
+          <div class="eq-safe-pocket-label">Safe Pocket</div>
+          <span class="eq-safe-pocket-emoji">🧿</span>
+          <div class="eq-safe-pocket-empty-label">Empty</div>
+          <div class="eq-safe-pocket-tap">Tap to equip</div>
+        `
+      }
+    }
+
     ov.classList.add('is-open')
     ov.setAttribute('aria-hidden', 'false')
   },
@@ -615,6 +728,9 @@ export const ModalsMethods = {
   renderCompareModal(candidate, equipped, onEquip, onCancel, onTrash) {
     const modal = el.gearCompareModal
     if (!modal) return
+    modal.querySelector('.cmp-stat-panel')?.classList.remove('hidden')
+    document.getElementById('cmp-trinket-details')?.classList.add('hidden')
+    modal.querySelector('.cmp-trash-row')?.classList.remove('hidden')
     const STAT_LABELS = {
       damageBonus:     'Attack',
       maxHpPct:        'Max HP',
@@ -631,25 +747,25 @@ export const ModalsMethods = {
       ...Object.keys(equipped?.stats ?? {}),
     ])
 
+    const _valCls = v => (v > 0 ? 'cmp-val-pos' : v < 0 ? 'cmp-val-neg' : '')
     const rows = [...allStats].map(stat => {
       const newVal = candidate.stats?.[stat] ?? 0
       const oldVal = equipped?.stats?.[stat]  ?? 0
       const delta  = newVal - oldVal
       const sign   = delta > 0 ? '+' : ''
-      const cls    = delta > 0 ? 'delta-pos' : delta < 0 ? 'delta-neg' : ''
+      const dCls   = delta > 0 ? 'delta-pos' : delta < 0 ? 'delta-neg' : ''
       const label  = STAT_LABELS[stat] ?? stat
       const fmtVal = v => stat === 'negation' ? `${Math.round(v * 100)}%` : stat === 'barbedGear' ? `${v}HP` : stat === 'brittleArmor' ? `${v}%` : v
       return `<tr>
         <td class="cmp-stat-label">${label}</td>
-        <td class="cmp-new-val">${fmtVal(newVal)}</td>
-        <td class="cmp-old-val">${equipped ? fmtVal(oldVal) : '—'}</td>
-        <td class="cmp-delta ${cls}">${delta !== 0 ? sign + fmtVal(delta) : '—'}</td>
+        <td class="cmp-new-val ${_valCls(newVal)}">${fmtVal(newVal)}</td>
+        <td class="cmp-old-val ${equipped ? _valCls(oldVal) : ''}">${equipped ? fmtVal(oldVal) : '—'}</td>
+        <td class="cmp-delta ${dCls}">${delta !== 0 ? sign + fmtVal(delta) : '—'}</td>
       </tr>`
     }).join('')
 
-    modal.querySelector('.cmp-candidate-name').textContent = candidate.name ?? ''
-    modal.querySelector('.cmp-candidate-tier').textContent = candidate.tier ?? ''
-    modal.querySelector('.cmp-equipped-name').textContent  = equipped?.name ?? 'Nothing equipped'
+    _renderCompareItemSide(modal.querySelector('.cmp-candidate'), candidate, 'gear')
+    _renderCompareItemSide(modal.querySelector('.cmp-equipped'), equipped, 'gear')
     modal.querySelector('.cmp-stat-table tbody').innerHTML = rows
 
     const equipBtn  = modal.querySelector('.cmp-equip-btn')
@@ -658,6 +774,7 @@ export const ModalsMethods = {
     const newEquipBtn  = equipBtn.cloneNode(true)
     const newCancelBtn = cancelBtn.cloneNode(true)
     const newTrashBtn  = trashBtn.cloneNode(true)
+    newEquipBtn.textContent = 'Equip'
     equipBtn.replaceWith(newEquipBtn)
     cancelBtn.replaceWith(newCancelBtn)
     const scrapGain = CONFIG?.blacksmith?.trashScrapYield?.[candidate?.tier] ?? 1
@@ -666,6 +783,39 @@ export const ModalsMethods = {
     newEquipBtn.addEventListener('click',  onEquip)
     newCancelBtn.addEventListener('click', onCancel)
     newTrashBtn.addEventListener('click',  onTrash ?? onCancel)
+
+    modal.classList.remove('hidden')
+    modal.setAttribute('aria-hidden', 'false')
+  },
+
+  renderSafePocketCompareModal(candidateDef, equippedDef, onEquip, onCancel) {
+    const modal = el.gearCompareModal
+    if (!modal || !candidateDef) return
+    modal.querySelector('.cmp-stat-panel')?.classList.add('hidden')
+    modal.querySelector('.cmp-trash-row')?.classList.add('hidden')
+    const detailsEl = document.getElementById('cmp-trinket-details')
+    if (detailsEl) {
+      detailsEl.classList.remove('hidden')
+      const effects = (candidateDef.details ?? []).map(d =>
+        `<div class="cmp-trinket-effect"><strong>${d.label}:</strong> ${d.desc}</div>`,
+      ).join('')
+      detailsEl.innerHTML = `
+        <p class="cmp-trinket-blurb">${candidateDef.blurb ?? ''}</p>
+        <div class="cmp-trinket-effects">${effects}</div>
+      `
+    }
+    _renderCompareItemSide(modal.querySelector('.cmp-candidate'), candidateDef, 'trinket')
+    _renderCompareItemSide(modal.querySelector('.cmp-equipped'), equippedDef, 'trinket')
+
+    const equipBtn  = modal.querySelector('.cmp-equip-btn')
+    const cancelBtn = modal.querySelector('.cmp-cancel-btn')
+    const newEquipBtn  = equipBtn.cloneNode(true)
+    const newCancelBtn = cancelBtn.cloneNode(true)
+    newEquipBtn.textContent = 'Equip to Safe Pocket'
+    equipBtn.replaceWith(newEquipBtn)
+    cancelBtn.replaceWith(newCancelBtn)
+    newEquipBtn.addEventListener('click', onEquip)
+    newCancelBtn.addEventListener('click', onCancel)
 
     modal.classList.remove('hidden')
     modal.setAttribute('aria-hidden', 'false')

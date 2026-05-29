@@ -40,7 +40,26 @@ export function cacheHudElements() {
 }
 
 export function wireHudListeners() {
+  if (!el.messageBox || !el.msgLogExpanded || !el.msgLogScroll) return
 
+  el.messageBox.addEventListener('click', () => {
+    const isOpen = !el.msgLogExpanded.classList.contains('hidden')
+    if (isOpen) {
+      el.msgLogExpanded.classList.add('hidden')
+    } else {
+      el.msgLogScroll.innerHTML = logHistory.map((e, i) =>
+        `<div class="log-entry${e.isAlert ? ' log-alert' : ''}${i === 0 ? ' log-latest' : ''}">${e.msg}</div>`
+      ).join('')
+      el.msgLogExpanded.classList.remove('hidden')
+      el.msgLogScroll.scrollTop = 0
+    }
+  })
+
+  document.addEventListener('click', (e) => {
+    if (!el.msgLogWrap?.contains(e.target)) {
+      el.msgLogExpanded.classList.add('hidden')
+    }
+  })
 }
 
 export const HudMethods = {

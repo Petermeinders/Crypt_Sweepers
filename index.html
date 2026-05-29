@@ -15,7 +15,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Crimson+Pro:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Almendra:wght@400;700&family=Cinzel:wght@600;700&family=Crimson+Pro:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Exo+2:ital,wght@0,100..900;1,100..900&display=swap');
   </style>
@@ -228,6 +228,7 @@
       <button type="button" id="equipment-close-btn" class="equipment-close-btn" aria-label="Close">✕</button>
       <div class="hero-particles" id="equipment-hero-particles" aria-hidden="true"></div>
       <img id="equipment-hero-img" class="equipment-hero-portrait" src="" alt="" aria-hidden="true">
+      <button type="button" id="equipment-safe-pocket" class="eq-safe-pocket eq-safe-pocket-empty" data-slot="safe-pocket" aria-label="Safe Pocket trinket"></button>
       <div class="equipment-title-overlay">
         <span class="equipment-drawer-title">Equipment</span>
       </div>
@@ -242,25 +243,25 @@
   <!-- ── Gear compare modal ── -->
   <div id="gear-compare-modal" class="gear-compare-modal hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Compare gear">
     <div class="cmp-panel">
-      <div class="cmp-header">
-        <div class="cmp-candidate">
-          <span class="cmp-candidate-name"></span>
-          <span class="cmp-candidate-tier"></span>
-        </div>
-        <span class="cmp-vs">vs</span>
-        <div class="cmp-equipped">
-          <span class="cmp-equipped-name"></span>
+      <div class="cmp-header-paper">
+        <div class="cmp-header">
+          <div class="cmp-candidate cmp-item-side"></div>
+          <span class="cmp-vs">vs</span>
+          <div class="cmp-equipped cmp-item-side"></div>
         </div>
       </div>
-      <table class="cmp-stat-table">
-        <thead>
-          <tr><th>Stat</th><th>New</th><th>Cur</th><th>Δ</th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+      <div class="cmp-stat-panel">
+        <table class="cmp-stat-table">
+          <thead>
+            <tr><th>Stat</th><th>New</th><th>Cur</th><th>Δ</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="cmp-trinket-details hidden" id="cmp-trinket-details"></div>
       <div class="cmp-actions">
-        <button type="button" class="cmp-equip-btn menu-btn primary">Equip</button>
-        <button type="button" class="cmp-cancel-btn menu-btn">Cancel</button>
+        <button type="button" class="cmp-equip-btn">Equip</button>
+        <button type="button" class="cmp-cancel-btn">Cancel</button>
       </div>
       <div class="cmp-trash-row">
         <button type="button" class="cmp-trash-btn">🗑 Trash this item</button>

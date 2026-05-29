@@ -177,8 +177,16 @@ export function tryGearDrop(ctx, floor, chance) {
 
 
 
-function adjustScrap(delta) {
+/** Passive trinket scrap when dropped/trashed in-run (0 for consumables / unknown rarities). */
+export function trinketTrashScrapYield(item) {
+  if (!item?.effect || item.stackable) return 0
+  return CONFIG.blacksmith.trinketTrashScrapYield?.[item.rarity] ?? 0
+}
+
+export function adjustScrap(delta) {
+  if (!delta) return
   session.save.scrap = Math.max(0, (session.save.scrap ?? 0) + delta)
+  UI.updateScrap(session.save.scrap)
 }
 
 function applyGearUpgrade(piece) {
