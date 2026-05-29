@@ -126,8 +126,21 @@ export function wireMenus(ctx) {
     const file = e.target.files[0]
     if (!file) return
     const text = await file.text()
-    const imported = await ctx.SaveManager.importJSON(text)
+    let result
+    try {
+      result = await ctx.SaveManager.importJSON(text)
+    } catch (err) {
+      Logger.error('[Import] Save import failed', err)
+      ctx.UI.setMessage('Import failed — could not read that save file.', true)
+      e.target.value = ''
+      return
+    }
+    const imported = result.save
     if (imported) {
+      if (result.partial) {
+        const tiers = result.recoveredTiers?.join(', ') ?? 'partial data'
+        ctx.UI.setMessage(`Save partially recovered (${tiers}).`, true)
+      }
       ctx.MetaProgression.normalizeUnlockedHeroes(imported)
       const impSel = imported.selectedCharacter ?? 'warrior'
       const impCh  = CHARACTERS.find(c => c.id === impSel)
@@ -136,7 +149,7 @@ export function wireMenus(ctx) {
       }
       ctx.GameController.init(imported)
       updateMenuHeroPreview(ctx)
-      ctx.UI.setActiveDifficulty(imported.settings.difficulty)
+      ctx.UI.setActiveDifficulty(imported.settings?.difficulty ?? 'normal')
     }
     e.target.value = ''
   })

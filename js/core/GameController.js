@@ -2200,11 +2200,15 @@ function _inventoryCtx() {
 
 async function _addToBackpack(id) { return InventoryController.addToBackpack(_inventoryCtx(), id) }
 function _canAddToBackpack(id) { return InventoryController.canAddToBackpack(_inventoryCtx(), id) }
-function useItem(id) { InventoryController.useItem(_inventoryCtx(), id) }
-function dropItem(id) { InventoryController.dropItem(_inventoryCtx(), id) }
+function useItem(id, inventoryIndex = null) { InventoryController.useItem(_inventoryCtx(), id, inventoryIndex) }
+function useItemAtIndex(index) { InventoryController.useItemAtIndex(_inventoryCtx(), index) }
+function dropItem(id, inventoryIndex = null) { InventoryController.dropItem(_inventoryCtx(), id, inventoryIndex) }
+function dropItemAtIndex(index) { InventoryController.dropItemAtIndex(_inventoryCtx(), index) }
+function consolidateStackables() { return InventoryController.consolidateStackables(_inventoryCtx()) }
 async function forceReplaceItem(oldId, newId) { return InventoryController.forceReplaceItem(_inventoryCtx(), oldId, newId) }
 async function forceReplaceItemAtIndex(index, newId) { return InventoryController.forceReplaceItemAtIndex(_inventoryCtx(), index, newId) }
 function acceptPendingGearAtSlot(index, piece) { GearController.acceptPendingGearAtSlot(_gearCtx(), index, piece) }
+function swapPendingGearWithEquipped(piece) { GearController.swapPendingGearWithEquipped(_gearCtx(), piece) }
 
 /** Swap PNG→GIF reliably (restart animation from frame 0) across browsers. */
 function _forcePlayChestGif(img, gifSrc) {
@@ -2746,10 +2750,14 @@ export default {
   cheatSkipFloor,
   cheatHudStatBoost,
   useItem,
+  useItemAtIndex,
   dropItem,
+  dropItemAtIndex,
+  consolidateStackables,
   forceReplaceItem,
   forceReplaceItemAtIndex,
   acceptPendingGearAtSlot,
+  swapPendingGearWithEquipped,
   getInventory,
   getArmor()        { return session.run?.player?.armor    ?? 0 },
   getNegation()     { return session.run?.player?.negation  ?? 0 },

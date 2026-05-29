@@ -1,4 +1,5 @@
 import { CONFIG } from '../config.js'
+import { trinketTrashDropSuffix, trinketTrashRewardText } from '../controllers/GearController.js'
 import TileEngine from '../systems/TileEngine.js'
 import { TILE_BLURBS } from '../data/tileBlurbs.js'
 import { ENEMY_DEFS } from '../data/enemies.js'
@@ -216,18 +217,16 @@ export const ModalsMethods = {
     `
 
     if (typeof opts.onDrop === 'function') {
-      const scrapGain = (data.effect && !data.stackable)
-        ? (CONFIG?.blacksmith?.trinketTrashScrapYield?.[data.rarity] ?? 0)
-        : 0
-      const scrapSuffix = scrapGain ? ` (+${scrapGain} ⚙️ scrap)` : ''
+      const dropSuffix = trinketTrashDropSuffix(data)
+      const rewardText = trinketTrashRewardText(data)
       const _wireDropBtn = (actions) => {
-        actions.innerHTML = `<button type="button" class="card-btn card-btn-drop">Drop${scrapSuffix}</button>`
+        actions.innerHTML = `<button type="button" class="card-btn card-btn-drop">Drop${dropSuffix}</button>`
         actions.querySelector('.card-btn-drop').addEventListener('click', (e) => {
           e.stopPropagation()
           actions.innerHTML = `
-            <span class="card-drop-confirm-label">Drop this item?${scrapGain ? ` You'll receive ${scrapGain} scrap.` : ''}</span>
+            <span class="card-drop-confirm-label">Drop this item?${rewardText ? ` You'll receive ${rewardText}.` : ''}</span>
             <div class="card-drop-confirm-btns">
-              <button type="button" class="card-btn card-btn-drop-confirm">Yes, drop${scrapSuffix}</button>
+              <button type="button" class="card-btn card-btn-drop-confirm">Yes, drop${dropSuffix}</button>
               <button type="button" class="card-btn card-btn-drop-cancel">Cancel</button>
             </div>`
           actions.querySelector('.card-btn-drop-confirm').addEventListener('click', (e2) => {
@@ -384,7 +383,7 @@ export const ModalsMethods = {
     grid.innerHTML = ''
     grid.classList.toggle('replace-mode', replaceMode)
 
-    const { filterSlot, filterTrinket, onCompare, onCompareTrinket, onUnequip, onReplaceIndex, gearPickupMode } = opts
+    const { filterSlot, filterTrinket, onCompare, onCompareTrinket, onUnequip, onReplaceIndex, onReplaceGearIndex, onSwapWithEquipped, gearPickupMode } = opts
 
     const isPassiveTrinketEntry = (e) => {
       if (!e?.id) return false
@@ -451,7 +450,12 @@ export const ModalsMethods = {
           <span class="bp-gear-name">${entry.name}</span>
           ${slotImg ? `<img class="bp-gear-slot-img" src="${slotImg}" alt="">` : ''}
         `
-        slot.addEventListener('click', () => onCompare?.(index))
+        if (gearPickupMode && onReplaceGearIndex) {
+          slot.classList.add('replace-target')
+          slot.addEventListener('click', () => onReplaceGearIndex(index))
+        } else {
+          slot.addEventListener('click', () => onCompare?.(index))
+        }
         grid.appendChild(slot)
         return
       }
@@ -482,12 +486,12 @@ export const ModalsMethods = {
         if (replaceMode && onReplaceIndex) {
           slot.addEventListener('click', () => onReplaceIndex(index))
         } else if (replaceMode) {
-          slot.addEventListener('click', () => onUse(entry.id))
+          slot.addEventListener('click', () => onUse(index))
         } else {
           let _timer = null, _didHold = false, _sx = 0, _sy = 0
           slot.addEventListener('pointerdown', e => {
             _didHold = false; _sx = e.clientX; _sy = e.clientY
-            _timer = setTimeout(() => { _didHold = true; onHold(entry.id) }, 380)
+            _timer = setTimeout(() => { _didHold = true; onHold(index) }, 380)
           })
           slot.addEventListener('pointermove', e => {
             if (!_timer) return
@@ -497,7 +501,7 @@ export const ModalsMethods = {
           slot.addEventListener('pointerup',     cancel)
           slot.addEventListener('pointercancel', cancel)
           slot.addEventListener('contextmenu',   e => e.preventDefault())
-          slot.addEventListener('click', () => { if (!_didHold) onUse(entry.id) })
+          slot.addEventListener('click', () => { if (!_didHold) onUse(index) })
         }
         grid.appendChild(slot)
         return
@@ -519,12 +523,20 @@ export const ModalsMethods = {
       }
     } else if (filterSlot) {
       const hasMatch = inventory.some(e => isGear(e) && e.slot === filterSlot)
+      const label = { weapon: 'Weapon', breastplate: 'Breastplate', offhand: 'Offhand' }[filterSlot] ?? filterSlot
       if (!hasMatch) {
         const msg = document.createElement('div')
         msg.className = 'backpack-filter-empty'
-        const label = { weapon: 'Weapon', breastplate: 'Breastplate', offhand: 'Offhand' }[filterSlot] ?? filterSlot
         msg.textContent = `No ${label} in backpack`
         grid.appendChild(msg)
+        if (gearPickupMode && onSwapWithEquipped) {
+          const btn = document.createElement('button')
+          btn.type = 'button'
+          btn.className = 'backpack-swap-equipped-btn'
+          btn.textContent = `Replace equipped ${label.toLowerCase()}`
+          btn.addEventListener('click', () => onSwapWithEquipped())
+          grid.appendChild(btn)
+        }
       }
     }
   },

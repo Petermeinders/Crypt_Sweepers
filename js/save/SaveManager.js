@@ -1,4 +1,5 @@
 import Logger from '../core/Logger.js'
+import { importSaveData, salvageSaveImport } from './SaveImporter.js'
 
 const DB_NAME    = 'cryptic-grids'
 const DB_VERSION = 1
@@ -88,14 +89,20 @@ function exportJSON(data) {
 
 async function importJSON(jsonString) {
   try {
-    const data = JSON.parse(jsonString)
-    if (!data.version) throw new Error('Missing version field — not a valid save file')
-    await save(data)
-    Logger.debug('[SaveManager] Import successful')
-    return data
-  } catch (err) {
-    Logger.error('[SaveManager] Import failed', err)
-    throw err
+    const result = importSaveData(jsonString)
+    await save(result.save)
+    Logger.debug('[SaveManager] Import successful', { partial: result.partial })
+    return result
+  } catch (fullErr) {
+    Logger.warn('[SaveManager] Full import failed — attempting salvage', fullErr)
+    const salvaged = salvageSaveImport(jsonString)
+    if (!salvaged?.save) {
+      Logger.error('[SaveManager] Import and salvage both failed', fullErr)
+      throw fullErr
+    }
+    await save(salvaged.save)
+    Logger.info('[SaveManager] Partial save recovered', salvaged.recoveredTiers)
+    return salvaged
   }
 }
 

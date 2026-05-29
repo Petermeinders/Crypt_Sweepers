@@ -17,6 +17,7 @@
   "chainLightningAction",
   "cheatHudStatBoost",
   "cheatSkipFloor",
+  "consolidateStackables",
   "constructTurretAction",
   "corpseExplosionAction",
   "disassembleGear",
@@ -25,6 +26,7 @@
   "doRetreat",
   "dowsingRodAction",
   "dropItem",
+  "dropItemAtIndex",
   "equipGear",
   "equipSafePocket",
   "forceReplaceItem",
@@ -83,6 +85,7 @@
   "spellAction",
   "spyglassAction",
   "strengthenMinionAction",
+  "swapPendingGearWithEquipped",
   "telekineticThrowAction",
   "teslaTowerAction",
   "testHarnessForceLevelUp",
@@ -94,5 +97,6 @@
   "uiButtonHaptic",
   "unequipGear",
   "upgradeGear",
-  "useItem"
+  "useItem",
+  "useItemAtIndex"
 ]

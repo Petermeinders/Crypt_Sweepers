@@ -10,7 +10,7 @@ import { session } from '../core/RunContext.js'
 import { ITEMS } from '../data/items.js'
 import { BACKPACK_MAX_SLOTS } from '../systems/LootTables.js'
 import { isCombatCommitmentLocked } from './TileTapRouter.js'
-import { adjustScrap, trinketTrashScrapYield } from './GearController.js'
+import { adjustScrap, trinketTrashScrapYield, trinketTrashGoldYield } from './GearController.js'
 
 const MSG_COMBAT_ACTION_BLOCKED = 'Cannot perform action when in combat with enemy'
 
@@ -174,9 +174,82 @@ export function canAddToBackpack(ctx, id) {
 }
 
 
-export function useItem(ctx, id) {
+function _inventoryEntry(inv, id, inventoryIndex = null) {
+  if (inventoryIndex != null) {
+    const entry = inv[inventoryIndex]
+    return entry?.id === id ? entry : null
+  }
+  return inv.find(e => e?.id === id) ?? null
+}
+
+/** Merge duplicate stackable slots — smaller stacks drain into larger. Mutates inventory array. */
+export function mergeDuplicateStacks(inventory) {
+  const inv = inventory
+  let changed = false
+
+  const byId = new Map()
+  for (let i = 0; i < inv.length; i++) {
+    const e = inv[i]
+    if (!e?.id) continue
+    const item = ITEMS[e.id]
+    if (!item?.stackable) continue
+    if (!byId.has(e.id)) byId.set(e.id, [])
+    byId.get(e.id).push(i)
+  }
+
+  for (const id of byId.keys()) {
+    const maxS = ITEMS[id].maxStack ?? Number.POSITIVE_INFINITY
+    const indices = byId.get(id)
+    while (true) {
+      const live = indices.filter(i => inv[i]?.qty > 0)
+      if (live.length < 2) break
+      live.sort((a, b) => inv[a].qty - inv[b].qty)
+      const srcIdx = live[0]
+      const destinations = [...live].sort((a, b) => inv[b].qty - inv[a].qty)
+      let merged = false
+      for (const dstIdx of destinations) {
+        if (dstIdx === srcIdx) continue
+        const room = maxS - inv[dstIdx].qty
+        if (room <= 0) continue
+        const move = Math.min(inv[srcIdx].qty, room)
+        inv[dstIdx].qty += move
+        inv[srcIdx].qty -= move
+        changed = true
+        merged = true
+        if (inv[srcIdx].qty <= 0) {
+          inv[srcIdx] = null
+          break
+        }
+      }
+      if (!merged) break
+    }
+  }
+
+  return changed
+}
+
+export function consolidateStackables(ctx) {
+  if (!session.run) return false
+  const changed = mergeDuplicateStacks(session.run.player.inventory)
+  if (changed) EventBus.emit('inventory:changed')
+  return changed
+}
+
+export function useItemAtIndex(ctx, index) {
+  const id = session.run?.player?.inventory[index]?.id
+  if (!id) return
+  useItem(ctx, id, index)
+}
+
+export function dropItemAtIndex(ctx, index) {
+  const id = session.run?.player?.inventory[index]?.id
+  if (!id) return
+  dropItem(ctx, id, index)
+}
+
+export function useItem(ctx, id, inventoryIndex = null) {
   const inv   = session.run.player.inventory
-  const entry = inv.find(e => e?.id === id)
+  const entry = _inventoryEntry(inv, id, inventoryIndex)
   if (!entry) return
   const item = ITEMS[id]
   if (!item) return
@@ -491,19 +564,24 @@ export function useItem(ctx, id) {
 }
 
 
-export function dropItem(ctx, id) {
+export function dropItem(ctx, id, inventoryIndex = null) {
   if (!session.run) return
   const inv = session.run.player.inventory
-  const entry = inv.find(e => e?.id === id)
+  const entry = _inventoryEntry(inv, id, inventoryIndex)
   if (!entry) return
   const item = ITEMS[id]
   entry.qty--
   if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
   revertTrinketEquipEffects(ctx, id)
+  const goldGain = trinketTrashGoldYield(item)
   const scrapGain = trinketTrashScrapYield(item)
+  if (goldGain) ctx.gainGold(goldGain, document.getElementById('hud-portrait'), true)
   if (scrapGain) adjustScrap(scrapGain)
-  const scrapNote = scrapGain ? ` (+${scrapGain} scrap)` : ''
-  UI.setMessage(item ? `Dropped ${item.name}.${scrapNote}` : 'Item removed.')
+  const rewards = []
+  if (goldGain) rewards.push(`${goldGain} gold`)
+  if (scrapGain) rewards.push(`${scrapGain} scrap`)
+  const rewardNote = rewards.length ? ` (+${rewards.join(', ')})` : ''
+  UI.setMessage(item ? `Dropped ${item.name}.${rewardNote}` : 'Item removed.')
   EventBus.emit('audio:play', { sfx: 'menu' })
 }
 

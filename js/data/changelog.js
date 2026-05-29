@@ -5,6 +5,52 @@
 export const CHANGELOG = [
   {
     dateLabel: 'May 2026',
+    dateIso:   '2026-05-29',
+    version:   'v449',
+    title:     'Safe Pocket, backpack fixes & forge polish',
+    summary:
+      'A protected trinket slot survives death and retreat, backpack stacking and full-bag swaps behave correctly, the sanctuary forge works with a full bag, and dropping common trinkets pays a little gold. Plus compare-modal polish, message-log tap-to-expand, and iPhone layout fixes.',
+    items: [
+      {
+        tag:  'New',
+        text: 'Safe Pocket — a fourth slot on the Equipment screen (tap your hero portrait). Equip one passive trinket here; it stays active all run and is kept when you die or retreat. Only gear in the three weapon/armor slots persists the same way.',
+      },
+      {
+        tag:  'Fix',
+        text: 'Backpack stacks — drop and use now target the stack you tapped, not the first matching item in the bag. Opening or closing the backpack also merges duplicate stackables (smaller stacks flow into larger ones) to free slots.',
+      },
+      {
+        tag:  'Fix',
+        text: 'Full backpack — swapping in a new trinket or gear piece when every slot is full no longer eats the item you meant to keep. Tap the slot you want to replace, or trash the pickup.',
+      },
+      {
+        tag:  'Balance',
+        text: 'Dropping a common passive trinket from the backpack grants 1 run gold. The Drop button and confirm prompt show the reward before you commit.',
+      },
+      {
+        tag:  'Fix',
+        text: 'Sanctuary Forge — you can forge with a full backpack when you have both ingredients. Forging consumes two items and adds one, so it always frees a slot; the Forge button no longer stays greyed out waiting for empty space.',
+      },
+      {
+        tag:  'UI',
+        text: 'Gear compare modal — headers use item icons and tier badges instead of plain text, with a blank tile when nothing is equipped on that side.',
+      },
+      {
+        tag:  'Fix',
+        text: 'Message log — tap the combat log again to expand and scroll history; tap outside to collapse.',
+      },
+      {
+        tag:  'Fix',
+        text: 'iPhone / PWA — Settings back button and headers respect the notch and Dynamic Island safe area.',
+      },
+      {
+        tag:  'Systems',
+        text: 'Corrupted save imports can now recover currencies, hero unlocks, and other progress when a full restore fails.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'May 2026',
     dateIso:   '2026-05-26',
     version:   'v352',
     title:     'Hero equipment system, Slam starter unlock & UI polish',

@@ -160,6 +160,27 @@ export function acceptPendingGearAtSlot(ctx, inventoryIndex, piece) {
   UI.setMessage(`${piece.name} swapped into your backpack.`)
 }
 
+/** Full-backpack gear pickup: no matching slot in backpack — equip pending and discard previous worn piece. */
+export function swapPendingGearWithEquipped(ctx, piece) {
+  if (!session.run || !piece?.slot) return
+  const slot = piece.slot
+  const prev = session.run.player.equippedGear[slot] ?? null
+  session.run.player.equippedGear[slot] = piece
+  if (prev) removeGearStats(ctx, prev)
+  applyGearStats(ctx, piece)
+  session.run.player.hp   = Math.max(1, Math.min(session.run.player.hp,   session.run.player.maxHp))
+  session.run.player.mana = Math.max(0, Math.min(session.run.player.mana, session.run.player.maxMana))
+  const [d0, d1] = ctx.playerDamageRange(session.run.player)
+  UI.updateHP(session.run.player.hp, session.run.player.maxHp)
+  UI.updateMana(session.run.player.mana, session.run.player.maxMana)
+  UI.updateDamageRange(d0, d1)
+  EventBus.emit('inventory:changed')
+  EventBus.emit('gear:pickedUp')
+  UI.setMessage(prev
+    ? `${piece.name} equipped — ${prev.name} discarded.`
+    : `${piece.name} equipped.`)
+}
+
 /** Push a gear piece into the backpack, or emit backpack:full if no room. */
 export function handleGearPickup(ctx, piece) {
   const inv = session.run.player.inventory
@@ -193,6 +214,32 @@ export function tryGearDrop(ctx, floor, chance) {
 export function trinketTrashScrapYield(item) {
   if (!item?.effect || item.stackable) return 0
   return CONFIG.blacksmith.trinketTrashScrapYield?.[item.rarity] ?? 0
+}
+
+/** Run gold when dropping/trashing passive trinkets (0 for consumables / unknown rarities). */
+export function trinketTrashGoldYield(item) {
+  if (!item?.effect || item.stackable) return 0
+  return CONFIG.blacksmith.trinketTrashGoldYield?.[item.rarity] ?? 0
+}
+
+/** Drop/trash button suffix, e.g. " (+1 🪙, +2 ⚙️ scrap)". */
+export function trinketTrashDropSuffix(item) {
+  const gold = trinketTrashGoldYield(item)
+  const scrap = trinketTrashScrapYield(item)
+  const parts = []
+  if (gold) parts.push(`+${gold} 🪙`)
+  if (scrap) parts.push(`+${scrap} ⚙️ scrap`)
+  return parts.length ? ` (${parts.join(', ')})` : ''
+}
+
+/** Confirm copy, e.g. "1 gold" or "1 gold and 2 scrap". */
+export function trinketTrashRewardText(item) {
+  const gold = trinketTrashGoldYield(item)
+  const scrap = trinketTrashScrapYield(item)
+  const parts = []
+  if (gold) parts.push(`${gold} gold`)
+  if (scrap) parts.push(`${scrap} scrap`)
+  return parts.join(' and ')
 }
 
 export function adjustScrap(delta) {

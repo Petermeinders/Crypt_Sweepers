@@ -255,6 +255,10 @@ export const CONFIG = {
       legendary: 10,
       merged:    30,
     },
+    // Run gold when dropping/trashing passive trinkets (by item rarity)
+    trinketTrashGoldYield: {
+      common: 1,
+    },
     // Cost per post-T3 detriment reduction application (placeholder = T3 cost)
     detrimentReduceCost: {
       common:    { gold: 30,  scrap: 20  },
