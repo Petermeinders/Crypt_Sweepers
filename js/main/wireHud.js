@@ -31,6 +31,10 @@ export function wireHud(ctx) {
     ctx.GameController.cheatSkipFloor()
   })
 
+  document.getElementById('generate-gear-btn')?.addEventListener('click', () => {
+    ctx.GameController.cheatGenerateGear()
+  })
+
   document.getElementById('app').addEventListener('click', (e) => {
     const s = ctx.GameController.getSave()
     if (!s.settings.cheats?.increaseStats) return

@@ -6831,39 +6831,119 @@ body.bestiary-detail-open #app {
 /* ── Gear backpack cells ───────────────────────────────────── */
 
 .backpack-cell-gear {
-  border-width: 2px;
-  border-style: solid;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 6px 4px;
+  --card-color: #a8a8a8;
+  --card-glow: rgba(160, 160, 160, 0.18);
+  position: relative;
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid rgba(160, 160, 160, 0.42);
+  border-radius: 8px;
+  background-color: rgba(0, 0, 0, 0.55);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: center;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 12px var(--card-glow),
+    inset 0 2px 6px rgba(0, 0, 0, 0.45);
   cursor: pointer;
 }
 
-.gear-tier-common    { border-color: #888; }
-.gear-tier-rare      { border-color: #4a9eff; }
-.gear-tier-epic      { border-color: #a855f7; }
-.gear-tier-legendary { border-color: var(--gold); }
+.backpack-cell-gear::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 46%;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.28) 58%, transparent 100%);
+  pointer-events: none;
+  z-index: 1;
+}
 
-.bp-gear-name {
-  font-size: 0.60rem;
-  font-weight: 600;
-  line-height: 1.2;
-  word-break: break-word;
-  text-align: center;
-  color: #ddd;
+.backpack-cell-gear.gear-tier-common {
+  --card-color: #a8a8a8;
+  --card-glow: rgba(160, 160, 160, 0.22);
+  border-color: rgba(160, 160, 160, 0.48);
+  background-image: url('../assets/ui/common-tile.png');
+}
+
+.backpack-cell-gear.gear-tier-rare {
+  --card-color: #00c8ff;
+  --card-glow: rgba(0, 200, 255, 0.28);
+  border-color: rgba(0, 200, 255, 0.52);
+  background-image: url('../assets/ui/rare-tile.png');
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 16px rgba(0, 200, 255, 0.22),
+    inset 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+
+.backpack-cell-gear.gear-tier-epic {
+  --card-color: #b06ef7;
+  --card-glow: rgba(168, 85, 247, 0.32);
+  border-color: rgba(168, 85, 247, 0.58);
+  background-image: url('../assets/ui/rare-tile.png');
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 18px rgba(168, 85, 247, 0.24),
+    inset 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+
+.backpack-cell-gear.gear-tier-legendary {
+  --card-color: #ffd700;
+  --card-glow: rgba(255, 215, 0, 0.28);
+  border-color: rgba(255, 215, 0, 0.58);
+  background-image: url('../assets/ui/legendary-tile.png');
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 18px rgba(255, 215, 0, 0.22),
+    inset 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+
+.backpack-cell-gear:active {
+  filter: brightness(0.88);
 }
 
 .bp-gear-slot-img {
-  width: 28px;
-  height: 28px;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   image-rendering: pixelated;
-  display: block;
-  margin-top: auto;
-  opacity: 0.85;
+  pointer-events: none;
+  padding: 6%;
+  box-sizing: border-box;
+}
+
+.bp-gear-name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  padding: 2px 4px 4px;
+  font-size: clamp(0.46rem, 2.2vw, 0.58rem);
+  font-weight: 700;
+  line-height: 1.15;
+  word-break: break-word;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #fff;
+  pointer-events: none;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  text-shadow:
+    -1px -1px 0 #000,
+     0   -1px 0 #000,
+     1px -1px 0 #000,
+    -1px  0   0 #000,
+     1px  0   0 #000,
+    -1px  1px 0 #000,
+     0    1px 0 #000,
+     1px  1px 0 #000,
+     0 2px 4px rgba(0, 0, 0, 0.95);
 }
 
 .backpack-cell-empty {

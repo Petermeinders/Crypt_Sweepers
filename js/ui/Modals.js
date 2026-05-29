@@ -447,8 +447,8 @@ export const ModalsMethods = {
         slot.className = `backpack-slot backpack-cell-gear gear-tier-${entry.tier}`
         const slotImg = _gImg(entry.slot, entry.tier)
         slot.innerHTML = `
-          <span class="bp-gear-name">${entry.name}</span>
           ${slotImg ? `<img class="bp-gear-slot-img" src="${slotImg}" alt="">` : ''}
+          <span class="bp-gear-name">${entry.name}</span>
         `
         if (gearPickupMode && onReplaceGearIndex) {
           slot.classList.add('replace-target')

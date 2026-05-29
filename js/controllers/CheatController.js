@@ -1,5 +1,9 @@
 /** Dev cheat surface — wired from GameController with injected deps. */
 
+import { generateGear, pickDropTier, pickDropSlot } from '../data/gear.js'
+import { pickTrinketIdForDropTier } from '../systems/LootTables.js'
+import { ITEMS } from '../data/items.js'
+
 export function cheatSkipFloor(deps) {
   const { getSave, getRun, GameState, States, UI, EventBus, nextFloor, startFloor, runMusicTrack } = deps
   const _save = getSave()
@@ -27,6 +31,41 @@ export function cheatSkipFloor(deps) {
   nextFloor()
 }
 
+export async function cheatGenerateGear(deps) {
+  const { getSave, getRun, GameState, States, UI, addToBackpack, handleGearPickup } = deps
+  const _save = getSave()
+  const run = getRun()
+  if (!_save?.settings?.cheats?.generateGearButton || !run) return
+
+  const playable =
+    GameState.is(States.FLOOR_EXPLORE) ||
+    GameState.is(States.COMBAT) ||
+    GameState.is(States.NPC_INTERACT) ||
+    GameState.is(States.LEVEL_UP) ||
+    GameState.is(States.RETREAT_CONFIRM)
+  if (!playable) {
+    UI.setMessage('[Cheat] Generate Gear only works during a run.', true)
+    return
+  }
+
+  const floor = run.floor
+  const tier  = pickDropTier(floor)
+  const asGear = Math.random() < 0.5
+
+  if (asGear) {
+    const piece = generateGear(pickDropSlot(), tier)
+    handleGearPickup(piece)
+    UI.setMessage(`[Cheat] Generated ${tier} gear: ${piece.name}.`)
+    return
+  }
+
+  const trinketId = pickTrinketIdForDropTier(tier)
+  await addToBackpack(trinketId)
+  const name = ITEMS[trinketId]?.name ?? trinketId
+  const label = tier === 'epic' ? 'rare trinket (epic roll)' : `${tier} trinket`
+  UI.setMessage(`[Cheat] Generated ${label}: ${name}.`)
+}
+
 export function applyCheat(deps, key, enabled) {
   const { getSave, getRun, UI, xpNeeded } = deps
   const _save = getSave()
@@ -34,7 +73,7 @@ export function applyCheat(deps, key, enabled) {
   if (!_save.settings.cheats) _save.settings.cheats = {}
   _save.settings.cheats[key] = enabled
 
-  if (key === 'skipFloorButton') {
+  if (key === 'skipFloorButton' || key === 'generateGearButton') {
     UI.refreshSkipFloorButton(_save)
   }
   if (key === 'increaseStats') {

@@ -15,6 +15,7 @@ function _populateSettingsForm(s) {
   document.getElementById('cheat-999-gold').checked       = c.gold999      ?? false
   document.getElementById('cheat-999-xp').checked         = c.xp999        ?? false
   document.getElementById('cheat-skip-floor-btn').checked = c.skipFloorButton ?? false
+  document.getElementById('cheat-generate-gear-btn').checked = c.generateGearButton ?? false
   document.getElementById('cheat-increase-stats').checked = c.increaseStats ?? false
 }
 
@@ -92,6 +93,7 @@ export function wireSettingsPanel(ctx) {
     { id: 'cheat-999-gold',     key: 'gold999'     },
     { id: 'cheat-999-xp',       key: 'xp999'       },
     { id: 'cheat-skip-floor-btn', key: 'skipFloorButton' },
+    { id: 'cheat-generate-gear-btn', key: 'generateGearButton' },
     { id: 'cheat-increase-stats', key: 'increaseStats' },
   ]
   _cheatMap.forEach(({ id, key }) => {

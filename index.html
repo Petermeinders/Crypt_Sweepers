@@ -55,7 +55,10 @@
       </div>
     </div>
 
-    <button type="button" id="skip-floor-btn" class="skip-floor-btn hidden" aria-hidden="true" title="Cheat: advance to next floor">Skip floor</button>
+    <div id="cheat-debug-stack" class="cheat-debug-stack hidden" aria-hidden="true">
+      <button type="button" id="skip-floor-btn" class="cheat-debug-btn hidden" aria-hidden="true" title="Cheat: advance to next floor">Skip floor</button>
+      <button type="button" id="generate-gear-btn" class="cheat-debug-btn hidden" aria-hidden="true" title="Cheat: random gear or trinket for this floor">Generate Gear</button>
+    </div>
 
     <!-- Freezing Hit screen border overlay -->
     <div id="freeze-overlay" class="freeze-overlay hidden" aria-hidden="true"></div>
@@ -821,6 +824,16 @@
             </div>
             <label class="toggle-switch">
               <input type="checkbox" id="cheat-skip-floor-btn">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-label-title">Generate Gear Button</span>
+              <span class="settings-label-desc">Shows an in-game button to spawn random gear or a trinket using current-floor drop odds (testing)</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="cheat-generate-gear-btn">
               <span class="toggle-track"><span class="toggle-thumb"></span></span>
             </label>
           </div>

@@ -26,6 +26,8 @@ export function cacheHudElements() {
     el.hudSettingsBtn = document.getElementById('hud-settings-btn')
     el.hudHowToPlayBtn = document.getElementById('hud-how-to-play-btn')
     el.skipFloorBtn = document.getElementById('skip-floor-btn')
+    el.generateGearBtn = document.getElementById('generate-gear-btn')
+    el.cheatDebugStack = document.getElementById('cheat-debug-stack')
     el.floorBanner = document.getElementById('floor-banner')
     el.floorBannerText = document.getElementById('floor-banner-text')
     el.armorValue         = document.getElementById('armor-value')
@@ -774,13 +776,29 @@ export const HudMethods = {
   },
 
   refreshSkipFloorButton(save) {
-    const btn = el.skipFloorBtn
-    if (!btn) return
-    const enabled = save?.settings?.cheats?.skipFloorButton === true
+    const stack = el.cheatDebugStack
+    const skipBtn = el.skipFloorBtn
+    const genBtn = el.generateGearBtn
+    const cheats = save?.settings?.cheats ?? {}
+    const skipOn = cheats.skipFloorButton === true
+    const genOn = cheats.generateGearButton === true
     const inGame = el.mainMenu?.classList.contains('hidden')
-    const show = enabled && inGame
-    btn.classList.toggle('hidden', !show)
-    btn.setAttribute('aria-hidden', show ? 'false' : 'true')
+    const showStack = inGame && (skipOn || genOn)
+
+    if (stack) {
+      stack.classList.toggle('hidden', !showStack)
+      stack.setAttribute('aria-hidden', showStack ? 'false' : 'true')
+    }
+    if (skipBtn) {
+      const show = skipOn && inGame
+      skipBtn.classList.toggle('hidden', !show)
+      skipBtn.setAttribute('aria-hidden', show ? 'false' : 'true')
+    }
+    if (genBtn) {
+      const show = genOn && inGame
+      genBtn.classList.toggle('hidden', !show)
+      genBtn.setAttribute('aria-hidden', show ? 'false' : 'true')
+    }
   },
 
   setFloorModifier(modifier) {

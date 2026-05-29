@@ -1,4 +1,5 @@
 import { CONFIG } from '../config.js'
+import { ITEMS } from '../data/items.js'
 
 export const COMMON_LOOT_IDS = [
   'potion-red', 'potion-blue', 'potion-mystery', 'lantern', 'dowsing-rod', 'smiths-tools', 'spyglass', 'scavengers-bag',
@@ -29,6 +30,19 @@ export const BACKPACK_MAX_SLOTS = 9
 
 export function pickRandom(pool) {
   return pool[Math.floor(Math.random() * pool.length)]
+}
+
+/** Trinket id for sanctuary/chest tier bands — epic maps to rare (no epic trinkets). */
+export function pickTrinketIdForDropTier(tier) {
+  const rarity = tier === 'epic' ? 'rare' : tier
+  if (rarity === 'legendary') return pickRandom(LEGENDARY_TRINKET_IDS)
+  if (rarity === 'rare') return pickRandom([...RARE_TRINKET_IDS, ...MAGIC_CHEST_EXCLUSIVE_IDS])
+  const commonPool = Object.keys(ITEMS).filter(id => {
+    const it = ITEMS[id]
+    return it?.rarity === 'common' && !it.stackable && it.effect
+  })
+  if (commonPool.length) return pickRandom(commonPool)
+  return pickRandom(COMMON_LOOT_IDS)
 }
 
 /** @param {{ hasItem: (id: string) => boolean, rand: (min: number, max: number) => number }} ctx */

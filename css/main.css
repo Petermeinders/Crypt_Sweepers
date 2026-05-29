@@ -78,13 +78,21 @@ html, body {
   position: relative;
 }
 
-/* Cheat: in-run skip floor (testing) */
-.skip-floor-btn {
+/* Cheat: in-run debug buttons (testing) */
+.cheat-debug-stack {
   position: absolute;
   right: 6px;
   top: 50%;
   transform: translateY(-50%);
   z-index: 25;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+  max-width: 104px;
+}
+
+.cheat-debug-btn {
   padding: 8px 10px;
   font-size: 0.68rem;
   font-family: ui-sans-serif, system-ui, sans-serif;
@@ -97,18 +105,19 @@ html, body {
   border-radius: 8px;
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.8);
   cursor: pointer;
-  max-width: 96px;
   line-height: 1.2;
   text-align: center;
 }
 
-.skip-floor-btn:active {
+.cheat-debug-btn:active {
   opacity: 0.9;
 }
 
-/* Must be explicit: project has no global `.hidden` rule */
-.skip-floor-btn.hidden,
-#skip-floor-btn.hidden {
+.cheat-debug-stack.hidden,
+.cheat-debug-btn.hidden,
+#cheat-debug-stack.hidden,
+#skip-floor-btn.hidden,
+#generate-gear-btn.hidden {
   display: none !important;
 }
 

@@ -2507,6 +2507,8 @@ function _cheatDeps() {
     nextFloor: _nextFloor,
     startFloor: _startFloor,
     runMusicTrack: _runMusicTrack,
+    addToBackpack: _addToBackpack,
+    handleGearPickup: (piece) => GearController.handleGearPickup(_gearCtx(), piece),
   }
 }
 
@@ -2556,6 +2558,10 @@ function applyCheat(key, enabled) {
 
 function cheatSkipFloor() {
   CheatController.cheatSkipFloor(_cheatDeps())
+}
+
+function cheatGenerateGear() {
+  return CheatController.cheatGenerateGear(_cheatDeps())
 }
 
 function cheatHudStatBoost(stat) {
@@ -2748,6 +2754,7 @@ export default {
   doRetreat,
   applyCheat,
   cheatSkipFloor,
+  cheatGenerateGear,
   cheatHudStatBoost,
   useItem,
   useItemAtIndex,
