@@ -453,7 +453,7 @@
   background-position: center top;
   background-repeat: no-repeat;
   z-index: 95;
-  padding: 40px 24px 28px;
+  padding: calc(40px + var(--safe-top)) calc(24px + var(--safe-right)) calc(28px + var(--safe-bottom)) calc(24px + var(--safe-left));
   overflow-y: auto;
   font-family: var(--menu-font-body);
   -webkit-font-smoothing: antialiased;
@@ -1737,7 +1737,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 14px 16px;
+  padding: calc(14px + var(--safe-top)) calc(16px + var(--safe-right)) 14px calc(16px + var(--safe-left));
   background: #080810;
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
@@ -2291,7 +2291,7 @@
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 14px 16px 10px;
+  padding: calc(14px + var(--safe-top)) calc(16px + var(--safe-right)) 10px calc(16px + var(--safe-left));
   background: transparent;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   flex-shrink: 0;
@@ -5721,7 +5721,7 @@ body.bestiary-detail-open #app {
 
 /* Circular CTA button */
 #hero-select-footer {
-  padding: 14px 16px 22px;
+  padding: 14px calc(16px + var(--safe-right)) calc(22px + var(--safe-bottom)) calc(16px + var(--safe-left));
   background: transparent;
   border-top: none;
   position: relative;
@@ -7002,8 +7002,8 @@ body.bestiary-detail-open #app {
 
 .bs-forge-section > .panel-back-btn {
   position: absolute;
-  top: 14px;
-  left: 14px;
+  top: calc(14px + var(--safe-top));
+  left: calc(14px + var(--safe-left));
   z-index: 2;
 }
 
