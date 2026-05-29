@@ -1629,9 +1629,16 @@ function _useSpyglassOn(tile) {
   if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
 
   const label = _spyglassHintLabel(tile.type)
+  const cat   = _echoCharmCategoryForTileType(tile.type)
+  tile.echoHintCategory = cat
+  if (tile.element) {
+    tile.element.classList.add('echo-hint')
+    tile.element.dataset.echoHint = cat
+  }
   UI.spawnFloat(tile.element, label, 'mana')
   UI.setMessage(`🔭 You glimpse: ${label}`)
   EventBus.emit('audio:play', { sfx: 'menu' })
+  _saveActiveRun()
 }
 
 

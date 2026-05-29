@@ -573,7 +573,10 @@
         </div>
         <div id="menu-xp-bar-wrap"><div id="menu-xp-bar"></div></div>
       </div>
-      <button id="hero-select-open-btn" class="hero-change-btn">🗡️ Heroes</button>
+      <div id="menu-hero-actions">
+        <button id="hero-select-open-btn" class="hero-change-btn" type="button">🗡️ Heroes</button>
+        <button id="blacksmith-btn" class="hero-change-btn" type="button">🔨 Forge</button>
+      </div>
     </div>
 
     <button id="new-run-btn" class="menu-btn primary">⚔️ New Run</button>
@@ -588,10 +591,6 @@
           <span class="menu-btn-line">Gold</span>
           <span class="menu-btn-line">Shop</span>
         </span>
-      </button>
-      <button id="blacksmith-btn" class="menu-btn secondary menu-btn--split" type="button">
-        <span class="menu-btn-ic" aria-hidden="true">🔨</span>
-        <span class="menu-btn-label menu-btn-label--single">Blacksmith</span>
       </button>
       <button id="passive-upgrades-btn" class="menu-btn secondary menu-btn--split" type="button">
         <span class="menu-btn-ic" aria-hidden="true">📜</span>
@@ -1032,7 +1031,7 @@
           <div class="htp-resource"><span class="htp-res-icon">🛡️</span><div><strong>Armor</strong> — absorbs incoming damage before HP is reduced. Gained from gear and certain abilities.</div></div>
           <div class="htp-resource"><span class="htp-res-icon">🔵</span><div><strong>Mana bar</strong> — powers spells and active abilities. Regenerates as you reveal tiles. Only appears once unlocked in your hero's upgrade tree.</div></div>
           <div class="htp-resource"><span class="htp-res-icon">🪙</span><div><strong>Gold</strong> — earned from enemies and chests; spent at in-run events and the main-menu Gold Shop.</div></div>
-          <div class="htp-resource"><span class="htp-res-icon">⚙️</span><div><strong>Scrap</strong> — persistent currency used at the Blacksmith between runs to upgrade or disassemble gear.</div></div>
+          <div class="htp-resource"><span class="htp-res-icon">⚙️</span><div><strong>Scrap</strong> — persistent currency used at the Forge between runs to upgrade or disassemble gear.</div></div>
           <div class="htp-resource"><span class="htp-res-icon">🎒</span><div><strong>Backpack</strong> — holds up to 9 items. Tap to open and use consumables or manage gear mid-run.</div></div>
           <div class="htp-resource"><span class="htp-res-icon">🗝️</span><div><strong>Golden Key</strong> — awarded for clearing every enemy on a floor. Spend it at a <strong>Magic Chest</strong> in a sanctuary sub-floor for powerful loot.</div></div>
           <div class="htp-resource"><span class="htp-res-icon">⚡</span><div><strong>Ability slots</strong> — up to 6 active abilities appear to the right of the backpack. Abilities are unlocked through your hero's upgrade tree and cost Mana to use. Each has its own cooldown shown beneath the button.</div></div>
@@ -1112,6 +1111,20 @@
         </details>
 
         <details class="htp-details">
+          <summary>🔨 Forge</summary>
+          <div class="htp-details-content">
+            <p class="htp-text--flush">Open the <strong>Forge</strong> from the main menu (next to Heroes) to tune your equipped gear between runs. You spend persistent <strong>gold</strong> and <strong>scrap</strong> here — not run gold from your current dungeon.</p>
+            <div class="htp-meta-list">
+              <div class="htp-meta-row"><span>⬆️</span><div><strong>Upgrade</strong> — select an equipped piece and forge up to <strong>3 tiers</strong>. Each success rolls a random stat boost; higher tiers cost more and can fail.</div></div>
+              <div class="htp-meta-row"><span>⚙️</span><div><strong>Disassemble</strong> — destroy a piece you are not wearing to gain scrap. Higher tiers yield more.</div></div>
+              <div class="htp-meta-row"><span>🔧</span><div><strong>Detriment reduction</strong> — after all 3 upgrades, negative stats on a piece (Brittle Guard, Barbed Gear, Mana Drain) can be softened for an extra gold + scrap cost.</div></div>
+            </div>
+            <p class="htp-text--flush" style="margin-top:8px">Scrap also comes from <strong>trashing gear mid-run</strong> from your backpack (smaller yield). Plan which pieces to keep, upgrade, or break down as your build takes shape.</p>
+            <div class="htp-tip">💡 The in-dungeon <strong>Sanctuary Forge</strong> (trinket tile) is different — it merges two trinkets into a forged relic, not gear upgrades.</div>
+          </div>
+        </details>
+
+        <details class="htp-details">
           <summary>🪬 Trinkets</summary>
           <div class="htp-details-content">
             <p class="htp-text--flush"><strong>Trinkets</strong> are passive items that apply their effect automatically — no activation required. They sit in your backpack and work as long as they're carried.</p>
@@ -1120,6 +1133,9 @@
               <div class="htp-meta-row"><span>🟡</span><div><strong>Legendary trinkets</strong> — run-defining relics with powerful or unusual effects. Very rare.</div></div>
             </div>
             <p class="htp-text--flush" style="margin-top:8px"><strong>Hold (long-press) any trinket</strong> in your backpack to read its full effect. Some trigger on specific events (on kill, on level up, on low HP), others modify a stat permanently for the run.</p>
+            <div class="htp-meta-list">
+              <div class="htp-meta-row"><span>🔭</span><div><strong>Spyglass</strong> — activate from the backpack, then tap a hidden tile. A category hint (⚔️ enemy, 🕸️ trap, 🪙 loot, etc.) stays on that tile until you flip it.</div></div>
+            </div>
             <div class="htp-tip">💡 Trinkets are <strong>not</strong> equipped in gear slots — they take up backpack space. Managing backpack inventory becomes a core decision as you go deeper.</div>
           </div>
         </details>

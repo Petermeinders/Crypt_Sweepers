@@ -615,10 +615,17 @@
   box-shadow: 0 0 8px rgba(100, 140, 255, 0.45);
 }
 
-.hero-change-btn {
+#menu-hero-actions {
   flex-shrink: 0;
-  min-width: 32%;
-  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 92px;
+}
+
+.hero-change-btn {
+  width: 100%;
+  padding: 10px 8px;
   border: none;
   background: url('../assets/ui/menu-btn-stone-rivets.png') center/100% 100% no-repeat;
   font-family: var(--menu-font-display);
