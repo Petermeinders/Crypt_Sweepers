@@ -1,5 +1,33 @@
 /** Settings overlay toggles + cheat switches. */
 
+import Logger from '../../core/Logger.js'
+import { applyImportedSave } from './saveTransfer.js'
+
+function _refreshRunBackupSection(ctx) {
+  const section = document.getElementById('run-backup-section')
+  const status  = document.getElementById('run-backup-status')
+  if (!section) return
+
+  const { GameController } = ctx
+  const run = GameController.getRun?.() ?? null
+  const inRun = !!run
+  const hasCheckpoint = GameController.hasActiveRun()
+  const show = inRun || hasCheckpoint
+
+  section.classList.toggle('hidden', !show)
+  if (!status) return
+
+  if (inRun) {
+    const floor = run.floor ?? '?'
+    const place = run.atRest ? 'sanctuary' : 'dungeon'
+    status.textContent = `Floor ${floor} (${place}) — export includes your current grid, inventory, and gear. Import the file later to resume this run.`
+  } else if (hasCheckpoint) {
+    const info = GameController.getActiveRunInfo?.()
+    const floor = info?.floor ?? '?'
+    status.textContent = `Saved checkpoint (floor ${floor}) — export to back up, or import to restore after a reload.`
+  }
+}
+
 function _populateSettingsForm(s) {
   const c = s.settings.cheats ?? {}
   document.getElementById('setting-music').checked        = s.settings.musicOn    ?? true
@@ -21,6 +49,7 @@ function _populateSettingsForm(s) {
 
 function _openSettingsOverlay(ctx) {
   _populateSettingsForm(ctx.GameController.getSave())
+  _refreshRunBackupSection(ctx)
   document.getElementById('settings-overlay').classList.remove('hidden')
 }
 
@@ -122,5 +151,35 @@ export function wireSettingsPanel(ctx) {
   document.getElementById('delete-save-yes').addEventListener('click', async () => {
     await SaveManager.clear()
     location.reload()
+  })
+
+  document.getElementById('settings-export-run-btn')?.addEventListener('click', () => {
+    if (GameController.getRun?.()) GameController.persistActiveRun()
+    else if (GameController.hasActiveRun()) { /* checkpoint already in save */ }
+    SaveManager.exportJSON(GameController.getSave())
+    ctx.UI.setMessage('Run backup exported — keep the JSON file safe to resume later.')
+    document.getElementById('settings-overlay').classList.add('hidden')
+  })
+
+  document.getElementById('settings-import-run-btn')?.addEventListener('click', () => {
+    document.getElementById('settings-import-file-input').click()
+  })
+
+  document.getElementById('settings-import-file-input')?.addEventListener('change', async e => {
+    const file = e.target.files[0]
+    if (!file) return
+    const text = await file.text()
+    let result
+    try {
+      result = await SaveManager.importJSON(text)
+    } catch (err) {
+      Logger.error('[Import] Settings run import failed', err)
+      ctx.UI.setMessage('Import failed — could not read that save file.', true)
+      e.target.value = ''
+      return
+    }
+    await applyImportedSave(ctx, result, { resumeIfPossible: true })
+    document.getElementById('settings-overlay').classList.add('hidden')
+    e.target.value = ''
   })
 }

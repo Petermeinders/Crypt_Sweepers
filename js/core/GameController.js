@@ -2800,6 +2800,8 @@ export default {
   getTearyEyesTurns()    { return session.run?.player?.tearyEyesTurns ?? 0 },
   getFreezingHitStacks() { return session.run?.player?.freezingHitStacks ?? 0 },
   getBurnStacks()        { return session.run?.player?.burnStacks ?? 0 },
+  getRun()               { return session.run },
+  isInRun()              { return !!session.run },
   hasActiveRun()      { return !!session.save?.activeRun },
   getActiveRunInfo()  { return session.save?.activeRun ?? null },
   resumeRun,

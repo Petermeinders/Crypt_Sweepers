@@ -1,9 +1,9 @@
-import { CHARACTERS } from '../data/characters.js'
 import { renderChangelogEntries } from '../ui/menus/Changelog.js'
 import { wireGoldShopPanel } from '../ui/menus/GoldShopPanel.js'
 import { wireBlacksmithPanel } from '../ui/menus/BlacksmithPanel.js'
 import { wireHeroSelect, openHeroSelect, updateMenuHeroPreview } from '../ui/menus/HeroSelect.js'
 import { wireSettingsPanel } from '../ui/menus/SettingsPanel.js'
+import { applyImportedSave } from '../ui/menus/saveTransfer.js'
 import Logger from '../core/Logger.js'
 
 let deferredInstallPrompt = null
@@ -135,22 +135,8 @@ export function wireMenus(ctx) {
       e.target.value = ''
       return
     }
-    const imported = result.save
-    if (imported) {
-      if (result.partial) {
-        const tiers = result.recoveredTiers?.join(', ') ?? 'partial data'
-        ctx.UI.setMessage(`Save partially recovered (${tiers}).`, true)
-      }
-      ctx.MetaProgression.normalizeUnlockedHeroes(imported)
-      const impSel = imported.selectedCharacter ?? 'warrior'
-      const impCh  = CHARACTERS.find(c => c.id === impSel)
-      if (impCh && (impCh.comingSoon || (impCh.unlockCost != null && !ctx.MetaProgression.isHeroUnlocked(imported, impSel)))) {
-        imported.selectedCharacter = 'warrior'
-      }
-      ctx.GameController.init(imported)
-      updateMenuHeroPreview(ctx)
-      ctx.UI.setActiveDifficulty(imported.settings?.difficulty ?? 'normal')
-    }
+    const outcome = await applyImportedSave(ctx, result)
+    if (outcome.ok && !outcome.resumed) updateMenuHeroPreview(ctx)
     e.target.value = ''
   })
 }

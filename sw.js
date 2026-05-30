@@ -3,7 +3,7 @@
 // Version bump CACHE_NAME to force cache refresh on deploy.
 // Also bump SW_CACHE_VERSION in js/main.js (registration query string).
 
-const CACHE_NAME = 'crypt-sweepers-v452'
+const CACHE_NAME = 'crypt-sweepers-v453'
 
 const PRECACHE_ASSETS = [
   './',
@@ -57,6 +57,7 @@ const PRECACHE_ASSETS = [
   './js/ui/menus/BackpackPanel.js',
   './js/ui/menus/EquipmentOverlay.js',
   './js/ui/menus/SettingsPanel.js',
+  './js/ui/menus/saveTransfer.js',
   './js/controllers/BalanceBotBridge.js',
   './js/controllers/CheatController.js',
   './js/controllers/TileTapRouter.js',

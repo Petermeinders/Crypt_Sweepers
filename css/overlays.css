@@ -3730,6 +3730,24 @@
   cursor: pointer;
 }
 
+.settings-run-backup {
+  padding: 12px 16px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-run-backup.hidden {
+  display: none !important;
+}
+
+.settings-run-backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 #delete-save-confirm {
   display: flex;
   flex-wrap: wrap;
