@@ -254,6 +254,7 @@ export const CONFIG = {
     // Fixed scrap when dropping/trashing passive trinkets (by item rarity)
     trinketTrashScrapYield: {
       rare:      2,
+      epic:      5,
       legendary: 10,
       merged:    30,
     },

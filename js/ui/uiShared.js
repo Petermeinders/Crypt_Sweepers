@@ -78,7 +78,7 @@ export function fillBestiaryCreatureParts(parts, def, enemyId) {
   if (parts.blurb) parts.blurb.textContent = def.blurb ?? ''
 }
 export function fillTrinketCard(parts, def) {
-  const RARITY_LABEL = { common: 'Common', rare: 'Rare', legendary: 'Legendary' }
+  const RARITY_LABEL = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' }
   if (parts.rarity) {
     const r = def.rarity ?? 'common'
     parts.rarity.textContent = RARITY_LABEL[r] ?? r

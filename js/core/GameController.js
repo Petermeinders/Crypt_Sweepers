@@ -165,7 +165,7 @@ const _sfUnlockAdjacent = (t) => SubFloorController.sfUnlockAdjacent(t)
 
 
 function _lootRollCtx() {
-  return { hasItem, rand: _rand }
+  return { hasItem, rand: _rand, floor: session.run?.floor ?? 1 }
 }
 
 function _rollCommonLoot() {

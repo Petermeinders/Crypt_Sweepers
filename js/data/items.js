@@ -170,14 +170,14 @@ export const ITEMS = {
 
   'glass-cannon-shard': {
     name:      'Glass Cannon Shard',
-    rarity:    'rare',
+    rarity:    'epic',
     icon:      '💠',
     spriteSrc: 'assets/sprites/Items/glass-cannon-shard.png',
     stackable: false,
     blurb:     'A razor-sharp fragment of something that shatters beautifully.',
     details: [
       { icon: '⚔️', label: 'Passive', desc: 'Above 50% HP: +50% damage to enemies. Below 50% HP: −50% damage' },
-      { icon: '🎲', label: 'Rare',    desc: '2% chance from chests' },
+      { icon: '🎲', label: 'Epic',    desc: '1% chance from chests' },
     ],
     effect: { type: 'passive-glass-cannon-shard' },
   },
@@ -256,14 +256,14 @@ export const ITEMS = {
 
   'cursed-lockpick': {
     name:      'Cursed Lockpick',
-    rarity:    'rare',
+    rarity:    'epic',
     icon:      '🗝️',
     spriteSrc: 'assets/sprites/Items/cursed-lockpick.png',
     stackable: false,
     blurb:     'A bent pick that whispers of better locks.',
     details: [
-      { icon: '📦', label: 'Passive', desc: 'Chests have a chance to upgrade to a rare or legendary trinket' },
-      { icon: '🎲', label: 'Rare',    desc: '2% chance from chests' },
+      { icon: '📦', label: 'Passive', desc: 'Chests have a chance to upgrade to a rare, epic, or legendary trinket' },
+      { icon: '🎲', label: 'Epic',    desc: '1% chance from chests' },
     ],
     effect: { type: 'passive-cursed-lockpick' },
   },
@@ -432,7 +432,7 @@ export const ITEMS = {
     details: [
       { icon: '⏳', label: 'Use',     desc: 'Undo your last tile reveal (infinite uses)' },
       { icon: '💀', label: 'Cost',    desc: 'Drains all mana, and 1 HP and 1 gold each use' },
-      { icon: '🎲', label: 'Legendary', desc: '1% chance from chests' },
+      { icon: '🎲', label: 'Legendary', desc: '0.5% chance from chests (floor 10+)' },
     ],
     effect: { type: 'hourglass-sand' },
   },
@@ -468,14 +468,14 @@ export const ITEMS = {
 
   'cracked-compass': {
     name:      'Cracked Compass',
-    rarity:    'rare',
+    rarity:    'epic',
     icon:      '🧭',
     spriteSrc: 'assets/sprites/Items/cracked-compass.png',
     stackable: false,
     blurb:     'The needle is bent, but it still knows the way out.',
     details: [
       { icon: '🧭', label: 'Passive', desc: 'The exit tile is revealed at the start of every floor' },
-      { icon: '🎲', label: 'Rare',    desc: '3% chance from magic chest' },
+      { icon: '🎲', label: 'Epic',    desc: '1% chance from chests; magic chest exclusive' },
     ],
     effect: { type: 'passive-cracked-compass' },
   },
@@ -511,7 +511,7 @@ export const ITEMS = {
 
   'blood-pact': {
     name:      'Blood Pact',
-    rarity:    'rare',
+    rarity:    'epic',
     icon:      '🩸',
     spriteSrc: 'assets/sprites/Items/blood-pact.png',
     stackable: false,
@@ -519,14 +519,14 @@ export const ITEMS = {
     details: [
       { icon: '⚔️', label: 'On Equip', desc: '+2 attack damage; lose 3 max HP (healed proportionally)' },
       { icon: '💔', label: 'On Drop',  desc: 'The +2 damage is lost; 3 max HP is restored' },
-      { icon: '🎲', label: 'Rare',     desc: '3% chance from magic chest' },
+      { icon: '🎲', label: 'Epic',     desc: '1% chance from chests; magic chest exclusive' },
     ],
     effect: { type: 'passive-blood-pact' },
   },
 
   'bone-dice': {
     name:      'Bone Dice',
-    rarity:    'rare',
+    rarity:    'epic',
     icon:      '🎲',
     spriteSrc: 'assets/sprites/Items/bone-dice.png',
     stackable: false,
@@ -534,14 +534,14 @@ export const ITEMS = {
     details: [
       { icon: '🎲', label: 'Use',      desc: 'Re-rolls all revealed living enemies\' HP and damage stats. Costs 10 mana.' },
       { icon: '♾️', label: 'Reusable', desc: 'Can be used every floor, unlimited times' },
-      { icon: '🎰', label: 'Legendary', desc: 'Rare find from magic chest' },
+      { icon: '🎰', label: 'Epic',     desc: 'Rare find from magic chest' },
     ],
     effect: { type: 'bone-dice' },
   },
 
   'hunger-stone': {
     name:      'Hunger Stone',
-    rarity:    'rare',
+    rarity:    'epic',
     icon:      '🪨',
     spriteSrc: null,
     stackable: false,
@@ -549,7 +549,7 @@ export const ITEMS = {
     details: [
       { icon: '⚔️', label: 'Passive', desc: '+1 max attack damage on each new floor' },
       { icon: '💔', label: 'Cost',    desc: 'Lose 2 HP at the start of each new floor (can be lethal)' },
-      { icon: '🎲', label: 'Rare',    desc: '3% chance from magic chest' },
+      { icon: '🎲', label: 'Epic',    desc: '1% chance from chests; magic chest exclusive' },
     ],
     effect: { type: 'passive-hunger-stone' },
   },
@@ -691,7 +691,7 @@ export const ITEMS = {
 
   'spiked-collar': {
     name:      'Spiked Collar',
-    rarity:    'rare',
+    rarity:    'epic',
     icon:      '⛓️',
     spriteSrc: null,
     stackable: false,
@@ -699,21 +699,21 @@ export const ITEMS = {
     details: [
       { icon: '⚔️', label: 'Passive', desc: '+3 melee damage' },
       { icon: '💔', label: 'Cost',    desc: 'Deal 1 damage to yourself on every melee attack' },
-      { icon: '🎲', label: 'Rare',    desc: '2% chance from chests' },
+      { icon: '🎲', label: 'Epic',    desc: '1% chance from chests' },
     ],
     effect: { type: 'passive-spiked-collar' },
   },
 
   'eagle-eye': {
     name:      'Eagle Eye',
-    rarity:    'rare',
+    rarity:    'epic',
     icon:      '🦅',
     spriteSrc: null,
     stackable: false,
     blurb:     'After a kill, you spot a gap in the dungeon\'s pattern. One free move, anywhere.',
     details: [
       { icon: '🦅', label: 'Passive', desc: 'After killing an enemy, your next tile flip ignores adjacency — reach anywhere on the grid' },
-      { icon: '🎲', label: 'Rare',    desc: '2% chance from chests' },
+      { icon: '🎲', label: 'Epic',    desc: '1% chance from chests' },
     ],
     effect: { type: 'passive-eagle-eye' },
   },
@@ -1177,7 +1177,7 @@ export const ITEMS = {
     stackable: false,
     blurb:     'The right tools for the job. Every door opens; every crack has something behind it.',
     details: [
-      { icon: '🎁', label: 'Chests',     desc: 'All chest drops are rare or legendary quality' },
+      { icon: '🎁', label: 'Chests',     desc: 'All chest drops are rare, epic, or legendary quality' },
       { icon: '🪙', label: 'Empty Tiles', desc: 'Revealing an empty tile always yields 1 gold' },
       { icon: '⚒️', label: 'Forged',      desc: "Cursed Lockpick + Scavenger's Bag" },
     ],

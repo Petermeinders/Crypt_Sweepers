@@ -3,6 +3,8 @@
  * Stored on save as `trinketsSeen: string[]`.
  */
 
+import { ITEMS } from '../data/items.js'
+
 export function ensure(save) {
   if (!Array.isArray(save.trinketsSeen)) save.trinketsSeen = []
 }
@@ -21,12 +23,14 @@ export function hasSeen(save, itemId) {
   return save.trinketsSeen.includes(itemId)
 }
 
-/** Sort by rarity (common → rare → legendary), then alphabetically by id */
+/** Sort by rarity (common → rare → epic → legendary), then alphabetically by id */
 export function sortedSeenIds(save) {
   ensure(save)
-  const rarityOrder = { common: 0, rare: 1, legendary: 2 }
+  const rarityOrder = { common: 0, rare: 1, epic: 2, legendary: 3 }
   return [...save.trinketsSeen].sort((a, b) => {
-    // rarity order is applied by the panel grouping; here just stabilize alpha within same rarity
+    const ra = rarityOrder[ITEMS[a]?.rarity] ?? 99
+    const rb = rarityOrder[ITEMS[b]?.rarity] ?? 99
+    if (ra !== rb) return ra - rb
     return a.localeCompare(b)
   })
 }

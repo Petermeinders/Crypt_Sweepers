@@ -16,7 +16,7 @@ const CMP_GEAR_IMGS = {
   offhand:    { default: 'assets/sprites/Items/shield.png', common: 'assets/sprites/gear/offhand/common.webp', rare: 'assets/sprites/gear/offhand/rare.webp', epic: 'assets/sprites/gear/offhand/epic.webp', legendary: 'assets/sprites/gear/offhand/legendary.webp' },
 }
 const CMP_TIER_LABELS   = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' }
-const CMP_RARITY_LABELS = { common: 'Common', rare: 'Rare', legendary: 'Legendary', merged: 'Merged' }
+const CMP_RARITY_LABELS = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', merged: 'Merged' }
 const CMP_TIER_ART_BG = {
   common:    "url('assets/ui/common-tile.png')",
   rare:      "url('assets/ui/rare-tile.png')",
@@ -1436,8 +1436,8 @@ export const ModalsMethods = {
     const seen = save.trinketsSeen
     el.trinketCodexList.innerHTML = ''
 
-    const RARITIES = ['common', 'rare', 'legendary', 'merged']
-    const RARITY_LABELS = { common: 'Common', rare: 'Rare', legendary: 'Legendary', merged: '⚒️ Forged' }
+    const RARITIES = ['common', 'rare', 'epic', 'legendary', 'merged']
+    const RARITY_LABELS = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', merged: '⚒️ Forged' }
 
     let anyShown = false
     for (const rarity of RARITIES) {

@@ -1,22 +1,28 @@
 import { CONFIG } from '../config.js'
 import { ITEMS } from '../data/items.js'
 
+export const LEGENDARY_MIN_FLOOR = 10
+
 export const COMMON_LOOT_IDS = [
   'potion-red', 'potion-blue', 'potion-mystery', 'lantern', 'dowsing-rod', 'smiths-tools', 'spyglass', 'scavengers-bag',
 ]
 
 export const RARE_TRINKET_IDS = [
-  'fire-ring', 'mana-ring', 'echo-charm', 'vampire-fang', 'glass-cannon-shard',
+  'fire-ring', 'mana-ring', 'echo-charm', 'vampire-fang',
   'duelists-glove', 'surge-pearl', 'still-water-amulet', 'greed-tooth',
-  'lucky-rabbit-foot', 'cursed-lockpick',
-  'spiked-collar', 'eagle-eye', 'mending-moss', 'hollowed-acorn',
+  'lucky-rabbit-foot', 'mending-moss', 'hollowed-acorn',
+]
+
+/** Epic trinkets — stronger passives between rare and legendary */
+export const EPIC_TRINKET_IDS = [
+  'glass-cannon-shard', 'spiked-collar', 'eagle-eye', 'cursed-lockpick',
+  'blood-pact', 'cracked-compass', 'hunger-stone', 'bone-dice',
 ]
 
 /** Rare trinkets available only from the magic chest */
 export const MAGIC_CHEST_EXCLUSIVE_IDS = [
-  'thorn-wrap', 'misers-pouch', 'cracked-compass', 'plague-mask', 'soul-candle',
-  'blood-pact', 'bone-dice', 'hunger-stone', 'gamblers-mark', 'witching-stone',
-  'plague-rat-skull',
+  'thorn-wrap', 'misers-pouch', 'plague-mask', 'soul-candle',
+  'gamblers-mark', 'witching-stone', 'plague-rat-skull',
 ]
 
 export const LEGENDARY_TRINKET_IDS = [
@@ -28,15 +34,24 @@ export const LEGENDARY_TRINKET_IDS = [
 
 export const BACKPACK_MAX_SLOTS = 9
 
+/** Cumulative chest roll thresholds (normal / magic). */
+const CHEST_THRESHOLDS = {
+  normal: { legendary: 0.005, epic: 0.015, rare: 0.035, smiths: 0.045 },
+  magic:  { legendary: 0.010, epic: 0.030, rare: 0.080, smiths: 0.090 },
+}
+
 export function pickRandom(pool) {
   return pool[Math.floor(Math.random() * pool.length)]
 }
 
-/** Trinket id for sanctuary/chest tier bands — epic maps to rare (no epic trinkets). */
-export function pickTrinketIdForDropTier(tier) {
-  const rarity = tier === 'epic' ? 'rare' : tier
+function pickRareTrinketId() {
+  return pickRandom([...RARE_TRINKET_IDS, ...MAGIC_CHEST_EXCLUSIVE_IDS])
+}
+
+function pickTrinketByRarity(rarity) {
   if (rarity === 'legendary') return pickRandom(LEGENDARY_TRINKET_IDS)
-  if (rarity === 'rare') return pickRandom([...RARE_TRINKET_IDS, ...MAGIC_CHEST_EXCLUSIVE_IDS])
+  if (rarity === 'epic') return pickRandom(EPIC_TRINKET_IDS)
+  if (rarity === 'rare') return pickRareTrinketId()
   const commonPool = Object.keys(ITEMS).filter(id => {
     const it = ITEMS[id]
     return it?.rarity === 'common' && !it.stackable && it.effect
@@ -45,7 +60,26 @@ export function pickTrinketIdForDropTier(tier) {
   return pickRandom(COMMON_LOOT_IDS)
 }
 
-/** @param {{ hasItem: (id: string) => boolean, rand: (min: number, max: number) => number }} ctx */
+/** Trinket id for sanctuary/chest tier bands. */
+export function pickTrinketIdForDropTier(tier) {
+  return pickTrinketByRarity(tier)
+}
+
+function rollPremiumTrinket(floor, band) {
+  if (band === 'legendary' && floor < LEGENDARY_MIN_FLOOR) band = 'epic'
+  return { type: pickTrinketByRarity(band) }
+}
+
+function rollDelversKitTrinket(floor) {
+  const r = Math.random()
+  if (floor >= LEGENDARY_MIN_FLOOR && r < 0.12) {
+    return { type: pickRandom(LEGENDARY_TRINKET_IDS) }
+  }
+  if (r < 0.40) return { type: pickRandom(EPIC_TRINKET_IDS) }
+  return { type: pickRareTrinketId() }
+}
+
+/** @param {{ hasItem: (id: string) => boolean, rand: (min: number, max: number) => number, floor?: number }} ctx */
 export function rollCommonLoot({ hasItem, rand }) {
   // Weighted: potions more likely than utility items (smiths-tools removed — ~1% via dedicated band in chest rolls)
   const r = Math.random()
@@ -59,36 +93,36 @@ export function rollCommonLoot({ hasItem, rand }) {
   return { type: 'gold', amount: rand(...CONFIG.chest.goldDrop) }
 }
 
-/** Normal chest: 1% legendary, 2% rare, 1% Smith's Tools, 96% common (no smiths in common pool). */
-export function rollChestLoot({ hasItem, rand }) {
+function rollChestTrinketBand(r, floor, thresholds) {
+  if (r < thresholds.legendary) return rollPremiumTrinket(floor, 'legendary')
+  if (r < thresholds.epic) return rollPremiumTrinket(floor, 'epic')
+  if (r < thresholds.rare) return { type: pickRareTrinketId() }
+  if (r < thresholds.smiths) return { type: 'smiths-tools' }
+  return null
+}
+
+/** Normal chest: 0.5% legendary (floor 10+), 1% epic, 2% rare, 1% Smith's Tools, 95.5% common. */
+export function rollChestLoot({ hasItem, rand, floor = 1 }) {
   if (hasItem('misers-pouch')) {
     return { type: 'gold', amount: rand(...CONFIG.chest.goldDrop) }
   }
-  // Delver's Kit: always rare or legendary
   if (hasItem('delvers-kit')) {
-    return Math.random() < 0.15
-      ? { type: pickRandom(LEGENDARY_TRINKET_IDS) }
-      : { type: pickRandom(RARE_TRINKET_IDS) }
+    return rollDelversKitTrinket(floor)
   }
   let r = Math.random()
-  // Cursed lockpick: bias toward rare/legendary
+  // Cursed lockpick: bias toward rare/epic/legendary
   if (hasItem('cursed-lockpick') && r < 0.15) {
-    r = Math.random() * 0.06  // forces into rare or legendary band
+    r = Math.random() * CHEST_THRESHOLDS.normal.rare
   }
-  if (r < 0.01) return { type: pickRandom(LEGENDARY_TRINKET_IDS) }
-  if (r < 0.03) return { type: pickRandom(RARE_TRINKET_IDS) }
-  if (r < 0.04) return { type: 'smiths-tools' }
+  const trinket = rollChestTrinketBand(r, floor, CHEST_THRESHOLDS.normal)
+  if (trinket) return trinket
   return rollCommonLoot({ hasItem, rand })
 }
 
-/** Magic chest: 2% legendary, 5% rare (all rares + exclusives), 1% Smith's Tools, 92% common. */
-export function rollMagicChestLoot({ hasItem, rand }) {
+/** Magic chest: 1% legendary (floor 10+), 2% epic, 5% rare, 1% Smith's Tools, 91% common. */
+export function rollMagicChestLoot({ hasItem, rand, floor = 1 }) {
   const r = Math.random()
-  if (r < 0.02) return { type: pickRandom(LEGENDARY_TRINKET_IDS) }
-  if (r < 0.07) {
-    const pool = [...RARE_TRINKET_IDS, ...MAGIC_CHEST_EXCLUSIVE_IDS]
-    return { type: pickRandom(pool) }
-  }
-  if (r < 0.08) return { type: 'smiths-tools' }
+  const trinket = rollChestTrinketBand(r, floor, CHEST_THRESHOLDS.magic)
+  if (trinket) return trinket
   return rollCommonLoot({ hasItem, rand })
 }

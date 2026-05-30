@@ -6,7 +6,10 @@ import { STORY_EVENTS, MERCHANT_ITEMS, rollEventType } from '../data/events.js'
 import {
   COMMON_LOOT_IDS,
   RARE_TRINKET_IDS,
+  EPIC_TRINKET_IDS,
   LEGENDARY_TRINKET_IDS,
+  LEGENDARY_MIN_FLOOR,
+  pickRandom,
 } from '../systems/LootTables.js'
 import { session } from '../core/RunContext.js'
 
@@ -41,7 +44,7 @@ export function closeEventSession(ctx, tile) {
 }
 
 function rollMerchantTrinket(ctx) {
-  const pool = [...RARE_TRINKET_IDS, ...LEGENDARY_TRINKET_IDS]
+  const pool = [...RARE_TRINKET_IDS, ...EPIC_TRINKET_IDS, ...LEGENDARY_TRINKET_IDS]
   return ctx.pickRandom(pool)
 }
 
@@ -133,10 +136,13 @@ function openGamblerEvent(ctx, tile) {
 }
 
 function openTripleChestEvent(ctx, tile) {
+  const floor = session.run?.floor ?? 1
+  const topRarity = floor >= LEGENDARY_MIN_FLOOR ? 'legendary' : 'epic'
+  const topPool = topRarity === 'legendary' ? LEGENDARY_TRINKET_IDS : EPIC_TRINKET_IDS
   const chests = [
     { rarity: 'common',    loot: ctx.rollCommonLoot() },
-    { rarity: 'rare',      loot: { type: ctx.pickRandom(RARE_TRINKET_IDS) } },
-    { rarity: 'legendary', loot: { type: ctx.pickRandom(LEGENDARY_TRINKET_IDS) } },
+    { rarity: 'rare',      loot: { type: pickRandom(RARE_TRINKET_IDS) } },
+    { rarity: topRarity, loot: { type: pickRandom(topPool) } },
   ]
   // Shuffle so player can't always pick right
   chests.sort(() => Math.random() - 0.5)
@@ -190,22 +196,26 @@ function rollTrinketTradeReward(offeredRarity) {
   // 15% chance to upgrade one tier, 5% chance to downgrade, otherwise same
   const r = Math.random()
   let targetRarity = offeredRarity
-  if (offeredRarity === 'common' && r < 0.15)       targetRarity = 'rare'
-  else if (offeredRarity === 'rare' && r < 0.15)    targetRarity = 'legendary'
-  else if (offeredRarity === 'rare' && r < 0.20)    targetRarity = 'common'
-  else if (offeredRarity === 'legendary' && r < 0.15) targetRarity = 'rare'
+  if (offeredRarity === 'common' && r < 0.15)        targetRarity = 'rare'
+  else if (offeredRarity === 'rare' && r < 0.15)     targetRarity = 'epic'
+  else if (offeredRarity === 'rare' && r < 0.20)      targetRarity = 'common'
+  else if (offeredRarity === 'epic' && r < 0.15)      targetRarity = 'legendary'
+  else if (offeredRarity === 'epic' && r < 0.20)      targetRarity = 'rare'
+  else if (offeredRarity === 'legendary' && r < 0.15) targetRarity = 'epic'
 
   // Build pool from the matching rarity, excluding what player already has and what they just traded
   const owned = new Set(session.run.player.inventory.map(e => e.id))
   let pool = []
   if (targetRarity === 'common')    pool = COMMON_LOOT_IDS.filter(id => !owned.has(id) && ITEMS[id]?.rarity === 'common')
   if (targetRarity === 'rare')      pool = RARE_TRINKET_IDS.filter(id => !owned.has(id))
+  if (targetRarity === 'epic')      pool = EPIC_TRINKET_IDS.filter(id => !owned.has(id))
   if (targetRarity === 'legendary') pool = LEGENDARY_TRINKET_IDS.filter(id => !owned.has(id))
 
   // Fallback: allow duplicates if pool is exhausted
   if (pool.length === 0) {
     if (targetRarity === 'common')    pool = COMMON_LOOT_IDS.filter(id => ITEMS[id]?.rarity === 'common')
     if (targetRarity === 'rare')      pool = [...RARE_TRINKET_IDS]
+    if (targetRarity === 'epic')      pool = [...EPIC_TRINKET_IDS]
     if (targetRarity === 'legendary') pool = [...LEGENDARY_TRINKET_IDS]
   }
   if (pool.length === 0) pool = RARE_TRINKET_IDS  // final fallback
