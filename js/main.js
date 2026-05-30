@@ -31,10 +31,23 @@ if (document.readyState === 'loading') {
 })()
 
 // ── Service worker registration ───────────────────────────────
+// Keep SW_CACHE_VERSION in sync with CACHE_NAME in sw.js (digits after "v").
+const SW_CACHE_VERSION = '452'
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
-      .then(reg => Logger.debug('[SW] registered', reg.scope))
+    let refreshing = false
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return
+      refreshing = true
+      window.location.reload()
+    })
+
+    navigator.serviceWorker.register(`./sw.js?v=${SW_CACHE_VERSION}`)
+      .then(reg => {
+        Logger.debug('[SW] registered', reg.scope)
+        reg.update()
+      })
       .catch(err => Logger.error('[SW] registration failed', err))
   })
 }

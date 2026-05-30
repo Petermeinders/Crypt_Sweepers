@@ -1,8 +1,9 @@
 // Crypt Sweepers — Service Worker
 // Strategy: Cache-first for assets, network-first for HTML.
 // Version bump CACHE_NAME to force cache refresh on deploy.
+// Also bump SW_CACHE_VERSION in js/main.js (registration query string).
 
-const CACHE_NAME = 'crypt-sweepers-v451'
+const CACHE_NAME = 'crypt-sweepers-v452'
 
 const PRECACHE_ASSETS = [
   './',
@@ -41,6 +42,7 @@ const PRECACHE_ASSETS = [
   './js/data/mage.js',
   './js/data/changelog.js',
   './js/data/characters.js',
+  './js/data/gear.js',
   './js/boot/SaveMigrator.js',
   './js/boot/DevToolsLoader.js',
   './js/boot/boot.js',
@@ -65,6 +67,7 @@ const PRECACHE_ASSETS = [
   './js/controllers/FloorController.js',
   './js/controllers/GearController.js',
   './js/controllers/InventoryController.js',
+  './js/controllers/SafePocketController.js',
   './js/controllers/ForgeController.js',
   './js/controllers/EventTileController.js',
   './js/controllers/SubFloorController.js',
@@ -81,6 +84,7 @@ const PRECACHE_ASSETS = [
   './js/systems/Haptics.js',
   './js/ui/menus/Changelog.js',
   './js/save/SaveManager.js',
+  './js/save/SaveImporter.js',
   './js/systems/AudioManager.js',
   './js/systems/CombatResolver.js',
   './js/systems/MetaProgression.js',
