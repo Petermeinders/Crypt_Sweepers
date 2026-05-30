@@ -17,9 +17,10 @@ export function scaleEnemyDef(def, floor) {
     hpMult  = base50Hp  + CONFIG.enemy.floorScaleHP_late  * (floor - 50)
     dmgMult = base50Dmg + CONFIG.enemy.floorScaleDmg_late * (floor - 50)
   }
+  const statMult = CONFIG.enemy.statMult ?? 1
   const baseHp = Number(def.hp)
-  const hp = Math.max(1, Math.round((Number.isFinite(baseHp) ? baseHp : 1) * hpMult))
+  const hp = Math.max(1, Math.round((Number.isFinite(baseHp) ? baseHp : 1) * hpMult * statMult))
   const rawDmg = Array.isArray(def.dmg) && def.dmg.length ? def.dmg : [1, 1]
-  const dmg = rawDmg.map(v => Math.round((Number(v) || 0) * dmgMult))
+  const dmg = rawDmg.map(v => Math.round((Number(v) || 0) * dmgMult * statMult))
   return { ...def, hp, dmg, currentHP: hp }
 }

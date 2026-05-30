@@ -1950,10 +1950,16 @@ function _metaUnlockedForLevelUp() {
   return session.save.warrior?.upgrades ?? []
 }
 
+function _levelUpChoiceCount() {
+  return session.run?.player?.extraAbilityChoice ? 4 : 3
+}
+
 /** Ability-pick level-up uses GameState.LEVEL_UP, which is invalid during NPC events — defer until back on the floor. */
 function _shouldDeferLevelUpDueToNpc() {
   if (!GameState.is(States.NPC_INTERACT)) return false
-  const choices = ProgressionSystem.getChoices(session.run.player, _charKey(), _metaUnlockedForLevelUp())
+  const choices = ProgressionSystem.getChoices(
+    session.run.player, _charKey(), _metaUnlockedForLevelUp(), _levelUpChoiceCount(),
+  )
   return choices.length > 0
 }
 
@@ -1971,7 +1977,9 @@ function _flushDeferredLevelUpXp() {
     UI.spawnFloat(floatEl(), `⬆️ Lv ${session.run.player.level}!`, 'xp')
     EventBus.emit('player:levelup', { newLevel: session.run.player.level })
     EventBus.emit('audio:play', { sfx: 'levelup' })
-    const choices = ProgressionSystem.getChoices(session.run.player, _charKey(), _metaUnlockedForLevelUp())
+    const choices = ProgressionSystem.getChoices(
+      session.run.player, _charKey(), _metaUnlockedForLevelUp(), _levelUpChoiceCount(),
+    )
     if (choices.length === 0) {
       _triggerLevelUp()
       continue
@@ -1984,7 +1992,7 @@ function _flushDeferredLevelUpXp() {
 
 function _triggerLevelUp() {
   const char     = _charKey()
-  const count    = session.run.player.extraAbilityChoice ? 4 : 3
+  const count    = _levelUpChoiceCount()
   const descs    = ProgressionSystem.getChoices(session.run.player, char, _metaUnlockedForLevelUp(), count)
   if (descs.length === 0) {
     session.run.player.hp = Math.min(session.run.player.maxHp, session.run.player.hp + 10)

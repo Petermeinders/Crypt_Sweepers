@@ -41,6 +41,8 @@ export const CONFIG = {
     // Steeper scaling for floors 51–100 (piecewise linear inflection)
     floorScaleHP_late:  0.15,  // +15% HP per floor above 50
     floorScaleDmg_late: 0.075, // +7.5% DMG per floor above 50
+    /** Global multiplier applied after floor scaling (HP + damage). */
+    statMult: 1.25,
   },
 
   spell: {

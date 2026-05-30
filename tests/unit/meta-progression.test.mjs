@@ -11,6 +11,23 @@ describe('MetaProgression.applyToPlayer', () => {
     assert.equal(player.maxHp, 60)
     assert.equal(player.hp, 60)
   })
+
+  test("applies Scholar's Notes from gold shop cart", () => {
+    const save = createSave({ persistentGold: 100, warrior: { totalXP: 0, upgrades: ['slam'], shopCart: ['scholars-notes'] } })
+    const player = { maxHp: 50, hp: 50, mana: 30, maxMana: 30, gold: 0, extraAbilityChoice: false }
+    MetaProgression.applyToPlayer(player, save)
+    assert.equal(player.extraAbilityChoice, true)
+    assert.deepEqual(player.appliedShopItems, ['scholars-notes'])
+  })
+})
+
+describe('MetaProgression.applyShopCartToPlayer', () => {
+  test('does not double-apply the same cart item', () => {
+    const save = createSave({ warrior: { totalXP: 0, upgrades: ['slam'], shopCart: ['healing-draft'] } })
+    const player = { maxHp: 50, hp: 50, mana: 30, maxMana: 30, appliedShopItems: ['healing-draft'] }
+    MetaProgression.applyShopCartToPlayer(player, save)
+    assert.equal(player.maxHp, 50)
+  })
 })
 
 describe('MetaProgression buyUpgrade', () => {

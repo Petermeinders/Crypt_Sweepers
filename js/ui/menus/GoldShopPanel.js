@@ -62,7 +62,13 @@ export function openShop(deps) {
   UI.showGoldShop(
     s,
     SHOP_ITEMS,
-    (id) => { MetaProgression.buyShopItem(s, id); SaveManager.save(s); openShop(deps) },
+    (id) => {
+      MetaProgression.buyShopItem(s, id)
+      const run = GameController.getRun()
+      if (run?.player) MetaProgression.applyShopCartToPlayer(run.player, s)
+      SaveManager.save(s)
+      openShop(deps)
+    },
     (id) => { MetaProgression.removeShopItem(s, id); SaveManager.save(s); openShop(deps) },
   )
 }

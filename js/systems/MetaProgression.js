@@ -114,12 +114,15 @@ function buyGlobalPassive(save, id) {
 function canBuyShopItem(save, itemId) {
   const def = SHOP_ITEMS[itemId]
   if (!def) return false
-  if (save.warrior.shopCart.includes(itemId)) return false
+  const cart = save.warrior?.shopCart ?? []
+  if (cart.includes(itemId)) return false
   return save.persistentGold >= def.goldCost
 }
 
 function buyShopItem(save, itemId) {
   if (!canBuyShopItem(save, itemId)) return false
+  if (!save.warrior) save.warrior = { totalXP: 0, upgrades: ['slam'], shopCart: [] }
+  if (!Array.isArray(save.warrior.shopCart)) save.warrior.shopCart = []
   save.persistentGold -= SHOP_ITEMS[itemId].goldCost
   save.warrior.shopCart.push(itemId)
   Logger.info(`[MetaProgression] Shop item bought: ${itemId}`)
@@ -127,11 +130,48 @@ function buyShopItem(save, itemId) {
 }
 
 function removeShopItem(save, itemId) {
-  const idx = save.warrior.shopCart.indexOf(itemId)
+  const cart = save.warrior?.shopCart ?? []
+  const idx = cart.indexOf(itemId)
   if (idx === -1) return false
   save.warrior.shopCart.splice(idx, 1)
   save.persistentGold += SHOP_ITEMS[itemId].goldCost
   return true
+}
+
+function _applyShopItemEffect(player, effect) {
+  switch (effect.type) {
+    case 'bonus-hp-this-run':
+      player.maxHp += effect.amount
+      player.hp    += effect.amount
+      break
+    case 'bonus-mana-this-run':
+      player.maxMana += effect.amount
+      player.mana   += effect.amount
+      break
+    case 'bonus-starting-gold-run':
+      player.gold += effect.amount
+      break
+    case 'bonus-damage-reduction-run':
+      player.damageReduction += effect.amount
+      break
+    case 'extra-ability-choice':
+      player.extraAbilityChoice = true
+      break
+  }
+}
+
+/** Apply gold-shop cart consumables once per item per run (tracks player.appliedShopItems). */
+function applyShopCartToPlayer(player, save) {
+  const cart = save.warrior?.shopCart ?? []
+  if (!cart.length) return
+  if (!Array.isArray(player.appliedShopItems)) player.appliedShopItems = []
+  for (const id of cart) {
+    if (player.appliedShopItems.includes(id)) continue
+    const def = SHOP_ITEMS[id]
+    if (!def?.effect) continue
+    _applyShopItemEffect(player, def.effect)
+    player.appliedShopItems.push(id)
+  }
 }
 
 // ── Apply upgrades + shop cart to a fresh player object ──────
@@ -182,31 +222,7 @@ function applyToPlayer(player, save) {
     _applyUpgradeEffect(player, def.effect)
   }
 
-  // Gold shop cart (warrior only for now; shared pool)
-  for (const id of save.warrior.shopCart) {
-    const def = SHOP_ITEMS[id]
-    if (!def) continue
-    const { effect } = def
-    switch (effect.type) {
-      case 'bonus-hp-this-run':
-        player.maxHp += effect.amount
-        player.hp    += effect.amount
-        break
-      case 'bonus-mana-this-run':
-        player.maxMana += effect.amount
-        player.mana   += effect.amount
-        break
-      case 'bonus-starting-gold-run':
-        player.gold += effect.amount
-        break
-      case 'bonus-damage-reduction-run':
-        player.damageReduction += effect.amount
-        break
-      case 'extra-ability-choice':
-        player.extraAbilityChoice = true
-        break
-    }
-  }
+  applyShopCartToPlayer(player, save)
 }
 
 function _applyUpgradeEffect(player, effect) {
@@ -492,6 +508,7 @@ export default {
   canBuyVampireUpgrade,
   buyVampireUpgrade,
   applyToPlayer,
+  applyShopCartToPlayer,
   calcRunXP,
   endRun,
   WARRIOR_UPGRADES,

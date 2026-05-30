@@ -292,6 +292,7 @@ export function resumeRun(ctx) {
   session.run.player.isMage        = ch === 'mage'
   session.run.player.isVampire     = ch === 'vampire'
   session.run.player.isNecromancer = ch === 'necromancer'
+  MetaProgression.applyShopCartToPlayer(session.run.player, session.save)
   TileEngine.setDiagonalMovement(ch === 'mage')
   UI.hideMainMenu()
   EventBus.emit('audio:crossfade', { track: runMusicTrack(ctx), duration: 1500 })

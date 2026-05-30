@@ -41,6 +41,17 @@ describe('ProgressionSystem.getChoices', () => {
     })
   })
 
+  test("level 2 with Scholar's Notes (4 slots) pads with a stat when actives are exhausted", () => {
+    withRandomSequence([0.1, 0.2, 0.3], () => {
+      const player = { level: 2, abilities: [], unlockedActives: [] }
+      const meta = ['slam', 'blinding-light', 'divine-light']
+      const choices = ProgressionSystem.getChoices(player, 'warrior', meta, 4)
+      assert.equal(choices.length, 4)
+      assert.equal(choices.filter(c => c.kind === 'active').length, 3)
+      assert.equal(choices.filter(c => c.kind === 'stat').length, 1)
+    })
+  })
+
   test('frozen unlock state excludes already-unlocked actives from forced pool', () => {
     withRandomSequence([0.5], () => {
       const player = {

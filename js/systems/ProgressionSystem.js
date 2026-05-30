@@ -67,10 +67,23 @@ function getChoices(player, charKey = 'warrior', metaUnlockedIds = [], choiceCou
   const metaUnlockActives = allActives.filter(id => meta.has(id))
   const lockedActives     = metaUnlockActives.filter(id => !unlockedActives.has(id))
 
-  // First level-up (player.level just bumped to 2): force-pick from up to 3 actives, skip stats entirely.
+  // First level-up (player.level just bumped to 2): actives only, but Scholar's Notes may pad with stats.
   if (player.level === 2 && metaUnlockActives.length > 0) {
     const shuffled = metaUnlockActives.slice().sort(() => Math.random() - 0.5)
-    return shuffled.slice(0, Math.min(choiceCount, shuffled.length)).map(id => ({ id, kind: 'active' }))
+    const picked = shuffled
+      .slice(0, Math.min(choiceCount, shuffled.length))
+      .map(id => ({ id, kind: 'active' }))
+    if (picked.length < choiceCount && choiceCount >= 4 && picked.length === shuffled.length) {
+      const aMap = ABILITY_MAPS[charKey] ?? STAT_ABILITIES
+      const fillers = []
+      if (aMap.vitality) fillers.push({ id: 'vitality', kind: 'stat' })
+      if (aMap['arcane-reserve']) fillers.push({ id: 'arcane-reserve', kind: 'stat' })
+      for (const f of fillers) {
+        if (picked.length >= choiceCount) break
+        if (!picked.some(p => p.id === f.id)) picked.push(f)
+      }
+    }
+    return picked
   }
 
   const aMap = ABILITY_MAPS[charKey] ?? STAT_ABILITIES
