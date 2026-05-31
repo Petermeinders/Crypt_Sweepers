@@ -56,7 +56,7 @@ export const ITEMS = {
     blurb:     'Crossed hammer and wrench — just enough kit to tune an edge before the next fight.',
     details: [
       { icon: '⚔️', label: 'Effect',  desc: '+1 attack damage for the rest of this run' },
-      { icon: '📦', label: 'Chest',   desc: '~1% chance from normal or magic chests; consumed on find' },
+      { icon: '📦', label: 'Chest',   desc: '0.5% chance from normal or magic chests; consumed on find' },
     ],
     effect: { type: 'instant-damage-up', amount: 1 },
   },

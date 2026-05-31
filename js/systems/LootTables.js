@@ -36,8 +36,8 @@ export const BACKPACK_MAX_SLOTS = 9
 
 /** Cumulative chest roll thresholds (normal / magic). */
 const CHEST_THRESHOLDS = {
-  normal: { legendary: 0.005, epic: 0.015, rare: 0.035, smiths: 0.045 },
-  magic:  { legendary: 0.010, epic: 0.030, rare: 0.080, smiths: 0.090 },
+  normal: { legendary: 0.005, epic: 0.015, rare: 0.035, smiths: 0.040 },
+  magic:  { legendary: 0.010, epic: 0.030, rare: 0.080, smiths: 0.085 },
 }
 
 export function pickRandom(pool) {
@@ -81,7 +81,7 @@ function rollDelversKitTrinket(floor) {
 
 /** @param {{ hasItem: (id: string) => boolean, rand: (min: number, max: number) => number, floor?: number }} ctx */
 export function rollCommonLoot({ hasItem, rand }) {
-  // Weighted: potions more likely than utility items (smiths-tools removed — ~1% via dedicated band in chest rolls)
+  // Weighted: potions more likely than utility items (smiths-tools removed — 0.5% via dedicated band in chest rolls)
   const r = Math.random()
   if (r < 0.28) return { type: 'potion-red' }
   if (r < 0.50) return { type: 'potion-blue' }
@@ -101,7 +101,7 @@ function rollChestTrinketBand(r, floor, thresholds) {
   return null
 }
 
-/** Normal chest: 0.5% legendary (floor 10+), 1% epic, 2% rare, 1% Smith's Tools, 95.5% common. */
+/** Normal chest: 0.5% legendary (floor 10+), 1% epic, 2% rare, 0.5% Smith's Tools, 96% common. */
 export function rollChestLoot({ hasItem, rand, floor = 1 }) {
   if (hasItem('misers-pouch')) {
     return { type: 'gold', amount: rand(...CONFIG.chest.goldDrop) }
@@ -119,7 +119,7 @@ export function rollChestLoot({ hasItem, rand, floor = 1 }) {
   return rollCommonLoot({ hasItem, rand })
 }
 
-/** Magic chest: 1% legendary (floor 10+), 2% epic, 5% rare, 1% Smith's Tools, 91% common. */
+/** Magic chest: 1% legendary (floor 10+), 2% epic, 5% rare, 0.5% Smith's Tools, 91.5% common. */
 export function rollMagicChestLoot({ hasItem, rand, floor = 1 }) {
   const r = Math.random()
   const trinket = rollChestTrinketBand(r, floor, CHEST_THRESHOLDS.magic)
