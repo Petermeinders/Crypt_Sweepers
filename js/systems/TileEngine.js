@@ -454,9 +454,10 @@ function _generateRestGrid(floor) {
   const rows = 3
   const cols = 3
   _grid = []
+  const hasMerchant = Math.random() < 0.25
   const layout = [
     ['forge', 'anvil', 'magic_chest'],
-    ['rope',  'well',  'empty'],
+    ['rope',  'well',  hasMerchant ? 'merchant' : 'empty'],
     ['empty', 'exit',  'empty'],
   ]
   for (let r = 0; r < rows; r++) {

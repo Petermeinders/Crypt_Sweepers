@@ -365,6 +365,52 @@
   align-items: center;
 }
 
+.card-btn-drop-stack {
+  border-color: rgba(120, 80, 200, 0.6);
+  color: #c0a0ff;
+}
+.card-btn-drop-stack:hover {
+  border-color: rgba(160, 100, 220, 0.9);
+  color: #fff;
+}
+
+/* ── Forge section on item info cards ── */
+.card-forge-section {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 180, 60, 0.07);
+  border: 1px solid rgba(255, 180, 60, 0.25);
+  border-radius: 6px;
+}
+.card-forge-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #f0c060;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+.card-forge-row {
+  font-size: 0.8rem;
+  color: #d4c090;
+  margin-bottom: 4px;
+}
+.card-forge-hint {
+  display: block;
+  font-size: 0.72rem;
+  color: #9a8870;
+  margin-top: 2px;
+}
+
+/* ── Settings version badge ── */
+.settings-version-badge {
+  font-size: 0.68rem;
+  color: rgba(255,255,255,0.35);
+  margin-left: auto;
+  padding-right: 4px;
+  letter-spacing: 0.04em;
+}
+
 /* ── Attributes ── */
 .card-attrs {
   display: flex;
@@ -866,6 +912,30 @@
 }
 .htp-details-content .htp-meta-list { margin-top: 8px; }
 .htp-details-content .htp-tile-legend { margin-top: 8px; }
+
+/* ── How To Play: Forge recipe list ── */
+.htp-forge-recipe-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.htp-forge-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  grid-template-rows: auto auto;
+  gap: 2px 8px;
+  padding: 8px 10px;
+  background: rgba(255,180,60,0.05);
+  border: 1px solid rgba(255,180,60,0.18);
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+.htp-forge-ingredients { color: #d4c090; grid-column: 1; }
+.htp-forge-arrow { color: #f0c060; grid-column: 2; font-weight: 700; }
+.htp-forge-result { color: #f5e4a0; grid-column: 3; }
+.htp-forge-result strong { color: #ffd700; }
+.htp-forge-hint { font-size: 0.7rem; color: #9a8870; grid-column: 1 / -1; }
 .htp-disclaimer {
   font-size: 0.72rem;
   color: #777;
@@ -3386,6 +3456,24 @@
   padding: 6px 12px;
   width: auto;
   max-width: none;
+}
+
+.merchant-shop-item {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.merchant-no-room {
+  font-size: 0.75rem;
+  color: #e87a5c;
+  font-weight: 600;
+  padding: 2px 0;
+}
+
+.merchant-buy-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 /* ── Gambler ─────────────────────────────────────────────────── */

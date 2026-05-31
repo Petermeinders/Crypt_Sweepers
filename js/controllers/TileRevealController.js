@@ -576,8 +576,8 @@ export async function openChest(ctx, tile) {
     }
   }, GIF_DURATION)
 
-  // 10% chance for an additional gear drop from chests
-  ctx.tryGearDrop(session.run.floor, 0.10)
+  // 2.5% chance for an additional gear drop from chests (reduced from 10%)
+  ctx.tryGearDrop(session.run.floor, 0.025)
 
   tile.chestLooted = true
 }
@@ -593,7 +593,10 @@ export function resolveEffect(ctx, tile) {
       if (session.run.player.inventory.some(e => e?.id === 'tomb-tithe') || session.run.player.inventory.some(e => e?.id === 'delvers-kit')) {
         ctx.gainGold(1, tile.element)
         UI.setMessage('🪦 The tomb pays its tithe — +1 gold.')
-      } else if (session.run.player.inventory.some(e => e?.id === 'scavengers-bag') && Math.random() < 0.05) {
+      } else if ((() => {
+        const bagCount = session.run.player.inventory.filter(e => e?.id === 'scavengers-bag').reduce((sum, e) => sum + (e?.qty ?? 1), 0)
+        return bagCount > 0 && Array.from({ length: bagCount }).some(() => Math.random() < 0.05)
+      })()) {
         ctx.gainGold(1, tile.element)
         UI.setMessage("Your scavenger's bag catches a glint — +1 gold!")
       } else {
@@ -789,6 +792,11 @@ export function resolveEffect(ctx, tile) {
 
     case 'hole':
       UI.setMessage('A gaping pit blocks the way. Find another path.')
+      break
+
+    case 'merchant':
+      UI.setMessage('🛒 A travelling merchant is here. Tap to browse their wares.')
+      UI.showRetreat()
       break
 
     case 'event':

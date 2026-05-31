@@ -12,6 +12,8 @@ import {
   pickRandom,
 } from '../systems/LootTables.js'
 import { session } from '../core/RunContext.js'
+import SaveManager from '../save/SaveManager.js'
+import { adjustScrap } from './GearController.js'
 
 export function openEvent(ctx, tile) {
   if (tile.eventResolved) return
@@ -48,30 +50,86 @@ function rollMerchantTrinket(ctx) {
   return ctx.pickRandom(pool)
 }
 
-function openMerchantShop(ctx, tile) {
+function openMerchantShop(ctx, tile, opts = {}) {
+  const p = session.run.player
   const trinketId = rollMerchantTrinket(ctx)
   const items = MERCHANT_ITEMS.map(def => ({
     ...def,
     id: def.id === '__trinket__' ? trinketId : def.id,
     label: def.id === '__trinket__' ? (ITEMS[trinketId]?.name ?? 'Mystery Relic') : def.label,
   }))
-  UI.showMerchantShop(session.run.player.gold, items, (itemId) => doMerchantBuy(ctx, tile, itemId, items), () => {
-    if (!GameState.is(States.DEATH)) UI.setMessage('The merchant watches you leave.')
-    closeEventSession(ctx, tile)
-  })
+
+  // 50% chance the merchant has scrap for sale (sanctuary only, or always if opts.sanctuary)
+  if (tile._merchantScrapStock === undefined) {
+    tile._merchantScrapStock = Math.random() < 0.5 ? 20 : 0
+  }
+  if (tile._merchantScrapStock > 0) {
+    items.push({ id: '__scrap__', label: `Scrap ×1 — ${tile._merchantScrapStock} left ⚠️ may not return`, price: 25 })
+  }
+
+  const _canBuy = (itemId) => {
+    if (itemId === '__scrap__') return true
+    const hasCoin = p.inventory.some(e => e?.id === 'philosophers-coin')
+    const isCoinConvert = hasCoin && (itemId === 'potion-red' || itemId === 'potion-blue' || itemId === 'potion-mystery')
+    return isCoinConvert || ctx.canAddToBackpack(itemId)
+  }
+
+  const onLeave = opts.sanctuary
+    ? () => {
+        if (GameState.is(States.NPC_INTERACT)) GameState.transition(States.FLOOR_EXPLORE)
+        UI.hideEventOverlays()
+        if (!GameState.is(States.DEATH)) UI.setMessage('The merchant waves farewell.')
+      }
+    : () => {
+        if (!GameState.is(States.DEATH)) UI.setMessage('The merchant watches you leave.')
+        closeEventSession(ctx, tile)
+      }
+
+  const refreshShop = () => {
+    const freshItems = items.filter(i => i.id !== '__scrap__' || tile._merchantScrapStock > 0)
+    if (tile._merchantScrapStock > 0) {
+      const scrapEntry = freshItems.find(i => i.id === '__scrap__')
+      if (scrapEntry) scrapEntry.label = `Scrap ×1 — ${tile._merchantScrapStock} left ⚠️ may not return`
+    }
+    UI.showMerchantShop(p.gold, freshItems, (itemId) => doMerchantBuy(ctx, tile, itemId, freshItems, refreshShop), onLeave, { canBuy: _canBuy })
+  }
+  refreshShop()
 }
 
-async function doMerchantBuy(ctx, tile, itemId, items) {
+/** Opens the sanctuary merchant tile — revisitable, does not mark the tile as resolved. */
+export function openSanctuaryMerchant(ctx, tile) {
+  if (!GameState.transition(States.NPC_INTERACT)) return
+  EventBus.emit('audio:play', { sfx: 'merchant' })
+  openMerchantShop(ctx, tile, { sanctuary: true })
+}
+
+async function doMerchantBuy(ctx, tile, itemId, items, refreshShop) {
   const p = session.run.player
   const def = items.find(i => i.id === itemId)
   if (!def) return
   if (p.gold < def.price) { UI.setMessage('Not enough gold!', true); return }
 
+  // Handle scrap purchase
+  if (itemId === '__scrap__') {
+    if (!tile._merchantScrapStock || tile._merchantScrapStock <= 0) {
+      UI.setMessage('No scrap left in stock!', true); return
+    }
+    p.gold -= def.price
+    UI.updateGold(p.gold)
+    adjustScrap(1)
+    tile._merchantScrapStock--
+    EventBus.emit('audio:play', { sfx: 'chest' })
+    UI.setMessage(`You purchase 1 scrap. (${tile._merchantScrapStock} left)`)
+    SaveManager.save(session.save).catch(() => {})
+    refreshShop?.()
+    return
+  }
+
   const hasCoin = p.inventory.some(e => e?.id === 'philosophers-coin')
   const isCoinConvert = hasCoin && (itemId === 'potion-red' || itemId === 'potion-blue' || itemId === 'potion-mystery')
   // Pre-check backpack room so gold is never deducted for an item that can't be received
   if (!isCoinConvert && !ctx.canAddToBackpack(itemId)) {
-    UI.setMessage("Backpack is full — make room before buying!", true)
+    UI.setMessage("🎒 No room in backpack — make room before buying!", true)
     return
   }
 
@@ -86,8 +144,8 @@ async function doMerchantBuy(ctx, tile, itemId, items) {
   } else {
     UI.setMessage(`You purchase the ${def.label}.`)
   }
-  // Refresh shop display with updated gold
-  UI.refreshMerchantShopGold(p.gold)
+  // Refresh shop display with updated gold and backpack state
+  refreshShop?.()
 }
 
 function openGamblerEvent(ctx, tile) {

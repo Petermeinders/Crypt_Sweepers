@@ -585,18 +585,72 @@ export function dropItem(ctx, id, inventoryIndex = null) {
   EventBus.emit('audio:play', { sfx: 'menu' })
 }
 
-/** Swap a backpack trinket slot for a new pickup (full-backpack replace flow). */
+/** Drop all items in a stack at index (e.g. dispose of an entire potion stack). */
+export function dropStackAtIndex(ctx, index) {
+  if (!session.run) return
+  const inv = session.run.player.inventory
+  const entry = inv[index]
+  if (!entry?.id) return
+  const id = entry.id
+  const qty = entry.qty ?? 1
+  const item = ITEMS[id]
+  revertTrinketEquipEffects(ctx, id)
+  const goldGain = (trinketTrashGoldYield(item) ?? 0) * qty
+  const scrapGain = (trinketTrashScrapYield(item) ?? 0) * qty
+  inv.splice(inv.indexOf(entry), 1)
+  if (goldGain) ctx.gainGold(goldGain, document.getElementById('hud-portrait'), true)
+  if (scrapGain) adjustScrap(scrapGain)
+  const rewards = []
+  if (goldGain) rewards.push(`${goldGain} gold`)
+  if (scrapGain) rewards.push(`${scrapGain} scrap`)
+  const rewardNote = rewards.length ? ` (+${rewards.join(', ')})` : ''
+  UI.setMessage(item ? `Dropped all ${qty}× ${item.name}.${rewardNote}` : 'Stack removed.')
+  EventBus.emit('audio:play', { sfx: 'menu' })
+  EventBus.emit('inventory:changed')
+}
+
+/** Swap any backpack slot for a gear piece (full-backpack gear pickup; any slot type). */
+export function forceReplaceSlotWithGear(ctx, index, piece) {
+  if (!session.run || !piece) return
+  const inv = session.run.player.inventory
+  const old = inv[index]
+  if (!old) return
+
+  if (old.slot) {
+    // Old item is gear — give scrap for trashing it
+    if (old.uid) adjustScrap(CONFIG.blacksmith?.trashScrapYield?.[old.tier] ?? 1)
+  } else if (old.id) {
+    // Old item is trinket/potion — revert passive effects, give any trash rewards
+    revertTrinketEquipEffects(ctx, old.id)
+    const goldGain = trinketTrashGoldYield(ITEMS[old.id])
+    const scrapGain = trinketTrashScrapYield(ITEMS[old.id])
+    if (goldGain) ctx.gainGold(goldGain, document.getElementById('hud-portrait'), true)
+    if (scrapGain) adjustScrap(scrapGain)
+  }
+
+  inv[index] = piece
+  EventBus.emit('inventory:changed')
+  EventBus.emit('gear:pickedUp')
+  UI.setMessage(`${piece.name} placed in backpack.`)
+}
+
+/** Swap a backpack slot for a new pickup (full-backpack replace flow). Handles both trinkets and gear. */
 export async function forceReplaceItemAtIndex(ctx, index, newId) {
   if (!session.run) return
   const inv = session.run.player.inventory
   const old = inv[index]
-  if (!old || old.slot) return
+  if (!old) return
   const item = ITEMS[newId]
   if (!item) return
 
-  revertTrinketEquipEffects(ctx, old.id)
-  const scrapGain = trinketTrashScrapYield(ITEMS[old.id])
-  if (scrapGain) adjustScrap(scrapGain)
+  if (old.slot) {
+    // Old item is gear — give scrap for trashing it
+    if (old.uid) adjustScrap(CONFIG.blacksmith?.trashScrapYield?.[old.tier] ?? 1)
+  } else {
+    revertTrinketEquipEffects(ctx, old.id)
+    const scrapGain = trinketTrashScrapYield(ITEMS[old.id])
+    if (scrapGain) adjustScrap(scrapGain)
+  }
 
   inv[index] = { id: newId, qty: 1 }
 

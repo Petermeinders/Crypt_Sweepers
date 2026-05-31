@@ -7,10 +7,11 @@ export const TILE_DEFS = {
   enemy:      { emoji: '💀',   label: 'enemy',      cssClass: 'type-enemy',      weight: 22, isEnemy: true,  enemyType: 'skeleton'    },
   enemy_fast: { emoji: '⚡',   label: 'fast!',      cssClass: 'type-enemy-fast', weight:  7, isEnemy: true,  enemyType: 'goblin' },
   gold:       { emoji: '🪙',   label: '',           cssClass: 'type-gold',       weight: 16, isEnemy: false },
-  chest:      { emoji: '📦',   label: '',           cssClass: 'type-chest',      weight:  7, isEnemy: false },
+  chest:      { emoji: '📦',   label: '',           cssClass: 'type-chest',      weight:  2, isEnemy: false },
   trap:       { emoji: '🕸️',   label: '',           cssClass: 'type-trap',       weight:  5, isEnemy: false },
   heart:      { emoji: '❤️',   label: 'heart',      cssClass: 'type-heart',      weight:  2, isEnemy: false },
-  event:      { emoji: '❓',   label: 'event',      cssClass: 'type-event',      weight:  3, isEnemy: false },
+  event:      { emoji: '❓',   label: 'event',      cssClass: 'type-event',      weight:  1, isEnemy: false },
+  merchant:   { emoji: '🛒',   label: 'Merchant',   cssClass: 'type-merchant',   weight:  0, isEnemy: false },
   blockage:   { emoji: '🪨',   label: '',           cssClass: 'type-blockage',   weight:  4, isEnemy: false },
   /** Open pit — impassable like rubble, but always visible (no flip). */
   hole:       { emoji: '🕳️',  label: '',           cssClass: 'type-hole',       weight:  4, isEnemy: false },

@@ -661,6 +661,7 @@
     <div class="panel-header">
       <button class="panel-back-btn" id="settings-back">← Back</button>
       <div class="panel-title">Settings</div>
+      <div class="settings-version-badge" id="settings-cache-version"></div>
     </div>
     <div class="panel-list">
 
@@ -1147,6 +1148,16 @@
             </div>
             <p class="htp-text--flush" style="margin-top:8px">Scrap also comes from <strong>trashing gear mid-run</strong> from your backpack (smaller yield). Plan which pieces to keep, upgrade, or break down as your build takes shape.</p>
             <div class="htp-tip">💡 The in-dungeon <strong>Sanctuary Forge</strong> (trinket tile) is different — it merges two trinkets into a forged relic, not gear upgrades.</div>
+          </div>
+        </details>
+
+        <details class="htp-details">
+          <summary>⚒️ Sanctuary Forge — Trinket Recipes</summary>
+          <div class="htp-details-content">
+            <p class="htp-text--flush">Combine two trinkets at the <strong>Sanctuary Forge</strong> tile to create a powerful merged relic. Both ingredients are consumed. Hold any trinket in your backpack to see if it has a forge combination.</p>
+            <div id="htp-forge-recipe-list" class="htp-forge-recipe-list">
+              <p class="htp-text--flush" style="color:#aaa;font-style:italic">Loading recipes…</p>
+            </div>
           </div>
         </details>
 

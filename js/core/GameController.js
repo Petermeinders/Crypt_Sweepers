@@ -126,6 +126,7 @@ function _eventCtx() {
   }
 }
 const _openEvent = (tile) => EventTileController.openEvent(_eventCtx(), tile)
+const _openSanctuaryMerchant = (tile) => EventTileController.openSanctuaryMerchant(_eventCtx(), tile)
 const _closeEventSession = (tile) => EventTileController.closeEventSession(_eventCtx(), tile)
 
 function _subFloorCtx() {
@@ -1033,6 +1034,7 @@ function _tapCtx() {
     confirmExit: _confirmExit,
     confirmRope: _confirmRope,
     openEvent: _openEvent,
+    openSanctuaryMerchant: _openSanctuaryMerchant,
     climbThroughHazard: _climbThroughHazard,
     necroRaiseMinion: _necroRaiseMinion,
     fightAction,
@@ -2212,6 +2214,8 @@ function useItem(id, inventoryIndex = null) { InventoryController.useItem(_inven
 function useItemAtIndex(index) { InventoryController.useItemAtIndex(_inventoryCtx(), index) }
 function dropItem(id, inventoryIndex = null) { InventoryController.dropItem(_inventoryCtx(), id, inventoryIndex) }
 function dropItemAtIndex(index) { InventoryController.dropItemAtIndex(_inventoryCtx(), index) }
+function dropStackAtIndex(index) { InventoryController.dropStackAtIndex(_inventoryCtx(), index) }
+function forceReplaceSlotWithGear(index, piece) { InventoryController.forceReplaceSlotWithGear(_inventoryCtx(), index, piece) }
 function consolidateStackables() { return InventoryController.consolidateStackables(_inventoryCtx()) }
 async function forceReplaceItem(oldId, newId) { return InventoryController.forceReplaceItem(_inventoryCtx(), oldId, newId) }
 async function forceReplaceItemAtIndex(index, newId) { return InventoryController.forceReplaceItemAtIndex(_inventoryCtx(), index, newId) }
@@ -2768,6 +2772,8 @@ export default {
   useItemAtIndex,
   dropItem,
   dropItemAtIndex,
+  dropStackAtIndex,
+  forceReplaceSlotWithGear,
   consolidateStackables,
   forceReplaceItem,
   forceReplaceItemAtIndex,

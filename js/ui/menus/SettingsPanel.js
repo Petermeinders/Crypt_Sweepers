@@ -50,6 +50,8 @@ function _populateSettingsForm(s) {
 function _openSettingsOverlay(ctx) {
   _populateSettingsForm(ctx.GameController.getSave())
   _refreshRunBackupSection(ctx)
+  const versionEl = document.getElementById('settings-cache-version')
+  if (versionEl && !versionEl.textContent) versionEl.textContent = 'v459'
   document.getElementById('settings-overlay').classList.remove('hidden')
 }
 

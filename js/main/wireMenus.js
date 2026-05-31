@@ -5,6 +5,8 @@ import { wireHeroSelect, openHeroSelect, updateMenuHeroPreview } from '../ui/men
 import { wireSettingsPanel } from '../ui/menus/SettingsPanel.js'
 import { applyImportedSave } from '../ui/menus/saveTransfer.js'
 import Logger from '../core/Logger.js'
+import { FORGE_RECIPES } from '../data/combinations.js'
+import { ITEMS } from '../data/items.js'
 
 let deferredInstallPrompt = null
 
@@ -45,6 +47,26 @@ function wireInstallNudge() {
   }
 }
 
+function _populateForgeRecipeList() {
+  const container = document.getElementById('htp-forge-recipe-list')
+  if (!container || container.dataset.populated) return
+  container.dataset.populated = '1'
+  container.innerHTML = FORGE_RECIPES.map(r => {
+    const nameA = ITEMS[r.ingredientA]?.name ?? r.ingredientA
+    const nameB = ITEMS[r.ingredientB]?.name ?? r.ingredientB
+    const resultName = ITEMS[r.result]?.name ?? r.result
+    const isDupe = r.ingredientA === r.ingredientB
+    const ingredients = isDupe ? `${nameA} ×2` : `${nameA} + ${nameB}`
+    return `
+      <div class="htp-forge-row">
+        <div class="htp-forge-ingredients">${ingredients}</div>
+        <div class="htp-forge-arrow">→</div>
+        <div class="htp-forge-result"><strong>${resultName}</strong></div>
+        <div class="htp-forge-hint">${r.hint}</div>
+      </div>`
+  }).join('')
+}
+
 /** Main menu, pause overlays, export/import, PWA nudge, boot finale. */
 export function wireMenus(ctx) {
   const { GameController, SaveManager, MetaProgression, UI, EventBus } = ctx
@@ -69,12 +91,12 @@ export function wireMenus(ctx) {
 
   document.getElementById('new-run-btn').addEventListener('click', () => ctx.GameController.newGame())
 
-  document.getElementById('how-to-play-btn')?.addEventListener('click', () => {
+  const _openHowToPlay = () => {
+    _populateForgeRecipeList()
     document.getElementById('how-to-play-overlay')?.classList.remove('hidden')
-  })
-  document.getElementById('hud-how-to-play-btn')?.addEventListener('click', () => {
-    document.getElementById('how-to-play-overlay')?.classList.remove('hidden')
-  })
+  }
+  document.getElementById('how-to-play-btn')?.addEventListener('click', _openHowToPlay)
+  document.getElementById('hud-how-to-play-btn')?.addEventListener('click', _openHowToPlay)
   document.getElementById('how-to-play-back')?.addEventListener('click', () => {
     document.getElementById('how-to-play-overlay')?.classList.add('hidden')
   })

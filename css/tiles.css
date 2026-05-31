@@ -776,7 +776,8 @@ body.tile-colors .tile-front.type-rope {
 .tile.revealed.tile-type-checkpoint,
 .tile.revealed.tile-type-well,
 .tile.revealed.tile-type-anvil,
-.tile.revealed.tile-type-forge {
+.tile.revealed.tile-type-forge,
+.tile.revealed.tile-type-merchant {
   pointer-events: all;
   cursor: pointer;
 }

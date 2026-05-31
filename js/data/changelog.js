@@ -5,6 +5,48 @@
 export const CHANGELOG = [
   {
     dateLabel: 'May 2026',
+    dateIso:   '2026-05-30',
+    version:   'v450',
+    title:     'Travelling merchant, trade overhaul & inventory QoL',
+    summary:
+      'The travelling merchant now stocks scrap and no longer clutters the magic chest with potions. Trade swaps accept any backpack item, gear shows a stat comparison when swapped, and you can drop a whole potion stack at once. The How to Play screen gains a crafting recipe list, and the Scavenger\'s Bag stacks gold correctly.',
+    items: [
+      {
+        tag:  'Balance',
+        text: 'Magic chest — potions no longer appear as chest rewards. The chest pool now focuses on equipment, trinkets, and resources.',
+      },
+      {
+        tag:  'New',
+        text: 'Travelling merchant update — the merchant\'s stock has been refreshed with new items and adjusted pricing.',
+      },
+      {
+        tag:  'UI',
+        text: 'How to Play — a crafting recipe list has been added so you can look up forge combinations mid-run.',
+      },
+      {
+        tag:  'Fix',
+        text: 'Dropping potions — you can now drop an entire potion stack at once instead of one at a time.',
+      },
+      {
+        tag:  'Fix',
+        text: 'Trade swaps — any item in your backpack can now be offered in a trade swap, not just specific item types.',
+      },
+      {
+        tag:  'UI',
+        text: 'Gear compare on swap — when a trade or chest offers gear, a stat comparison modal shows how it differs from your equipped piece before you commit.',
+      },
+      {
+        tag:  'New',
+        text: 'Travelling merchant — now has a chance to stock scrap, giving crafters a reliable way to source forge materials.',
+      },
+      {
+        tag:  'Fix',
+        text: 'Scavenger\'s Bag — gold pickups now stack correctly in the bag instead of filling separate slots.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'May 2026',
     dateIso:   '2026-05-29',
     version:   'v449',
     title:     'Safe Pocket, backpack fixes & forge polish',

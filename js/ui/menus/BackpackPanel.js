@@ -35,17 +35,24 @@ export function renderBackpack(ctx, opts = {}) {
     },
     (index) => {
       if (replaceMode) return
-      const id = GameController.getInventory()[index]?.id
+      const entry = GameController.getInventory()[index]
+      const id = entry?.id
       const item = ITEMS[id]
       if (!item) return
+      const qty = entry?.qty ?? 1
       UI.showInfoCard(
-        { ...item },
+        { ...item, id, _qty: qty },
         {
           onDrop: () => {
             GameController.dropItemAtIndex(index)
             UI.hideInfoCard()
             renderBackpack(ctx)
           },
+          onDropStack: qty > 1 ? () => {
+            GameController.dropStackAtIndex(index)
+            UI.hideInfoCard()
+            renderBackpack(ctx)
+          } : undefined,
         },
       )
     },
@@ -119,19 +126,26 @@ export function openBackpackFullGear(ctx, piece) {
     onTrash: () => clearPendingGear(ctx),
   })
 
-  renderBackpack(ctx, { filterSlot: piece.slot })
+  renderBackpack(ctx)
   setBackpackOpen(ctx, true)
   const SLOT_ICONS = { weapon: '⚔️', breastplate: '🧥', offhand: '🛡️' }
   const icon = SLOT_ICONS[piece.slot] ?? '🎁'
-  UI.setMessage(`${icon} ${piece.name} found — backpack full! Tap matching gear to swap, or trash the new item.`, true)
+  UI.setMessage(`${icon} ${piece.name} found — backpack full! Tap any slot to swap (gear shows compare first), or trash the new item.`, true)
 }
 
 function doReplaceGearAtIndex(ctx, index) {
   const piece = _pendingGearPiece
   if (!piece) return
-  clearPendingGear(ctx)
-  ctx.GameController.acceptPendingGearAtSlot(index, piece)
-  renderBackpack(ctx)
+  const existing = ctx.GameController.getInventory()[index]
+  if (existing?.slot) {
+    // Gear-on-gear: show compare modal first; confirm/cancel handled there
+    ctx.openGearPickupCompareModal(index)
+  } else {
+    // Non-gear (trinket/potion): immediate swap
+    clearPendingGear(ctx)
+    ctx.GameController.forceReplaceSlotWithGear(index, piece)
+    renderBackpack(ctx)
+  }
 }
 
 function doSwapWithEquipped(ctx) {

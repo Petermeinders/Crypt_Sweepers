@@ -24,19 +24,25 @@ export function openGearPickupCompareModal(ctx, inventoryIndex) {
 
   const inventory = GameController.getInventory()
   const oldPiece = inventory[inventoryIndex]
-  if (!oldPiece?.slot || oldPiece.slot !== pending.slot) return
+  if (!oldPiece?.slot) return
 
   UI.renderCompareModal(
     pending,
     oldPiece,
     () => {
+      // Confirm: swap the gear pieces
       GameController.acceptPendingGearAtSlot(inventoryIndex, pending)
       ctx.clearPendingGear?.()
       UI.hideCompareModal()
       ctx.renderBackpack()
     },
-    () => UI.hideCompareModal(),
     () => {
+      // Back: return to backpack slot selection
+      UI.hideCompareModal()
+      ctx.renderBackpack?.()
+    },
+    () => {
+      // Trash pending gear: discard the new piece
       ctx.clearPendingGear?.()
       UI.hideCompareModal()
       UI.setMessage(`${pending.name} discarded.`)

@@ -535,6 +535,8 @@ export function onTileTap(ctx, row, col) {
       ctx.confirmExit(tile)
     } else if (tile.revealed && tile.type === 'rope' && !tile.ropeResolved) {
       ctx.confirmRope(tile)
+    } else if (tile.revealed && tile.type === 'merchant') {
+      ctx.openSanctuaryMerchant(tile)
     } else if (tile.revealed && tile.type === 'event' && !tile.eventResolved) {
       ctx.openEvent(tile)
     } else if (tile.revealed && tile.type === 'hole') {

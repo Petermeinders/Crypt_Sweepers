@@ -119,10 +119,21 @@ export function rollChestLoot({ hasItem, rand, floor = 1 }) {
   return rollCommonLoot({ hasItem, rand })
 }
 
-/** Magic chest: 1% legendary (floor 10+), 2% epic, 5% rare, 0.5% Smith's Tools, 91.5% common. */
+/** Magic chest common pool — excludes potions; focuses on utility items and gold. */
+function rollMagicChestCommonLoot({ rand }) {
+  const r = Math.random()
+  if (r < 0.25) return { type: 'lantern' }
+  if (r < 0.45) return { type: 'dowsing-rod' }
+  if (r < 0.63) return { type: 'spyglass' }
+  if (r < 0.80) return { type: 'scavengers-bag' }
+  if (r < 0.88) return { type: 'smiths-tools' }
+  return { type: 'gold', amount: rand(...CONFIG.chest.goldDrop) }
+}
+
+/** Magic chest: 1% legendary (floor 10+), 2% epic, 5% rare, 0.5% Smith's Tools, 91.5% non-potion common. */
 export function rollMagicChestLoot({ hasItem, rand, floor = 1 }) {
   const r = Math.random()
   const trinket = rollChestTrinketBand(r, floor, CHEST_THRESHOLDS.magic)
   if (trinket) return trinket
-  return rollCommonLoot({ hasItem, rand })
+  return rollMagicChestCommonLoot({ rand })
 }

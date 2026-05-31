@@ -9,6 +9,7 @@ import { ITEMS } from '../data/items.js'
 import EventBus from '../core/EventBus.js'
 import { ENEMY_SPRITES, MONSTER_ICONS_BASE } from '../data/tileIcons.js'
 import { el, fillBestiaryCreatureParts, fillTrinketCard, drawSettledDice, PORTRAIT_ANIM } from './uiShared.js'
+import { FORGE_RECIPES } from '../data/combinations.js'
 
 const CMP_GEAR_IMGS = {
   weapon:     { default: 'assets/sprites/Items/sword.png', common: 'assets/sprites/gear/weapon/common.webp', rare: 'assets/sprites/gear/weapon/rare.webp', epic: 'assets/sprites/gear/weapon/epic.webp', legendary: 'assets/sprites/gear/weapon/legendary.webp' },
@@ -168,6 +169,21 @@ export const ModalsMethods = {
       `<div class="card-attr"><span class="card-attr-icon">${d.icon}</span><div class="card-attr-text"><span class="card-attr-name">${d.label}</span>${d.desc ? `<span class="card-attr-desc">${d.desc}</span>` : ''}</div></div>`
     ).join('')
 
+    const forgeMatches = data.id
+      ? FORGE_RECIPES.filter(r => r.ingredientA === data.id || r.ingredientB === data.id)
+      : []
+    const forgeHTML = forgeMatches.length
+      ? `<div class="card-forge-section"><div class="card-forge-title">🔨 Forge Combinations</div>${
+          forgeMatches.map(r => {
+            const otherId = r.ingredientA === data.id ? r.ingredientB : r.ingredientA
+            const isDupe = r.ingredientA === r.ingredientB
+            const otherName = isDupe ? (ITEMS[otherId]?.name ?? otherId) : (ITEMS[otherId]?.name ?? otherId)
+            const resultName = ITEMS[r.result]?.name ?? r.result
+            return `<div class="card-forge-row">${isDupe ? '×2' : '+ ' + otherName} → <strong>${resultName}</strong><span class="card-forge-hint">${r.hint}</span></div>`
+          }).join('')
+        }</div>`
+      : ''
+
     const attrHTML = (data.attributes ?? []).map(a => {
       const info = ATTR_LABELS[a] ?? { icon: '•', label: a, desc: '' }
       return `<div class="card-attr"><span class="card-attr-icon">${info.icon}</span><div class="card-attr-text"><span class="card-attr-name">${info.label}</span>${info.desc ? `<span class="card-attr-desc">${info.desc}</span>` : ''}</div></div>`
@@ -211,6 +227,7 @@ export const ModalsMethods = {
       <p class="card-blurb">${data.blurb}</p>
       ${detailsHTML ? `<div class="card-attrs">${detailsHTML}</div>` : ''}
       ${attrHTML ? `<div class="card-attrs">${attrHTML}</div>` : ''}
+      ${forgeHTML}
       ${typeof opts.onDrop === 'function'
         ? `<div class="card-actions"></div>`
         : ''}
@@ -219,8 +236,12 @@ export const ModalsMethods = {
     if (typeof opts.onDrop === 'function') {
       const dropSuffix = trinketTrashDropSuffix(data)
       const rewardText = trinketTrashRewardText(data)
+      const hasStack = typeof opts.onDropStack === 'function' && (data._qty ?? 1) > 1
       const _wireDropBtn = (actions) => {
-        actions.innerHTML = `<button type="button" class="card-btn card-btn-drop">Drop${dropSuffix}</button>`
+        actions.innerHTML = `
+          <button type="button" class="card-btn card-btn-drop">Drop${dropSuffix}</button>
+          ${hasStack ? `<button type="button" class="card-btn card-btn-drop-stack">Drop Stack (${data._qty})</button>` : ''}
+        `
         actions.querySelector('.card-btn-drop').addEventListener('click', (e) => {
           e.stopPropagation()
           actions.innerHTML = `
@@ -238,6 +259,25 @@ export const ModalsMethods = {
             _wireDropBtn(actions)
           })
         })
+        if (hasStack) {
+          actions.querySelector('.card-btn-drop-stack')?.addEventListener('click', (e) => {
+            e.stopPropagation()
+            actions.innerHTML = `
+              <span class="card-drop-confirm-label">Drop entire stack of ${data._qty}?</span>
+              <div class="card-drop-confirm-btns">
+                <button type="button" class="card-btn card-btn-drop-confirm">Yes, drop all</button>
+                <button type="button" class="card-btn card-btn-drop-cancel">Cancel</button>
+              </div>`
+            actions.querySelector('.card-btn-drop-confirm').addEventListener('click', (e2) => {
+              e2.stopPropagation()
+              opts.onDropStack()
+            })
+            actions.querySelector('.card-btn-drop-cancel').addEventListener('click', (e2) => {
+              e2.stopPropagation()
+              _wireDropBtn(actions)
+            })
+          })
+        }
       }
       const actions = el.infoCard.querySelector('.card-actions')
       if (actions) _wireDropBtn(actions)
@@ -439,7 +479,7 @@ export const ModalsMethods = {
 
       if (isGear(entry)) {
         const filteredOut = filterSlot && entry.slot !== filterSlot
-        if (filterTrinket || filteredOut || (replaceMode && !gearPickupMode)) {
+        if (filterTrinket || filteredOut) {
           slot.className = 'backpack-slot backpack-cell-filtered-out'
           grid.appendChild(slot)
           return
@@ -453,6 +493,9 @@ export const ModalsMethods = {
         if (gearPickupMode && onReplaceGearIndex) {
           slot.classList.add('replace-target')
           slot.addEventListener('click', () => onReplaceGearIndex(index))
+        } else if (replaceMode && onReplaceIndex) {
+          slot.classList.add('replace-target')
+          slot.addEventListener('click', () => onReplaceIndex(index))
         } else {
           slot.addEventListener('click', () => onCompare?.(index))
         }
@@ -1639,26 +1682,35 @@ export const ModalsMethods = {
     }
   },
 
-  showMerchantShop(playerGold, items, onBuy, onLeave) {
+  showMerchantShop(playerGold, items, onBuy, onLeave, { canBuy } = {}) {
     const ov = el.merchantShopOverlay
     if (!ov) return
     const goldEl = ov.querySelector('#merchant-shop-gold')
     if (goldEl) goldEl.textContent = playerGold
     const list = ov.querySelector('#merchant-shop-list')
     if (list) {
-      list.innerHTML = items.map(item => `
-        <div class="merchant-shop-item" data-id="${item.id}">
-          <div class="merchant-shop-item-name">${item.label}</div>
-          <button class="menu-btn secondary merchant-buy-btn" data-id="${item.id}" ${playerGold < item.price ? 'disabled' : ''}>
-            Buy — ${item.price}🪙
-          </button>
-        </div>
-      `).join('')
+      list.innerHTML = items.map(item => {
+        const goldOk = playerGold >= item.price
+        const buyOk = goldOk && (!canBuy || canBuy(item.id))
+        const noRoomHtml = goldOk && !buyOk
+          ? `<div class="merchant-no-room">🎒 No room in backpack!</div>`
+          : ''
+        return `
+          <div class="merchant-shop-item" data-id="${item.id}">
+            <div class="merchant-shop-item-name">${item.label}</div>
+            ${noRoomHtml}
+            <button class="menu-btn secondary merchant-buy-btn" data-id="${item.id}" ${!buyOk ? 'disabled' : ''}>
+              Buy — ${item.price}🪙
+            </button>
+          </div>
+        `
+      }).join('')
       list.querySelectorAll('.merchant-buy-btn').forEach(btn => {
         btn.onclick = () => onBuy(btn.dataset.id)
       })
     }
-    ov.querySelector('#merchant-shop-leave')?.addEventListener('click', onLeave, { once: true })
+    const leaveBtn = ov.querySelector('#merchant-shop-leave')
+    if (leaveBtn) leaveBtn.onclick = onLeave
     ov.classList.remove('hidden')
   },
 
@@ -1668,7 +1720,7 @@ export const ModalsMethods = {
     const goldEl = ov.querySelector('#merchant-shop-gold')
     if (goldEl) goldEl.textContent = gold
     ov.querySelectorAll('.merchant-buy-btn').forEach(btn => {
-      const price = parseInt(btn.textContent.match(/\d+/)?.[0] ?? '0')
+      const price = parseInt(btn.closest('.merchant-shop-item')?.querySelector('.menu-btn')?.textContent?.match(/\d+/)?.[0] ?? '0')
       btn.disabled = gold < price
     })
   },

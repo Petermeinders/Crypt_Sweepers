@@ -148,12 +148,16 @@ export function trashGear(ctx, inventoryIndex) {
   EventBus.emit('inventory:changed')
 }
 
-/** Full-backpack gear pickup: replace the backpack item at inventoryIndex with piece. */
+/** Full-backpack gear pickup: replace any gear slot in backpack with the new piece. */
 export function acceptPendingGearAtSlot(ctx, inventoryIndex, piece) {
   if (!session.run || !piece?.slot) return
   const inv = session.run.player.inventory
   const old = inv[inventoryIndex]
-  if (!old?.slot || old.slot !== piece.slot) return
+  if (!old?.slot) return
+  // If swapping different slot types, give scrap for the trashed piece
+  if (old.slot !== piece.slot && old.uid) {
+    adjustScrap(CONFIG.blacksmith.trashScrapYield[old.tier] ?? 1)
+  }
   inv[inventoryIndex] = piece
   EventBus.emit('inventory:changed')
   EventBus.emit('gear:pickedUp')
