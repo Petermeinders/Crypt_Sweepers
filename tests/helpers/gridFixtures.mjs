@@ -1,4 +1,3 @@
-import { CONFIG } from '../../js/config.js'
 
 /** Minimal serialized cell matching TileEngine importGridFromSnapshot shape. */
 export function cell(type, opts = {}) {
@@ -28,13 +27,12 @@ export function cell(type, opts = {}) {
 }
 
 /**
- * Build a minimal grid snapshot for a floor (default floor 1 → 5×6).
+ * Build a minimal grid snapshot for tests (default 5×6 unless cols/rows passed).
  * Revealed empty at [0,0] acts as the run start; optional enemy at [0,1].
  */
 export function buildMinimalGridSnapshot(opts = {}) {
-  const floor = opts.floor ?? 1
-  const rest = !!opts.rest
-  const { cols, rows } = CONFIG.gridSize(floor, { rest })
+  const cols = opts.cols ?? 5
+  const rows = opts.rows ?? 6
   const enemyAt = opts.enemyAt ?? { row: 0, col: 1 }
   const enemyData = opts.enemyData ?? {
     enemyId: 'goblin',

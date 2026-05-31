@@ -12,9 +12,15 @@ The `js/` directory contains all game source code. Two files live at this level;
 ## CONFIG Notes
 
 `CONFIG` contains helper methods alongside plain values:
-- `CONFIG.gridSize(floor, opts)` — returns `{ cols, rows }` for a given floor
+- `CONFIG.gridSize(floor, opts)` — returns `{ cols, rows }`; rest = 3×3; pass `opts.cols`/`opts.rows` or use `ensureFloorGridSize`
+- `CONFIG.ensureFloorGridSize(floor, run, opts)` — rolls 5–7 per axis once per floor per run
+- `CONFIG.rollGridSize()` — random `{ cols, rows }` in `[grid.minDim, grid.maxDim]`
 - `CONFIG.biomeFor(floor)` — returns the biome object
+- `CONFIG.floorLabelFor(floor)` — display name for the biome segment (one label per biome)
+- `CONFIG.maxFloor` — highest playable floor (100)
 - `CONFIG.floorBackgroundFor(floor)` — returns the background image path
+- `CONFIG.tileBacksFor(floor)` — unrevealed tile back textures (biome `tileBacks` or `defaultTileBacks`)
+- `CONFIG.tileBackBorderFor(floor)` — optional 9-slice border-image settings (`tileBackBorderSlice`)
 
 `SETTINGS` is a mutable object shared with `AudioManager`. `SaveManager` overwrites it on load.
 

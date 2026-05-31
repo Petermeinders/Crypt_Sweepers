@@ -924,7 +924,7 @@ export function resolveEffect(ctx, tile) {
     case 'exit':
       tile.exitResolved = false
       if (tile.element) tile.element.classList.add('exit-pending')
-      if (session.run.floor >= CONFIG.floorNames.length) {
+      if (session.run.floor >= CONFIG.maxFloor) {
         UI.setMessage('🚪 Daylight ahead! Tap the exit again when you\'re ready to leave the dungeon.')
       } else {
         UI.setMessage('🚪 Stairs lead downward. Tap the exit again when you\'re ready to descend.')

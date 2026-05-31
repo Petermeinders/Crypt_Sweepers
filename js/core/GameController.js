@@ -1226,7 +1226,7 @@ function _syncGridDomClassesFromModel() {
 
 function _revealStartTile() {
   const grid = TileEngine.getGrid()
-  const { cols, rows } = CONFIG.gridSize(session.run.floor, { rest: session.run.atRest })
+  const { cols, rows } = TileEngine.getGridDimensions()
 
   // Start tile must be empty — find all empty tiles and pick one at random
   const empties = []

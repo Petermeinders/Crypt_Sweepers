@@ -52,12 +52,25 @@ export function startFloor(ctx) {
   }
   let gridRestored = false
   if (session.run?._resumeGridSnapshot) {
-    gridRestored = TileEngine.importGridFromSnapshot(session.run._resumeGridSnapshot, session.run.floor, { rest: session.run.atRest })
+    const snap = session.run._resumeGridSnapshot
+    if (snap?.length && snap[0]?.length) {
+      session.run.floorGridSizes ??= {}
+      session.run.floorGridSizes[session.run.floor] = {
+        cols: snap[0].length,
+        rows: snap.length,
+      }
+    }
+    gridRestored = TileEngine.importGridFromSnapshot(snap, session.run.floor, { rest: session.run.atRest })
     session.run._resumeGridSnapshot = null
     ctx.syncWarBannerCoordsFromGrid()
   }
   if (!gridRestored) {
-    TileEngine.generateGrid(session.run.floor, { rest: session.run.atRest })
+    const size = CONFIG.ensureFloorGridSize(session.run.floor, session.run, { rest: session.run.atRest })
+    TileEngine.generateGrid(session.run.floor, {
+      rest: session.run.atRest,
+      cols: size.cols,
+      rows: size.rows,
+    })
     if (session.run) {
       session.run.treasureGoblin = null
       session.run.floorStartRow = null

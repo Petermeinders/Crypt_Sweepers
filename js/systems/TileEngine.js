@@ -14,6 +14,8 @@ import { scaleEnemyDef } from './EnemyScaling.js'
 // ── Grid state ───────────────────────────────────────────────
 let _grid = []
 let _currentFloor = 1
+let _gridCols = CONFIG.grid.cols
+let _gridRows = CONFIG.grid.rows
 /** 'dungeon' | 'rest' — rest floors are 3×3 between boss and next dungeon */
 let _gridMode = 'dungeon'
 
@@ -453,6 +455,8 @@ function rollSubFloorType() {
 function _generateRestGrid(floor) {
   const rows = 3
   const cols = 3
+  _gridCols = cols
+  _gridRows = rows
   _grid = []
   const hasMerchant = Math.random() < 0.25
   const layout = [
@@ -478,7 +482,15 @@ function generateGrid(floor = 1, opts = {}) {
     return
   }
 
-  const { cols, rows } = CONFIG.gridSize(floor)
+  const { cols, rows } = opts.rest
+    ? { cols: 3, rows: 3 }
+    : { cols: opts.cols, rows: opts.rows }
+  if (cols == null || rows == null) {
+    Logger.warn('[TileEngine] generateGrid: missing cols/rows')
+    return
+  }
+  _gridCols = cols
+  _gridRows = rows
   const isBossFloor = CONFIG.bossFloors.includes(floor)
 
   const weights   = _adjustedWeights(floor)
@@ -561,7 +573,7 @@ function generateGrid(floor = 1, opts = {}) {
  */
 function ensureExitConnectivityFromGrid(floor) {
   if (_gridMode !== 'dungeon') return 0
-  const { cols, rows } = CONFIG.gridSize(floor)
+  const { cols, rows } = { cols: _gridCols, rows: _gridRows }
   let exitR = -1
   let exitC = -1
   for (let r = 0; r < rows; r++) {
@@ -637,17 +649,20 @@ function ensureExitConnectivityFromGrid(floor) {
 }
 
 /**
- * Replace the current grid from a saved snapshot (same dimensions as CONFIG.gridSize).
+ * Replace the current grid from a saved snapshot.
  * Used when resuming an active run so the floor is not re-rolled.
  */
 function importGridFromSnapshot(snapshot, floor, opts = {}) {
   _currentFloor = floor
   _gridMode = opts.rest ? 'rest' : 'dungeon'
-  const { cols, rows } = CONFIG.gridSize(floor, { rest: opts.rest })
-  if (!snapshot || snapshot.length !== rows || !snapshot[0] || snapshot[0].length !== cols) {
+  const rows = snapshot?.length ?? 0
+  const cols = snapshot?.[0]?.length ?? 0
+  if (!snapshot || rows < 1 || cols < 1) {
     Logger.warn('[TileEngine] importGridFromSnapshot: dimension mismatch')
     return false
   }
+  _gridCols = cols
+  _gridRows = rows
   _grid = []
   for (let r = 0; r < rows; r++) {
     _grid[r] = []
@@ -772,6 +787,30 @@ function _wireTileIconFallback(tileEl, emojiFallback) {
  *   passive so the parent container can scroll freely. A touchmove guard
  *   suppresses the synthetic click that fires after a swipe.
  */
+function _applyTileBackArt(backEl, backSrc, floor) {
+  const border = CONFIG.tileBackBorderFor(floor)
+  if (border) {
+    // Inline border-image + absolute url — vars in tiles.css resolve against /css/ and 404
+    const abs = new URL(backSrc, window.location.href).href
+    const art = `url('${abs}')`
+    backEl.classList.add('tile-back--border-slice')
+    backEl.style.backgroundImage = art
+    backEl.style.border = '0 solid transparent'
+    backEl.style.borderImageSource = art
+    backEl.style.borderImageSlice = `${border.slice} fill`
+    backEl.style.borderImageRepeat = border.repeat
+    backEl.style.borderImageWidth = '0px'
+  } else {
+    backEl.classList.remove('tile-back--border-slice')
+    backEl.style.backgroundImage = `url('${backSrc}')`
+    backEl.style.border = ''
+    backEl.style.borderImageSource = ''
+    backEl.style.borderImageSlice = ''
+    backEl.style.borderImageRepeat = ''
+    backEl.style.borderImageWidth = ''
+  }
+}
+
 function _buildTileElement(tile, r, c, onTap, onHold, scrollable = false) {
   const def = TILE_DEFS[tile.type] || TILE_DEFS.empty
 
@@ -781,12 +820,8 @@ function _buildTileElement(tile, r, c, onTap, onHold, scrollable = false) {
   div.dataset.col = c
   div.setAttribute('aria-label', 'hidden tile')
 
-  // Random back-face texture
-  const _backImages = [
-    'assets/sprites/tiles/tile-unflipped2.1.png',
-    'assets/sprites/tiles/tile-unflipped3.png',
-  ]
-  const backSrc = _backImages[Math.floor(Math.random() * _backImages.length)]
+  const backImages = CONFIG.tileBacksFor(_currentFloor)
+  const backSrc = backImages[Math.floor(Math.random() * backImages.length)]
 
   const isBoss = tile.enemyData?.isBoss
   const emojiFallback = tile.enemyData?.emoji ?? def.emoji
@@ -818,7 +853,7 @@ function _buildTileElement(tile, r, c, onTap, onHold, scrollable = false) {
     </div>
     <div class="tile-dust" aria-hidden="true"></div>`
 
-  div.querySelector('.tile-back').style.backgroundImage = `url('${backSrc}')`
+  _applyTileBackArt(div.querySelector('.tile-back'), backSrc, _currentFloor)
   _wireTileIconFallback(div, emojiFallback)
 
   // Apply initial state classes (sub-floor tiles may start revealed/locked/reachable)
@@ -913,7 +948,8 @@ function _buildTileElement(tile, r, c, onTap, onHold, scrollable = false) {
 }
 
 function renderGrid(gridEl, onTap, onHold) {
-  const { cols, rows } = CONFIG.gridSize(_currentFloor, { rest: _gridMode === 'rest' })
+  const cols = _gridMode === 'rest' ? 3 : _gridCols
+  const rows = _gridMode === 'rest' ? 3 : _gridRows
   gridEl.innerHTML = ''
   gridEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`
 
@@ -1278,6 +1314,11 @@ function patchMainGridTileAt(r, c, gridEl, onTap, onHold) {
   return true
 }
 
+function getGridDimensions() {
+  if (_gridMode === 'rest') return { cols: 3, rows: 3 }
+  return { cols: _gridCols, rows: _gridRows }
+}
+
 export default {
   createEnemy,
   generateGrid,
@@ -1296,6 +1337,7 @@ export default {
   markReachable,
   recomputeReachabilityFromRevealed,
   getGrid,
+  getGridDimensions,
   getTile,
   getCurrentFloor,
   formatEnemyDamageDisplay,

@@ -199,6 +199,7 @@
 
 /* Back face — unrevealed: same texture but darkened */
 .tile-back {
+  box-sizing: border-box;
   background-color: #1a1a20;
   background-image: var(--tile-art-back);
   background-size: cover;
@@ -206,6 +207,13 @@
   background-repeat: no-repeat;
   border: none;
   box-shadow: none;
+}
+
+/* Jungle etc. — border-image applied inline in TileEngine (avoids css/-relative url bugs) */
+.tile-back.tile-back--border-slice {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 /* Default: dark (not yet reachable) */

@@ -24,9 +24,9 @@ describe('TileEngine.importGridFromSnapshot', () => {
     assert.equal(live[0][1].enemyData.enemyId, 'goblin')
   })
 
-  test('rejects dimension mismatch', () => {
-    const bad = buildMinimalGridSnapshot({ floor: 10 })
-    assert.equal(TileEngine.importGridFromSnapshot(bad, 1), false)
+  test('rejects invalid snapshot', () => {
+    assert.equal(TileEngine.importGridFromSnapshot(null, 1), false)
+    assert.equal(TileEngine.importGridFromSnapshot([], 1), false)
   })
 })
 

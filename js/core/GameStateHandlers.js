@@ -152,6 +152,8 @@ export function buildRunState(ctx) {
     treasureGoblin:   null,
     /** Paladin Kill Echo: how many hidden enemies may be marked at once (1 → 2 → 3 this floor). */
     killEchoQuota:    1,
+    /** Per-floor grid dimensions rolled once per run — { [floor]: { cols, rows } } */
+    floorGridSizes:   {},
   }
 }
 
@@ -233,6 +235,9 @@ export function saveActiveRun(ctx) {
     floorStartRow:   session.run.floorStartRow ?? null,
     floorStartCol:   session.run.floorStartCol ?? null,
     killEchoQuota:   session.run.killEchoQuota ?? 1,
+    floorGridSizes:  session.run.floorGridSizes
+      ? structuredClone(session.run.floorGridSizes)
+      : {},
   }
   SaveManager.save(session.save).catch(() => {})
 }
@@ -282,6 +287,7 @@ export function resumeRun(ctx) {
     floorStartRow: saved.floorStartRow ?? null,
     floorStartCol: saved.floorStartCol ?? null,
     killEchoQuota: saved.killEchoQuota ?? 1,
+    floorGridSizes: saved.floorGridSizes ?? {},
   }
   const ch = session.save.selectedCharacter ?? 'warrior'
   if (ch === 'engineer' && (session.run.player.seismicPingLevel == null || session.run.player.seismicPingLevel < 1)) {

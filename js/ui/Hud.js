@@ -820,8 +820,7 @@ export const HudMethods = {
       this.applyFloorTheme(floor, { rest: true })
       return
     }
-    const names = CONFIG.floorNames
-    const name = names[(floor - 1) % names.length]
+    const name = CONFIG.floorLabelFor(floor)
     el.floorInfo.textContent = `Floor ${floor} — ${name}`
     this.applyFloorTheme(floor, { rest: false })
   },

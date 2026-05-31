@@ -3,21 +3,55 @@
 // SETTINGS — player preferences (overwritten by SaveManager on boot)
 // ============================================================
 
+function _randInt(lo, hi) {
+  return Math.floor(Math.random() * (hi - lo + 1)) + lo
+}
+
 export const CONFIG = {
   debug: false,
 
   grid: {
-    // Base size — 5 wide × 6 tall (portrait-friendly). Scaling: see gridSize()
+    minDim: 5,
+    maxDim: 7,
+    // Legacy defaults — used only when no run-scoped size is available (e.g. docs)
     cols: 5,
     rows: 6,
   },
 
-  // Returns grid dimensions for a given floor number
+  /** Random cols/rows in [grid.minDim, grid.maxDim] — independent per axis. */
+  rollGridSize() {
+    const { minDim, maxDim } = this.grid
+    return {
+      cols: _randInt(minDim, maxDim),
+      rows: _randInt(minDim, maxDim),
+    }
+  },
+
+  /**
+   * Grid dimensions for a floor. Rest sanctuary is always 3×3.
+   * Pass explicit cols/rows, or a run with floorGridSizes populated via ensureFloorGridSize.
+   */
   gridSize(floor, opts = {}) {
     if (opts.rest) return { cols: 3, rows: 3 }
-    if (floor >= 10) return { cols: 7, rows: 7 }
-    if (floor >= 7)  return { cols: 6, rows: 6 }
-    return { cols: 5, rows: 6 }
+    if (opts.cols != null && opts.rows != null) return { cols: opts.cols, rows: opts.rows }
+    const stored = opts.run?.floorGridSizes?.[floor]
+    if (stored) return stored
+    return this.rollGridSize()
+  },
+
+  /**
+   * Roll (once) and persist grid size for a floor on the active run.
+   * @param {number} floor
+   * @param {{ floorGridSizes?: Record<number, { cols: number, rows: number }> } | null} run
+   */
+  ensureFloorGridSize(floor, run, opts = {}) {
+    if (opts.rest) return { cols: 3, rows: 3 }
+    if (!run) return this.rollGridSize()
+    run.floorGridSizes ??= {}
+    if (!run.floorGridSizes[floor]) {
+      run.floorGridSizes[floor] = this.rollGridSize()
+    }
+    return run.floorGridSizes[floor]
   },
 
   player: {
@@ -168,6 +202,9 @@ export const CONFIG = {
    * floors   : [min, max] inclusive floor range
    * image    : background asset path (relative to index.html)
    * floorTag : short subtitle shown on the floor HUD (e.g. "Floors 1–5")
+   * tileBacks: optional array of unrevealed tile back textures (random per tile)
+   * tileBackBorderSlice: optional 9-slice inset (px) — border-image on tile backs
+   * tileBackBorderRepeat: border-image-repeat (default 'round')
    *
    * TODO — The Void: after completing floor 100 unlock a new game mode
    *   accessible from the main menu. The Void is an endless, escalating
@@ -175,18 +212,95 @@ export const CONFIG = {
    *   enemies, inverted rules). Implement as a separate run type that
    *   never ends — track depth score on the meta-progression save.
    */
+  defaultTileBacks: [
+    'assets/sprites/tiles/tile-unflipped2.1.png',
+    'assets/sprites/tiles/tile-unflipped3.png',
+  ],
+
   biomes: [
     { id: 'dungeon',          label: 'Standard Dungeon', floors: [1,   5],  image: 'assets/DungeonBackground.png',               floorTag: 'Floors 1–5'   },
-    { id: 'jungle',           label: 'Jungle Ruins',     floors: [6,  10],  image: 'assets/DungeonBackgroundJungle.png',          floorTag: 'Floors 6–10'  },
-    { id: 'frozen-tundra',    label: 'Frozen Tundra',    floors: [11, 20],  image: 'assets/DungeonBackgroundFrozen.png',          floorTag: 'Floors 11–20' },
-    { id: 'volcanic-cavern',  label: 'Volcanic Cavern',  floors: [21, 30],  image: 'assets/DungeonBackgroundVolcanic.png',        floorTag: 'Floors 21–30' },
-    { id: 'catacombs',        label: 'Catacombs',        floors: [31, 40],  image: 'assets/DungeonBackgroundCatacombs.png',       floorTag: 'Floors 31–40' },
-    { id: 'corrupted-forest', label: 'Corrupted Forest', floors: [41, 50],  image: 'assets/DungeonBackgroundCorrupted.png',       floorTag: 'Floors 41–50' },
-    { id: 'sunken-temple',    label: 'Sunken Temple',    floors: [51, 60],  image: 'assets/DungeonBackgroundSunken.png',          floorTag: 'Floors 51–60' },
-    { id: 'mushroom-grotto',  label: 'Mushroom Grotto',  floors: [61, 70],  image: 'assets/DungeonBackgroundMushroom.png',        floorTag: 'Floors 61–70' },
-    { id: 'crystal-cavern',   label: 'Crystal Cavern',   floors: [71, 80],  image: 'assets/DungeonBackgroundCrystal.png',         floorTag: 'Floors 71–80' },
-    { id: 'shadow-realm',     label: 'Shadow Realm',     floors: [81, 90],  image: 'assets/DungeonBackgroundShadow.png',          floorTag: 'Floors 81–90' },
-    { id: 'infernal-pit',     label: 'Infernal Pit',     floors: [91, 100], image: 'assets/DungeonBackgroundInfernal.png',        floorTag: 'Floors 91–100'},
+    { id: 'jungle',           label: 'Jungle Ruins',     floors: [6,  10],  image: 'assets/DungeonBackgroundJungle.png',          floorTag: 'Floors 6–10',
+      tileBacks: [
+        'assets/sprites/tiles/jungle-tile-back-1.png',
+        'assets/sprites/tiles/jungle-tile-back-2.png',
+      ],
+      tileBackBorderSlice: 30,
+      tileBackBorderRepeat: 'round',
+    },
+    { id: 'frozen-tundra',    label: 'Frozen Tundra',    floors: [11, 20],  image: 'assets/DungeonBackgroundFrozen.png',          floorTag: 'Floors 11–20',
+      tileBacks: [
+        'assets/sprites/tiles/frozen-tile-back-1.png',
+        'assets/sprites/tiles/frozen-tile-back-2.png',
+      ],
+      tileBackBorderSlice: 30,
+      tileBackBorderRepeat: 'round',
+    },
+    { id: 'volcanic-cavern',  label: 'Volcanic Cavern',  floors: [21, 30],  image: 'assets/DungeonBackgroundVolcanic.png',        floorTag: 'Floors 21–30',
+      tileBacks: [
+        'assets/sprites/tiles/volcanic-tile-back-1.png',
+        'assets/sprites/tiles/volcanic-tile-back-2.png',
+      ],
+      tileBackBorderSlice: 30,
+      tileBackBorderRepeat: 'round',
+    },
+    { id: 'catacombs',        label: 'Catacombs',        floors: [31, 40],  image: 'assets/DungeonBackgroundCatacombs.png',       floorTag: 'Floors 31–40',
+      tileBacks: [
+        'assets/sprites/tiles/catacombs-tile-back-1.png',
+        'assets/sprites/tiles/catacombs-tile-back-2.png',
+      ],
+      tileBackBorderSlice: 30,
+      tileBackBorderRepeat: 'round',
+    },
+    { id: 'corrupted-forest', label: 'Corrupted Forest', floors: [41, 50],  image: 'assets/DungeonBackgroundCorrupted.png',       floorTag: 'Floors 41–50',
+      tileBacks: [
+        'assets/sprites/tiles/corrupted-forest-tile-back-1.png',
+        'assets/sprites/tiles/corrupted-forest-tile-back-2.png',
+      ],
+      tileBackBorderSlice: 30,
+      tileBackBorderRepeat: 'round',
+    },
+    { id: 'sunken-temple',    label: 'Sunken Temple',    floors: [51, 60],  image: 'assets/DungeonBackgroundSunken.png',          floorTag: 'Floors 51–60',
+      tileBacks: [
+        'assets/sprites/tiles/sunken-temple-tile-back-1.png',
+        'assets/sprites/tiles/sunken-temple-tile-back-2.png',
+        'assets/sprites/tiles/sunken-temple-tile-back-3.png',
+      ],
+      tileBackBorderSlice: 30,
+      tileBackBorderRepeat: 'round',
+    },
+    { id: 'mushroom-grotto',  label: 'Mushroom Grotto',  floors: [61, 70],  image: 'assets/DungeonBackgroundMushroom.png',        floorTag: 'Floors 61–70',
+      tileBacks: [
+        'assets/sprites/tiles/mushroom-grotto-tile-back-1.png',
+        'assets/sprites/tiles/mushroom-grotto-tile-back-2.png',
+      ],
+      tileBackBorderSlice: 30,
+      tileBackBorderRepeat: 'round',
+    },
+    { id: 'crystal-cavern',   label: 'Crystal Cavern',   floors: [71, 80],  image: 'assets/DungeonBackgroundCrystal.png',         floorTag: 'Floors 71–80',
+      tileBacks: [
+        'assets/sprites/tiles/crystal-tile-back-1.png',
+        'assets/sprites/tiles/crystal-tile-back-2.png',
+        'assets/sprites/tiles/crystal-tile-back-3.png',
+      ],
+      tileBackBorderSlice: 30,
+      tileBackBorderRepeat: 'round',
+    },
+    { id: 'shadow-realm',     label: 'Shadow Realm',     floors: [81, 90],  image: 'assets/DungeonBackgroundShadow.png',          floorTag: 'Floors 81–90',
+      tileBacks: [
+        'assets/sprites/tiles/shadow-tile-back-1.png',
+        'assets/sprites/tiles/shadow-tile-back-2.png',
+      ],
+      tileBackBorderSlice: 30,
+      tileBackBorderRepeat: 'round',
+    },
+    { id: 'infernal-pit',     label: 'Infernal Pit',     floors: [91, 100], image: 'assets/DungeonBackgroundInfernal.png',        floorTag: 'Floors 91–100',
+      tileBacks: [
+        'assets/sprites/tiles/infernal-pit-tile-back-1.png',
+        'assets/sprites/tiles/infernal-pit-tile-back-2.png',
+      ],
+      tileBackBorderSlice: 30,
+      tileBackBorderRepeat: 'round',
+    },
   ],
 
   /**
@@ -209,12 +323,35 @@ export const CONFIG = {
     return this.biomes[this.biomes.length - 1].image
   },
 
+  /** @param {number} floor — display name for the biome segment (constant within each biome) */
+  floorLabelFor(floor) {
+    return this.biomeFor(floor).label
+  },
+
+  /** Highest playable floor (last biome max). */
+  get maxFloor() {
+    return this.biomes[this.biomes.length - 1].floors[1]
+  },
+
   /** @param {number} floor — returns the biome object for that floor */
   biomeFor(floor) {
     for (const b of this.biomes) {
       if (floor >= b.floors[0] && floor <= b.floors[1]) return b
     }
     return this.biomes[this.biomes.length - 1]
+  },
+
+  tileBacksFor(floor) {
+    return this.biomeFor(floor).tileBacks ?? this.defaultTileBacks
+  },
+
+  tileBackBorderFor(floor) {
+    const biome = this.biomeFor(floor)
+    if (biome.tileBackBorderSlice == null) return null
+    return {
+      slice: biome.tileBackBorderSlice,
+      repeat: biome.tileBackBorderRepeat ?? 'round',
+    }
   },
 
   armor: {
@@ -317,21 +454,6 @@ export const CONFIG = {
   vampireUnlockCost:   300,
   engineerUnlockCost:     400,
   necromancerUnlockCost:  500,
-
-  // Legacy — kept for any code that still reads floorNames by index.
-  // The source of truth for floor theming is now CONFIG.biomes.
-  floorNames: [
-    'The Shallow Dark',       // 1
-    'The Forgotten Halls',    // 2
-    'The Dripping Dark',      // 3
-    'The Bone Corridor',      // 4
-    'The Ancient Deep',       // 5
-    'Jungle Ruins',           // 6
-    'The Overgrown Path',     // 7
-    'Temple of Thorns',       // 8
-    'The Verdant Depths',     // 9
-    'Heart of the Jungle',    // 10
-  ],
 }
 
 // Player preferences — persisted via SaveManager

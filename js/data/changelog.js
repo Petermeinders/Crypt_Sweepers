@@ -6,6 +6,40 @@ export const CHANGELOG = [
   {
     dateLabel: 'May 2026',
     dateIso:   '2026-05-30',
+    version:   'v469',
+    title:     'Biome tile art, floor names & grid variety',
+    summary:
+      'Every biome now has its own unrevealed tile backs, the HUD shows one consistent name per biome, and each floor rolls a random grid shape between 5×5 and 7×7. Trinket loot also gets a new Epic tier, tighter legendary drops, and a floor-10 gate on legendaries.',
+    items: [
+      {
+        tag:  'Visual',
+        text: 'Biome tile backs — jungle, frozen tundra, volcanic cavern, catacombs, corrupted forest, sunken temple, mushroom grotto, crystal cavern, shadow realm, and infernal pit each have custom unrevealed tile art with random variants per floor.',
+      },
+      {
+        tag:  'Fix',
+        text: 'Floor names — the HUD now shows one name per biome (e.g. all floors 6–10 read “Jungle Ruins”) instead of cycling through a different name every floor.',
+      },
+      {
+        tag:  'New',
+        text: 'Grid variety — each floor rolls its own width and height independently between 5 and 7 tiles (e.g. 5×7, 6×5, 7×7). Size is fixed for that floor for the rest of the run and survives save/resume.',
+      },
+      {
+        tag:  'Balance',
+        text: 'Epic trinkets — a new drop tier sits between Rare and Legendary. Eight trinkets were promoted to Epic; chests can roll Epic at low rates on normal and magic chests.',
+      },
+      {
+        tag:  'Balance',
+        text: 'Legendary trinkets — only drop from floor 10 onward. Normal and magic chest legendary rates were halved (0.5% / 1%).',
+      },
+      {
+        tag:  'Balance',
+        text: 'Smith\'s Tools — drop rate reduced to 0.5% on both chest types.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'May 2026',
+    dateIso:   '2026-05-30',
     version:   'v450',
     title:     'Travelling merchant, trade overhaul & inventory QoL',
     summary:

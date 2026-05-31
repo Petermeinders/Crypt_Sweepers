@@ -3,7 +3,7 @@
 // Version bump CACHE_NAME to force cache refresh on deploy.
 // Also bump SW_CACHE_VERSION in js/main.js (registration query string).
 
-const CACHE_NAME = 'crypt-sweepers-v459'
+const CACHE_NAME = 'crypt-sweepers-v469'
 
 const PRECACHE_ASSETS = [
   './',
@@ -169,6 +169,28 @@ const PRECACHE_ASSETS = [
   './assets/sprites/tiles/tile-hole.png',
   './assets/sprites/tiles/tile-unflipped2.1.png',
   './assets/sprites/tiles/tile-unflipped3.png',
+  './assets/sprites/tiles/jungle-tile-back-1.png',
+  './assets/sprites/tiles/jungle-tile-back-2.png',
+  './assets/sprites/tiles/frozen-tile-back-1.png',
+  './assets/sprites/tiles/frozen-tile-back-2.png',
+  './assets/sprites/tiles/volcanic-tile-back-1.png',
+  './assets/sprites/tiles/volcanic-tile-back-2.png',
+  './assets/sprites/tiles/catacombs-tile-back-1.png',
+  './assets/sprites/tiles/catacombs-tile-back-2.png',
+  './assets/sprites/tiles/corrupted-forest-tile-back-1.png',
+  './assets/sprites/tiles/corrupted-forest-tile-back-2.png',
+  './assets/sprites/tiles/sunken-temple-tile-back-1.png',
+  './assets/sprites/tiles/sunken-temple-tile-back-2.png',
+  './assets/sprites/tiles/sunken-temple-tile-back-3.png',
+  './assets/sprites/tiles/mushroom-grotto-tile-back-1.png',
+  './assets/sprites/tiles/mushroom-grotto-tile-back-2.png',
+  './assets/sprites/tiles/crystal-tile-back-1.png',
+  './assets/sprites/tiles/crystal-tile-back-2.png',
+  './assets/sprites/tiles/crystal-tile-back-3.png',
+  './assets/sprites/tiles/shadow-tile-back-1.png',
+  './assets/sprites/tiles/shadow-tile-back-2.png',
+  './assets/sprites/tiles/infernal-pit-tile-back-1.png',
+  './assets/sprites/tiles/infernal-pit-tile-back-2.png',
   './assets/sprites/tiles/tile-flipped2.1.png',
   './assets/sprites/effects/ashes.png',
   './assets/sprites/effects/dead-spirit-release.png',
