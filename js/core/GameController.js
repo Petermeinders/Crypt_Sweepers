@@ -24,7 +24,7 @@ import {
   NECROMANCER_UPGRADES,
 } from '../data/necromancer.js'
 import { WARRIOR_UPGRADES }  from '../data/upgrades.js'
-import { ENEMY_SPRITES, MONSTER_ICONS_BASE, ITEM_ICONS_BASE, TILE_TYPE_ICON_FILES, MAGIC_CHEST_OPEN_GIF, MAGIC_CHEST_GIF_DURATION_MS } from '../data/tileIcons.js'
+import { resolveEnemySpriteSrc, ITEM_ICONS_BASE, TILE_TYPE_ICON_FILES, MAGIC_CHEST_OPEN_GIF, MAGIC_CHEST_GIF_DURATION_MS } from '../data/tileIcons.js'
 import { TILE_BLURBS }       from '../data/tileBlurbs.js'
 import { ITEMS }             from '../data/items.js'
 import { STORY_EVENTS, MERCHANT_ITEMS, rollEventType } from '../data/events.js'
@@ -2742,9 +2742,22 @@ function testHarnessPickLevelUp(abilityId) {
   return true
 }
 
+function refreshChildModeSprites() {
+  if (!session.run) return
+  const childMode = session.save?.settings?.childMode ?? false
+  for (const tile of _getActiveTiles()) {
+    if (!tile?.enemyData?.enemyId || tile.enemyData._slain || !tile.element) continue
+    const img = tile.element.querySelector('.tile-icon-img')
+    if (!img) continue
+    const src = resolveEnemySpriteSrc(tile.enemyData.enemyId, { state: 'idle', childMode })
+    if (src) img.src = src
+  }
+}
+
 export default {
   init,
   getSave() { return session.save },
+  refreshChildModeSprites,
   isRangerActiveUnlocked: _isRangerActiveUnlocked,
   isMageActiveUnlocked:   _isMageActiveUnlocked,
   getSlamDamageBreakdown,

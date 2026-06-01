@@ -67,6 +67,48 @@ export const ENEMY_SPRITES = {
   troll_warlord: null,
 }
 
+/** Static PNG replacements shown when Child Mode is enabled (paths relative to MONSTER_ICONS_BASE). */
+export const CHILD_MODE_SPRITES = {
+  skeleton:        'child_mode/cat.png',
+  goblin:          'child_mode/bee.png',
+  archer_goblin:   'child_mode/cow.png',
+  vine_witch:      'child_mode/butterfly.png',
+  mouse:           'child_mode/corgi.png',
+  treasure_goblin: 'child_mode/kitten-purple.png',
+  zombie:          'child_mode/owl.png',
+  wraith:          'child_mode/owl.png',
+  spider:          'child_mode/rabbit.png',
+  slime:           'child_mode/turtle.png',
+  troll:           'child_mode/bluey.png',
+  toad_beast:      'child_mode/parrot.png',
+  onion:           'child_mode/fluffy-cat.png',
+  gnome:           'child_mode/fluff-ball.png',
+  fire_goblin:     'child_mode/bee-3d.png',
+  infected_goblin: 'child_mode/cow-3d.png',
+}
+
+/**
+ * Resolve a monster sprite path relative to MONSTER_ICONS_BASE (or ITEM_ICONS_BASE fallback).
+ * @param {string} enemyId
+ * @param {{ state?: 'idle'|'attack', childMode?: boolean }} [opts]
+ */
+export function resolveEnemySpriteRel(enemyId, { state = 'idle', childMode = false } = {}) {
+  if (childMode && CHILD_MODE_SPRITES[enemyId]) {
+    return CHILD_MODE_SPRITES[enemyId]
+  }
+  const sprites = ENEMY_SPRITES[enemyId]
+  if (!sprites) return null
+  return state === 'attack' ? sprites.attack : sprites.idle
+}
+
+/** Full URL path for an enemy tile/combat sprite, or null for emoji fallback. */
+export function resolveEnemySpriteSrc(enemyId, { state = 'idle', childMode = false } = {}) {
+  const rel = resolveEnemySpriteRel(enemyId, { state, childMode })
+  if (rel) return MONSTER_ICONS_BASE + rel
+  const file = ENEMY_ICON_FILES[enemyId]
+  return file ? ITEM_ICONS_BASE + file : null
+}
+
 // Legacy single-file map (kept for non-animated enemies using Items/ path)
 export const ENEMY_ICON_FILES = {
   skeleton:      null,

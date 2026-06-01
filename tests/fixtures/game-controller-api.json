@@ -83,6 +83,7 @@
   "persistActiveRun",
   "poisonArrowShotAction",
   "reduceDetriment",
+  "refreshChildModeSprites",
   "resumeRun",
   "returnToMenu",
   "ricochetAction",

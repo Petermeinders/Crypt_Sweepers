@@ -1,6 +1,7 @@
 import TileEngine from '../systems/TileEngine.js'
 import EventBus from '../core/EventBus.js'
-import { ENEMY_SPRITES, MONSTER_ICONS_BASE } from '../data/tileIcons.js'
+import { resolveEnemySpriteSrc } from '../data/tileIcons.js'
+import { getSave } from '../core/RunContext.js'
 import { el, loadHeroParryGif } from './uiShared.js'
 
 export function cacheCombatElements() {
@@ -484,8 +485,8 @@ export const CombatUiMethods = {
         el.parryEnemyDisplay.classList.add('hidden')
       } else {
         el.parryEnemyDisplay.classList.remove('hidden')
-        const _sprites = ENEMY_SPRITES[enemyData.enemyId]
-        const _gifSrc  = _sprites?.idle ? `${MONSTER_ICONS_BASE}${_sprites.idle}` : null
+        const childMode = getSave()?.settings?.childMode ?? false
+        const _gifSrc  = resolveEnemySpriteSrc(enemyData.enemyId, { state: 'idle', childMode })
         if (el.parryEnemyIcon) {
           el.parryEnemyIcon.src          = _gifSrc ? `${_gifSrc}?t=${Date.now()}` : ''
           el.parryEnemyIcon.style.display = _gifSrc ? '' : 'none'

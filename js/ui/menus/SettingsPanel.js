@@ -132,6 +132,7 @@ export function wireSettingsPanel(ctx) {
     const s = GameController.getSave()
     s.settings.childMode = e.target.checked
     SaveManager.save(s)
+    GameController.refreshChildModeSprites()
   })
 
   const _cheatMap = [

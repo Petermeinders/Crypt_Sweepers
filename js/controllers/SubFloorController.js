@@ -5,7 +5,7 @@ import Logger from '../core/Logger.js'
 import TileEngine from '../systems/TileEngine.js'
 import CombatResolver from '../systems/CombatResolver.js'
 import UI from '../ui/UI.js'
-import { ENEMY_SPRITES, MONSTER_ICONS_BASE, ITEM_ICONS_BASE } from '../data/tileIcons.js'
+import { resolveEnemySpriteSrc, ITEM_ICONS_BASE } from '../data/tileIcons.js'
 import { TILE_BLURBS } from '../data/tileBlurbs.js'
 import { ITEMS } from '../data/items.js'
 import { session } from '../core/RunContext.js'
@@ -270,9 +270,9 @@ export function onSubFloorTileHold(row, col) {
   if (!tile) return
   if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
     const e = tile.enemyData
-    const sprites = ENEMY_SPRITES[e.enemyId]
+    const childMode = session.save?.settings?.childMode ?? false
     UI.showInfoCard({
-      name: e.label, spriteSrc: sprites?.idle ? MONSTER_ICONS_BASE + sprites.idle : null,
+      name: e.label, spriteSrc: resolveEnemySpriteSrc(e.enemyId, { state: 'idle', childMode }),
       emoji: e.emoji, hp: e.currentHP ?? e.hp, maxHp: e.hp,
       dmg: TileEngine.formatEnemyDamageDisplay(e.dmg, e.hitDamage),
       type: e.type, blurb: e.blurb ?? '', attributes: e.attributes ?? [],

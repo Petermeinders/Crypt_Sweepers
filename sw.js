@@ -3,7 +3,7 @@
 // Version bump CACHE_NAME to force cache refresh on deploy.
 // Keep in sync with APP_VERSION in js/appVersion.js and version.json.
 
-const CACHE_NAME = 'crypt-sweepers-v486'
+const CACHE_NAME = 'crypt-sweepers-v487'
 
 const PRECACHE_ASSETS = [
   './',
@@ -291,6 +291,21 @@ const PRECACHE_ASSETS = [
   './assets/sprites/monsters/archer_goblin/archer-goblin-idle.gif',
   './assets/sprites/monsters/archer_goblin/archer-goblin-attack.gif',
   './assets/sprites/monsters/mouse/mouse-idle.gif',
+  './assets/sprites/monsters/child_mode/cat.png',
+  './assets/sprites/monsters/child_mode/bee.png',
+  './assets/sprites/monsters/child_mode/cow.png',
+  './assets/sprites/monsters/child_mode/butterfly.png',
+  './assets/sprites/monsters/child_mode/corgi.png',
+  './assets/sprites/monsters/child_mode/kitten-purple.png',
+  './assets/sprites/monsters/child_mode/owl.png',
+  './assets/sprites/monsters/child_mode/rabbit.png',
+  './assets/sprites/monsters/child_mode/turtle.png',
+  './assets/sprites/monsters/child_mode/bluey.png',
+  './assets/sprites/monsters/child_mode/parrot.png',
+  './assets/sprites/monsters/child_mode/fluffy-cat.png',
+  './assets/sprites/monsters/child_mode/fluff-ball.png',
+  './assets/sprites/monsters/child_mode/bee-3d.png',
+  './assets/sprites/monsters/child_mode/cow-3d.png',
   './assets/sprites/gear/weapon/common.webp',
   './assets/sprites/gear/weapon/rare.webp',
   './assets/sprites/gear/weapon/epic.webp',

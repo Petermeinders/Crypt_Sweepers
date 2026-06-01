@@ -11,7 +11,7 @@ import { session } from '../core/RunContext.js'
 import { ITEMS } from '../data/items.js'
 import { FORGE_RECIPES } from '../data/combinations.js'
 import { ENGINEER_SEISMIC_PING } from '../data/engineer.js'
-import { ENEMY_SPRITES, MONSTER_ICONS_BASE, ITEM_ICONS_BASE, TILE_TYPE_ICON_FILES } from '../data/tileIcons.js'
+import { resolveEnemySpriteSrc, ITEM_ICONS_BASE, TILE_TYPE_ICON_FILES } from '../data/tileIcons.js'
 import { TILE_BLURBS } from '../data/tileBlurbs.js'
 import {
   getActiveTiles,
@@ -156,12 +156,12 @@ export function onTileHold(ctx, row, col) {
 
   if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
     const e       = tile.enemyData
-    const sprites = ENEMY_SPRITES[e.enemyId]
+    const childMode = session.save?.settings?.childMode ?? false
     const blurbBase = e.blurb ?? ''
     const blurb     = e.holdHint ? `${blurbBase}\n\n${e.holdHint}` : blurbBase
     cardData = {
       name:       e.label,
-      spriteSrc:  sprites?.idle ? MONSTER_ICONS_BASE + sprites.idle : null,
+      spriteSrc:  resolveEnemySpriteSrc(e.enemyId, { state: 'idle', childMode }),
       emoji:      e.emoji,
       hp:         e.currentHP ?? e.hp,
       maxHp:      e.hp,
@@ -331,12 +331,14 @@ export function tickPoisonArrowDotOnGlobalTurn(ctx, opts = {}) {
       totalHarassDmg += dmg
       if (tile.enemyData.enemyId === 'archer_goblin') {
         archerCount++
-        // Flash the attack sprite briefly
+        const childMode = session.save?.settings?.childMode ?? false
         const img = tile.element?.querySelector('.tile-icon-img')
-        if (img) {
-          img.src = MONSTER_ICONS_BASE + 'archer_goblin/archer-goblin-attack.gif?t=' + Date.now()
+        if (img && !childMode) {
+          img.src = resolveEnemySpriteSrc('archer_goblin', { state: 'attack', childMode: false }) + '?t=' + Date.now()
           setTimeout(() => {
-            if (img.isConnected) img.src = MONSTER_ICONS_BASE + 'archer_goblin/archer-goblin-idle.gif?t=' + Date.now()
+            if (img.isConnected) {
+              img.src = resolveEnemySpriteSrc('archer_goblin', { state: 'idle', childMode: false }) + '?t=' + Date.now()
+            }
           }, 4000)
         }
         UI.spawnFloat(tile.element, `🏹 ${dmg}`, 'damage')

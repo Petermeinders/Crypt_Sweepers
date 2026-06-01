@@ -13,7 +13,7 @@ import { ENGINEER_BASE, ENGINEER_SEISMIC_PING } from '../data/engineer.js'
 import { MAGE_BASE } from '../data/mage.js'
 import { VAMPIRE_BASE } from '../data/vampire.js'
 import { NECROMANCER_BASE } from '../data/necromancer.js'
-import { ENEMY_SPRITES, MONSTER_ICONS_BASE } from '../data/tileIcons.js'
+import { resolveEnemySpriteSrc } from '../data/tileIcons.js'
 import { createInitialTelemetry } from '../balance/runTelemetry.js'
 
 export function buildRunState(ctx) {
@@ -452,11 +452,11 @@ export function die(ctx, killerData = null, opts = {}) {
 }
 
 export function buildKillerCard(e) {
-  const sprites = ENEMY_SPRITES[e.enemyId]
+  const childMode = session.save?.settings?.childMode ?? false
   return {
     name:      e.label,
     emoji:     e.emoji,
-    spriteSrc: sprites?.idle ? MONSTER_ICONS_BASE + sprites.idle : null,
+    spriteSrc: resolveEnemySpriteSrc(e.enemyId, { state: 'idle', childMode }),
     hp:        e.hp,
     dmg:       Array.isArray(e.dmg) ? `${e.dmg[0]}–${e.dmg[1]}` : e.dmg,
     blurb:     e.blurb ?? '',

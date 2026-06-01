@@ -3,12 +3,11 @@ import { TILE_DEFS }  from '../data/tiles.js'
 import { ENEMY_DEFS, BOSS_POOL } from '../data/enemies.js'
 import {
   ITEM_ICONS_BASE,
-  MONSTER_ICONS_BASE,
   TILE_TYPE_ICON_FILES,
-  ENEMY_ICON_FILES,
-  ENEMY_SPRITES,
+  resolveEnemySpriteSrc,
 } from '../data/tileIcons.js'
 import Logger         from '../core/Logger.js'
+import { getSave }    from '../core/RunContext.js'
 import { scaleEnemyDef } from './EnemyScaling.js'
 
 // ── Grid state ───────────────────────────────────────────────
@@ -782,10 +781,8 @@ function _createTileWithEnemy(type, row, col, floor) {
 
 function _resolveTileIconSrc(tile, def) {
   if (def.isEnemy && tile.enemyData?.enemyId) {
-    const sprites = ENEMY_SPRITES[tile.enemyData.enemyId]
-    if (sprites?.idle) return MONSTER_ICONS_BASE + sprites.idle
-    const file = ENEMY_ICON_FILES[tile.enemyData.enemyId]
-    return file ? ITEM_ICONS_BASE + file : null
+    const childMode = getSave()?.settings?.childMode ?? false
+    return resolveEnemySpriteSrc(tile.enemyData.enemyId, { state: 'idle', childMode })
   }
   const file = TILE_TYPE_ICON_FILES[tile.type]
   return file ? ITEM_ICONS_BASE + file : null

@@ -5,7 +5,7 @@ import CombatResolver from '../systems/CombatResolver.js'
 import SaveManager from '../save/SaveManager.js'
 import UI from '../ui/UI.js'
 import { session } from '../core/RunContext.js'
-import { ENEMY_SPRITES, MONSTER_ICONS_BASE } from '../data/tileIcons.js'
+import { resolveEnemySpriteSrc } from '../data/tileIcons.js'
 import {
   setCombatEngagement,
   clearCombatEngagementForTile,
@@ -53,12 +53,14 @@ export function resolveTauntTarget(ctx, tile) {
 }
 
 function setEnemySprite(tile, state) {
-  const sprites = ENEMY_SPRITES[tile.enemyData?.enemyId]
-  if (!sprites) return
+  const enemyId = tile.enemyData?.enemyId
+  if (!enemyId) return
+  const childMode = session.save?.settings?.childMode ?? false
+  const src = resolveEnemySpriteSrc(enemyId, { state, childMode })
+  if (!src) return
   const img = tile.element?.querySelector('.tile-icon-img')
   if (!img) return
-  const src = state === 'attack' ? sprites.attack : sprites.idle
-  if (src) img.src = MONSTER_ICONS_BASE + src
+  img.src = src
 }
 
 // ── Combat ───────────────────────────────────────────────────
