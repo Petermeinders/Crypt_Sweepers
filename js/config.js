@@ -69,12 +69,13 @@ export const CONFIG = {
     damage:     [1, 1],        // fallback; most enemies use their own def
     fastDamage: [1, 2],
     goldDrop:   [1, 2],
-    // Stat scaling per floor: each floor adds this fraction of base stats
-    floorScaleHP:  0.10,       // +10% HP per floor (floors 1–50)
-    floorScaleDmg: 0.05,       // +5% DMG per floor (floors 1–50)
-    // Steeper scaling for floors 51–100 (piecewise linear inflection)
-    floorScaleHP_late:  0.15,  // +15% HP per floor above 50
-    floorScaleDmg_late: 0.075, // +7.5% DMG per floor above 50
+    // Stat scaling per floor
+    floorScaleHP:  0.20,       // +20% HP per floor (floors 1–50) — doubled from 0.10
+    // Damage: compound per floor (moderate exponential)
+    floorScaleDmgExpRate:      0.048,  // dmgMult ×(1+r) per floor (floors 2–50)
+    floorScaleDmgExpRate_late:   0.024,  // continued compound above floor 50
+    // Steeper HP scaling for floors 51–100 (piecewise linear inflection)
+    floorScaleHP_late:  0.30,  // +30% HP per floor above 50 — doubled from 0.15
     /** Global multiplier applied after floor scaling (HP + damage). */
     statMult: 1.25,
   },

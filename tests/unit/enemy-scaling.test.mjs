@@ -5,9 +5,9 @@ import { ENEMY_DEFS } from '../../js/data/enemies.js'
 
 const GOLDEN = {
   1:  { hp: 3,  dmg: [1, 1] },
-  10: { hp: 5,  dmg: [2, 2] },
-  50: { hp: 15, dmg: [4, 4] },
-  51: { hp: 15, dmg: [4, 4] },
+  10: { hp: 7,  dmg: [2, 2] },
+  50: { hp: 27, dmg: [12, 12] },
+  51: { hp: 28, dmg: [13, 13] },
 }
 
 for (const [floor, expected] of Object.entries(GOLDEN)) {

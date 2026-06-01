@@ -421,11 +421,11 @@ export const ModalsMethods = {
   renderBackpack(inventory, itemRegistry, onUse, onHold, replaceMode = false, opts = {}) {
     const grid = document.getElementById('backpack-grid')
     if (!grid) return
+    const gearPickupMode = !!opts.gearPickupMode
     const SLOTS = 9
+    const { filterSlot, filterTrinket, onCompare, onCompareTrinket, onUnequip, onReplaceIndex, onReplaceGearIndex, onSwapWithEquipped } = opts
     grid.innerHTML = ''
     grid.classList.toggle('replace-mode', replaceMode || gearPickupMode)
-
-    const { filterSlot, filterTrinket, onCompare, onCompareTrinket, onUnequip, onReplaceIndex, onReplaceGearIndex, onSwapWithEquipped, gearPickupMode } = opts
 
     const isPassiveTrinketEntry = (e) => {
       if (!e?.id) return false

@@ -32,7 +32,7 @@ if (document.readyState === 'loading') {
 
 // ── Service worker registration ───────────────────────────────
 // Keep SW_CACHE_VERSION in sync with CACHE_NAME in sw.js (digits after "v").
-const SW_CACHE_VERSION = '472'
+const SW_CACHE_VERSION = '477'
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

@@ -1,22 +1,39 @@
 import { CONFIG } from '../config.js'
 
+const FLOOR_DAMAGE_INFLECTION = 50
+
+/**
+ * Enemy damage multiplier by floor — compound growth (moderate exponential curve).
+ * Floor 1 → 1×; each subsequent floor multiplies by (1 + rate) instead of adding a flat %.
+ * @param {number} floor — 1-based floor index
+ */
+export function floorDamageMult(floor) {
+  const f = Math.max(1, Math.floor(floor))
+  const e = CONFIG.enemy
+  const earlyRate = e.floorScaleDmgExpRate ?? 0.048
+  const lateRate  = e.floorScaleDmgExpRate_late ?? 0.024
+  if (f <= FLOOR_DAMAGE_INFLECTION) {
+    return Math.pow(1 + earlyRate, f - 1)
+  }
+  const base50 = Math.pow(1 + earlyRate, FLOOR_DAMAGE_INFLECTION - 1)
+  return base50 * Math.pow(1 + lateRate, f - FLOOR_DAMAGE_INFLECTION)
+}
+
 /**
  * Scale an enemy definition for dungeon floor depth (same formula as production).
  * @param {object} def — entry from ENEMY_DEFS (must have hp, dmg array)
  * @param {number} floor — 1-based floor index
  */
 export function scaleEnemyDef(def, floor) {
-  // Piecewise linear scaling: steeper rates kick in after floor 50
-  let hpMult, dmgMult
-  if (floor <= 50) {
-    hpMult  = 1 + CONFIG.enemy.floorScaleHP  * (floor - 1)
-    dmgMult = 1 + CONFIG.enemy.floorScaleDmg * (floor - 1)
+  // HP: piecewise linear; damage: compound (see floorDamageMult)
+  let hpMult
+  if (floor <= FLOOR_DAMAGE_INFLECTION) {
+    hpMult = 1 + CONFIG.enemy.floorScaleHP * (floor - 1)
   } else {
-    const base50Hp  = 1 + CONFIG.enemy.floorScaleHP  * 49
-    const base50Dmg = 1 + CONFIG.enemy.floorScaleDmg * 49
-    hpMult  = base50Hp  + CONFIG.enemy.floorScaleHP_late  * (floor - 50)
-    dmgMult = base50Dmg + CONFIG.enemy.floorScaleDmg_late * (floor - 50)
+    const base50Hp = 1 + CONFIG.enemy.floorScaleHP * (FLOOR_DAMAGE_INFLECTION - 1)
+    hpMult = base50Hp + CONFIG.enemy.floorScaleHP_late * (floor - FLOOR_DAMAGE_INFLECTION)
   }
+  const dmgMult = floorDamageMult(floor)
   const statMult = CONFIG.enemy.statMult ?? 1
   const baseHp = Number(def.hp)
   const hp = Math.max(1, Math.round((Number.isFinite(baseHp) ? baseHp : 1) * hpMult * statMult))

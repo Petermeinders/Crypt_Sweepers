@@ -6,6 +6,76 @@ export const CHANGELOG = [
   {
     dateLabel: 'May 2026',
     dateIso:   '2026-05-30',
+    version:   'v477',
+    title:     'Full-backpack gear swap fix',
+    summary:
+      'Swapping gear or trinkets when the backpack is full no longer crashes mid-replace — the same renderBackpack bug that blocked opening the bag is fully fixed and hardened.',
+    items: [
+      {
+        tag:  'Fix',
+        text: 'Full backpack — gear and trinket replace flows no longer throw gearPickupMode before initialization when you tap a slot to swap; pending pickup completes correctly.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'May 2026',
+    dateIso:   '2026-05-30',
+    version:   'v476',
+    title:     'Floor damage retune',
+    summary:
+      'Enemy HP scaling is unchanged; compound damage rates were pulled back so floor 100 hits land in a survivable band instead of one-shot territory.',
+    items: [
+      {
+        tag:  'Balance',
+        text: 'Floor damage — compound rates tuned to 4.8% / 2.4% (was 6% / 3%). A skeleton at floor 100 now hits for ~41 instead of ~95; HP stays at the doubled curve.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'May 2026',
+    dateIso:   '2026-05-30',
+    version:   'v475',
+    title:     'Doubled floor enemy scaling',
+    summary:
+      'Enemy HP and compound damage rates are both doubled — deeper floors get significantly tougher, with HP keeping pace so fights stay meaningful.',
+    items: [
+      {
+        tag:  'Balance',
+        text: 'Floor scaling — damage compound rates 3%→6% (early) and 1.5%→3% (late); HP linear rates 10%→20% and 15%→30%. A skeleton at floor 50 is now 27 HP / 22 dmg (was 15 / 5).',
+      },
+    ],
+  },
+  {
+    dateLabel: 'May 2026',
+    dateIso:   '2026-05-30',
+    version:   'v474',
+    title:     'Steeper floor damage scaling',
+    summary:
+      'Enemy damage now compounds per floor instead of growing linearly — early floors feel similar, but depth ramps up faster without going off the rails.',
+    items: [
+      {
+        tag:  'Balance',
+        text: 'Floor damage — enemy hit damage uses compound scaling (~3% per floor early, ~1.5% above floor 50) instead of flat +5%/+7.5% linear steps. A skeleton at floor 100 hits for ~11 instead of ~9.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'May 2026',
+    dateIso:   '2026-05-30',
+    version:   'v473',
+    title:     'Backpack open fix',
+    summary:
+      'Opening the backpack no longer crashes after the gear-pickup replace flow was added — a variable ordering bug threw before the panel could render.',
+    items: [
+      {
+        tag:  'Fix',
+        text: 'Backpack — fixed a crash (Cannot access gearPickupMode before initialization) that blocked the backpack from opening at all.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'May 2026',
+    dateIso:   '2026-05-30',
     version:   'v469',
     title:     'Biome tile art, floor names & grid variety',
     summary:
