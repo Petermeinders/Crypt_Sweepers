@@ -3471,6 +3471,43 @@
   padding: 2px 0;
 }
 
+.merchant-shop-toast {
+  width: 100%;
+  max-width: 300px;
+  min-height: 0;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.35;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: max-height 0.25s ease, opacity 0.2s ease, transform 0.2s ease, padding 0.25s ease, margin 0.25s ease;
+  pointer-events: none;
+  margin: 0;
+}
+
+.merchant-shop-toast.is-visible {
+  max-height: 80px;
+  opacity: 1;
+  transform: translateY(0);
+  padding: 10px 14px;
+  margin-bottom: 2px;
+  background: rgba(32, 96, 52, 0.94);
+  border: 1px solid rgba(120, 210, 140, 0.45);
+  color: #eaffef;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.merchant-shop-toast.is-visible.is-error {
+  background: rgba(110, 36, 28, 0.94);
+  border-color: rgba(230, 130, 90, 0.45);
+  color: #ffece6;
+}
+
 .merchant-buy-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;

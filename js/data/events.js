@@ -343,7 +343,7 @@ export const STORY_EVENTS = [
 export const MERCHANT_ITEMS = [
   { id: 'potion-red',  label: 'Red Potion',  price: 5  },
   { id: 'potion-blue', label: 'Mana Potion', price: 5  },
-  { id: '__trinket__', label: 'Mystery Relic', price: 20 }, // resolved at runtime to rare/legendary
+  { id: '__trinket__', label: 'Mystery Relic', price: 100 }, // resolved at runtime to rare/epic/legendary
 ]
 
 /** Weighted event type roll. */

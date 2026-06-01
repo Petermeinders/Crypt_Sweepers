@@ -11,6 +11,8 @@ import { ENEMY_SPRITES, MONSTER_ICONS_BASE } from '../data/tileIcons.js'
 import { el, fillBestiaryCreatureParts, fillTrinketCard, drawSettledDice, PORTRAIT_ANIM } from './uiShared.js'
 import { FORGE_RECIPES } from '../data/combinations.js'
 
+let _merchantToastTimer = null
+
 const CMP_GEAR_IMGS = {
   weapon:     { default: 'assets/sprites/Items/sword.png', common: 'assets/sprites/gear/weapon/common.webp', rare: 'assets/sprites/gear/weapon/rare.webp', epic: 'assets/sprites/gear/weapon/epic.webp', legendary: 'assets/sprites/gear/weapon/legendary.webp' },
   breastplate:{ default: 'assets/sprites/Items/armor.png', common: 'assets/sprites/gear/breastplate/common.webp', rare: 'assets/sprites/gear/breastplate/rare.webp', epic: 'assets/sprites/gear/breastplate/epic.webp', legendary: 'assets/sprites/gear/breastplate/legendary.webp' },
@@ -1674,6 +1676,7 @@ export const ModalsMethods = {
   },
 
   hideEventOverlays() {
+    this.hideMerchantPurchaseToast()
     ;[el.merchantShopOverlay, el.gamblerOverlay, el.tripleChestOverlay, el.storyEventOverlay, el.trinketTraderOverlay]
       .forEach(o => o?.classList.add('hidden'))
     // Story: outcome "Continue" can outlive the overlay if dismissed without clicking (e.g. bot / session close).
@@ -1684,9 +1687,35 @@ export const ModalsMethods = {
     }
   },
 
+  hideMerchantPurchaseToast() {
+    if (_merchantToastTimer) {
+      clearTimeout(_merchantToastTimer)
+      _merchantToastTimer = null
+    }
+    const toast = el.merchantShopOverlay?.querySelector('#merchant-shop-toast')
+    if (toast) {
+      toast.textContent = ''
+      toast.classList.remove('is-visible', 'is-error')
+    }
+  },
+
+  showMerchantPurchaseToast(msg, { isError = false } = {}) {
+    const toast = el.merchantShopOverlay?.querySelector('#merchant-shop-toast')
+    if (!toast) return
+    if (_merchantToastTimer) clearTimeout(_merchantToastTimer)
+    toast.textContent = msg
+    toast.classList.toggle('is-error', isError)
+    toast.classList.add('is-visible')
+    _merchantToastTimer = setTimeout(() => {
+      toast.classList.remove('is-visible')
+      _merchantToastTimer = null
+    }, 2400)
+  },
+
   showMerchantShop(playerGold, items, onBuy, onLeave, { canBuy } = {}) {
     const ov = el.merchantShopOverlay
     if (!ov) return
+    this.hideMerchantPurchaseToast()
     const goldEl = ov.querySelector('#merchant-shop-gold')
     if (goldEl) goldEl.textContent = playerGold
     const list = ov.querySelector('#merchant-shop-list')

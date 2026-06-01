@@ -50,22 +50,37 @@ function rollMerchantTrinket(ctx) {
   return ctx.pickRandom(pool)
 }
 
-function openMerchantShop(ctx, tile, opts = {}) {
-  const p = session.run.player
+/** Roll once per merchant tile per floor — stock persists across revisits. */
+function ensureMerchantStock(ctx, tile) {
+  if (tile._merchantStock) return
   const trinketId = rollMerchantTrinket(ctx)
-  const items = MERCHANT_ITEMS.map(def => ({
-    ...def,
+  tile._merchantStock = MERCHANT_ITEMS.map(def => ({
     id: def.id === '__trinket__' ? trinketId : def.id,
     label: def.id === '__trinket__' ? (ITEMS[trinketId]?.name ?? 'Mystery Relic') : def.label,
+    price: def.price,
   }))
-
-  // 50% chance the merchant has scrap for sale (sanctuary only, or always if opts.sanctuary)
   if (tile._merchantScrapStock === undefined) {
     tile._merchantScrapStock = Math.random() < 0.5 ? 20 : 0
   }
+  if (!tile._merchantSoldIds) tile._merchantSoldIds = []
+}
+
+function buildMerchantOffer(tile) {
+  const sold = new Set(tile._merchantSoldIds ?? [])
+  const items = (tile._merchantStock ?? []).filter(i => !sold.has(i.id))
   if (tile._merchantScrapStock > 0) {
-    items.push({ id: '__scrap__', label: `Scrap ×1 — ${tile._merchantScrapStock} left ⚠️ may not return`, price: 25 })
+    items.push({
+      id: '__scrap__',
+      label: `Scrap ×1 — ${tile._merchantScrapStock} left ⚠️ may not return`,
+      price: 25,
+    })
   }
+  return items
+}
+
+function openMerchantShop(ctx, tile, opts = {}) {
+  const p = session.run.player
+  ensureMerchantStock(ctx, tile)
 
   const _canBuy = (itemId) => {
     if (itemId === '__scrap__') return true
@@ -86,11 +101,7 @@ function openMerchantShop(ctx, tile, opts = {}) {
       }
 
   const refreshShop = () => {
-    const freshItems = items.filter(i => i.id !== '__scrap__' || tile._merchantScrapStock > 0)
-    if (tile._merchantScrapStock > 0) {
-      const scrapEntry = freshItems.find(i => i.id === '__scrap__')
-      if (scrapEntry) scrapEntry.label = `Scrap ×1 — ${tile._merchantScrapStock} left ⚠️ may not return`
-    }
+    const freshItems = buildMerchantOffer(tile)
     UI.showMerchantShop(p.gold, freshItems, (itemId) => doMerchantBuy(ctx, tile, itemId, freshItems, refreshShop), onLeave, { canBuy: _canBuy })
   }
   refreshShop()
@@ -107,18 +118,28 @@ async function doMerchantBuy(ctx, tile, itemId, items, refreshShop) {
   const p = session.run.player
   const def = items.find(i => i.id === itemId)
   if (!def) return
-  if (p.gold < def.price) { UI.setMessage('Not enough gold!', true); return }
+  if (p.gold < def.price) {
+    UI.showMerchantPurchaseToast('Not enough gold!', { isError: true })
+    UI.setMessage('Not enough gold!', true)
+    return
+  }
 
   // Handle scrap purchase
   if (itemId === '__scrap__') {
     if (!tile._merchantScrapStock || tile._merchantScrapStock <= 0) {
-      UI.setMessage('No scrap left in stock!', true); return
+      UI.showMerchantPurchaseToast('No scrap left in stock!', { isError: true })
+      UI.setMessage('No scrap left in stock!', true)
+      return
     }
     p.gold -= def.price
     UI.updateGold(p.gold)
     adjustScrap(1)
     tile._merchantScrapStock--
     EventBus.emit('audio:play', { sfx: 'chest' })
+    const scrapMsg = tile._merchantScrapStock > 0
+      ? `✓ Purchased scrap (${tile._merchantScrapStock} left)`
+      : '✓ Purchased scrap'
+    UI.showMerchantPurchaseToast(scrapMsg)
     UI.setMessage(`You purchase 1 scrap. (${tile._merchantScrapStock} left)`)
     SaveManager.save(session.save).catch(() => {})
     refreshShop?.()
@@ -129,6 +150,7 @@ async function doMerchantBuy(ctx, tile, itemId, items, refreshShop) {
   const isCoinConvert = hasCoin && (itemId === 'potion-red' || itemId === 'potion-blue' || itemId === 'potion-mystery')
   // Pre-check backpack room so gold is never deducted for an item that can't be received
   if (!isCoinConvert && !ctx.canAddToBackpack(itemId)) {
+    UI.showMerchantPurchaseToast('🎒 No room in backpack!', { isError: true })
     UI.setMessage("🎒 No room in backpack — make room before buying!", true)
     return
   }
@@ -140,9 +162,15 @@ async function doMerchantBuy(ctx, tile, itemId, items, refreshShop) {
   EventBus.emit('audio:play', { sfx: 'chest' })
   if (isCoinConvert) {
     const goldBack = itemId === 'potion-red' ? 3 : itemId === 'potion-mystery' ? 2 : 5
+    UI.showMerchantPurchaseToast(`✓ Coin converted — +${goldBack} gold`)
     UI.setMessage(`🪙 Philosopher's Coin converts your ${def.label} to +${goldBack} gold!`)
   } else {
+    UI.showMerchantPurchaseToast(`✓ Purchased ${def.label}`)
     UI.setMessage(`You purchase the ${def.label}.`)
+  }
+  if (itemId !== '__scrap__') {
+    tile._merchantSoldIds = tile._merchantSoldIds ?? []
+    if (!tile._merchantSoldIds.includes(itemId)) tile._merchantSoldIds.push(itemId)
   }
   // Refresh shop display with updated gold and backpack state
   refreshShop?.()
