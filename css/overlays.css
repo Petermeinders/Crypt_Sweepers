@@ -411,6 +411,67 @@
   letter-spacing: 0.04em;
 }
 
+.app-update-banner {
+  position: fixed;
+  left: 50%;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 10050;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(92vw, 420px);
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(18, 14, 10, 0.96);
+  border: 1px solid rgba(200, 132, 26, 0.55);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+.app-update-banner-text {
+  margin: 0;
+  flex: 1;
+  font-size: 0.82rem;
+  color: #e8dcc8;
+  line-height: 1.35;
+}
+
+.app-update-reload-btn {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #c8841a, #8f5a10);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.app-update-dismiss-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.settings-action-btn {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border: 1px solid rgba(200, 132, 26, 0.45);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  color: #e8dcc8;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
 /* ── Attributes ── */
 .card-attrs {
   display: flex;

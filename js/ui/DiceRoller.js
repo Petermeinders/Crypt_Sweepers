@@ -235,9 +235,8 @@ export function createDiceRoller(canvas) {
     /** Draw the felt table idle (before first roll). */
     drawIdle() {
       drawFelt()
-      // Dice silhouettes
-      drawDie(die1, 0, false)
-      drawDie(die2, 0, false)
+      drawDie(die1, 1, false)
+      drawDie(die2, 1, false)
     },
 
     destroy() {

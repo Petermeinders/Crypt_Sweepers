@@ -1,5 +1,6 @@
 import Logger from './core/Logger.js'
 import { boot } from './boot/boot.js'
+import { initServiceWorker } from './boot/serviceWorker.js'
 
 async function safeBoot() {
   try {
@@ -30,24 +31,4 @@ if (document.readyState === 'loading') {
   setInterval(next, DISPLAY_MS)
 })()
 
-// ── Service worker registration ───────────────────────────────
-// Keep SW_CACHE_VERSION in sync with CACHE_NAME in sw.js (digits after "v").
-const SW_CACHE_VERSION = '477'
-
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    let refreshing = false
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (refreshing) return
-      refreshing = true
-      window.location.reload()
-    })
-
-    navigator.serviceWorker.register(`./sw.js?v=${SW_CACHE_VERSION}`)
-      .then(reg => {
-        Logger.debug('[SW] registered', reg.scope)
-        reg.update()
-      })
-      .catch(err => Logger.error('[SW] registration failed', err))
-  })
-}
+initServiceWorker()

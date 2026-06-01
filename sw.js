@@ -1,9 +1,9 @@
 // Crypt Sweepers — Service Worker
 // Strategy: Cache-first for assets, network-first for HTML.
 // Version bump CACHE_NAME to force cache refresh on deploy.
-// Also bump SW_CACHE_VERSION in js/main.js (registration query string).
+// Keep in sync with APP_VERSION in js/appVersion.js and version.json.
 
-const CACHE_NAME = 'crypt-sweepers-v477'
+const CACHE_NAME = 'crypt-sweepers-v479'
 
 const PRECACHE_ASSETS = [
   './',
@@ -336,6 +336,12 @@ const PRECACHE_ASSETS = [
 ]
 
 // ── Install: precache all assets ──────────────────────────────
+self.addEventListener('message', event => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting()
+  }
+})
+
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -360,10 +366,19 @@ self.addEventListener('activate', event => {
 // Network-first for HTML/JS/CSS so code changes are immediate.
 // Cache-first for images and audio (large, rarely change).
 
-/** Match cached assets even when the browser adds ?t= cache-busting (UI adds Date.now() to GIFs). */
+/** Match cached assets when the browser adds ?t= cache-busting (UI adds Date.now() to GIFs). */
 const CACHE_MATCH_IGNORE_SEARCH = { ignoreSearch: true }
 
+function cacheMatchOpts(request) {
+  const path = new URL(request.url).pathname
+  if (/\.(png|webp|gif|jpg|jpeg|svg|ogg|mp3|wav)$/i.test(path)) {
+    return CACHE_MATCH_IGNORE_SEARCH
+  }
+  return undefined
+}
+
 function networkFirst(request) {
+  const matchOpts = cacheMatchOpts(request)
   return fetch(request)
     .then(res => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -371,7 +386,7 @@ function networkFirst(request) {
       caches.open(CACHE_NAME).then(c => c.put(request, clone))
       return res
     })
-    .catch(() => caches.match(request, CACHE_MATCH_IGNORE_SEARCH))
+    .catch(() => caches.match(request, matchOpts))
     .then(response => {
       if (response) return response
       const url = new URL(request.url)
@@ -407,6 +422,12 @@ self.addEventListener('fetch', event => {
   if (request.method !== 'GET' || url.origin !== location.origin) return
 
   const path = url.pathname
+
+  // Never cache version manifest — clients use it to detect stale builds
+  if (path.endsWith('/version.json')) {
+    event.respondWith(fetch(request, { cache: 'no-store' }))
+    return
+  }
 
   // Cache-first only for images and audio (static assets)
   if (/\.(png|webp|gif|jpg|jpeg|svg|ogg|mp3|wav)$/i.test(path)) {

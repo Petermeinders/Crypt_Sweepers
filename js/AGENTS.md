@@ -6,7 +6,8 @@ The `js/` directory contains all game source code. Two files live at this level;
 
 | File | Purpose |
 |------|---------|
-| `main.js` | Thin entry point. Hero carousel, service worker registration, delegates to `boot/boot.js`. |
+| `main.js` | Thin entry point. Hero carousel, service worker init, delegates to `boot/boot.js`. |
+| `appVersion.js` | `APP_VERSION` string — sync with `version.json` and `sw.js` `CACHE_NAME` on deploy. |
 | `config.js` | Exports `CONFIG` (all tunable gameplay constants) and `SETTINGS` (player preferences, overwritten by `SaveManager` on boot). The authoritative source for all magic numbers. |
 
 ## CONFIG Notes

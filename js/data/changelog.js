@@ -6,6 +6,34 @@ export const CHANGELOG = [
   {
     dateLabel: 'May 2026',
     dateIso:   '2026-05-30',
+    version:   'v479',
+    title:     'Gambler dice roll fix',
+    summary:
+      'The Gambler event roll button works reliably on repeat visits and falls back to a simple roll if physics fails to load.',
+    items: [
+      {
+        tag:  'Fix',
+        text: 'Gambler — roll button re-enables on each visit; click handler wires immediately; missing Matter.js or DiceRoller errors fall back to a normal random roll instead of a dead button.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'May 2026',
+    dateIso:   '2026-05-30',
+    version:   'v478',
+    title:     'Automatic app updates',
+    summary:
+      'Mobile players no longer need to manually clear cache — the game checks for new versions, shows an update banner, and loads fresh code on each visit.',
+    items: [
+      {
+        tag:  'Fix',
+        text: 'Auto-update — version.json + bootstrap loader fetch the latest main.js; service worker polls on focus every 5 minutes; “Update now” banner and Settings → Check for updates apply pending builds.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'May 2026',
+    dateIso:   '2026-05-30',
     version:   'v477',
     title:     'Full-backpack gear swap fix',
     summary:

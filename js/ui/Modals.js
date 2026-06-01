@@ -1765,6 +1765,11 @@ export const ModalsMethods = {
     ov.querySelector('#gambler-phase-roll').classList.add('hidden')
     ov.querySelector('#gambler-phase-outcome').classList.add('hidden')
 
+    const rollBtn = ov.querySelector('#gambler-roll-btn')
+    const rollHint = ov.querySelector('#gambler-roll-hint')
+    if (rollBtn) rollBtn.disabled = false
+    if (rollHint) rollHint.textContent = 'Tap to roll the dice!'
+
     // Build bet buttons
     const BET_AMOUNTS = [5, 10, 25]
     const btnWrap = ov.querySelector('#gambler-bet-buttons')
@@ -1796,43 +1801,59 @@ export const ModalsMethods = {
     const rollBtn = ov.querySelector('#gambler-roll-btn')
     const hint    = ov.querySelector('#gambler-roll-hint')
 
-    // In headless/bot mode, skip Matter.js physics (rAF doesn't run) and resolve instantly
+    if (rollBtn) rollBtn.disabled = false
+    if (hint) hint.textContent = 'Tap to roll the dice!'
+
     const isHeadlessBot = !!(window.__balanceBotRunning || window.__testBotOngoing || navigator.webdriver)
 
-    if (isHeadlessBot) {
-      let rolled = false
-      const doRoll = () => {
-        if (rolled) return
-        rolled = true
-        rollBtn.disabled = true
-        if (hint) hint.textContent = 'Dice are rolling…'
-        const r1 = Math.ceil(Math.random() * 6)
-        const r2 = Math.ceil(Math.random() * 6)
-        setTimeout(() => onRollComplete(r1, r2), 200)
-      }
-      rollBtn.addEventListener('click', doRoll, { once: true })
-      return
+    let roller = null
+    let rolled = false
+
+    const finishRoll = (r1, r2) => onRollComplete(r1, r2)
+
+    const instantRoll = () => {
+      setTimeout(
+        () => finishRoll(Math.ceil(Math.random() * 6), Math.ceil(Math.random() * 6)),
+        isHeadlessBot ? 200 : 180,
+      )
     }
 
-    // Lazy-import so Matter.js stays out of the critical path
-    import('./DiceRoller.js').then(({ createDiceRoller }) => {
-      const roller = createDiceRoller(canvas)
-      roller.drawIdle()
+    const doRoll = () => {
+      if (rolled) return
+      rolled = true
+      if (rollBtn) rollBtn.disabled = true
+      if (hint) hint.textContent = 'Dice are rolling…'
 
-      let rolled = false
-      const doRoll = () => {
-        if (rolled) return
-        rolled = true
-        rollBtn.disabled = true
-        if (hint) hint.textContent = 'Dice are rolling…'
-        roller.roll((r1, r2) => {
-          roller.destroy()
-          onRollComplete(r1, r2)
-        })
+      if (isHeadlessBot || !roller) {
+        instantRoll()
+        return
       }
 
-      rollBtn.addEventListener('click', doRoll, { once: true })
-    })
+      try {
+        roller.roll((r1, r2) => {
+          roller?.destroy()
+          roller = null
+          finishRoll(r1, r2)
+        })
+      } catch {
+        instantRoll()
+      }
+    }
+
+    // Wire click immediately so a fast tap never hits a dead button
+    rollBtn?.addEventListener('click', doRoll, { once: true })
+
+    if (isHeadlessBot || !canvas || typeof Matter === 'undefined') return
+
+    import('./DiceRoller.js')
+      .then(({ createDiceRoller }) => {
+        if (rolled) return
+        roller = createDiceRoller(canvas)
+        roller.drawIdle()
+      })
+      .catch(() => {
+        roller = null
+      })
   },
 
   gamblerShowOutcome(bet, r1, r2, won) {

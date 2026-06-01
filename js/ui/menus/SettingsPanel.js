@@ -2,6 +2,7 @@
 
 import Logger from '../../core/Logger.js'
 import { applyImportedSave } from './saveTransfer.js'
+import { APP_VERSION, forceCheckForUpdates } from '../../boot/serviceWorker.js'
 
 function _refreshRunBackupSection(ctx) {
   const section = document.getElementById('run-backup-section')
@@ -51,7 +52,8 @@ function _openSettingsOverlay(ctx) {
   _populateSettingsForm(ctx.GameController.getSave())
   _refreshRunBackupSection(ctx)
   const versionEl = document.getElementById('settings-cache-version')
-  if (versionEl && !versionEl.textContent) versionEl.textContent = 'v477'
+  if (versionEl) versionEl.textContent = `v${APP_VERSION}`
+  document.getElementById('settings-update-status').textContent = 'Check for the latest fixes and balance changes.'
   document.getElementById('settings-overlay').classList.remove('hidden')
 }
 
@@ -62,6 +64,20 @@ export function wireSettingsPanel(ctx) {
   document.getElementById('settings-btn').addEventListener('click', () => _openSettingsOverlay(ctx))
   document.getElementById('settings-back').addEventListener('click', () => {
     document.getElementById('settings-overlay').classList.add('hidden')
+  })
+
+  document.getElementById('settings-check-updates-btn')?.addEventListener('click', async () => {
+    const statusEl = document.getElementById('settings-update-status')
+    if (statusEl) statusEl.textContent = 'Checking…'
+    const result = await forceCheckForUpdates()
+    if (!statusEl) return
+    if (result.status === 'current') {
+      statusEl.textContent = `You’re on the latest version (v${result.current}).`
+    } else if (result.status === 'update-ready') {
+      statusEl.textContent = 'Update downloaded — tap “Update now” on the banner, or reload the page.'
+    } else {
+      statusEl.textContent = `Update available (v${result.remote}). Use the banner or reload when you can.`
+    }
   })
 
   document.getElementById('setting-music').addEventListener('change', e => {

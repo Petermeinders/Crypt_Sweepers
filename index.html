@@ -28,6 +28,12 @@
 </head>
 <body>
 
+  <div id="app-update-banner" class="app-update-banner hidden" role="alert" aria-live="polite" aria-hidden="true">
+    <p class="app-update-banner-text">A new version is ready.</p>
+    <button type="button" id="app-update-reload" class="app-update-reload-btn">Update now</button>
+    <button type="button" id="app-update-dismiss" class="app-update-dismiss-btn" aria-label="Dismiss update notice">×</button>
+  </div>
+
   <!-- ── Game screen ── -->
   <div id="app">
 
@@ -665,6 +671,14 @@
       <div class="settings-version-badge" id="settings-cache-version"></div>
     </div>
     <div class="panel-list">
+
+      <div class="settings-row">
+        <div class="settings-label">
+          <span class="settings-label-title">App updates</span>
+          <span class="settings-label-desc" id="settings-update-status">Check for the latest fixes and balance changes.</span>
+        </div>
+        <button type="button" id="settings-check-updates-btn" class="settings-action-btn">Check for updates</button>
+      </div>
 
       <div class="settings-row settings-row-child-mode">
         <div class="settings-label">
@@ -1341,6 +1355,19 @@
 
   <script src="js/lib/omggif.js"></script>
   <script src="js/lib/matter.min.js"></script>
-  <script type="module" src="js/main.js"></script>
+  <script>
+    (function () {
+      function loadMain(version) {
+        var s = document.createElement('script')
+        s.type = 'module'
+        s.src = 'js/main.js' + (version ? '?v=' + encodeURIComponent(version) : '')
+        document.body.appendChild(s)
+      }
+      fetch('./version.json?_=' + Date.now(), { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null })
+        .then(function (data) { loadMain(data && data.version) })
+        .catch(function () { loadMain(null) })
+    })()
+  </script>
 </body>
 </html>
