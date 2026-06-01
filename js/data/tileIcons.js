@@ -85,6 +85,23 @@ export const CHILD_MODE_SPRITES = {
   gnome:           'child_mode/fluff-ball.png',
   fire_goblin:     'child_mode/bee-3d.png',
   infected_goblin: 'child_mode/cow-3d.png',
+  ogre:                  'child_mode/deer.png',
+  frost_giant:           'child_mode/whale.png',
+  drowned_hulk_pirate:   'child_mode/octopus.png',
+  corrupted_pirate:      'child_mode/fish.png',
+  mushroom_harvester:    'child_mode/frog.png',
+  rock_golem:            'child_mode/bubble.png',
+  corrupted_goblin:      'child_mode/pig-cowbell.png',
+  corrupted_cyclops:     'child_mode/elephant.png',
+  crystal_spider:        'child_mode/ladybug.png',
+  fire_centipede:        'child_mode/snake.png',
+  molten_spiderling:     'child_mode/mouse-star.png',
+  shadow_bat:            'child_mode/bluebird.png',
+  dark_bone_demon:       'child_mode/cow-plush.png',
+  crystal_bone_demon:    'child_mode/starfish.png',
+  skeleton_lord:         'child_mode/tuxedo-cat.png',
+  goblin_king:           'child_mode/duck-star.png',
+  troll_warlord:         'child_mode/dolphin.png',
 }
 
 /**

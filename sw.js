@@ -3,7 +3,7 @@
 // Version bump CACHE_NAME to force cache refresh on deploy.
 // Keep in sync with APP_VERSION in js/appVersion.js and version.json.
 
-const CACHE_NAME = 'crypt-sweepers-v487'
+const CACHE_NAME = 'crypt-sweepers-v488'
 
 const PRECACHE_ASSETS = [
   './',
@@ -306,6 +306,23 @@ const PRECACHE_ASSETS = [
   './assets/sprites/monsters/child_mode/fluff-ball.png',
   './assets/sprites/monsters/child_mode/bee-3d.png',
   './assets/sprites/monsters/child_mode/cow-3d.png',
+  './assets/sprites/monsters/child_mode/fish.png',
+  './assets/sprites/monsters/child_mode/frog.png',
+  './assets/sprites/monsters/child_mode/octopus.png',
+  './assets/sprites/monsters/child_mode/starfish.png',
+  './assets/sprites/monsters/child_mode/elephant.png',
+  './assets/sprites/monsters/child_mode/snake.png',
+  './assets/sprites/monsters/child_mode/bluebird.png',
+  './assets/sprites/monsters/child_mode/dolphin.png',
+  './assets/sprites/monsters/child_mode/tuxedo-cat.png',
+  './assets/sprites/monsters/child_mode/whale.png',
+  './assets/sprites/monsters/child_mode/bubble.png',
+  './assets/sprites/monsters/child_mode/pig-cowbell.png',
+  './assets/sprites/monsters/child_mode/cow-plush.png',
+  './assets/sprites/monsters/child_mode/deer.png',
+  './assets/sprites/monsters/child_mode/duck-star.png',
+  './assets/sprites/monsters/child_mode/mouse-star.png',
+  './assets/sprites/monsters/child_mode/ladybug.png',
   './assets/sprites/gear/weapon/common.webp',
   './assets/sprites/gear/weapon/rare.webp',
   './assets/sprites/gear/weapon/epic.webp',
