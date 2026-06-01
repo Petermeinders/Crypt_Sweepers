@@ -8,8 +8,8 @@ import {
   RARE_TRINKET_IDS,
   EPIC_TRINKET_IDS,
   LEGENDARY_TRINKET_IDS,
-  LEGENDARY_MIN_FLOOR,
   pickRandom,
+  rollTieredTrinketId,
 } from '../systems/LootTables.js'
 import { session } from '../core/RunContext.js'
 import SaveManager from '../save/SaveManager.js'
@@ -24,7 +24,6 @@ export function openEvent(ctx, tile) {
   if (!tile.eventType) tile.eventType = rollEventType()
 
   switch (tile.eventType) {
-    case 'merchant':       openMerchantShop(ctx, tile); break
     case 'gambler':        openGamblerEvent(ctx, tile); break
     case 'triple-chest':   openTripleChestEvent(ctx, tile); break
     case 'trinket-trader': openTrinketTraderEvent(ctx, tile); break
@@ -45,15 +44,15 @@ export function closeEventSession(ctx, tile) {
   ctx.flushDeferredLevelUpXp()
 }
 
-function rollMerchantTrinket(ctx) {
-  const pool = [...RARE_TRINKET_IDS, ...EPIC_TRINKET_IDS, ...LEGENDARY_TRINKET_IDS]
-  return ctx.pickRandom(pool)
+function rollMerchantTrinket() {
+  const floor = session.run?.floor ?? 1
+  return rollTieredTrinketId(floor)
 }
 
 /** Roll once per merchant tile per floor — stock persists across revisits. */
 function ensureMerchantStock(ctx, tile) {
   if (tile._merchantStock) return
-  const trinketId = rollMerchantTrinket(ctx)
+  const trinketId = rollMerchantTrinket()
   tile._merchantStock = MERCHANT_ITEMS.map(def => ({
     id: def.id === '__trinket__' ? trinketId : def.id,
     label: def.id === '__trinket__' ? (ITEMS[trinketId]?.name ?? 'Mystery Relic') : def.label,
@@ -78,7 +77,7 @@ function buildMerchantOffer(tile) {
   return items
 }
 
-function openMerchantShop(ctx, tile, opts = {}) {
+function openMerchantShop(ctx, tile) {
   const p = session.run.player
   ensureMerchantStock(ctx, tile)
 
@@ -89,16 +88,11 @@ function openMerchantShop(ctx, tile, opts = {}) {
     return isCoinConvert || ctx.canAddToBackpack(itemId)
   }
 
-  const onLeave = opts.sanctuary
-    ? () => {
-        if (GameState.is(States.NPC_INTERACT)) GameState.transition(States.FLOOR_EXPLORE)
-        UI.hideEventOverlays()
-        if (!GameState.is(States.DEATH)) UI.setMessage('The merchant waves farewell.')
-      }
-    : () => {
-        if (!GameState.is(States.DEATH)) UI.setMessage('The merchant watches you leave.')
-        closeEventSession(ctx, tile)
-      }
+  const onLeave = () => {
+    if (GameState.is(States.NPC_INTERACT)) GameState.transition(States.FLOOR_EXPLORE)
+    UI.hideEventOverlays()
+    if (!GameState.is(States.DEATH)) UI.setMessage('The merchant waves farewell.')
+  }
 
   const refreshShop = () => {
     const freshItems = buildMerchantOffer(tile)
@@ -111,7 +105,7 @@ function openMerchantShop(ctx, tile, opts = {}) {
 export function openSanctuaryMerchant(ctx, tile) {
   if (!GameState.transition(States.NPC_INTERACT)) return
   EventBus.emit('audio:play', { sfx: 'merchant' })
-  openMerchantShop(ctx, tile, { sanctuary: true })
+  openMerchantShop(ctx, tile)
 }
 
 async function doMerchantBuy(ctx, tile, itemId, items, refreshShop) {
@@ -223,28 +217,14 @@ function openGamblerEvent(ctx, tile) {
 
 function openTripleChestEvent(ctx, tile) {
   const floor = session.run?.floor ?? 1
-  const topRarity = floor >= LEGENDARY_MIN_FLOOR ? 'legendary' : 'epic'
-  const topPool = topRarity === 'legendary' ? LEGENDARY_TRINKET_IDS : EPIC_TRINKET_IDS
-  const chests = [
-    { rarity: 'common',    loot: ctx.rollCommonLoot() },
-    { rarity: 'rare',      loot: { type: pickRandom(RARE_TRINKET_IDS) } },
-    { rarity: topRarity, loot: { type: pickRandom(topPool) } },
-  ]
-  // Shuffle so player can't always pick right
-  chests.sort(() => Math.random() - 0.5)
+  const chests = [{}, {}, {}]
 
-  UI.showTripleChestEvent(chests, async (idx) => {
+  UI.showTripleChestEvent(chests, async () => {
     try {
-      const chosen = chests[idx]
-      const loot = chosen.loot
-      if (loot.type === 'gold') {
-        ctx.gainGold(loot.amount ?? 5, tile.element)
-        UI.setMessage(`You open the chest — ${loot.amount ?? 5} gold spills out!`)
-      } else {
-        await ctx.addToBackpack(loot.type)
-        EventBus.emit('inventory:changed')
-        UI.setMessage(`You open the chest and find: ${ITEMS[loot.type]?.name ?? loot.type}!`)
-      }
+      const trinketId = rollTieredTrinketId(floor)
+      await ctx.addToBackpack(trinketId)
+      EventBus.emit('inventory:changed')
+      UI.setMessage(`You open the chest and find: ${ITEMS[trinketId]?.name ?? trinketId}!`)
       EventBus.emit('audio:play', { sfx: 'chest' })
     } finally {
       closeEventSession(ctx, tile)

@@ -63,10 +63,27 @@ export function generateGearName(slot, tier) {
   return `${adj} ${noun}`
 }
 
-function _rollStat(statKey, tier) {
+/** Floor-depth multiplier for stat bands at drop time. */
+export function gearFloorMult(floor) {
+  return CONFIG.gear.floorMult(floor)
+}
+
+function _scaledBand(lo, hi, mult, statKey) {
+  if (statKey === 'negation') {
+    const slo = Math.max(0.01, Math.round(lo * mult * 100) / 100)
+    const shi = Math.max(slo, Math.round(hi * mult * 100) / 100)
+    return [slo, shi]
+  }
+  const slo = Math.max(1, Math.round(lo * mult))
+  const shi = Math.max(slo, Math.round(hi * mult))
+  return [slo, shi]
+}
+
+function _rollStat(statKey, tier, floorMult = 1) {
   const band = CONFIG.gear.statRanges[statKey]?.[tier]
   if (!band) return null
-  const [lo, hi] = band
+  let [lo, hi] = band
+  if (floorMult !== 1) [lo, hi] = _scaledBand(lo, hi, floorMult, statKey)
   if (lo === hi) return lo
   // negation is a float (0.05–0.30); all other stats are integers
   if (statKey === 'negation') return Math.round((lo + Math.random() * (hi - lo)) * 100) / 100
@@ -76,19 +93,23 @@ function _rollStat(statKey, tier) {
 // ── Factory ───────────────────────────────────────────────────────────────────
 
 /**
- * generateGear(slot, tier) → gear piece object
- *   { uid, slot, tier, name, stats, upgradeCount }
+ * generateGear(slot, tier, floor?) → gear piece object
+ *   { uid, slot, tier, name, stats, upgradeCount, dropFloor }
  *
  * stats is a flat object of { statKey: value }.
+ * Stat bands scale with floor (all tiers + detriments). Blacksmith +25% upgrades
+ * multiply the rolled values, so deeper drops upgrade into stronger pieces.
  * Detriment values are stored as NEGATIVE numbers so callers can add them directly.
  * damageReduction only appears on Epic/Legendary.
  */
-export function generateGear(slot, tier) {
+export function generateGear(slot, tier, floor = 1) {
+  const dropFloor = Math.max(1, Math.floor(Number(floor) || 1))
+  const floorMult = gearFloorMult(dropFloor)
   const slotDef = GEAR_SLOT_DEFS[slot]
   const stats   = {}
 
   // Primary stat — always present
-  const primaryVal = _rollStat(slotDef.primaryStat, tier)
+  const primaryVal = _rollStat(slotDef.primaryStat, tier, floorMult)
   if (primaryVal !== null) stats[slotDef.primaryStat] = primaryVal
 
   // Secondaries — 0 to 2, no duplicates
@@ -98,16 +119,16 @@ export function generateGear(slot, tier) {
     const idx  = Math.floor(Math.random() * availableSecondary.length)
     const stat = availableSecondary.splice(idx, 1)[0]
     if (stat === 'damageReduction' && tier !== 'epic' && tier !== 'legendary') continue
-    const val = _rollStat(stat, tier)
+    const val = _rollStat(stat, tier, floorMult)
     if (val !== null) stats[stat] = val
   }
 
-  // Detriment — lower tiers more likely; legendary rare
+  // Detriment — lower tiers more likely; legendary rare; bands scale with floor
   const detrimentChance = { common: 0.60, rare: 0.35, epic: 0.20, legendary: 0.10 }[tier]
   if (Math.random() < detrimentChance) {
     const pool = slotDef.detrimentPool
     const detKey = pool[Math.floor(Math.random() * pool.length)]
-    const detVal = _rollStat(DETRIMENT_STAT_MAP[detKey], tier)
+    const detVal = _rollStat(DETRIMENT_STAT_MAP[detKey], tier, floorMult)
     if (detVal !== null) stats[detKey] = -detVal
   }
 
@@ -118,6 +139,7 @@ export function generateGear(slot, tier) {
     name:         generateGearName(slot, tier),
     stats,
     upgradeCount: 0,
+    dropFloor,
   }
 }
 

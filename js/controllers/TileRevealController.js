@@ -582,9 +582,6 @@ export async function openChest(ctx, tile) {
     }
   }, GIF_DURATION)
 
-  // 2.5% chance for an additional gear drop from chests (reduced from 10%)
-  ctx.tryGearDrop(session.run.floor, 0.025)
-
   tile.chestLooted = true
 }
 

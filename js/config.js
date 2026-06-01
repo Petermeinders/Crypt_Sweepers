@@ -70,12 +70,12 @@ export const CONFIG = {
     fastDamage: [1, 2],
     goldDrop:   [1, 2],
     // Stat scaling per floor
-    floorScaleHP:  0.20,       // +20% HP per floor (floors 1–50) — doubled from 0.10
+    floorScaleHP:  0.22,       // +22% HP per floor (floors 1–50)
     // Damage: compound per floor (moderate exponential)
     floorScaleDmgExpRate:      0.048,  // dmgMult ×(1+r) per floor (floors 2–50)
     floorScaleDmgExpRate_late:   0.024,  // continued compound above floor 50
     // Steeper HP scaling for floors 51–100 (piecewise linear inflection)
-    floorScaleHP_late:  0.30,  // +30% HP per floor above 50 — doubled from 0.15
+    floorScaleHP_late:  0.33,  // +33% HP per floor above 50
     /** Global multiplier applied after floor scaling (HP + damage). */
     statMult: 1.25,
   },
@@ -411,23 +411,34 @@ export const CONFIG = {
 
   gear: {
     statRanges: {
-      // Primary stats
-      damageBonus:     { common: [1,3],    rare: [3,6],    epic: [5,10],   legendary: [8,15]  },
-      maxHpPct:        { common: [5,12],   rare: [12,22],  epic: [20,35],  legendary: [30,50] },
-      negation:        { common: [0.05,0.08], rare: [0.08,0.15], epic: [0.12,0.22], legendary: [0.18,0.30] },
+      // Primary stats — each tier's lo overlaps the tier below (floor scale widens gaps deep).
+      damageBonus:     { common: [1, 4],    rare: [2, 7],    epic: [1, 11],   legendary: [3, 17]  },
+      maxHpPct:        { common: [5, 14],   rare: [8, 24],   epic: [10, 36],  legendary: [16, 52] },
+      negation:        { common: [0.05, 0.10], rare: [0.06, 0.17], epic: [0.07, 0.25], legendary: [0.12, 0.32] },
       // Secondary stats
-      maxManaPct:      { common: [4,8],    rare: [8,16],   epic: [14,25],  legendary: [20,40] },
-      damageReduction: { epic: [1,1],      legendary: [1,2] },
-      // Detriment range sources (rolled negative by the generator)
-      brittleArmor:    { common: [1,3],    rare: [1,6],    epic: [3,8],    legendary: [6,10]  },
-      barbedGear:      { common: [1,5],    rare: [2,7],    epic: [3,12],   legendary: [5,20]  },
-      manaDrain:       { common: [3,5],    rare: [5,8],    epic: [8,12],   legendary: [12,15] },
+      maxManaPct:      { common: [4, 10],   rare: [6, 18],   epic: [8, 26],   legendary: [14, 42] },
+      damageReduction: { epic: [1, 2],      legendary: [1, 3] },
+      // Detriment range sources (rolled negative; low end overlaps = milder bad rolls on high tiers)
+      brittleArmor:    { common: [1, 4],    rare: [1, 7],    epic: [1, 10],   legendary: [3, 12]  },
+      barbedGear:      { common: [1, 6],    rare: [1, 9],    epic: [2, 14],   legendary: [4, 18]  },
+      manaDrain:       { common: [3, 6],    rare: [3, 9],    epic: [4, 12],   legendary: [6, 16]  },
     },
     levelDropTables: {
       '1-20':   { common: 80, rare: 15, epic: 4,  legendary: 1  },
-      '21-40':  { common: 50, rare: 35, epic: 12, legendary: 3  },
-      '41-60':  { common: 25, rare: 45, epic: 22, legendary: 8  },
-      '61-100': { common: 10, rare: 30, epic: 40, legendary: 20 },
+      '21-40':  { common: 60, rare: 25, epic: 12, legendary: 3  },
+      '41-60':  { common: 40, rare: 35, epic: 20, legendary: 5  },
+      '61-100': { common: 30, rare: 38, epic: 25, legendary: 7  },
+    },
+    /**
+     * Stat-band multiplier at drop time — applies to all tiers and detriment rolls.
+     * F10 ≈ 1.23×, F80 ≈ 3.28× vs F1 baseline (~2.7× common primary stats F80 vs F10).
+     */
+    floorMult(floor) {
+      const f = Math.max(1, Math.floor(Number(floor) || 1))
+      if (f <= 20) return 1 + (f - 1) * 0.025
+      if (f <= 40) return 1.475 + (f - 20) * 0.03
+      if (f <= 60) return 2.075 + (f - 40) * 0.035
+      return 2.775 + (f - 60) * 0.025
     },
   },
 

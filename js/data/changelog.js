@@ -6,6 +6,64 @@ export const CHANGELOG = [
   {
     dateLabel: 'May 2026',
     dateIso:   '2026-05-31',
+    version:   'v486',
+    title:     'Overlapping gear tier stat bands',
+    summary:
+      'Rare/epic/legendary stat floors lowered so tiers overlap — combined with floor scaling, a deep common can out-roll a shallow epic.',
+    items: [
+      {
+        tag:  'Balance',
+        text: 'Gear stat bands overlap by tier (e.g. epic damage can roll as low as rare). Floor depth still drives power — F85 common often beats F15 epic on primary stats.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'May 2026',
+    dateIso:   '2026-05-31',
+    version:   'v485',
+    title:     'Floor-scaled gear & enemy HP tuning',
+    summary:
+      'Gear stat bands now scale with drop floor (all tiers and detriments). Enemy HP scaling nudged up slightly; damage unchanged.',
+    items: [
+      {
+        tag:  'Balance',
+        text: 'Gear drops scale with floor depth — F80 commons are ~2.7× stronger primaries than F10; detriments scale too. Blacksmith +25% upgrades multiply rolled stats.',
+      },
+      {
+        tag:  'Balance',
+        text: 'Enemy HP curve +10% (22%/floor early, 33%/floor late). Damage scaling unchanged.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'May 2026',
+    dateIso:   '2026-05-31',
+    version:   'v483',
+    title:     'Loot & merchant balance pass',
+    summary:
+      'Legendary gear is rarer in deep floors, chests no longer double-drop gear, the travelling merchant is sanctuary-only with fairer Mystery Relic odds, and triple-chest events roll tier-weighted trinkets.',
+    items: [
+      {
+        tag:  'Balance',
+        text: 'Legendary gear drop weight — 5% on floors 41–60, 7% on floors 61–100 (down from 8% / 20%).',
+      },
+      {
+        tag:  'Fix',
+        text: 'Chests award one item only — removed the 2.5% bonus gear roll on chest open.',
+      },
+      {
+        tag:  'Balance',
+        text: 'Travelling Merchant (sanctuary) — HP/Mana potions cost 20g; Mystery Relic rolls Rare 70% / Epic 25% / Legendary 5%.',
+      },
+      {
+        tag:  'Balance',
+        text: 'Event tiles no longer spawn a merchant shop — story events fill that slot. Triple Chest: Rare 70% / Epic 25% / Legendary 5% on pick.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'May 2026',
+    dateIso:   '2026-05-31',
     version:   'v482',
     title:     'The Void unlocks at floor 100',
     summary:

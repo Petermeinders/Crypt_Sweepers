@@ -65,6 +65,16 @@ export function pickTrinketIdForDropTier(tier) {
   return pickTrinketByRarity(tier)
 }
 
+/** Rare 70% / Epic 25% / Legendary 5% — merchant Mystery Relic & triple-chest event. */
+export function rollTieredTrinketId(floor) {
+  const r = Math.random()
+  let tier = 'rare'
+  if (r >= 0.70 && r < 0.95) tier = 'epic'
+  else if (r >= 0.95) tier = 'legendary'
+  if (tier === 'legendary' && floor < LEGENDARY_MIN_FLOOR) tier = 'epic'
+  return pickTrinketByRarity(tier)
+}
+
 function rollPremiumTrinket(floor, band) {
   if (band === 'legendary' && floor < LEGENDARY_MIN_FLOOR) band = 'epic'
   return { type: pickTrinketByRarity(band) }

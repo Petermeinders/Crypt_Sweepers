@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { generateGear, pickDropTier, GEAR_SLOT_DEFS } from '../../js/data/gear.js'
+import { generateGear, pickDropTier, GEAR_SLOT_DEFS, gearFloorMult } from '../../js/data/gear.js'
+import { CONFIG } from '../../js/config.js'
 import { withRandomSequence } from '../helpers/mockRandom.mjs'
 
-const REQUIRED_KEYS = ['uid', 'slot', 'tier', 'name', 'stats', 'upgradeCount']
+const REQUIRED_KEYS = ['uid', 'slot', 'tier', 'name', 'stats', 'upgradeCount', 'dropFloor']
 const TIERS = ['common', 'rare', 'epic', 'legendary']
 const SLOTS = Object.keys(GEAR_SLOT_DEFS)
 
@@ -37,6 +38,43 @@ describe('generateGear', () => {
       }
     })
   })
+
+  test('deeper floors scale primary stats and detriments', () => {
+    withRandomSequence([0, 0, 0.99], () => {
+      const shallow = generateGear('weapon', 'common', 10)
+      const deep = generateGear('weapon', 'common', 80)
+      assert.equal(shallow.dropFloor, 10)
+      assert.equal(deep.dropFloor, 80)
+      assert.ok(deep.stats.damageBonus > shallow.stats.damageBonus)
+    })
+    withRandomSequence([0, 0, 0, 0.01], () => {
+      const shallow = generateGear('breastplate', 'common', 10)
+      const deep = generateGear('breastplate', 'common', 80)
+      const shallowDet = Object.values(shallow.stats).find(v => v < 0)
+      const deepDet = Object.values(deep.stats).find(v => v < 0)
+      assert.ok(shallowDet)
+      assert.ok(deepDet)
+      assert.ok(deepDet < shallowDet)
+    })
+  })
+
+  test('gearFloorMult matches band endpoints', () => {
+    assert.ok(Math.abs(gearFloorMult(10) - 1.225) < 0.001)
+    assert.ok(Math.abs(gearFloorMult(80) - 3.275) < 0.001)
+  })
+
+  test('tier bands overlap and deep common can beat shallow epic', () => {
+    const { damageBonus } = CONFIG.gear.statRanges
+    assert.ok(damageBonus.rare[0] <= damageBonus.common[1])
+    assert.ok(damageBonus.epic[0] <= damageBonus.rare[1])
+    assert.ok(damageBonus.legendary[0] <= damageBonus.epic[1])
+
+    withRandomSequence([0, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99], () => {
+      const shallowEpic = generateGear('weapon', 'epic', 15)
+      const deepCommon = generateGear('weapon', 'common', 85)
+      assert.ok(deepCommon.stats.damageBonus > shallowEpic.stats.damageBonus)
+    })
+  })
 })
 
 describe('pickDropTier', () => {
@@ -59,10 +97,10 @@ describe('pickDropTier', () => {
   })
 
   test('uses 21-40 table for floor 25', () => {
-    withRandomSequence([0.49], () => {
+    withRandomSequence([0.59], () => {
       assert.equal(pickDropTier(25), 'common')
     })
-    withRandomSequence([0.50], () => {
+    withRandomSequence([0.60], () => {
       assert.equal(pickDropTier(25), 'rare')
     })
   })

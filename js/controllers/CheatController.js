@@ -53,7 +53,7 @@ export async function cheatGenerateGear(deps) {
   const asGear = Math.random() < 0.5
 
   if (asGear) {
-    const piece = generateGear(pickDropSlot(), tier)
+    const piece = generateGear(pickDropSlot(), tier, floor)
     handleGearPickup(piece)
     UI.setMessage(`[Cheat] Generated ${tier} gear: ${piece.name}.`)
     return

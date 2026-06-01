@@ -341,17 +341,16 @@ export const STORY_EVENTS = [
 
 /** Merchant shop items — fixed 3-slot offer each visit. */
 export const MERCHANT_ITEMS = [
-  { id: 'potion-red',  label: 'Red Potion',  price: 5  },
-  { id: 'potion-blue', label: 'Mana Potion', price: 5  },
+  { id: 'potion-red',  label: 'Red Potion',  price: 20 },
+  { id: 'potion-blue', label: 'Mana Potion', price: 20 },
   { id: '__trinket__', label: 'Mystery Relic', price: 100 }, // resolved at runtime to rare/epic/legendary
 ]
 
-/** Weighted event type roll. */
+/** Weighted event type roll (merchant shop is sanctuary-only — not an event). */
 export function rollEventType() {
   const r = Math.random() * 100
-  if (r < 5)  return 'merchant'
-  if (r < 10) return 'gambler'
-  if (r < 30) return 'triple-chest'
-  if (r < 35) return 'trinket-trader'
+  if (r < 5)  return 'gambler'
+  if (r < 25) return 'triple-chest'
+  if (r < 30) return 'trinket-trader'
   return 'story'
 }

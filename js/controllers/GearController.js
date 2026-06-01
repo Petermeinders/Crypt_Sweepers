@@ -207,7 +207,7 @@ export function tryGearDrop(ctx, floor, chance) {
   const { generateGear, pickDropTier, pickDropSlot } = gearModule
   const tier  = pickDropTier(floor)
   const slot  = pickDropSlot()
-  const piece = generateGear(slot, tier)
+  const piece = generateGear(slot, tier, floor)
   handleGearPickup(ctx, piece)
   return true
 }
@@ -253,6 +253,7 @@ export function adjustScrap(delta) {
 }
 
 function applyGearUpgrade(piece) {
+  // +25% on current rolled stats — auto-scales with floor-scaled drop values.
   for (const key of Object.keys(piece.stats)) {
     const val = piece.stats[key]
     if (val <= 0) continue
