@@ -1364,8 +1364,8 @@ function _confirmExit(tile) {
       return
     }
   }
-  tile.exitResolved = true
-  tile.element?.classList.remove('exit-pending')
+  // Do not mark exitResolved here — a mid-transition autosave would brick the stairs tile.
+  if (session.run._exitTransitionPending) return
   _handleExit()
 }
 

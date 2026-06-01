@@ -6,6 +6,38 @@ export const CHANGELOG = [
   {
     dateLabel: 'May 2026',
     dateIso:   '2026-05-30',
+    version:   'v481',
+    title:     'Sanctuary stairs & rope resume fix',
+    summary:
+      'Resuming on a sanctuary floor no longer leaves the stairs and vault rope untappable after a mid-transition save.',
+    items: [
+      {
+        tag:  'Fix',
+        text: 'Sanctuary resume — stale exitResolved / ropeResolved flags from interrupted floor transitions are cleared on load; atRest is restored for 3×3 sanctuary grids.',
+      },
+      {
+        tag:  'Fix',
+        text: 'Stairs — confirming descent no longer marks the exit resolved before the floor transition finishes, preventing bricked saves if the tab closes mid-animation.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'May 2026',
+    dateIso:   '2026-05-30',
+    version:   'v480',
+    title:     'Update banner dismiss fix',
+    summary:
+      'The “×” on the update notice now actually hides the banner and keeps it dismissed for this session.',
+    items: [
+      {
+        tag:  'Fix',
+        text: 'Update banner — dismiss button now hides the popup (missing CSS rule); dismissed state persists until a newer version is available.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'May 2026',
+    dateIso:   '2026-05-30',
     version:   'v479',
     title:     'Gambler dice roll fix',
     summary:

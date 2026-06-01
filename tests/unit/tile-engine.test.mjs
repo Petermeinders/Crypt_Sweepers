@@ -28,6 +28,25 @@ describe('TileEngine.importGridFromSnapshot', () => {
     assert.equal(TileEngine.importGridFromSnapshot(null, 1), false)
     assert.equal(TileEngine.importGridFromSnapshot([], 1), false)
   })
+
+  test('resume clears stale exitResolved on exit tiles', () => {
+    const snapshot = buildMinimalGridSnapshot({ floor: 1 })
+    snapshot[0][2] = { ...snapshot[0][2], type: 'exit', revealed: true, exitResolved: true }
+    TileEngine.importGridFromSnapshot(snapshot, 1, { resume: true })
+    const exit = TileEngine.getGrid()[0][2]
+    assert.equal(exit.type, 'exit')
+    assert.equal(exit.exitResolved, false)
+  })
+
+  test('isSanctuarySnapshot detects 3×3 rest layout', () => {
+    const snap = [
+      [{ type: 'forge' }, { type: 'anvil' }, { type: 'magic_chest' }],
+      [{ type: 'rope' }, { type: 'well' }, { type: 'empty' }],
+      [{ type: 'empty' }, { type: 'exit' }, { type: 'empty' }],
+    ]
+    assert.equal(TileEngine.isSanctuarySnapshot(snap), true)
+    assert.equal(TileEngine.isSanctuarySnapshot(buildMinimalGridSnapshot({ floor: 1 })), false)
+  })
 })
 
 describe('TileEngine lockAdjacent / unlockAdjacent', () => {

@@ -428,6 +428,10 @@
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
 }
 
+.app-update-banner.hidden {
+  display: none;
+}
+
 .app-update-banner-text {
   margin: 0;
   flex: 1;

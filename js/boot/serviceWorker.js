@@ -2,9 +2,11 @@ import Logger from '../core/Logger.js'
 import { APP_VERSION } from '../appVersion.js'
 
 const UPDATE_POLL_MS = 5 * 60 * 1000
+const DISMISS_STORAGE_KEY = 'cs-update-banner-dismissed'
 
 let _registration = null
 let _bannerVisible = false
+let _bannerDismissedFor = null
 
 export { APP_VERSION }
 
@@ -39,9 +41,42 @@ export function initServiceWorker() {
   document.getElementById('app-update-reload')?.addEventListener('click', () => {
     activateWaitingWorker()
   })
-  document.getElementById('app-update-dismiss')?.addEventListener('click', () => {
-    hideUpdateBanner()
+  document.getElementById('app-update-dismiss')?.addEventListener('click', (e) => {
+    e.stopPropagation()
+    dismissUpdateBanner()
   })
+}
+
+function readDismissedVersion() {
+  try {
+    return sessionStorage.getItem(DISMISS_STORAGE_KEY)
+  } catch {
+    return _bannerDismissedFor
+  }
+}
+
+function writeDismissedVersion(version) {
+  _bannerDismissedFor = version
+  try {
+    if (version) sessionStorage.setItem(DISMISS_STORAGE_KEY, version)
+    else sessionStorage.removeItem(DISMISS_STORAGE_KEY)
+  } catch { /* private mode */ }
+}
+
+function dismissUpdateBanner() {
+  hideUpdateBanner()
+  fetchRemoteVersion()
+    .then(remote => writeDismissedVersion(remote && remote !== APP_VERSION ? remote : 'pending'))
+    .catch(() => writeDismissedVersion('pending'))
+}
+
+async function showUpdateBannerIfNeeded(fallbackVersion = 'pending') {
+  let version = fallbackVersion
+  try {
+    const remote = await fetchRemoteVersion()
+    if (remote && remote !== APP_VERSION) version = remote
+  } catch { /* offline */ }
+  showUpdateBanner(version)
 }
 
 async function registerAndWatch() {
@@ -55,13 +90,13 @@ async function registerAndWatch() {
       if (!worker) return
       worker.addEventListener('statechange', () => {
         if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-          showUpdateBanner()
+          showUpdateBannerIfNeeded()
         }
       })
     })
 
     if (reg.waiting && navigator.serviceWorker.controller) {
-      showUpdateBanner()
+      showUpdateBannerIfNeeded()
     }
 
     await reg.update()
@@ -88,7 +123,9 @@ export async function checkRemoteVersion() {
   try {
     const remote = await fetchRemoteVersion()
     if (remote && remote !== APP_VERSION) {
-      showUpdateBanner()
+      if (readDismissedVersion() !== remote) {
+        showUpdateBanner(remote)
+      }
       await pingForUpdates()
     }
   } catch { /* offline */ }
@@ -105,12 +142,16 @@ export async function forceCheckForUpdates() {
   } catch { /* offline */ }
 
   if (remote && remote !== APP_VERSION) {
-    showUpdateBanner()
+    if (readDismissedVersion() !== remote) {
+      showUpdateBanner(remote)
+    }
     return { status: 'update-available', current: APP_VERSION, remote }
   }
 
   if (reg?.waiting && navigator.serviceWorker.controller) {
-    showUpdateBanner()
+    if (readDismissedVersion() !== APP_VERSION) {
+      showUpdateBanner(APP_VERSION)
+    }
     return { status: 'update-ready', current: APP_VERSION }
   }
 
@@ -134,9 +175,10 @@ async function activateWaitingWorker() {
   window.location.reload()
 }
 
-function showUpdateBanner() {
+function showUpdateBanner(updateVersion = 'pending') {
   const el = document.getElementById('app-update-banner')
   if (!el || _bannerVisible) return
+  if (readDismissedVersion() === String(updateVersion)) return
   _bannerVisible = true
   el.classList.remove('hidden')
   el.setAttribute('aria-hidden', 'false')

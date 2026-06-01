@@ -238,6 +238,7 @@ export function saveActiveRun(ctx) {
     floorGridSizes:  session.run.floorGridSizes
       ? structuredClone(session.run.floorGridSizes)
       : {},
+    ropeUsedThisSanctuary: !!session.run._ropeUsedThisSanctuary,
   }
   SaveManager.save(session.save).catch(() => {})
 }
@@ -288,6 +289,7 @@ export function resumeRun(ctx) {
     floorStartCol: saved.floorStartCol ?? null,
     killEchoQuota: saved.killEchoQuota ?? 1,
     floorGridSizes: saved.floorGridSizes ?? {},
+    _ropeUsedThisSanctuary: !!saved.ropeUsedThisSanctuary,
   }
   const ch = session.save.selectedCharacter ?? 'warrior'
   if (ch === 'engineer' && (session.run.player.seismicPingLevel == null || session.run.player.seismicPingLevel < 1)) {

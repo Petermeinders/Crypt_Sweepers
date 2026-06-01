@@ -648,11 +648,48 @@ function ensureExitConnectivityFromGrid(floor) {
   return replaced
 }
 
+/** True when a saved grid matches the fixed 3×3 sanctuary layout (forge / well / rope). */
+function isSanctuarySnapshot(snapshot) {
+  if (!snapshot || snapshot.length !== 3 || snapshot[0]?.length !== 3) return false
+  let hasForge = false
+  let hasWell = false
+  let hasRope = false
+  for (const row of snapshot) {
+    for (const t of row) {
+      if (t?.type === 'forge') hasForge = true
+      if (t?.type === 'well') hasWell = true
+      if (t?.type === 'rope') hasRope = true
+    }
+  }
+  return hasForge && hasWell && hasRope
+}
+
+/**
+ * Resume saves can capture exit/rope as "resolved" if the tab closed mid-transition.
+ * Clear those flags so second-tap tiles stay clickable on the same floor.
+ */
+function _sanitizeSnapshotForResume(snapshot, opts = {}) {
+  if (!opts.resume || !snapshot) return snapshot
+  for (const row of snapshot) {
+    for (const st of row) {
+      if (!st) continue
+      if (st.type === 'exit' && st.exitResolved) {
+        st.exitResolved = false
+      }
+      if (st.type === 'rope' && st.ropeResolved && !opts.ropeUsedThisSanctuary) {
+        st.ropeResolved = false
+      }
+    }
+  }
+  return snapshot
+}
+
 /**
  * Replace the current grid from a saved snapshot.
  * Used when resuming an active run so the floor is not re-rolled.
  */
 function importGridFromSnapshot(snapshot, floor, opts = {}) {
+  _sanitizeSnapshotForResume(snapshot, opts)
   _currentFloor = floor
   _gridMode = opts.rest ? 'rest' : 'dungeon'
   const rows = snapshot?.length ?? 0
@@ -1323,6 +1360,7 @@ export default {
   createEnemy,
   generateGrid,
   ensureExitConnectivityFromGrid,
+  isSanctuarySnapshot,
   importGridFromSnapshot,
   replaceTileWithEmptyPreserveState,
   patchMainGridTileAt,

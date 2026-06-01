@@ -11,6 +11,7 @@ import { WARRIOR_UPGRADES } from '../data/upgrades.js'
 import { clearAllCombatEngagement, syncCombatEngagementDom } from './TileTapRouter.js'
 
 export function startFloor(ctx) {
+  if (session.run) session.run._exitTransitionPending = false
   session.tap.spellTargeting         = false
   session.tap.combatBusy             = false
   clearAllCombatEngagement()
@@ -53,6 +54,9 @@ export function startFloor(ctx) {
   let gridRestored = false
   if (session.run?._resumeGridSnapshot) {
     const snap = session.run._resumeGridSnapshot
+    if (TileEngine.isSanctuarySnapshot(snap)) {
+      session.run.atRest = true
+    }
     if (snap?.length && snap[0]?.length) {
       session.run.floorGridSizes ??= {}
       session.run.floorGridSizes[session.run.floor] = {
@@ -60,7 +64,11 @@ export function startFloor(ctx) {
         rows: snap.length,
       }
     }
-    gridRestored = TileEngine.importGridFromSnapshot(snap, session.run.floor, { rest: session.run.atRest })
+    gridRestored = TileEngine.importGridFromSnapshot(snap, session.run.floor, {
+      rest: session.run.atRest,
+      resume: true,
+      ropeUsedThisSanctuary: !!session.run._ropeUsedThisSanctuary,
+    })
     session.run._resumeGridSnapshot = null
     ctx.syncWarBannerCoordsFromGrid()
   }
@@ -348,7 +356,19 @@ export function startFloor(ctx) {
   ctx.saveActiveRun()
 }
 
+function _beginFloorTransition(ctx, mid, floorNumber) {
+  if (session.run._exitTransitionPending) return false
+  session.run._exitTransitionPending = true
+  UI.runFloorTransition(3000, () => {
+    if (!session.run) return
+    GameState.set(States.BOOT)
+    mid()
+  }, floorNumber)
+  return true
+}
+
 export function handleExit(ctx) {
+  if (session.run._exitTransitionPending) return
   if (session.run.atRest) {
     session.run.atRest = false
     session.run.floorKeyAwarded = false
@@ -362,10 +382,7 @@ export function handleExit(ctx) {
     EventBus.emit('audio:play', { sfx: 'footsteps' })
     UI.setMessage(`🚪 Descending to floor ${session.run.floor}...`)
     EventBus.emit('run:floorAdvance', { newFloor: session.run.floor })
-    UI.runFloorTransition(3000, () => {
-      GameState.set(States.BOOT)
-      startFloor(ctx)
-    }, session.run.floor)
+    _beginFloorTransition(ctx, () => startFloor(ctx), session.run.floor)
     return
   }
   if (session.run.bossFloorExitPending) {
@@ -375,11 +392,7 @@ export function handleExit(ctx) {
     EventBus.emit('audio:play', { sfx: 'footsteps' })
     UI.setMessage('Stone gives way to still air — a sanctuary between the depths.')
     EventBus.emit('run:floorAdvance', { newFloor: session.run.floor })
-    UI.runFloorTransition(3000, () => {
-      if (!session.run) return
-      GameState.set(States.BOOT)
-      startFloor(ctx)
-    }, null)
+    _beginFloorTransition(ctx, () => startFloor(ctx), null)
     return
   }
   nextFloor(ctx)
@@ -411,6 +424,7 @@ export function confirmRope(ctx, tile) {
 }
 
 export function nextFloor(ctx) {
+  if (session.run._exitTransitionPending) return
   // Clear modifier before advancing — Glass Cannon/Silence stat reversals happen here
   if (session.run.floorModifier?.clear) {
     try { session.run.floorModifier.clear(session.run, TileEngine.getGrid()) } catch (_) {}
@@ -424,11 +438,7 @@ export function nextFloor(ctx) {
   EventBus.emit('audio:play', { sfx: 'footsteps' })
   UI.setMessage(`🚪 Descending to floor ${session.run.floor}...`)
   EventBus.emit('run:floorAdvance', { newFloor: session.run.floor })
-  UI.runFloorTransition(3000, () => {
-    if (!session.run) return
-    GameState.set(States.BOOT)
-    startFloor(ctx)
-  }, session.run.floor)
+  _beginFloorTransition(ctx, () => startFloor(ctx), session.run.floor)
 }
 
 export function checkFloorModifierOnReveal(ctx, tile) {
