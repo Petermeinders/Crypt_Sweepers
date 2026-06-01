@@ -377,6 +377,17 @@ export function tickPoisonArrowDotOnGlobalTurn(ctx, opts = {}) {
   ctx.refreshAllEnemyStatusDisplays()
 }
 
+export function applyRevealOutcome(ctx, tile) {
+  if (tile.enemyData) {
+    TileEngine.rollEnemyHitDamage(tile.enemyData)
+    if (tile.element) {
+      UI.updateEnemyHP(tile.element, tile.enemyData.currentHP ?? tile.enemyData.hp)
+      TileEngine.refreshEnemyDamageOnTile(tile)
+    }
+  }
+  resolveEffect(ctx, tile)
+}
+
 export async function revealTile(ctx, tile) {
   if (!tile.revealed && ctx.turretDeployedOnTile(tile)) return
   ctx.syncAllUnrevealedLockedDom()
@@ -396,12 +407,6 @@ export async function revealTile(ctx, tile) {
   EventBus.emit('audio:play', { sfx: 'flip' })
   await TileEngine.flipTile(tile)
   if (!session.run) return  // session.run ended (retreat/death) during the flip animation
-  if (tile.enemyData) {
-    TileEngine.rollEnemyHitDamage(tile.enemyData)
-    // Face text was built at grid render time — sync HP/⚔️ from model (e.g. war banner, auras)
-    UI.updateEnemyHP(tile.element, tile.enemyData.currentHP ?? tile.enemyData.hp)
-    TileEngine.refreshEnemyDamageOnTile(tile)
-  }
   UI.setPortraitAnim('idle')
   ctx.gainXP(CONFIG.xp.perTileReveal, tile.element)
   ctx.engineerManaGeneratorOnReveal(tile.element)
@@ -409,6 +414,7 @@ export async function revealTile(ctx, tile) {
   EventBus.emit('tile:revealed', { tile })
   // Deathmask: instant kill on first enemy reveal after a proc
   if (tile.enemyData && !tile.enemyData._slain && session.run.player.deathmaskPending) {
+    TileEngine.rollEnemyHitDamage(tile.enemyData)
     session.run.player.deathmaskPending = false
     UI.spawnFloat(tile.element, '💀 Instant Kill!', 'xp')
     ctx.gainGold(tile.enemyData.goldDrop ? ctx.rand(...tile.enemyData.goldDrop) : 1, tile.element, true)
@@ -418,7 +424,7 @@ export async function revealTile(ctx, tile) {
     return
   }
   await maybeBestiaryDiscovery(tile)
-  resolveEffect(ctx, tile)
+  applyRevealOutcome(ctx, tile)
   if (tile.type === 'war_banner') await maybeWarBannerIntro()
   // Drowned Hulk aura: if the revealed tile IS the hulk, buff all current visible enemies.
   // If a hulk is already alive, buff this newly revealed enemy.

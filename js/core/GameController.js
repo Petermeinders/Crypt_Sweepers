@@ -953,6 +953,7 @@ function _combatCtx() {
     maybeOfferDeadlockEscape: _maybeOfferDeadlockEscape,
     tryGameCompletion: () => GSH.tryGameCompletion(_stateCtx()),
     resolveEffect: _resolveEffect,
+    applyRevealOutcome: (tile) => RevealController.applyRevealOutcome(_revealCtx(), tile),
     syncGridDomClassesFromModel: _syncGridDomClassesFromModel,
   }
 }
@@ -1005,6 +1006,7 @@ function _revealCtx() {
     refreshMainGridDomFromModel: _refreshMainGridDomFromModel,
     syncGridDomClassesFromModel: _syncGridDomClassesFromModel,
     isPlayerDeadlocked: _isPlayerDeadlocked,
+    applyRevealOutcome: (tile) => RevealController.applyRevealOutcome(_revealCtx(), tile),
   }
 }
 
@@ -1209,6 +1211,16 @@ function _syncGridDomClassesFromModel() {
       }
       if (t.type === 'rope') {
         el.classList.toggle('rope-pending', !t.ropeResolved)
+      }
+      if (t.type === 'war_banner') {
+        if (t.revealed && !t.bannerReady) {
+          t.bannerReady = true
+          t.warBannerFlying = false
+        }
+        el.classList.toggle('war-banner-ready', !!(t.revealed && t.bannerReady))
+        if (t.revealed && t.bannerReady) {
+          el.querySelector('.tile-war-banner-fly')?.remove()
+        }
       }
       // Echo hints only apply to unrevealed backs; strip after full grid rebuilds (e.g. banner → empty).
       if (t.revealed) {

@@ -234,6 +234,7 @@ export function slamSeismicReveal(ctx, targets, tier) {
     session.run.tilesRevealed++
     TileEngine.markReachable(tile.row, tile.col, ctx.markReachableUi)
     if (tile.element) TileEngine.flipTile(tile)
+    ctx.applyRevealOutcome(tile)
 
     if (dealExtraDmg && tile.enemyData && !tile.enemyData._slain && !tile.enemyData.spellImmune) {
       const dmg = ctx.scaleOutgoingDamageToEnemy(slamDamagePerTarget(ctx))
@@ -406,6 +407,7 @@ export function blindingRevelationReveal(ctx, tile, tier, cost) {
     session.run.tilesRevealed++
     TileEngine.markReachable(t.row, t.col, ctx.markReachableUi)
     if (t.element) TileEngine.flipTile(t)
+    ctx.applyRevealOutcome(t)
 
     if (tier >= 3 && t.enemyData && !t.enemyData._slain && !t.enemyData.spellImmune) {
       t.enemyData.stunTurns = (t.enemyData.stunTurns ?? 0) + 1

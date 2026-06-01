@@ -922,7 +922,11 @@ function _buildTileElement(tile, r, c, onTap, onHold, scrollable = false) {
   if (tile.type === 'sub_floor_entry' && tile.revealed && tile.entryReady) {
     div.classList.add('sub-floor-entry-ready')
   }
-  if (tile.type === 'war_banner' && tile.revealed && tile.bannerReady) {
+  if (tile.type === 'war_banner' && tile.revealed) {
+    if (!tile.bannerReady) {
+      tile.bannerReady = true
+      tile.warBannerFlying = false
+    }
     div.classList.add('war-banner-ready')
   }
   if (tile.type === 'magic_chest' && tile.revealed && tile.magicChestReady) {
