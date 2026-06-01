@@ -5,6 +5,24 @@
 export const CHANGELOG = [
   {
     dateLabel: 'May 2026',
+    dateIso:   '2026-05-31',
+    version:   'v482',
+    title:     'The Void unlocks at floor 100',
+    summary:
+      'Defeating the floor 100 boss for the first time completes the base game, awards a Void Pearl, and unlocks The Void on the main menu.',
+    items: [
+      {
+        tag:  'Feature',
+        text: 'Game completion — floor 100 boss kill shows a Congratulations modal, sets gameCompleted, and grants +1 Void Pearl (first time only).',
+      },
+      {
+        tag:  'Feature',
+        text: 'Main menu — The Void button is visible but locked until completion; pearl count displays once unlocked.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'May 2026',
     dateIso:   '2026-05-30',
     version:   'v481',
     title:     'Sanctuary stairs & rope resume fix',

@@ -658,6 +658,9 @@ export function endCombatVictory(ctx, tile) {
   EventBus.emit('audio:play', { sfx: 'gold' })
   EventBus.emit('combat:end', { outcome: 'victory' })
   TileEngine.refreshAllThreatClueDisplays()
+
+  if (wasBoss && session.run.floor === 100 && ctx.tryGameCompletion?.()) return
+
   ctx.checkFloorCleared()
   ctx.maybeOfferDeadlockEscape()
 }

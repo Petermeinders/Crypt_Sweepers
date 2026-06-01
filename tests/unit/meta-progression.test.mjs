@@ -62,10 +62,42 @@ describe('MetaProgression.normalizeUnlockedHeroes', () => {
   })
 })
 
+describe('MetaProgression game completion', () => {
+  test('completeGame awards one pearl on first completion only', () => {
+    const save = createSave()
+    const first = MetaProgression.completeGame(save)
+    assert.equal(first.firstTime, true)
+    assert.equal(first.pearlGranted, 1)
+    assert.equal(save.meta.gameCompleted, true)
+    assert.equal(save.meta.voidPearls, 1)
+
+    const second = MetaProgression.completeGame(save)
+    assert.equal(second.firstTime, false)
+    assert.equal(second.pearlGranted, 0)
+    assert.equal(save.meta.voidPearls, 1)
+  })
+
+  test('defaultSave includes meta block', () => {
+    const save = MetaProgression.defaultSave()
+    assert.deepEqual(save.meta, { gameCompleted: false, voidPearls: 0 })
+  })
+})
+
 describe('MetaProgression endRun / calcRunXP', () => {
   test('calcRunXP rewards floor, tiles, and level', () => {
     const xp = MetaProgression.calcRunXP({ floor: 10, tilesRevealed: 50, level: 5 })
     assert.equal(xp, 10 * 15 + 50 + 5 * 8)
+  })
+
+  test('endRun credits XP and banks gold on complete like escape', () => {
+    const save = createSave({ selectedCharacter: 'warrior', persistentGold: 0 })
+    const result = MetaProgression.endRun(
+      save,
+      { floor: 100, tilesRevealed: 200, level: 20, gold: 50, safeGold: 5 },
+      'complete',
+    )
+    assert.equal(result.goldBanked, 55)
+    assert.equal(save.persistentGold, 55)
   })
 
   test('endRun credits XP and banks gold on escape', () => {

@@ -935,6 +935,7 @@ function _combatCtx() {
     paladinKillEchoAddMarksAfterKill: _paladinKillEchoAddMarksAfterKill,
     checkFloorCleared: _checkFloorCleared,
     maybeOfferDeadlockEscape: _maybeOfferDeadlockEscape,
+    tryGameCompletion: () => GSH.tryGameCompletion(_stateCtx()),
   }
 }
 

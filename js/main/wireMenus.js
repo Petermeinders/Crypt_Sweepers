@@ -91,6 +91,14 @@ export function wireMenus(ctx) {
 
   document.getElementById('new-run-btn').addEventListener('click', () => ctx.GameController.newGame())
 
+  document.getElementById('void-btn')?.addEventListener('click', () => {
+    const save = ctx.GameController.getSave()
+    if (!save?.meta?.gameCompleted) return
+    ctx.UI.showVoidStubModal()
+  })
+  document.getElementById('void-stub-ok')?.addEventListener('click', () => ctx.UI.hideVoidStubModal())
+  document.getElementById('void-stub-backdrop')?.addEventListener('click', () => ctx.UI.hideVoidStubModal())
+
   const _openHowToPlay = () => {
     _populateForgeRecipeList()
     document.getElementById('how-to-play-overlay')?.classList.remove('hidden')
@@ -169,6 +177,7 @@ export function finishBootMenu(ctx, save, devFlags) {
   const { hasBalanceBot, hasTestBotOngoing, hasTestHarness, isHeadlessBotSession } = devFlags
 
   updateMenuHeroPreview(ctx)
+  UI.updateVoidMenu(save)
   UI.setActiveDifficulty(save.settings.difficulty)
   EventBus.emit('audio:music', { track: 'menu' })
   if (GameController.hasActiveRun()) {

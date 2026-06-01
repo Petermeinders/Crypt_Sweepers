@@ -50,6 +50,12 @@ export function defaultSave() {
       upgrades: [],
     },
     selectedCharacter: 'warrior',
+    meta: {
+      /** True after defeating the floor 100 boss for the first time. */
+      gameCompleted: false,
+      /** Ultra-rare currency for Void trial entry. */
+      voidPearls: 0,
+    },
     settings: {
       difficulty:  'normal',
       childMode:   false,
@@ -423,6 +429,30 @@ function calcRunXP(runStats) {
   )
 }
 
+// ── Void / game completion meta ───────────────────────────────
+
+function ensureMeta(save) {
+  if (!save.meta) save.meta = { gameCompleted: false, voidPearls: 0 }
+  if (save.meta.gameCompleted == null) save.meta.gameCompleted = false
+  if (save.meta.voidPearls == null) save.meta.voidPearls = 0
+}
+
+function isGameCompleted(save) {
+  ensureMeta(save)
+  return !!save.meta.gameCompleted
+}
+
+/** First floor-100 boss kill — sets gameCompleted and awards one Pearl. */
+function completeGame(save) {
+  ensureMeta(save)
+  const firstTime = !save.meta.gameCompleted
+  if (firstTime) {
+    save.meta.gameCompleted = true
+    save.meta.voidPearls += 1
+  }
+  return { firstTime, pearlGranted: firstTime ? 1 : 0 }
+}
+
 // ── End-of-run update ─────────────────────────────────────────
 // Returns { xpEarned, goldBanked }
 
@@ -459,7 +489,7 @@ function endRun(save, runStats, outcome) {
   }
 
   let goldBanked = 0
-  if (outcome === 'escape' || outcome === 'retreat') {
+  if (outcome === 'escape' || outcome === 'retreat' || outcome === 'complete') {
     // safeGold was already deducted from gold when banked at the rope, so add it back
     goldBanked = runStats.gold + (runStats.safeGold ?? 0)
   } else if (outcome === 'death') {
@@ -483,6 +513,9 @@ function endRun(save, runStats, outcome) {
 
 export default {
   defaultSave,
+  ensureMeta,
+  isGameCompleted,
+  completeGame,
   canBuyUpgrade,
   buyUpgrade,
   canBuyGlobalPassive,

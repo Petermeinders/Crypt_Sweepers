@@ -332,6 +332,7 @@ export function returnToMenu(ctx, autoSave = false) {
             ? (session.save.necromancer?.totalXP ?? 0)
             : session.save.warrior.totalXP
   UI.updateMenuStats(session.save.persistentGold, xp, char, session.save)
+  UI.updateVoidMenu(session.save)
   UI.setActiveDifficulty(session.save.settings.difficulty)
   UI.showMainMenu()
   UI.refreshSkipFloorButton(session.save)
@@ -507,6 +508,53 @@ export function finalizeRunTelemetry(ctx, outcomeType, extras = {}) {
     telemetry: structuredClone(session.run.telemetry),
     levelUpLog: (session.run.levelUpLog ?? []).slice(),
     runStats: runStats(ctx),
+  }
+}
+
+export function tryGameCompletion(ctx) {
+  if (!session.run || session.run.floor !== 100) return false
+  if (MetaProgression.isGameCompleted(session.save)) return false
+
+  const { pearlGranted } = MetaProgression.completeGame(session.save)
+
+  finalizeRunTelemetry(ctx, 'complete', {})
+  if (session.run?.player?.equippedGear) {
+    session.save.equippedGear = structuredClone(session.run.player.equippedGear)
+  }
+  session.save.safePocketTrinket = session.run?.player?.safePocketTrinket
+    ? structuredClone(session.run.player.safePocketTrinket)
+    : null
+
+  const stats = runStats(ctx)
+  MetaProgression.endRun(session.save, stats, 'complete')
+
+  clearActiveRun(ctx)
+  session.run = null
+  GameState.set(States.BETWEEN_RUNS)
+
+  UI.hideActionPanel()
+  UI.hideRetreat()
+  UI.hideEventOverlays()
+  UI.clearFloorModifier()
+  UI.setMessage('🏆 The ancient artifact is yours!')
+  EventBus.emit('audio:play', { sfx: 'gold' })
+  SaveManager.save(session.save)
+
+  setTimeout(() => {
+    UI.showGameCompletedModal({ pearlGranted })
+    wireGameCompletedBtn(ctx)
+  }, 1200)
+
+  return true
+}
+
+export function wireGameCompletedBtn(ctx) {
+  const btn = document.getElementById('game-completed-menu-btn')
+  if (btn) {
+    btn.addEventListener('click', () => {
+      UI.hideGameCompletedModal()
+      returnToMenu(ctx, true)
+    }, { once: true })
   }
 }
 

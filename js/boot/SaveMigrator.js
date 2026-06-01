@@ -14,6 +14,14 @@ export function migrateSave(save) {
   if (save.scrap == null) save.scrap = 0
   if (save.safePocketTrinket === undefined) save.safePocketTrinket = null
 
+  if (!save.meta) {
+    save.meta = { gameCompleted: false, voidPearls: 0 }
+    changed = true
+  } else {
+    if (save.meta.gameCompleted == null) save.meta.gameCompleted = false
+    if (save.meta.voidPearls == null) save.meta.voidPearls = 0
+  }
+
   if (save.equippedGear) {
     let _gearMigrated = false
     for (const slot of ['weapon', 'breastplate', 'offhand']) {

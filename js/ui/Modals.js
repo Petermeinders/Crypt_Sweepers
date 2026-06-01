@@ -81,6 +81,11 @@ export function cacheModalElements() {
     el.menuGoldVal     = document.getElementById('menu-gold-val')
     el.menuXpVal       = document.getElementById('menu-xp-val')
     el.menuXpBar       = document.getElementById('menu-xp-bar')
+    el.voidBtn         = document.getElementById('void-btn')
+    el.voidPearlBadge  = document.getElementById('void-pearl-badge')
+    el.voidPearlCount  = document.getElementById('void-pearl-count')
+    el.gameCompletedOverlay = document.getElementById('game-completed-overlay')
+    el.voidStubOverlay = document.getElementById('void-stub-overlay')
     el.goldShopOverlay    = document.getElementById('gold-shop-overlay')
     el.shopGoldVal        = document.getElementById('shop-gold-val')
     el.shopCartInfo       = document.getElementById('shop-cart-info')
@@ -1023,6 +1028,51 @@ export const ModalsMethods = {
     if (el.menuGoldVal) el.menuGoldVal.textContent = persistentGold
     if (el.menuXpVal)   el.menuXpVal.textContent   = totalXP
     if (el.menuXpBar)   el.menuXpBar.style.width   = ((totalXP % 100) / 100 * 100) + '%'
+  },
+
+  updateVoidMenu(save) {
+    if (!el.voidBtn) return
+    const completed = !!save?.meta?.gameCompleted
+    const pearls = save?.meta?.voidPearls ?? 0
+
+    if (completed) {
+      el.voidBtn.disabled = false
+      el.voidBtn.classList.remove('is-locked')
+      el.voidBtn.textContent = '🌀 The Void'
+      el.voidBtn.title = 'Spend Void Pearls to enter a trial (coming soon)'
+      if (el.voidPearlBadge) el.voidPearlBadge.classList.remove('hidden')
+      if (el.voidPearlCount) el.voidPearlCount.textContent = pearls
+    } else {
+      el.voidBtn.disabled = true
+      el.voidBtn.classList.add('is-locked')
+      el.voidBtn.textContent = '🔒 The Void'
+      el.voidBtn.title = 'Complete floor 100 to unlock'
+      if (el.voidPearlBadge) el.voidPearlBadge.classList.add('hidden')
+    }
+  },
+
+  showGameCompletedModal({ pearlGranted = 1 } = {}) {
+    if (!el.gameCompletedOverlay) return
+    const pearlEl = document.getElementById('game-completed-pearl-reward')
+    if (pearlEl) pearlEl.textContent = `+${pearlGranted} Void Pearl`
+    el.gameCompletedOverlay.classList.remove('hidden')
+    el.gameCompletedOverlay.setAttribute('aria-hidden', 'false')
+  },
+
+  hideGameCompletedModal() {
+    if (!el.gameCompletedOverlay) return
+    el.gameCompletedOverlay.classList.add('hidden')
+    el.gameCompletedOverlay.setAttribute('aria-hidden', 'true')
+  },
+
+  showVoidStubModal() {
+    el.voidStubOverlay?.classList.remove('hidden')
+    el.voidStubOverlay?.setAttribute('aria-hidden', 'false')
+  },
+
+  hideVoidStubModal() {
+    el.voidStubOverlay?.classList.add('hidden')
+    el.voidStubOverlay?.setAttribute('aria-hidden', 'true')
   },
 
   setActiveDifficulty(diff) {

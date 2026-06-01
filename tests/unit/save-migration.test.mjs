@@ -75,4 +75,12 @@ describe('migrateSave', () => {
     assert.ok(out.warrior.upgrades.includes('slam'))
     assert.equal(changed, true)
   })
+
+  test('adds missing meta block', () => {
+    const save = MetaProgression.defaultSave()
+    delete save.meta
+    const { save: out, changed } = migrateSave(save)
+    assert.deepEqual(out.meta, { gameCompleted: false, voidPearls: 0 })
+    assert.equal(changed, true)
+  })
 })

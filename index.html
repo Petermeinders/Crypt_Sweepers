@@ -340,6 +340,36 @@
     </div>
   </div>
 
+  <!-- ── Floor 100 completion ── -->
+  <div id="game-completed-overlay" class="trap-modal-overlay game-completed-overlay hidden" aria-hidden="true">
+    <div class="trap-modal-backdrop" id="game-completed-backdrop" aria-hidden="true"></div>
+    <div class="trap-modal game-completed-modal" role="dialog" aria-modal="true" aria-labelledby="game-completed-title">
+      <div class="trap-modal-emoji" aria-hidden="true">🏆</div>
+      <h2 id="game-completed-title" class="trap-modal-title game-completed-title">You have retrieved the anchient artifact. (It belongs in a museum!)</h2>
+      <div class="trap-modal-body game-completed-body">
+        <p>You have conquered the depths — all one hundred floors lie behind you. The crypt has no more secrets to withhold.</p>
+        <p class="game-completed-pearl-wrap">
+          <span id="game-completed-pearl-reward" class="game-completed-pearl-reward">+1 Void Pearl</span>
+        </p>
+        <p class="game-completed-unlock-note">🌀 <strong>The Void</strong> is now unlocked on the main menu. Spend Pearls to enter high-risk trials when you're ready.</p>
+      </div>
+      <button type="button" id="game-completed-menu-btn" class="menu-btn primary">Return to Main Menu</button>
+    </div>
+  </div>
+
+  <!-- ── Void stub (trials not yet implemented) ── -->
+  <div id="void-stub-overlay" class="trap-modal-overlay hidden" aria-hidden="true">
+    <div class="trap-modal-backdrop" id="void-stub-backdrop" aria-hidden="true"></div>
+    <div class="trap-modal void-stub-modal" role="dialog" aria-modal="true" aria-labelledby="void-stub-title">
+      <div class="trap-modal-emoji" aria-hidden="true">🌀</div>
+      <h2 id="void-stub-title" class="trap-modal-title">The Void</h2>
+      <div class="trap-modal-body">
+        <p>Void trials are coming soon. Stockpile Void Pearls — you'll need one per attempt.</p>
+      </div>
+      <button type="button" id="void-stub-ok" class="menu-btn primary">OK</button>
+    </div>
+  </div>
+
   <!-- ── Level-up overlay ── -->
   <div id="level-up-overlay">
     <div id="level-up-title">⬆️ Level Up!</div>
@@ -591,7 +621,13 @@
     </div>
 
     <button id="new-run-btn" class="menu-btn primary">⚔️ New Run</button>
-    <button id="void-btn" class="menu-btn secondary" disabled title="Complete floor 100 to unlock">🌀 The Void — Coming Soon</button>
+    <div id="void-menu-wrap" class="void-menu-wrap">
+      <button id="void-btn" class="menu-btn secondary is-locked" disabled title="Complete floor 100 to unlock">🔒 The Void</button>
+      <div id="void-pearl-badge" class="void-pearl-badge hidden" aria-label="Void Pearls">
+        <span class="void-pearl-icon" aria-hidden="true">🔮</span>
+        <span id="void-pearl-count">0</span>
+      </div>
+    </div>
     <button id="how-to-play-btn" class="menu-btn secondary">📖 How to Play</button>
     <button type="button" id="latest-updates-btn" class="menu-updates-chip">✨ Latest Updates</button>
     <button id="settings-btn" class="menu-btn secondary">⚙️ Settings</button>
