@@ -909,6 +909,25 @@ function _buildTileElement(tile, r, c, onTap, onHold, scrollable = false) {
       if (front) { front.innerHTML = '' }
     }
   }
+  // Second-tap tiles — must match _syncGridDomClassesFromModel (patchMainGridTileAt rebuilds DOM)
+  if (tile.type === 'exit' && tile.revealed && !tile.exitResolved) {
+    div.classList.add('exit-pending')
+  }
+  if (tile.type === 'rope' && tile.revealed && !tile.ropeResolved) {
+    div.classList.add('rope-pending')
+  }
+  if (tile.type === 'event' && tile.revealed && !tile.eventResolved) {
+    div.classList.add('event-pending')
+  }
+  if (tile.type === 'sub_floor_entry' && tile.revealed && tile.entryReady) {
+    div.classList.add('sub-floor-entry-ready')
+  }
+  if (tile.type === 'war_banner' && tile.revealed && tile.bannerReady) {
+    div.classList.add('war-banner-ready')
+  }
+  if (tile.type === 'magic_chest' && tile.revealed && tile.magicChestReady) {
+    div.classList.add('chest-ready')
+  }
 
   // ── Tap / Hold ──
   let _holdTimer = null

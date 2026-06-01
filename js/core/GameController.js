@@ -330,6 +330,21 @@ function _restoreHourglassSnapshot(snap) {
 /** After slaying a marked foe: keep other marks; add new ones until we reach `session.run.killEchoQuota`. */
 
 
+function _markTileTypeHint(tile, opts = {}) {
+  const label = _spyglassHintLabel(tile.type)
+  const cat   = _echoCharmCategoryForTileType(tile.type)
+  tile.echoHintCategory = cat
+  if (tile.element) {
+    tile.element.classList.add('echo-hint')
+    tile.element.dataset.echoHint = cat
+  }
+  if (opts.float !== false && tile.element) {
+    UI.spawnFloat(tile.element, label, 'mana')
+  }
+  if (opts.message) UI.setMessage(opts.message)
+  return label
+}
+
 function _echoCharmCategoryForTileType(type) {
   if (type === 'enemy' || type === 'enemy_fast' || type === 'boss') return '⚔️'
   if (type === 'trap') return '🕸️'
@@ -674,6 +689,7 @@ function _floorCtx() {
     saveActiveRun: _saveActiveRun,
     runMusicTrack: _runMusicTrack,
     xpNeeded: _xpNeeded,
+    markTileTypeHint: _markTileTypeHint,
   }
 }
 
@@ -936,6 +952,8 @@ function _combatCtx() {
     checkFloorCleared: _checkFloorCleared,
     maybeOfferDeadlockEscape: _maybeOfferDeadlockEscape,
     tryGameCompletion: () => GSH.tryGameCompletion(_stateCtx()),
+    resolveEffect: _resolveEffect,
+    syncGridDomClassesFromModel: _syncGridDomClassesFromModel,
   }
 }
 
@@ -1639,14 +1657,7 @@ function _useSpyglassOn(tile) {
   entry.qty--
   if (entry.qty <= 0) inv.splice(inv.indexOf(entry), 1)
 
-  const label = _spyglassHintLabel(tile.type)
-  const cat   = _echoCharmCategoryForTileType(tile.type)
-  tile.echoHintCategory = cat
-  if (tile.element) {
-    tile.element.classList.add('echo-hint')
-    tile.element.dataset.echoHint = cat
-  }
-  UI.spawnFloat(tile.element, label, 'mana')
+  const label = _markTileTypeHint(tile)
   UI.setMessage(`🔭 You glimpse: ${label}`)
   EventBus.emit('audio:play', { sfx: 'menu' })
   _saveActiveRun()

@@ -164,19 +164,19 @@ export function startFloor(ctx) {
       SaveManager.save(session.save).catch(() => {})
     })
   }
-  // Cracked Compass: reveal exit tile from the start (skip rest floors)
-  if (!gridRestored && !session.run.atRest && session.run.player.inventory.some(e => e?.id === 'cracked-compass')) {
+  // Cracked Compass: mark the exit like spyglass (skip rest floors)
+  if (!session.run.atRest && session.run.player.inventory.some(e => e?.id === 'cracked-compass')) {
     const grid = TileEngine.getGrid()
     for (const row of grid) {
       for (const t of row) {
-        if (t.type === 'exit' && !t.revealed) {
-          t.revealed = true
-          session.run.tilesRevealed++
-          TileEngine.markReachable(t.row, t.col, ctx.markReachableUi)
-          if (t.element) {
-            TileEngine.flipTile(t, UI)
-            t.element.classList.add('compass-revealed')
-          }
+        if (t.type === 'exit' && !t.revealed && !t.echoHintCategory) {
+          ctx.markTileTypeHint(t, {
+            float: !gridRestored,
+            message: gridRestored
+              ? null
+              : '🧭 The bent needle trembles — the way out is marked.',
+          })
+          if (!gridRestored) EventBus.emit('audio:play', { sfx: 'menu' })
           break
         }
       }

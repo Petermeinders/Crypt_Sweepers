@@ -474,7 +474,7 @@ export const ITEMS = {
     stackable: false,
     blurb:     'The needle is bent, but it still knows the way out.',
     details: [
-      { icon: '🧭', label: 'Passive', desc: 'The exit tile is revealed at the start of every floor' },
+      { icon: '🧭', label: 'Passive', desc: 'The exit tile is marked at the start of every floor (like Spyglass)' },
       { icon: '🎲', label: 'Epic',    desc: '1% chance from chests; magic chest exclusive' },
     ],
     effect: { type: 'passive-cracked-compass' },

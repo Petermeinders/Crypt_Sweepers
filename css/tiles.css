@@ -865,13 +865,15 @@ body.tile-colors .tile-front.type-rope {
   pointer-events: all;
 }
 
-/* Revealed exit — second tap to descend / escape */
+/* Revealed exit — second tap to descend / escape (tile-type-exit covers compass / patch paths) */
+.tile.revealed.tile-type-exit,
 .tile.revealed.exit-pending {
   cursor: pointer;
   pointer-events: all;
 }
 
-/* Revealed rope — second tap to exit run with gold */
+/* Revealed rope — second tap to bank gold */
+.tile.revealed.tile-type-rope,
 .tile.revealed.rope-pending {
   cursor: pointer;
   pointer-events: all;

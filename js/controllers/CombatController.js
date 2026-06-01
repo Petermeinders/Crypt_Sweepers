@@ -618,7 +618,12 @@ export function endCombatVictory(ctx, tile) {
       nearest.revealed = true
       session.run.tilesRevealed++
       TileEngine.markReachable(nearest.row, nearest.col, ctx.markReachableUi)
-      if (nearest.element) TileEngine.flipTile(nearest, UI)
+      if (nearest.element) TileEngine.flipTile(nearest)
+      if (nearest.type === 'exit' || nearest.type === 'rope' || nearest.type === 'event') {
+        ctx.resolveEffect(nearest)
+      } else {
+        ctx.syncGridDomClassesFromModel?.()
+      }
       for (const adj of adjs.slice(1)) {
         if (!adj.revealed && adj.element) {
           const cat = ctx.echoCharmCategoryForTileType(adj.type)
