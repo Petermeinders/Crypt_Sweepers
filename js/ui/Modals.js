@@ -421,7 +421,7 @@ export const ModalsMethods = {
     if (!grid) return
     const SLOTS = 9
     grid.innerHTML = ''
-    grid.classList.toggle('replace-mode', replaceMode)
+    grid.classList.toggle('replace-mode', replaceMode || gearPickupMode)
 
     const { filterSlot, filterTrinket, onCompare, onCompareTrinket, onUnequip, onReplaceIndex, onReplaceGearIndex, onSwapWithEquipped, gearPickupMode } = opts
 
@@ -512,21 +512,23 @@ export const ModalsMethods = {
         const item = itemRegistry[entry.id]
         if (!item) { grid.appendChild(slot); return }
         const rarity = item.rarity ?? 'common'
-        slot.className = `backpack-slot occupied rarity-${rarity}${replaceMode ? ' replace-target' : ''}`
+        slot.className = `backpack-slot occupied rarity-${rarity}${replaceMode || gearPickupMode ? ' replace-target' : ''}`
         const bpIcon = item.spriteSrc
           ? `<img class="bp-item-img" src="${item.spriteSrc}" alt="${item.name}">`
           : `<span class="bp-item-emoji">${item.icon}</span>`
         slot.innerHTML = `
           ${bpIcon}
           ${entry.qty > 1 ? `<span class="bp-item-qty">${entry.qty}</span>` : ''}
-          ${replaceMode ? '<div class="bp-replace-badge">Replace</div>' : ''}
+          ${replaceMode || gearPickupMode ? '<div class="bp-replace-badge">Replace</div>' : ''}
         `
         if (filterTrinket && onCompareTrinket) {
           slot.addEventListener('click', () => onCompareTrinket(index))
           grid.appendChild(slot)
           return
         }
-        if (replaceMode && onReplaceIndex) {
+        if (gearPickupMode && onReplaceGearIndex) {
+          slot.addEventListener('click', () => onReplaceGearIndex(index))
+        } else if (replaceMode && onReplaceIndex) {
           slot.addEventListener('click', () => onReplaceIndex(index))
         } else if (replaceMode) {
           slot.addEventListener('click', () => onUse(index))

@@ -3,7 +3,7 @@
 // Version bump CACHE_NAME to force cache refresh on deploy.
 // Also bump SW_CACHE_VERSION in js/main.js (registration query string).
 
-const CACHE_NAME = 'crypt-sweepers-v469'
+const CACHE_NAME = 'crypt-sweepers-v470'
 
 const PRECACHE_ASSETS = [
   './',
