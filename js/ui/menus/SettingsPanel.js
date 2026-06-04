@@ -151,6 +151,10 @@ export function wireSettingsPanel(ctx) {
     })
   })
 
+  document.getElementById('cheat-add-void-pearl-btn')?.addEventListener('click', () => {
+    GameController.cheatAddVoidPearl()
+  })
+
   document.getElementById('debug-accordion-toggle').addEventListener('click', () => {
     document.getElementById('debug-accordion').classList.toggle('open')
   })

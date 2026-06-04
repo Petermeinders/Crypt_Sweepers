@@ -81,3 +81,32 @@ describe('CombatResolver.abilityDmgFloor', () => {
     assert.equal(CombatResolver.abilityDmgFloor(29), 2)
   })
 })
+
+describe('CombatResolver.resolveArmorHit', () => {
+  test('negation pass blocks without armor or HP loss', () => {
+    const hit = CombatResolver.resolveArmorHit({
+      effective: 5, armor: 3, negation: 0.5, rng: 0.1,
+    })
+    assert.equal(hit.negated, true)
+    assert.equal(hit.armorAbsorbed, 0)
+    assert.equal(hit.hpDamage, 0)
+  })
+
+  test('negation fail absorbs up to armor value', () => {
+    const hit = CombatResolver.resolveArmorHit({
+      effective: 2, armor: 5, negation: 0.5, rng: 0.9,
+    })
+    assert.equal(hit.negated, false)
+    assert.equal(hit.armorAbsorbed, 2)
+    assert.equal(hit.hpDamage, 0)
+  })
+
+  test('overflow reaches HP when damage exceeds armor', () => {
+    const hit = CombatResolver.resolveArmorHit({
+      effective: 5, armor: 3, negation: 0, rng: 0.5,
+    })
+    assert.equal(hit.negated, false)
+    assert.equal(hit.armorAbsorbed, 3)
+    assert.equal(hit.hpDamage, 2)
+  })
+})

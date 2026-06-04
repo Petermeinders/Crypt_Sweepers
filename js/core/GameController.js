@@ -6,6 +6,9 @@ import TileEngine            from '../systems/TileEngine.js'
 import CombatResolver        from '../systems/CombatResolver.js'
 import ProgressionSystem     from '../systems/ProgressionSystem.js'
 import MetaProgression       from '../systems/MetaProgression.js'
+import { isBossFloorForRun, voidLootMult } from '../systems/VoidTrial.js'
+import { rollVoidCompletionChoices } from '../systems/VoidCompletion.js'
+import { voidLootChanceMult, rollAbilityFizzle } from '../systems/VoidCorruption.js'
 import SaveManager           from '../save/SaveManager.js'
 import UI                    from '../ui/UI.js'
 import { RANGER_BASE, RANGER_UPGRADES } from '../data/ranger.js'
@@ -68,6 +71,7 @@ import * as Necromancer from '../heroes/necromancer.js'
 import * as Vampire from '../heroes/vampire.js'
 import * as PlayerStats from '../systems/PlayerStats.js'
 import * as EnemyMechanics from '../systems/EnemyMechanics.js'
+import EnemyLeaders from '../systems/EnemyLeaders.js'
 import * as ForgeController from '../controllers/ForgeController.js'
 import * as EventTileController from '../controllers/EventTileController.js'
 import * as SubFloorController from '../controllers/SubFloorController.js'
@@ -99,10 +103,8 @@ const _applyFreezingHit = () => EnemyMechanics.applyFreezingHit()
 const _applyCorruption = () => EnemyMechanics.applyCorruption()
 const _applyBurnHit = (amt) => EnemyMechanics.applyBurnHit(amt)
 const _applyPlayerPoison = (amt) => EnemyMechanics.applyPlayerPoison(amt)
-const _findLiveHulk = () => EnemyMechanics.findLiveHulk()
-const _applyHulkBuffToTile = (t) => EnemyMechanics.applyHulkBuffToTile(t)
-const _removeHulkBuffFromAll = () => EnemyMechanics.removeHulkBuffFromAll()
-const _applyHulkBuffToAll = () => EnemyMechanics.applyHulkBuffToAll()
+const _onEnemyLeaderReveal = (tile) => EnemyLeaders.onEnemyRevealed(TileEngine.getGrid(), tile)
+const _onLeaderSlain = (tile) => EnemyLeaders.onLeaderSlain(TileEngine.getGrid(), tile)
 
 function _forgeCtx() {
   return {
@@ -738,6 +740,13 @@ function _heroAbilityBaseCtx() {
     checkShieldBlock: (tile) => CombatController.checkShieldBlock(_combatCtx(), tile),
     checkOnionLayer: _checkOnionLayer,
     canAttackEnemy: _canAttackEnemy,
+    voidAbilityFizzle: () => {
+      if (rollAbilityFizzle(session.run)) {
+        UI.setMessage('Arcane static disrupts your ability!', true)
+        return true
+      }
+      return false
+    },
     applyTearyEyes: _applyTearyEyes,
     die: _die,
     avgMeleeDamage: () => Warrior.avgMeleeDamage(_warriorCtx()),
@@ -947,11 +956,13 @@ function _combatCtx() {
     sfUnlockAdjacent: _sfUnlockAdjacent,
     finishTreasureGoblinReward: _finishTreasureGoblinReward,
     telemetryBumpKill: _telemetryBumpKill,
-    removeHulkBuffFromAll: _removeHulkBuffFromAll,
+    onLeaderSlain: _onLeaderSlain,
     paladinKillEchoAddMarksAfterKill: _paladinKillEchoAddMarksAfterKill,
     checkFloorCleared: _checkFloorCleared,
     maybeOfferDeadlockEscape: _maybeOfferDeadlockEscape,
     tryGameCompletion: () => GSH.tryGameCompletion(_stateCtx()),
+    tryFloor50VoidPearl: () => GSH.tryFloor50VoidPearl(_stateCtx()),
+    tryVoidTrialComplete,
     resolveEffect: _resolveEffect,
     applyRevealOutcome: (tile) => RevealController.applyRevealOutcome(_revealCtx(), tile),
     syncGridDomClassesFromModel: _syncGridDomClassesFromModel,
@@ -977,9 +988,7 @@ function _revealCtx() {
     gainGold: _gainGold,
     endCombatVictory: _endCombatVictory,
     markReachableUi: _markReachableUi,
-    applyHulkBuffToAll: _applyHulkBuffToAll,
-    findLiveHulk: _findLiveHulk,
-    applyHulkBuffToTile: _applyHulkBuffToTile,
+    onEnemyLeaderReveal: _onEnemyLeaderReveal,
     engineerTurretAfterReveal: _engineerTurretAfterReveal,
     charKey: _charKey,
     echoCharmCategoryForTileType: _echoCharmCategoryForTileType,
@@ -1104,7 +1113,34 @@ function init(saveData) { GSH.init(_stateCtx(), saveData) }
 
 // ── New game ─────────────────────────────────────────────────
 
-function newGame() { GSH.newGame(_stateCtx()) }
+function newGame(opts) { GSH.newGame(_stateCtx(), opts) }
+
+function startVoidTrial(tier) {
+  if (!MetaProgression.spendVoidPearl(session.save)) return false
+  SaveManager.save(session.save).catch(() => {})
+  UI.updateVoidMenu(session.save)
+  UI.hideVoidTrialOverlay()
+  newGame({ voidTier: tier })
+  return true
+}
+
+/** Finale boss slain — completion reward then menu. */
+function tryVoidTrialComplete() {
+  const tier = session.run?.voidTier ?? 1
+  const cards = rollVoidCompletionChoices(tier, 3)
+  UI.showVoidCompletionReward(cards, {
+    onEquip: (piece) => {
+      GearController.equipCompletionRewardToSave(_gearCtx(), piece)
+      UI.setMessage(`🌀 ${piece.name} equipped!`)
+      returnToMenu(true)
+    },
+    onTrash: (piece) => {
+      const scrap = GearController.trashCompletionReward(piece)
+      UI.setMessage(`🌀 Trashed for ${scrap} scrap.`)
+      returnToMenu(true)
+    },
+  })
+}
 
 // ── Run persistence ──────────────────────────────────────────
 
@@ -1766,25 +1802,37 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
   }
   // Armor / Negation — combat hits only (traps and self-damage bypass armor)
   if (enemyAttack && effective > 0 && (session.run.player.armor ?? 0) > 0) {
-    const negation = Math.min(session.run.player.negation ?? 0, CONFIG.armor.negationCap)
-    if (negation > 0 && Math.random() < negation) {
-      // Negation proc: armor preserved, hit fully blocked
+    const hit = CombatResolver.resolveArmorHit({
+      effective,
+      armor: session.run.player.armor ?? 0,
+      negation: session.run.player.negation ?? 0,
+      negationCap: CONFIG.armor.negationCap,
+    })
+    if (hit.negated) {
       UI.spawnFloat(tileEl, '🛡️ Blocked!', 'armor')
       UI.setMessage('The blow glances off your armor — blocked!')
       UI.updateHP(session.run.player.hp, session.run.player.maxHp)
       return
     }
-    // Armor absorption: absorbs the entire hit, costs 1 armor point
-    session.run.player.armor -= 1
-    UI.updateArmor(session.run.player.armor)
-    if (session.run.player.armor === 0) {
-      UI.spawnFloat(tileEl, '🛡️ Shattered!', 'damage')
-      UI.setMessage('Your armor shatters under the blow!')
-    } else {
-      UI.spawnFloat(tileEl, '🛡️ -1 Armor', 'armor')
+    if (hit.armorAbsorbed > 0) {
+      session.run.player.armor -= hit.armorAbsorbed
+      UI.updateArmor(session.run.player.armor)
+      UI.spawnFloat(tileEl, `🛡️ -${hit.armorAbsorbed} Armor`, 'armor')
+      if (hit.hpDamage > 0) {
+        UI.setMessage(session.run.player.armor === 0
+          ? `Your armor shatters — ${hit.hpDamage} damage reaches you!`
+          : `Armor absorbs ${hit.armorAbsorbed} — ${hit.hpDamage} damage gets through!`)
+      } else if (session.run.player.armor === 0) {
+        UI.setMessage('Your armor shatters under the blow!')
+      } else {
+        UI.setMessage(`Your armor absorbs the blow (${session.run.player.armor} remaining).`)
+      }
     }
-    UI.updateHP(session.run.player.hp, session.run.player.maxHp)
-    return
+    effective = hit.hpDamage
+    if (effective <= 0) {
+      UI.updateHP(session.run.player.hp, session.run.player.maxHp)
+      return
+    }
   }
 
   // Pauper's Crown: drain gold before HP
@@ -1909,6 +1957,9 @@ function _gainGold(amount, tileEl, fromEnemy = false, fromChest = false) {
   }
   // Philosopher's Coin: all gold × 5
   if (session.run.player.inventory.some(e => e?.id === 'philosophers-coin')) actual *= 5
+  if (session.run.isVoidTrial) {
+    actual = Math.max(0, Math.round(actual * voidLootMult(session.run.voidTier) * voidLootChanceMult(session.run)))
+  }
   if (actual <= 0) {
     UI.spawnFloat(tileEl, '♠️ No gold!', 'damage')
     return
@@ -2259,7 +2310,7 @@ function _forcePlayChestGif(img, gifSrc) {
 
 function _checkFloorCleared() {
   if (session.run.atRest) return
-  if (CONFIG.bossFloors.includes(session.run.floor)) return
+  if (isBossFloorForRun(session.run, session.run.floor)) return
   if (session.run.floorKeyAwarded) return
   const grid = TileEngine.getGrid()
   for (const row of grid) {
@@ -2604,6 +2655,10 @@ function cheatHudStatBoost(stat) {
   CheatController.cheatHudStatBoost(_cheatDeps(), stat)
 }
 
+function cheatAddVoidPearl() {
+  CheatController.cheatAddVoidPearl(_cheatDeps())
+}
+
 const uiButtonHaptic = Haptics.uiButtonHaptic
 
 // ── Test harness (?testHarness=1 — inert in normal play) ───────
@@ -2771,6 +2826,7 @@ export default {
   getBloodTitheBreakdown,
   getBloodPactBreakdown,
   newGame,
+  startVoidTrial,
   returnToMenu,
   onTileTap,
   spellAction,
@@ -2802,6 +2858,7 @@ export default {
   hourglassAction,
   doRetreat,
   applyCheat,
+  cheatAddVoidPearl,
   cheatSkipFloor,
   cheatGenerateGear,
   cheatHudStatBoost,

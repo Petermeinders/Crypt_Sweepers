@@ -7,6 +7,8 @@
 //   { fromBiome: 'id' }      — appears in that biome and every biome after it
 //   { biomes: ['id', ...] }  — only in the listed biomes
 //   { minFloor: N }          — only on floor N and deeper (biome-universal unless combined with fromBiome/biomes)
+//
+// leaderEligible: true       — may be promoted to Leader on floors that rolled leader slots (never 100%)
 
 export const ENEMY_DEFS = {
   // ── Undead (Warrior Undead Bane applies) ───────────────────
@@ -126,6 +128,7 @@ export const ENEMY_DEFS = {
     blurb:      'A brutish warrior with a scarred tower shield. Swings an axe like a butcher and sometimes lets attacks bounce right off.',
     attributes: ['shield-block', 'telegraphs'],
     shieldBlock: true,
+    leaderEligible: true,
     spawn:      { fromBiome: 'jungle' },
   },
 
@@ -199,7 +202,10 @@ export const ENEMY_DEFS = {
     goldDrop:   [1, 2],
     xpDrop:     2,
     blurb:      'Eight eyes, eight legs, one goal. Its venom works fast.',
-    attributes: ['fast'],
+    attributes: ['fast', 'plague-bite'],
+    poisonHit: true,
+    poisonHitAmount: 1,
+    leaderEligible: true,
     spawn:      'universal',
   },
 
@@ -230,6 +236,7 @@ export const ENEMY_DEFS = {
     blurb:      'A stout and stubborn rune-carver. Magic slides right off his enchanted hide — you\'ll have to get your hands dirty.',
     attributes: ['spell-immune', 'telegraphs'],
     spellImmune: true,
+    leaderEligible: true,
     spawn:      { fromBiome: 'frozen-tundra' },
   },
 
@@ -245,6 +252,7 @@ export const ENEMY_DEFS = {
     blurb:      'A colossal being of living ice. Every blow from its frozen fists chills you to the bone, sapping your strength.',
     attributes: ['freezing-hit', 'telegraphs'],
     freezingHit: true,
+    leaderEligible: true,
     spawn:      { biomes: ['frozen-tundra', 'crystal-cavern'] },
   },
 
@@ -259,7 +267,7 @@ export const ENEMY_DEFS = {
     xpDrop:     10,
     blurb:      'A barnacle-crusted colossus dragged up from the ocean floor. While it stands, every creature sharing its gaze grows harder to kill — fed by the same dark tide.',
     attributes: ['crew-aura', 'telegraphs'],
-    crewBuffAura: true,
+    leaderEligible: true,
     spawn:      { fromBiome: 'sunken-temple' },
   },
 
@@ -275,6 +283,7 @@ export const ENEMY_DEFS = {
     blurb:      'A drowned corsair raised from the deep, bound by void tentacles. Its cutlass drips with corrupting ichor that rots the soul as surely as the blade cuts flesh.',
     attributes: ['corruption', 'telegraphs'],
     corruptionHit: true,
+    leaderEligible: true,
     spawn:      { fromBiome: 'sunken-temple' },
   },
 
@@ -319,6 +328,7 @@ export const ENEMY_DEFS = {
     blurb:      'A goblin consumed by void energy, moving with unnatural speed. It strikes before you can raise your guard, leaving corruption festering in the wound.',
     attributes: ['fast', 'corruption'],
     corruptionHit: true,
+    leaderEligible: true,
     spawn:      { fromBiome: 'corrupted-forest' },
   },
 
@@ -334,6 +344,7 @@ export const ENEMY_DEFS = {
     blurb:      'A colossal stone giant warped by the corrupted forest\'s dark energy. Its single eye pulses with void-light, and every crushing blow seeps corruption into the soul.',
     attributes: ['corruption', 'telegraphs'],
     corruptionHit: true,
+    leaderEligible: true,
     spawn:      { fromBiome: 'corrupted-forest' },
   },
 
@@ -349,6 +360,7 @@ export const ENEMY_DEFS = {
     blurb:      'A goblin warped by corrupting energies seeping from the forest. Its touch rots equipment and saps the will to fight.',
     attributes: ['corruption', 'telegraphs'],
     corruptionHit: true,
+    leaderEligible: true,
     spawn:      { fromBiome: 'corrupted-forest' },
   },
 
@@ -381,6 +393,7 @@ export const ENEMY_DEFS = {
     burnHitAmount: 1,
     poisonHit:  true,
     poisonHitAmount: 1,
+    leaderEligible: true,
     spawn:      { biomes: ['volcanic-cavern', 'infernal-pit'] },
   },
 
@@ -396,6 +409,7 @@ export const ENEMY_DEFS = {
     blurb:      'A mechanical horror forged in volcanic rock and living flame. Skitters with terrifying speed and leaves scorching wounds that smoulder long after the skirmish.',
     attributes: ['fast', 'burn'],
     burnHit:    true,
+    leaderEligible: true,
     spawn:      { biomes: ['volcanic-cavern', 'infernal-pit'] },
   },
 
@@ -411,6 +425,7 @@ export const ENEMY_DEFS = {
     blurb:      'A volatile little pyromaniac wreathed in cursed flame. Its burning strikes leave scorching wounds that smoulder long after the fight.',
     attributes: ['burn', 'telegraphs'],
     burnHit:    true,
+    leaderEligible: true,
     spawn:      { biomes: ['volcanic-cavern', 'infernal-pit'] },
   },
 
@@ -427,6 +442,7 @@ export const ENEMY_DEFS = {
     attributes: ['fast', 'harass'],
     harassPlayer: true,
     harassDmg:  1,
+    leaderEligible: true,
     spawn:      { fromBiome: 'shadow-realm' },
   },
 

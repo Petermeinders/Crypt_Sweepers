@@ -3,7 +3,7 @@
 // Version bump CACHE_NAME to force cache refresh on deploy.
 // Keep in sync with APP_VERSION in js/appVersion.js and version.json.
 
-const CACHE_NAME = 'crypt-sweepers-v488'
+const CACHE_NAME = 'crypt-sweepers-v489'
 
 const PRECACHE_ASSETS = [
   './',

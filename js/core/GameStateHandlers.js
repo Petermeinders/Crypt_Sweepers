@@ -4,6 +4,7 @@ import EventBus from './EventBus.js'
 import Logger from './Logger.js'
 import TileEngine from '../systems/TileEngine.js'
 import MetaProgression from '../systems/MetaProgression.js'
+import { getVoidTierConfig } from '../systems/VoidTrial.js'
 import SaveManager from '../save/SaveManager.js'
 import UI from '../ui/UI.js'
 import * as Haptics from '../systems/Haptics.js'
@@ -154,7 +155,22 @@ export function buildRunState(ctx) {
     killEchoQuota:    1,
     /** Per-floor grid dimensions rolled once per run — { [floor]: { cols, rows } } */
     floorGridSizes:   {},
+    isVoidTrial:      false,
+    voidTier:         null,
+    voidMaxFloor:     null,
+    corruption:       null,
+    _voidSanctuaryPearlOffer: false,
+    _voidSanctuaryPearlSold: false,
   }
+}
+
+function applyVoidTrialToRun(run, voidTier) {
+  const cfg = getVoidTierConfig(voidTier)
+  if (!cfg) return
+  run.isVoidTrial = true
+  run.voidTier = voidTier
+  run.voidMaxFloor = cfg.maxFloor
+  run.corruption = { stacks: {}, pickedFloors: [], pendingTriplet: null, introShown: false }
 }
 
 
@@ -172,10 +188,13 @@ export function init(ctx, saveData) {
 
 // ── New game ─────────────────────────────────────────────────
 
-export function newGame(ctx) {
+export function newGame(ctx, opts = {}) {
   UI.hideRunSummary()
   clearActiveRun(ctx)
   session.run = buildRunState(ctx)
+  if (opts.voidTier >= 1 && opts.voidTier <= 3) {
+    applyVoidTrialToRun(session.run, opts.voidTier)
+  }
   TileEngine.setDiagonalMovement((session.save.selectedCharacter ?? 'warrior') === 'mage')
   UI.hideMainMenu()
   EventBus.emit('audio:crossfade', { track: 'dungeon', duration: 1500 })
@@ -239,6 +258,14 @@ export function saveActiveRun(ctx) {
       ? structuredClone(session.run.floorGridSizes)
       : {},
     ropeUsedThisSanctuary: !!session.run._ropeUsedThisSanctuary,
+    isVoidTrial: !!session.run.isVoidTrial,
+    voidTier: session.run.voidTier ?? null,
+    voidMaxFloor: session.run.voidMaxFloor ?? null,
+    corruption: session.run.corruption
+      ? structuredClone(session.run.corruption)
+      : null,
+    _voidSanctuaryPearlOffer: !!session.run._voidSanctuaryPearlOffer,
+    _voidSanctuaryPearlSold: !!session.run._voidSanctuaryPearlSold,
   }
   SaveManager.save(session.save).catch(() => {})
 }
@@ -290,6 +317,14 @@ export function resumeRun(ctx) {
     killEchoQuota: saved.killEchoQuota ?? 1,
     floorGridSizes: saved.floorGridSizes ?? {},
     _ropeUsedThisSanctuary: !!saved.ropeUsedThisSanctuary,
+    isVoidTrial: !!saved.isVoidTrial,
+    voidTier: saved.voidTier ?? null,
+    voidMaxFloor: saved.voidMaxFloor ?? null,
+    corruption: saved.corruption
+      ? structuredClone(saved.corruption)
+      : { stacks: {}, pickedFloors: [] },
+    _voidSanctuaryPearlOffer: !!saved._voidSanctuaryPearlOffer,
+    _voidSanctuaryPearlSold: !!saved._voidSanctuaryPearlSold,
   }
   const ch = session.save.selectedCharacter ?? 'warrior'
   if (ch === 'engineer' && (session.run.player.seismicPingLevel == null || session.run.player.seismicPingLevel < 1)) {
@@ -511,6 +546,24 @@ export function finalizeRunTelemetry(ctx, outcomeType, extras = {}) {
   }
 }
 
+/** Floor 50 boss (main game): first-time Void Pearl + discovery modal; run continues. */
+export function tryFloor50VoidPearl(ctx) {
+  const pearlFloor = CONFIG.void?.pearlAwardFloor ?? 50
+  if (!session.run || session.run.floor !== pearlFloor || session.run.isVoidTrial) return false
+
+  const { pearlGranted } = MetaProgression.awardFloor50VoidPearl(session.save)
+  if (!pearlGranted) return false
+
+  SaveManager.save(session.save).catch(() => {})
+
+  UI.showVoidPearlDiscoveredModal(() => {
+    UI.updateVoidMenu(session.save)
+    UI.setMessage('🔮 A Void Pearl resonates in your pack. The Void awaits on the main menu.', true)
+  })
+  EventBus.emit('audio:play', { sfx: 'gold' })
+  return true
+}
+
 export function tryGameCompletion(ctx) {
   if (!session.run || session.run.floor !== 100) return false
   if (MetaProgression.isGameCompleted(session.save)) return false
@@ -542,6 +595,7 @@ export function tryGameCompletion(ctx) {
 
   setTimeout(() => {
     UI.showGameCompletedModal({ pearlGranted })
+    UI.updateVoidMenu(session.save)
     wireGameCompletedBtn(ctx)
   }, 1200)
 

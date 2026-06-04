@@ -28,6 +28,7 @@ The data directory is the game's content layer. Every file is a plain JS export 
 
 - **Plain data only.** No functions, no class instances, no `import` statements inside data files (they export only). Exception: `events.js` exports `rollEventType()` — a single pure helper.
 - **`effect.type` is a contract.** The string in `effect.type` is matched by a `switch` in `MetaProgression._applyUpgradeEffect()` or `GameController._useItem()`. Adding a new effect type requires a handler in both places.
+- **Enemy `leaderEligible`:** when `true`, floor spawn may promote this type to Leader (rare; see `CONFIG.enemy.leader`, `js/systems/EnemyLeaders.js`, `docs/enemy-leaders-design.md`).
 - **Enemy `spawn` field shapes:**
   - `'universal'` — all floors
   - `{ fromBiome: 'id' }` — that biome and all later ones

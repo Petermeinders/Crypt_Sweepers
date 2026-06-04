@@ -30,6 +30,9 @@ generate-icons.html
 # Prototype (old code, not part of the shipped game)
 prototype/
 
+# Design exports (large embedded assets — keep locally; see docs/epics/the-void/epic-overview.md)
+docs/epics/the-void/void-selection-prototype.html
+
 # Environment / secrets
 .env
 .env.local

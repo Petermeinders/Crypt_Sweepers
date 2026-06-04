@@ -16,6 +16,23 @@ export const CONFIG = {
     // Legacy defaults — used only when no run-scoped size is available (e.g. docs)
     cols: 5,
     rows: 6,
+    /** Floors 1–N always use fixedCols × fixedRows; floor N+1+ rolls random per axis. */
+    fixedSizeThroughFloor: 5,
+    fixedCols: 5,
+    fixedRows: 6,
+  },
+
+  /**
+   * Per-floor enemy tile density (share of weighted random pool for enemy + enemy_fast).
+   * See js/systems/TileDensity.js and docs/smallChanges.md.
+   */
+  enemyDensity: {
+    shareAtFloor1:   0.20,
+    shareAtFloor50:  0.32,
+    shareAtFloor100: 0.38,
+    /** enemy_fast / (enemy + enemy_fast) — matches legacy 7:22 ratio ≈ 0.24 */
+    fastShareOfEnemies: 7 / 29,
+    minEmptyWeight: 12,
   },
 
   /** Random cols/rows in [grid.minDim, grid.maxDim] — independent per axis. */
@@ -27,6 +44,15 @@ export const CONFIG = {
     }
   },
 
+  /** Dungeon grid size for a floor number (before run persistence). */
+  gridSizeForFloor(floor) {
+    const g = this.grid
+    if (floor >= 1 && floor <= (g.fixedSizeThroughFloor ?? 0)) {
+      return { cols: g.fixedCols ?? g.cols, rows: g.fixedRows ?? g.rows }
+    }
+    return this.rollGridSize()
+  },
+
   /**
    * Grid dimensions for a floor. Rest sanctuary is always 3×3.
    * Pass explicit cols/rows, or a run with floorGridSizes populated via ensureFloorGridSize.
@@ -36,7 +62,7 @@ export const CONFIG = {
     if (opts.cols != null && opts.rows != null) return { cols: opts.cols, rows: opts.rows }
     const stored = opts.run?.floorGridSizes?.[floor]
     if (stored) return stored
-    return this.rollGridSize()
+    return this.gridSizeForFloor(floor)
   },
 
   /**
@@ -46,10 +72,10 @@ export const CONFIG = {
    */
   ensureFloorGridSize(floor, run, opts = {}) {
     if (opts.rest) return { cols: 3, rows: 3 }
-    if (!run) return this.rollGridSize()
+    if (!run) return this.gridSizeForFloor(floor)
     run.floorGridSizes ??= {}
     if (!run.floorGridSizes[floor]) {
-      run.floorGridSizes[floor] = this.rollGridSize()
+      run.floorGridSizes[floor] = this.gridSizeForFloor(floor)
     }
     return run.floorGridSizes[floor]
   },
@@ -70,14 +96,24 @@ export const CONFIG = {
     fastDamage: [1, 2],
     goldDrop:   [1, 2],
     // Stat scaling per floor
-    floorScaleHP:  0.22,       // +22% HP per floor (floors 1–50)
+    floorScaleHP:  0.24,       // +24% HP per floor (floors 1–50); tuned with lower enemy density
     // Damage: compound per floor (moderate exponential)
-    floorScaleDmgExpRate:      0.048,  // dmgMult ×(1+r) per floor (floors 2–50)
-    floorScaleDmgExpRate_late:   0.024,  // continued compound above floor 50
+    floorScaleDmgExpRate:      0.045,  // dmgMult ×(1+r) per floor (floors 2–50)
+    floorScaleDmgExpRate_late:   0.021,  // continued compound above floor 50
     // Steeper HP scaling for floors 51–100 (piecewise linear inflection)
-    floorScaleHP_late:  0.33,  // +33% HP per floor above 50
+    floorScaleHP_late:  0.30,  // +30% HP per floor above 50
     /** Global multiplier applied after floor scaling (HP + damage). */
     statMult: 1.25,
+    /**
+     * Leader spawn budget per floor (see docs/enemy-leaders-design.md).
+     * 90% no leaders; 5% one slot; 5% two slots. Max 2 visible at once.
+     */
+    leader: {
+      floorChanceNone: 0.90,
+      floorChanceOne:  0.05,
+      floorChanceTwo:  0.05,
+      maxVisible:      2,
+    },
   },
 
   spell: {
@@ -155,14 +191,19 @@ export const CONFIG = {
 
   /** Dungeon Mouse — pre-revealed creature that unflips tiles when the player flips */
   mouse: {
-    /** Per non-boss dungeon floor (boss floors & sanctuary excluded) */
-    spawnChance: 0.20,
+    /** Per non-boss dungeon floor (boss floors & sanctuary excluded); floor 1 unchanged in FloorController */
+    spawnChance: 0.15,
   },
 
   /** Treasure Goblin — rare pre-revealed 1 HP foe; drops a rare trinket if slain before its timer expires */
   treasureGoblin: {
     /** Per non-boss dungeon floor (excluding boss floors) */
     spawnChance: 0.05,
+  },
+
+  /** Pre-revealed archer; floor 1 always spawns (see FloorController) */
+  archerGoblin: {
+    spawnChance: 0.15,
   },
 
   subFloor: {
@@ -388,6 +429,7 @@ export const CONFIG = {
       rare:      5,
       epic:      10,
       legendary: 30,
+      void:      50,
     },
     // Fixed scrap when dropping/trashing passive trinkets (by item rarity)
     trinketTrashScrapYield: {
@@ -466,6 +508,95 @@ export const CONFIG = {
   vampireUnlockCost:   300,
   engineerUnlockCost:     400,
   necromancerUnlockCost:  500,
+
+  /** Epic 12 — The Void (see docs/epics/the-void/implementation-decisions.md) */
+  void: {
+    /** Void trial floor 1 uses main-game enemy scaling at this depth; each void floor adds +1. */
+    enemyBaseFloor: 50,
+    /** Main-game boss floor that awards the first Void Pearl (once per account). */
+    pearlAwardFloor: 50,
+    /** Pearls granted on first floor-100 completion (main game). */
+    floor100PearlReward: 2,
+    merchantPearlChance: 0.01,
+    merchantPearlPrice: 1000,
+    trashScrapVoid: 50,
+    completionVoidChance: { 1: 0.2, 2: 0.3, 3: 0.4 },
+    /** Multiplier on positive rolled stats for completion gear */
+    completionPositiveStatMult: { 1: 1.1, 2: 1.2, 3: 1.3 },
+    /** Floor depth used when rolling completion gear stat bands */
+    completionStatFloor: 95,
+    trials: {
+      1: {
+        id: 1,
+        name: 'Ashen Passage',
+        enemyStatMult: 1.5,
+        lootMult: 1.25,
+        maxFloor: 20,
+        flavor: 'A warm-up; still punishing.',
+      },
+      2: {
+        id: 2,
+        name: 'Hollow Threshold',
+        enemyStatMult: 2.0,
+        lootMult: 1.5,
+        maxFloor: 30,
+        flavor: 'The punishing challenge.',
+      },
+      3: {
+        id: 3,
+        name: 'Unmaking Void',
+        enemyStatMult: 2.5,
+        lootMult: 1.75,
+        maxFloor: 50,
+        flavor: 'Near-impossible without strong gear.',
+      },
+    },
+    corruption: {
+      tripletSize: 3,
+      curses: {
+        hp_pct: {
+          label: 'Frailty',
+          description: '−1% max HP (stacks)',
+          perPick: { maxHpMult: -0.01 },
+        },
+        mp_pct: {
+          label: 'Mind Drain',
+          description: '−1% max MP (stacks)',
+          perPick: { maxManaMult: -0.01 },
+        },
+        miss_strike: {
+          label: 'Unsteady Grip',
+          description: '+2% miss on basic attacks (stacks)',
+          perPick: { missStrike: 0.02 },
+        },
+        loot_drop: {
+          label: 'Barren Floor',
+          description: '−5% loot drops (stacks)',
+          perPick: { lootMult: -0.05 },
+        },
+        block_fail: {
+          label: 'Cracked Guard',
+          description: '+5% block/parry fail (stacks)',
+          perPick: { blockFail: 0.05 },
+        },
+        ability_fail: {
+          label: 'Arcane Static',
+          description: '+5% ability fail (stacks)',
+          perPick: { abilityFail: 0.05 },
+        },
+        enemy_dmg: {
+          label: 'Void Fury',
+          description: 'Enemies deal +5% damage (stacks)',
+          perPick: { enemyDmgMult: 0.05 },
+        },
+        enemy_hp: {
+          label: 'Swollen Horde',
+          description: 'Enemies have +5% HP (stacks)',
+          perPick: { enemyHpMult: 0.05 },
+        },
+      },
+    },
+  },
 }
 
 // Player preferences — persisted via SaveManager

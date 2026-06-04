@@ -1,6 +1,6 @@
 // Tile type definitions — plain data only, no functions.
 // Factory function lives in TileEngine.js.
-// Weights are tuned for floor 1; TileEngine applies floor-depth adjustments.
+// Base weights for non-enemy tiles; enemy / enemy_fast / empty come from CONFIG.enemyDensity (TileDensity.js).
 
 export const TILE_DEFS = {
   empty:      { emoji: '',     label: '',           cssClass: 'type-empty',      weight: 29, isEnemy: false },

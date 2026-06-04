@@ -76,11 +76,25 @@ describe('migrateSave', () => {
     assert.equal(changed, true)
   })
 
+  test('sets voidUnlocked when voidPearls > 0 but flag was false', () => {
+    const save = MetaProgression.defaultSave()
+    save.meta.voidPearls = 2
+    save.meta.voidUnlocked = false
+    const { save: out, changed } = migrateSave(save)
+    assert.equal(out.meta.voidUnlocked, true)
+    assert.equal(changed, true)
+  })
+
   test('adds missing meta block', () => {
     const save = MetaProgression.defaultSave()
     delete save.meta
     const { save: out, changed } = migrateSave(save)
-    assert.deepEqual(out.meta, { gameCompleted: false, voidPearls: 0 })
+    assert.deepEqual(out.meta, {
+      gameCompleted: false,
+      voidPearls: 0,
+      voidPearlFloor50Awarded: false,
+      voidUnlocked: false,
+    })
     assert.equal(changed, true)
   })
 })

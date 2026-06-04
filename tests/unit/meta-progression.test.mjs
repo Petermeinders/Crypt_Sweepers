@@ -62,24 +62,61 @@ describe('MetaProgression.normalizeUnlockedHeroes', () => {
   })
 })
 
+describe('MetaProgression Void Pearl (floor 50)', () => {
+  test('awardFloor50VoidPearl grants pearl and unlocks Void once', () => {
+    const save = createSave()
+    const first = MetaProgression.awardFloor50VoidPearl(save)
+    assert.equal(first.firstTime, true)
+    assert.equal(first.pearlGranted, 1)
+    assert.equal(save.meta.voidPearls, 1)
+    assert.equal(save.meta.voidUnlocked, true)
+    assert.equal(save.meta.voidPearlFloor50Awarded, true)
+
+    const second = MetaProgression.awardFloor50VoidPearl(save)
+    assert.equal(second.pearlGranted, 0)
+    assert.equal(save.meta.voidPearls, 1)
+  })
+})
+
+describe('MetaProgression isVoidUnlocked', () => {
+  test('voidUnlocked when save has Void Pearls even if flag was false', () => {
+    const save = createSave({
+      meta: {
+        gameCompleted: false,
+        voidPearls: 1,
+        voidPearlFloor50Awarded: false,
+        voidUnlocked: false,
+      },
+    })
+    assert.equal(MetaProgression.isVoidUnlocked(save), true)
+    assert.equal(save.meta.voidUnlocked, true)
+  })
+})
+
 describe('MetaProgression game completion', () => {
-  test('completeGame awards one pearl on first completion only', () => {
+  test('completeGame sets gameCompleted and awards two pearls on first completion', () => {
     const save = createSave()
     const first = MetaProgression.completeGame(save)
     assert.equal(first.firstTime, true)
-    assert.equal(first.pearlGranted, 1)
+    assert.equal(first.pearlGranted, 2)
     assert.equal(save.meta.gameCompleted, true)
-    assert.equal(save.meta.voidPearls, 1)
+    assert.equal(save.meta.voidPearls, 2)
+    assert.equal(save.meta.voidUnlocked, true)
 
     const second = MetaProgression.completeGame(save)
     assert.equal(second.firstTime, false)
     assert.equal(second.pearlGranted, 0)
-    assert.equal(save.meta.voidPearls, 1)
+    assert.equal(save.meta.voidPearls, 2)
   })
 
   test('defaultSave includes meta block', () => {
     const save = MetaProgression.defaultSave()
-    assert.deepEqual(save.meta, { gameCompleted: false, voidPearls: 0 })
+    assert.deepEqual(save.meta, {
+      gameCompleted: false,
+      voidPearls: 0,
+      voidPearlFloor50Awarded: false,
+      voidUnlocked: false,
+    })
   })
 })
 

@@ -1,5 +1,6 @@
 /** Dev cheat surface — wired from GameController with injected deps. */
 
+import MetaProgression from '../systems/MetaProgression.js'
 import { generateGear, pickDropTier, pickDropSlot } from '../data/gear.js'
 import { pickTrinketIdForDropTier } from '../systems/LootTables.js'
 import { ITEMS } from '../data/items.js'
@@ -64,6 +65,18 @@ export async function cheatGenerateGear(deps) {
   const name = ITEMS[trinketId]?.name ?? trinketId
   const label = tier === 'epic' ? 'rare trinket (epic roll)' : `${tier} trinket`
   UI.setMessage(`[Cheat] Generated ${label}: ${name}.`)
+}
+
+export function cheatAddVoidPearl(deps) {
+  const { getSave, UI, SaveManager } = deps
+  const save = getSave()
+  if (!save) return
+  MetaProgression.ensureMeta(save)
+  save.meta.voidPearls += 1
+  save.meta.voidUnlocked = true
+  UI.updateVoidMenu(save)
+  SaveManager.save(save).catch(() => {})
+  UI.setMessage(`[Cheat] +1 Void Pearl (now ${save.meta.voidPearls})`)
 }
 
 export function applyCheat(deps, key, enabled) {

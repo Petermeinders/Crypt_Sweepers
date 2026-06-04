@@ -13,7 +13,9 @@ import {
 } from '../systems/LootTables.js'
 import { session } from '../core/RunContext.js'
 import SaveManager from '../save/SaveManager.js'
+import MetaProgression from '../systems/MetaProgression.js'
 import { adjustScrap } from './GearController.js'
+import { CONFIG } from '../config.js'
 
 export function openEvent(ctx, tile) {
   if (tile.eventResolved) return
@@ -74,6 +76,13 @@ function buildMerchantOffer(tile) {
       price: 25,
     })
   }
+  if (session.run?._voidSanctuaryPearlOffer && !session.run._voidSanctuaryPearlSold) {
+    items.push({
+      id: '__void_pearl__',
+      label: 'Void Pearl',
+      price: CONFIG.void?.merchantPearlPrice ?? 1000,
+    })
+  }
   return items
 }
 
@@ -82,7 +91,7 @@ function openMerchantShop(ctx, tile) {
   ensureMerchantStock(ctx, tile)
 
   const _canBuy = (itemId) => {
-    if (itemId === '__scrap__') return true
+    if (itemId === '__void_pearl__' || itemId === '__scrap__') return true
     const hasCoin = p.inventory.some(e => e?.id === 'philosophers-coin')
     const isCoinConvert = hasCoin && (itemId === 'potion-red' || itemId === 'potion-blue' || itemId === 'potion-mystery')
     return isCoinConvert || ctx.canAddToBackpack(itemId)
@@ -115,6 +124,22 @@ async function doMerchantBuy(ctx, tile, itemId, items, refreshShop) {
   if (p.gold < def.price) {
     UI.showMerchantPurchaseToast('Not enough gold!', { isError: true })
     UI.setMessage('Not enough gold!', true)
+    return
+  }
+
+  if (itemId === '__void_pearl__') {
+    if (!session.run?._voidSanctuaryPearlOffer || session.run._voidSanctuaryPearlSold) return
+    p.gold -= def.price
+    UI.updateGold(p.gold)
+    MetaProgression.ensureMeta(session.save)
+    session.save.meta.voidPearls += 1
+    session.run._voidSanctuaryPearlSold = true
+    UI.updateVoidMenu(session.save)
+    EventBus.emit('audio:play', { sfx: 'chest' })
+    UI.showMerchantPurchaseToast('✓ Purchased Void Pearl')
+    UI.setMessage('🔮 You bought a Void Pearl for 1,000 gold.')
+    SaveManager.save(session.save).catch(() => {})
+    refreshShop?.()
     return
   }
 

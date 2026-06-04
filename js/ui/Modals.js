@@ -10,6 +10,9 @@ import EventBus from '../core/EventBus.js'
 import { ENEMY_SPRITES, MONSTER_ICONS_BASE } from '../data/tileIcons.js'
 import { el, fillBestiaryCreatureParts, fillTrinketCard, drawSettledDice, PORTRAIT_ANIM } from './uiShared.js'
 import { FORGE_RECIPES } from '../data/combinations.js'
+import { curseDisplay, getActiveCorruptionEntries } from '../systems/VoidCorruption.js'
+import MetaProgression from '../systems/MetaProgression.js'
+import { getVoidTierConfig, isVoidTrialRun, voidTrialBannerDisplay } from '../systems/VoidTrial.js'
 
 let _merchantToastTimer = null
 
@@ -85,7 +88,28 @@ export function cacheModalElements() {
     el.voidPearlBadge  = document.getElementById('void-pearl-badge')
     el.voidPearlCount  = document.getElementById('void-pearl-count')
     el.gameCompletedOverlay = document.getElementById('game-completed-overlay')
-    el.voidStubOverlay = document.getElementById('void-stub-overlay')
+    el.voidTrialOverlay = document.getElementById('void-trial-overlay')
+    el.voidTrialPearlCount = document.getElementById('void-trial-pearl-count')
+    el.voidTrialEnter = document.getElementById('void-trial-enter')
+    el.voidTrialEnterSub = document.getElementById('void-trial-enter-sub')
+    el.voidTrialBack = document.getElementById('void-trial-back')
+    el.voidPearlConfirmOverlay = document.getElementById('void-pearl-confirm-overlay')
+    el.voidPearlConfirmBody = document.getElementById('void-pearl-confirm-body')
+    el.voidPearlConfirmYes = document.getElementById('void-pearl-confirm-yes')
+    el.voidPearlConfirmNo = document.getElementById('void-pearl-confirm-no')
+    el.voidPearlDiscoveredOverlay = document.getElementById('void-pearl-discovered-overlay')
+    el.voidPearlDiscoveredOk = document.getElementById('void-pearl-discovered-ok')
+    el.voidCorruptionIntroOverlay = document.getElementById('void-corruption-intro-overlay')
+    el.voidCorruptionIntroContinue = document.getElementById('void-corruption-intro-continue')
+    el.voidCorruptionPickOverlay = document.getElementById('void-corruption-pick-overlay')
+    el.voidCorruptionPickCards = document.getElementById('void-corruption-pick-cards')
+    el.voidCorruptionWrap = document.getElementById('void-corruption-wrap')
+    el.voidCorruptionToggle = document.getElementById('void-corruption-toggle')
+    el.voidCorruptionBadge = document.getElementById('void-corruption-badge')
+    el.voidCorruptionDropdown = document.getElementById('void-corruption-dropdown')
+    el.voidCorruptionList = document.getElementById('void-corruption-list')
+    el.voidCompletionOverlay = document.getElementById('void-completion-overlay')
+    el.voidCompletionCards = document.getElementById('void-completion-cards')
     el.goldShopOverlay    = document.getElementById('gold-shop-overlay')
     el.shopGoldVal        = document.getElementById('shop-gold-val')
     el.shopCartInfo       = document.getElementById('shop-cart-info')
@@ -152,7 +176,31 @@ export function cacheModalElements() {
     el.gearCompareModal   = document.getElementById('gear-compare-modal')
 }
 
+let _voidCorruptionDropdownOpen = false
+
+function _syncVoidCorruptionDropdownOpen() {
+  if (!el.voidCorruptionDropdown || !el.voidCorruptionToggle) return
+  el.voidCorruptionDropdown.classList.toggle('hidden', !_voidCorruptionDropdownOpen)
+  el.voidCorruptionDropdown.setAttribute('aria-hidden', _voidCorruptionDropdownOpen ? 'false' : 'true')
+  el.voidCorruptionToggle.setAttribute('aria-expanded', _voidCorruptionDropdownOpen ? 'true' : 'false')
+  el.voidCorruptionWrap?.classList.toggle('is-open', _voidCorruptionDropdownOpen)
+}
+
 export function wireModalListeners() {
+  el.voidCorruptionToggle?.addEventListener('click', (e) => {
+    e.stopPropagation()
+    _voidCorruptionDropdownOpen = !_voidCorruptionDropdownOpen
+    _syncVoidCorruptionDropdownOpen()
+  })
+  document.addEventListener('click', (e) => {
+    if (!el.voidCorruptionWrap?.contains(e.target)) {
+      if (_voidCorruptionDropdownOpen) {
+        _voidCorruptionDropdownOpen = false
+        _syncVoidCorruptionDropdownOpen()
+      }
+    }
+  })
+
 const closeBestiaryDetail = () => {
       el.bestiaryDetailOverlay?.classList.add('hidden')
       el.bestiaryDetailOverlay?.setAttribute('aria-hidden', 'true')
@@ -1032,29 +1080,284 @@ export const ModalsMethods = {
 
   updateVoidMenu(save) {
     if (!el.voidBtn) return
-    const completed = !!save?.meta?.gameCompleted
     const pearls = save?.meta?.voidPearls ?? 0
+    const unlocked = MetaProgression.isVoidUnlocked(save)
+    const playable = pearls >= 1
 
-    if (completed) {
+    if (pearls > 0 && el.voidPearlBadge) {
+      el.voidPearlBadge.classList.remove('hidden')
+      if (el.voidPearlCount) el.voidPearlCount.textContent = pearls
+    } else if (el.voidPearlBadge) {
+      el.voidPearlBadge.classList.add('hidden')
+    }
+
+    if (playable) {
       el.voidBtn.disabled = false
       el.voidBtn.classList.remove('is-locked')
       el.voidBtn.textContent = '🌀 The Void'
-      el.voidBtn.title = 'Spend Void Pearls to enter a trial (coming soon)'
-      if (el.voidPearlBadge) el.voidPearlBadge.classList.remove('hidden')
-      if (el.voidPearlCount) el.voidPearlCount.textContent = pearls
+      el.voidBtn.title = 'Enter a Void trial (costs 1 Void Pearl)'
+    } else if (unlocked) {
+      el.voidBtn.disabled = true
+      el.voidBtn.classList.remove('is-locked')
+      el.voidBtn.textContent = '🌀 The Void'
+      el.voidBtn.title = 'You need a Void Pearl to enter a trial'
     } else {
       el.voidBtn.disabled = true
       el.voidBtn.classList.add('is-locked')
       el.voidBtn.textContent = '🔒 The Void'
-      el.voidBtn.title = 'Complete floor 100 to unlock'
-      if (el.voidPearlBadge) el.voidPearlBadge.classList.add('hidden')
+      el.voidBtn.title = 'Earn a Void Pearl to unlock (floor 50 boss, floor 100, or merchant)'
     }
   },
 
-  showGameCompletedModal({ pearlGranted = 1 } = {}) {
+  _voidTrialSelectedTier() {
+    const sel = el.voidTrialOverlay?.querySelector('.banner[data-selected="1"]')
+    return sel ? parseInt(sel.dataset.tier, 10) : 1
+  },
+
+  _syncVoidTrialBannersFromConfig() {
+    if (!el.voidTrialOverlay) return
+    for (const tier of [1, 2, 3]) {
+      const banner = el.voidTrialOverlay.querySelector(`.banner[data-tier="${tier}"]`)
+      const copy = voidTrialBannerDisplay(tier)
+      if (!banner || !copy) continue
+      const romanEl = banner.querySelector('.banner-roman')
+      const nameEl = banner.querySelector('.banner-name')
+      const tierEl = banner.querySelector('.bstat-tier')
+      const hpEl = banner.querySelector('.bstat-val.hp')
+      const lootEl = banner.querySelector('.bstat-val.loot')
+      const flavorEl = banner.querySelector('.banner-flavor')
+      const floorsEl = banner.querySelector('.banner-floors b')
+      if (romanEl) romanEl.textContent = copy.roman
+      if (nameEl) nameEl.textContent = copy.name
+      if (tierEl) tierEl.textContent = copy.tierLabel
+      if (hpEl) hpEl.textContent = `+${copy.enemyPct}%`
+      if (lootEl) lootEl.textContent = `+${copy.lootPct}%`
+      if (flavorEl) flavorEl.textContent = copy.flavor
+      if (floorsEl) floorsEl.textContent = String(copy.maxFloor)
+    }
+  },
+
+  _syncVoidTrialEnterButton(save) {
+    if (!el.voidTrialEnter) return
+    const pearls = save?.meta?.voidPearls ?? 0
+    const tier = this._voidTrialSelectedTier()
+    const name = getVoidTierConfig(tier)?.name ?? 'Trial'
+    const ok = pearls >= 1 && MetaProgression.isVoidUnlocked(save)
+    el.voidTrialEnter.disabled = !ok
+    if (el.voidTrialEnterSub) {
+      el.voidTrialEnterSub.textContent = `${name} · 1 🔮`
+    }
+  },
+
+  selectVoidTrialTier(tier, save) {
+    if (!el.voidTrialOverlay) return
+    el.voidTrialOverlay.querySelectorAll('.banner').forEach(b => {
+      const on = parseInt(b.dataset.tier, 10) === tier
+      b.dataset.selected = on ? '1' : '0'
+      b.setAttribute('aria-selected', on ? 'true' : 'false')
+    })
+    this._syncVoidTrialEnterButton(save)
+  },
+
+  _seedVoidParticles() {
+    const host = document.getElementById('void-vs-particles')
+    if (!host || host.dataset.seeded === '1') return
+    host.dataset.seeded = '1'
+    const count = 28
+    for (let i = 0; i < count; i++) {
+      const shard = document.createElement('span')
+      shard.className = 'vs-shard'
+      const left = 5 + Math.random() * 90
+      const sz = 2 + Math.random() * 4
+      shard.style.left = `${left}%`
+      shard.style.setProperty('--sz', `${sz}px`)
+      shard.style.setProperty('--dur', `${5 + Math.random() * 5}s`)
+      shard.style.setProperty('--delay', `${Math.random() * 6}s`)
+      shard.style.setProperty('--drift', `${(Math.random() - 0.5) * 24}px`)
+      host.appendChild(shard)
+    }
+  },
+
+  showVoidTrialOverlay(save) {
+    if (!el.voidTrialOverlay) return
+    const pearls = save?.meta?.voidPearls ?? 0
+    if (el.voidTrialPearlCount) el.voidTrialPearlCount.textContent = pearls
+    this._syncVoidTrialBannersFromConfig()
+    this._seedVoidParticles()
+    this.selectVoidTrialTier(1, save)
+    el.voidTrialOverlay.classList.remove('hidden')
+    el.voidTrialOverlay.setAttribute('aria-hidden', 'false')
+  },
+
+  hideVoidTrialOverlay() {
+    if (!el.voidTrialOverlay) return
+    el.voidTrialOverlay.classList.add('hidden')
+    el.voidTrialOverlay.setAttribute('aria-hidden', 'true')
+  },
+
+  showVoidPearlConfirm(tierName, onConfirm, onCancel) {
+    if (!el.voidPearlConfirmOverlay) return
+    if (el.voidPearlConfirmBody) {
+      el.voidPearlConfirmBody.textContent =
+        `Spend 1 Void Pearl to enter ${tierName}? The Pearl is lost if you die or retreat.`
+    }
+    const close = () => {
+      el.voidPearlConfirmOverlay.classList.add('hidden')
+      el.voidPearlConfirmOverlay.setAttribute('aria-hidden', 'true')
+    }
+    const yes = () => { close(); onConfirm?.() }
+    const no = () => { close(); onCancel?.() }
+    el.voidPearlConfirmYes.onclick = yes
+    el.voidPearlConfirmNo.onclick = no
+    document.getElementById('void-pearl-confirm-backdrop')?.addEventListener('click', no, { once: true })
+    el.voidPearlConfirmOverlay.classList.remove('hidden')
+    el.voidPearlConfirmOverlay.setAttribute('aria-hidden', 'false')
+  },
+
+  renderVoidCorruptionPanel(run) {
+    const wrap = el.voidCorruptionWrap
+    const list = el.voidCorruptionList
+    const badge = el.voidCorruptionBadge
+    if (!wrap || !list) return
+    if (!isVoidTrialRun(run)) {
+      wrap.classList.add('hidden')
+      list.innerHTML = ''
+      _voidCorruptionDropdownOpen = false
+      _syncVoidCorruptionDropdownOpen()
+      return
+    }
+    wrap.classList.remove('hidden')
+    const entries = getActiveCorruptionEntries(run)
+    const totalStacks = entries.reduce((sum, e) => sum + e.stacks, 0)
+    if (badge) {
+      if (totalStacks > 0) {
+        badge.textContent = String(totalStacks)
+        badge.classList.remove('hidden')
+        badge.setAttribute('aria-hidden', 'false')
+      } else {
+        badge.classList.add('hidden')
+        badge.setAttribute('aria-hidden', 'true')
+      }
+    }
+    if (!entries.length) {
+      list.innerHTML = '<p class="void-corruption-empty">No curses yet — choose one each dungeon floor.</p>'
+      return
+    }
+    list.innerHTML = entries.map(e => `
+      <div class="void-corruption-entry">
+        <div class="void-corruption-entry-head">
+          <span class="void-corruption-entry-name">${e.label}</span>
+          <span class="void-corruption-entry-stacks">×${e.stacks}</span>
+        </div>
+        <p class="void-corruption-entry-desc">${e.description}</p>
+        <p class="void-corruption-entry-net">${e.summary}</p>
+      </div>
+    `).join('')
+  },
+
+  showVoidCorruptionIntro(onContinue) {
+    if (!el.voidCorruptionIntroOverlay) { onContinue?.(); return }
+    const close = () => {
+      el.voidCorruptionIntroOverlay.classList.add('hidden')
+      el.voidCorruptionIntroOverlay.setAttribute('aria-hidden', 'true')
+      onContinue?.()
+    }
+    el.voidCorruptionIntroContinue.onclick = close
+    el.voidCorruptionIntroOverlay.querySelector('.void-corruption-intro-backdrop')
+      ?.addEventListener('click', close, { once: true })
+    el.voidCorruptionIntroOverlay.classList.remove('hidden')
+    el.voidCorruptionIntroOverlay.setAttribute('aria-hidden', 'false')
+  },
+
+  showVoidCorruptionPick(tripletIds, onPick) {
+    if (!el.voidCorruptionPickOverlay || !el.voidCorruptionPickCards) { onPick?.(tripletIds[0]); return }
+    el.voidCorruptionPickCards.innerHTML = ''
+    for (const id of tripletIds) {
+      const { label, description } = curseDisplay(id)
+      const card = document.createElement('button')
+      card.type = 'button'
+      card.className = 'void-corruption-pick-card'
+      card.innerHTML = `<span class="void-corruption-pick-label">${label}</span><span class="void-corruption-pick-desc">${description}</span>`
+      card.addEventListener('click', () => {
+        el.voidCorruptionPickOverlay.classList.add('hidden')
+        el.voidCorruptionPickOverlay.setAttribute('aria-hidden', 'true')
+        onPick?.(id)
+      })
+      el.voidCorruptionPickCards.appendChild(card)
+    }
+    el.voidCorruptionPickOverlay.classList.remove('hidden')
+    el.voidCorruptionPickOverlay.setAttribute('aria-hidden', 'false')
+  },
+
+  _formatGearStatLines(piece) {
+    const labels = {
+      damageBonus: 'Damage', maxHpPct: 'Max HP', maxManaPct: 'Max Mana',
+      negation: 'Negation', damageReduction: 'DR',
+      brittleArmor: 'Brittle', barbedGear: 'Barbed', manaDrain: 'Mana drain',
+    }
+    return Object.entries(piece.stats ?? {}).map(([k, v]) => {
+      const sign = v > 0 ? '+' : ''
+      const unit = k.includes('Pct') || k === 'brittleArmor' || k === 'barbedGear' || k === 'manaDrain' ? '%' : ''
+      return `<div class="void-completion-stat">${labels[k] ?? k}: ${sign}${v}${unit}</div>`
+    }).join('')
+  },
+
+  showVoidCompletionReward(cards, { onEquip, onTrash }) {
+    if (!el.voidCompletionOverlay || !el.voidCompletionCards) return
+    el.voidCompletionCards.innerHTML = ''
+    const tierLabels = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', void: 'Void' }
+    cards.forEach((piece, idx) => {
+      const tier = piece.tier ?? 'common'
+      const card = document.createElement('div')
+      card.className = `void-completion-card gear-tier-${tier}`
+      card.innerHTML = `
+        <div class="void-completion-tier tier-${tier}">${tierLabels[tier] ?? tier}</div>
+        <div class="void-completion-name">${piece.name ?? 'Gear'}</div>
+        <div class="void-completion-slot">${piece.slot ?? ''}</div>
+        <div class="void-completion-stats">${this._formatGearStatLines(piece)}</div>
+        <div class="void-completion-actions">
+          <button type="button" class="menu-btn primary void-completion-equip" data-idx="${idx}">Equip</button>
+          <button type="button" class="menu-btn secondary void-completion-trash" data-idx="${idx}">Trash</button>
+        </div>`
+      card.querySelector('.void-completion-equip')?.addEventListener('click', () => {
+        el.voidCompletionOverlay.classList.add('hidden')
+        el.voidCompletionOverlay.setAttribute('aria-hidden', 'true')
+        onEquip?.(piece, idx)
+      })
+      card.querySelector('.void-completion-trash')?.addEventListener('click', () => {
+        el.voidCompletionOverlay.classList.add('hidden')
+        el.voidCompletionOverlay.setAttribute('aria-hidden', 'true')
+        onTrash?.(piece, idx)
+      })
+      el.voidCompletionCards.appendChild(card)
+    })
+    el.voidCompletionOverlay.classList.remove('hidden')
+    el.voidCompletionOverlay.setAttribute('aria-hidden', 'false')
+  },
+
+  showVoidPearlDiscoveredModal(onContinue) {
+    if (!el.voidPearlDiscoveredOverlay) { onContinue?.(); return }
+    const close = () => {
+      el.voidPearlDiscoveredOverlay.classList.add('hidden')
+      el.voidPearlDiscoveredOverlay.setAttribute('aria-hidden', 'true')
+      onContinue?.()
+    }
+    if (el.voidPearlDiscoveredOk) el.voidPearlDiscoveredOk.onclick = close
+    document.getElementById('void-pearl-discovered-backdrop')
+      ?.addEventListener('click', close, { once: true })
+    el.voidPearlDiscoveredOverlay.classList.remove('hidden')
+    el.voidPearlDiscoveredOverlay.setAttribute('aria-hidden', 'false')
+  },
+
+  showGameCompletedModal({ pearlGranted = 0 } = {}) {
     if (!el.gameCompletedOverlay) return
     const pearlEl = document.getElementById('game-completed-pearl-reward')
-    if (pearlEl) pearlEl.textContent = `+${pearlGranted} Void Pearl`
+    if (pearlEl) {
+      pearlEl.textContent = pearlGranted === 1
+        ? '+1 Void Pearl'
+        : `+${pearlGranted} Void Pearls`
+      pearlEl.closest('.game-completed-pearl-wrap')?.classList.toggle('hidden', pearlGranted < 1)
+    }
     el.gameCompletedOverlay.classList.remove('hidden')
     el.gameCompletedOverlay.setAttribute('aria-hidden', 'false')
   },
@@ -1065,15 +1368,6 @@ export const ModalsMethods = {
     el.gameCompletedOverlay.setAttribute('aria-hidden', 'true')
   },
 
-  showVoidStubModal() {
-    el.voidStubOverlay?.classList.remove('hidden')
-    el.voidStubOverlay?.setAttribute('aria-hidden', 'false')
-  },
-
-  hideVoidStubModal() {
-    el.voidStubOverlay?.classList.add('hidden')
-    el.voidStubOverlay?.setAttribute('aria-hidden', 'true')
-  },
 
   setActiveDifficulty(diff) {
     const positions = { easy: 'pos-0', normal: 'pos-1', hard: 'pos-2' }

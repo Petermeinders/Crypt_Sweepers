@@ -860,6 +860,18 @@ body.tile-colors .tile-front.type-rope {
   50%       { transform: translate(-50%, -58%) rotate(5deg); }
 }
 
+/* Leader — small flag on unrevealed tile back (floor rolled up to 2 per floor) */
+.tile-leader-flag {
+  position: absolute;
+  right: 8%;
+  top: 12%;
+  font-size: clamp(0.85rem, 3vw, 1.1rem);
+  line-height: 1;
+  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.85));
+  pointer-events: none;
+  z-index: 4;
+}
+
 .tile.revealed.war-banner-ready {
   cursor: pointer;
   pointer-events: all;

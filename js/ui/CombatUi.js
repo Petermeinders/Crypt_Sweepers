@@ -139,6 +139,7 @@ export const CombatUiMethods = {
     if ((enemyData.bleedTurns  ?? 0) > 0) statuses.push({ key: 'bleed',  icon: '🩸', turns: enemyData.bleedTurns })
     if ((enemyData.poisonTurns ?? 0) > 0) statuses.push({ key: 'poison', icon: '☠️', turns: enemyData.poisonTurns })
     if ((enemyData.stunTurns   ?? 0) > 0) statuses.push({ key: 'stun',   icon: '💫', turns: enemyData.stunTurns })
+    if ((enemyData.shockedTurns ?? 0) > 0) statuses.push({ key: 'shocked', icon: '⚡', turns: enemyData.shockedTurns })
 
     if (statuses.length === 0) {
       if (container) container.remove()

@@ -3,6 +3,7 @@ import GameState, { States } from '../core/GameState.js'
 import EventBus from '../core/EventBus.js'
 import TileEngine from '../systems/TileEngine.js'
 import CombatResolver from '../systems/CombatResolver.js'
+import { applyShocked, tryConsumeShocked } from '../systems/Thunderstruck.js'
 import UI from '../ui/UI.js'
 import { MAGE_UPGRADES } from '../data/mage.js'
 import { session, charKey } from '../core/RunContext.js'
@@ -33,6 +34,7 @@ export function spellAction(ctx) {
 }
 
 export function castSpell(ctx, tile) {
+  if (ctx.voidAbilityFizzle?.()) return
   session.tap.spellTargeting = false
   const effectiveCost = ctx.stillWaterManaCost(
     Math.max(1, CONFIG.spell.manaCost - (session.run.player.spellCostReduction ?? 0)) + ctx.tearyExtraCost(),
@@ -72,7 +74,8 @@ export function castSpell(ctx, tile) {
     const codexMult = 1 + 2 * missingRatio
     spellDmg = Math.round(spellDmg * codexMult)
   }
-  spellDmg = ctx.scaleOutgoingDamageToEnemy(spellDmg)
+  const shock = tryConsumeShocked(ctx, tile, { source: 'ability' })
+  spellDmg = ctx.scaleOutgoingDamageToEnemy(spellDmg) + shock.bonus
 
   UI.setPortraitAnim('attack')
   session.run.player.mana -= effectiveCost
@@ -112,6 +115,7 @@ export function castSpell(ctx, tile) {
   }
   UI.updateMana(session.run.player.mana, session.run.player.maxMana)
   UI.spawnFloat(tile.element, `✨ ${spellDmg}`, 'mana')
+  if (shock.consumed && tile.element) UI.spawnFloat(tile.element, `⚡ +${shock.bonus}`, 'xp')
   const bonusSuffix = (session.run.player.undeadBonus && isUndead) || (session.run.player.beastBonus && isBeast)
     ? ' (2×!)' : ''
   tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - spellDmg)
@@ -195,8 +199,20 @@ export function executeChainLightning(ctx, primary) {
     !t.enemyData.spellImmune &&
     !(t.row === primary.row && t.col === primary.col),
   )
-  const jumps = pickRandomDistinct(candidates, 2)
-  const targets = [primary, ...jumps]
+  const overloadTier = session.run.player.chainLightningOverloadTier ?? 0
+  const jumpCount = overloadTier >= 2 ? 4 : overloadTier >= 1 ? 3 : 2
+  const jumps = overloadTier >= 2
+    ? Array.from({ length: jumpCount }, () => {
+        if (!candidates.length) return null
+        return candidates[Math.floor(Math.random() * candidates.length)]
+      }).filter(Boolean)
+    : pickRandomDistinct(candidates, jumpCount)
+  let targets = [primary, ...jumps]
+  if (overloadTier >= 3) {
+    const unique = new Set(targets.map(t => `${t.row},${t.col}`))
+    if (unique.size >= 4) targets = [...targets, primary]
+  }
+  const shockedTier = session.run.player.chainLightningShockedTier ?? 0
 
   const savedEngagement = ctx.suspendCombatEngagementForMultiTargetAbility()
   ctx.cancelChainLightningMode()
@@ -211,9 +227,11 @@ export function executeChainLightning(ctx, primary) {
   UI.setMessage(`⚡ Chain Lightning — ${targets.length} zap${targets.length > 1 ? 's' : ''} for ${perZap} each.`)
 
   targets.forEach((target, i) => {
-    const dmg = ctx.scaleOutgoingDamageToEnemy(perZap)
+    const isOverloadBounce = overloadTier >= 3 && i === targets.length - 1 && target === primary && targets.length > 1
     setTimeout(() => {
       if (!target.enemyData || target.enemyData._slain) return
+      let dmg = ctx.scaleOutgoingDamageToEnemy(perZap)
+      if (isOverloadBounce) dmg = Math.max(1, Math.round(dmg * 1.5))
       const fromEl = i === 0
         ? document.getElementById('hud-portrait')
         : targets[i - 1]?.element
@@ -223,6 +241,10 @@ export function executeChainLightning(ctx, primary) {
       target.enemyData.currentHP = Math.max(0, target.enemyData.currentHP - dmg)
       ctx.checkOnionLayer(target)
       UI.spawnFloat(target.element, `⚡ ${dmg}`, 'xp')
+      if (shockedTier) {
+        applyShocked(target.enemyData, shockedTier)
+        if (target.element) UI.updateEnemyStatus(target.element, target.enemyData)
+      }
       if (target.enemyData.currentHP <= 0) {
         ctx.gainGold(target.enemyData.goldDrop ? ctx.rand(...target.enemyData.goldDrop) : 1, target.element, true)
         ctx.gainXP(target.enemyData.xpDrop ?? 0, target.element)
@@ -381,7 +403,8 @@ export function executeTelekineticThrow(ctx, originTile, destTile) {
   // Slam impact — shockwave + audio, then damage.
   session.tap.combatBusy = true; session.tap.combatBusySetAt = Date.now()
   UI.setPortraitAnim('attack')
-  const dmg = ctx.scaleOutgoingDamageToEnemy(telekineticThrowDamage(ctx))
+  const shock = tryConsumeShocked(ctx, destTile, { source: 'ability' })
+  let dmg = ctx.scaleOutgoingDamageToEnemy(telekineticThrowDamage(ctx)) + shock.bonus
   UI.setMessage(`🌀 Telekinetic Throw — slammed for ${dmg} damage!`)
   setTimeout(() => {
     if (!destTile.enemyData || destTile.enemyData._slain) return

@@ -1,11 +1,20 @@
 import { CONFIG } from '../config.js'
+import {
+  isVoidTrialRun,
+  isVoidPreBossSanctuaryFloor,
+  isBossFloorForRun,
+  voidMaxFloor,
+} from '../systems/VoidTrial.js'
 import GameState, { States } from '../core/GameState.js'
 import EventBus from '../core/EventBus.js'
 import Logger from '../core/Logger.js'
 import TileEngine from '../systems/TileEngine.js'
+import EnemyLeaders from '../systems/EnemyLeaders.js'
 import SaveManager from '../save/SaveManager.js'
+import MetaProgression from '../systems/MetaProgression.js'
 import UI from '../ui/UI.js'
 import { pickModifier } from '../systems/FloorModifiers.js'
+import { beginVoidCorruptionFlow } from './VoidCorruptionController.js'
 import { session } from '../core/RunContext.js'
 import { WARRIOR_UPGRADES } from '../data/upgrades.js'
 import { clearAllCombatEngagement, syncCombatEngagementDom } from './TileTapRouter.js'
@@ -89,6 +98,7 @@ export function startFloor(ctx) {
     TileEngine.ensureExitConnectivityFromGrid(session.run.floor)
   }
   TileEngine.renderGrid(UI.getGridEl(), ctx.onTileTap, ctx.onTileHold)
+  if (gridRestored) EnemyLeaders.recomputeLeaderAuras(TileEngine.getGrid())
   if (session.run.turret) ctx.syncTurretVisual()
   session.run.minions = []
 
@@ -96,9 +106,15 @@ export function startFloor(ctx) {
   if (session.run.floorModifier?.clear) {
     try { session.run.floorModifier.clear(session.run, TileEngine.getGrid()) } catch (_) {}
   }
+  if (!gridRestored && isVoidPreBossSanctuaryFloor(session.run, session.run.floor)) {
+    session.run.atRest = true
+  }
+
   if (!gridRestored) {
-    const isBoss = CONFIG.bossFloors?.includes(session.run.floor) ?? false
-    session.run.floorModifier = pickModifier(session.run.floor, session.run.atRest, isBoss) ?? null
+    const isBoss = isBossFloorForRun(session.run, session.run.floor)
+    session.run.floorModifier = isVoidTrialRun(session.run)
+      ? null
+      : (pickModifier(session.run.floor, session.run.atRest, isBoss) ?? null)
     if (session.run.floorModifier) {
       try { session.run.floorModifier.apply(session.run, TileEngine.getGrid()) } catch (_) {}
       UI.setFloorModifier(session.run.floorModifier)
@@ -184,13 +200,13 @@ export function startFloor(ctx) {
   }
 
   // Sub-floor spawn: always on floor 1, otherwise 5% chance on non-boss, non-sanctuary floors
-  if ((session.save.settings.subLevelsEnabled ?? true) && !gridRestored && !session.run.atRest && !CONFIG.bossFloors.includes(session.run.floor)
+  if ((session.save.settings.subLevelsEnabled ?? true) && !gridRestored && !session.run.atRest && !isBossFloorForRun(session.run, session.run.floor)
       && (session.run.floor === 1 || Math.random() < CONFIG.subFloor.spawnChance)) {
     ctx.spawnSubFloorEntry()
   }
 
   // War banner: always on floor 1; otherwise 20% per non-boss dungeon floor — buffs all enemies until cleared
-  if (!gridRestored && !session.run.atRest && !CONFIG.bossFloors.includes(session.run.floor)
+  if (!gridRestored && !session.run.atRest && !isBossFloorForRun(session.run, session.run.floor)
       && (session.run.floor === 1 || Math.random() < CONFIG.warBanner.spawnChance)) {
     ctx.spawnWarBannerEntry()
   } else if (!gridRestored && !session.run.atRest) {
@@ -199,20 +215,20 @@ export function startFloor(ctx) {
 
   const specialSpawnUsed = new Set()
   // Treasure Goblin — 5% per non-boss dungeon floor; pre-revealed with escape timer (path from entry + 2)
-  if (!gridRestored && !session.run.atRest && !CONFIG.bossFloors.includes(session.run.floor)
+  if (!gridRestored && !session.run.atRest && !isBossFloorForRun(session.run, session.run.floor)
       && Math.random() < (CONFIG.treasureGoblin?.spawnChance ?? 0.05)) {
     ctx.spawnTreasureGoblin(specialSpawnUsed)
   }
-  // Archer Goblin: always floor 1, 20% chance on subsequent non-boss dungeon floors.
+  // Archer Goblin: always floor 1, CONFIG.archerGoblin.spawnChance on later floors.
   // Immediately revealed; starts firing arrows each turn until killed.
-  if (!gridRestored && !session.run.atRest && !CONFIG.bossFloors.includes(session.run.floor)
-      && (session.run.floor === 1 || Math.random() < 0.20)) {
+  if (!gridRestored && !session.run.atRest && !isBossFloorForRun(session.run, session.run.floor)
+      && (session.run.floor === 1 || Math.random() < (CONFIG.archerGoblin?.spawnChance ?? 0.15))) {
     ctx.spawnArcherGoblin(specialSpawnUsed)
   }
 
   // Dungeon Mouse: CONFIG.mouse.spawnChance per non-boss dungeon floor (no floor-1 guarantee).
   // Pre-revealed; each time the player flips a tile, 50% to unflip a random revealed empty tile.
-  if (!gridRestored && !session.run.atRest && !CONFIG.bossFloors.includes(session.run.floor)
+  if (!gridRestored && !session.run.atRest && !isBossFloorForRun(session.run, session.run.floor)
       && Math.random() < (CONFIG.mouse?.spawnChance ?? 0.20)) {
     ctx.spawnMouse(specialSpawnUsed)
     ctx.maybeMouseIntro()
@@ -274,7 +290,14 @@ export function startFloor(ctx) {
   }
 
   GameState.set(States.FLOOR_EXPLORE)
-  UI.updateFloor(session.run.floor, { rest: session.run.atRest })
+  if (session.run.atRest && isVoidTrialRun(session.run) && !session.run._voidSanctuaryPearlRolled) {
+    session.run._voidSanctuaryPearlOffer =
+      MetaProgression.isVoidUnlocked(session.save) &&
+      Math.random() < (CONFIG.void?.merchantPearlChance ?? 0.01)
+    session.run._voidSanctuaryPearlRolled = true
+  }
+
+  UI.updateFloor(session.run.floor, { rest: session.run.atRest, isVoidTrial: !!session.run.isVoidTrial })
   UI.updateHP(session.run.player.hp, session.run.player.maxHp)
   UI.updateMana(session.run.player.mana, session.run.player.maxMana)
   UI.updateGold(session.run.player.gold)
@@ -292,6 +315,10 @@ export function startFloor(ctx) {
     UI.updateDamageRange(d0, d1)
   }
   UI.setHudCharacter(ctx.charKey())
+  UI.renderVoidCorruptionPanel(session.run)
+  if (isVoidTrialRun(session.run) && !session.run.atRest) {
+    beginVoidCorruptionFlow(ctx)
+  }
   // Slot A — actives appear only after the player picks them at level-up (gated by meta unlock + session.run unlock)
   if (ctx.charKey() === 'ranger') {
     ctx.refreshRangerActiveHud()
@@ -322,7 +349,7 @@ export function startFloor(ctx) {
   UI.hideRunSummary()
   UI.hideEventOverlays()
 
-  const isBoss = CONFIG.bossFloors.includes(session.run.floor) && !session.run.atRest
+  const isBoss = isBossFloorForRun(session.run, session.run.floor)
   const hasWarBanner = session.run.warBanner?.active && !session.run.atRest
   UI.setMessage(session.run.atRest
     ? 'A quiet sanctuary. The well restores you; the rope lets you bank gold; the stairs go deeper.'
@@ -425,6 +452,7 @@ export function confirmRope(ctx, tile) {
 
 export function nextFloor(ctx) {
   if (session.run._exitTransitionPending) return
+  if (isVoidTrialRun(session.run) && session.run.floor >= voidMaxFloor(session.run)) return
   // Clear modifier before advancing — Glass Cannon/Silence stat reversals happen here
   if (session.run.floorModifier?.clear) {
     try { session.run.floorModifier.clear(session.run, TileEngine.getGrid()) } catch (_) {}

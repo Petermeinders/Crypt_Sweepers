@@ -7,6 +7,8 @@ import { applyImportedSave } from '../ui/menus/saveTransfer.js'
 import Logger from '../core/Logger.js'
 import { FORGE_RECIPES } from '../data/combinations.js'
 import { ITEMS } from '../data/items.js'
+import MetaProgression from '../systems/MetaProgression.js'
+import { getVoidTierConfig } from '../systems/VoidTrial.js'
 
 let deferredInstallPrompt = null
 
@@ -93,11 +95,36 @@ export function wireMenus(ctx) {
 
   document.getElementById('void-btn')?.addEventListener('click', () => {
     const save = ctx.GameController.getSave()
-    if (!save?.meta?.gameCompleted) return
-    ctx.UI.showVoidStubModal()
+    const pearls = save?.meta?.voidPearls ?? 0
+    if (!MetaProgression.isVoidUnlocked(save)) return
+    if (pearls < 1) {
+      ctx.UI.setMessage('You need a Void Pearl to enter the Void.', true)
+      return
+    }
+    ctx.UI.showVoidTrialOverlay(save)
   })
-  document.getElementById('void-stub-ok')?.addEventListener('click', () => ctx.UI.hideVoidStubModal())
-  document.getElementById('void-stub-backdrop')?.addEventListener('click', () => ctx.UI.hideVoidStubModal())
+
+  document.querySelectorAll('#void-trial-overlay .banner').forEach(banner => {
+    banner.addEventListener('click', () => {
+      const tier = parseInt(banner.dataset.tier, 10)
+      ctx.UI.selectVoidTrialTier(tier, ctx.GameController.getSave())
+    })
+  })
+
+  document.getElementById('void-trial-back')?.addEventListener('click', () => {
+    ctx.UI.hideVoidTrialOverlay()
+  })
+
+  document.getElementById('void-trial-enter')?.addEventListener('click', () => {
+    const save = ctx.GameController.getSave()
+    const sel = document.querySelector('#void-trial-overlay .banner[data-selected="1"]')
+    const tier = parseInt(sel?.dataset.tier ?? '1', 10)
+    const trialName = getVoidTierConfig(tier)?.name ?? 'Trial'
+    if ((save?.meta?.voidPearls ?? 0) < 1) return
+    ctx.UI.showVoidPearlConfirm(trialName, () => {
+      ctx.GameController.startVoidTrial(tier)
+    })
+  })
 
   const _openHowToPlay = () => {
     _populateForgeRecipeList()

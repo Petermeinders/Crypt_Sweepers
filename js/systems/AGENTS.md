@@ -7,6 +7,7 @@ The systems directory contains all stateful and stateless game systems that are 
 | File | Purpose |
 |------|---------|
 | `TileEngine.js` | Owns the grid model (`_grid`). Generates floors, creates tile/enemy objects, manages sub-floor state, provides `getGrid()` / `getActiveTiles()` / `patchMainGridTileAt()` accessors. |
+| `TileDensity.js` | `CONFIG.enemyDensity` curve → dungeon tile weights (`enemy` / `enemy_fast` / `empty`); `expectedEnemyTiles()` for balance-report. |
 | `CombatResolver.js` | Pure combat math — no DOM, no state transitions. Returns result objects. `GameController` acts on the results. |
 | `EnemyScaling.js` | Single exported function `scaleEnemyDef(def, floor)`. Applies piecewise linear HP/DMG scaling. Used by `TileEngine.createEnemy()` and `js/balance/snapshot.js`. |
 | `MetaProgression.js` | Manages the persistent save structure (hero XP trees, global passives, gold shop, hero unlocks). `defaultSave()` defines the canonical save schema. `applyToPlayer()` applies save state to a fresh player object at run start. |
@@ -18,7 +19,8 @@ The systems directory contains all stateful and stateless game systems that are 
 | `LootTables.js` | Chest loot pools (`COMMON_LOOT_IDS`, rare/epic/legendary IDs) and roll helpers (`rollChestLoot`, `rollMagicChestLoot`). Legendaries gated to floor 10+. Called by `GameController`. |
 | `Haptics.js` | Vibration helpers; gesture listeners register on import. `bindHaptics()` wired from `GameController.init`. |
 | `PlayerStats.js` | `xpNeeded`, `playerDamageRange`, `computeEffectiveDamageTaken`, outgoing damage mult/scale (freezing/corruption). |
-| `EnemyMechanics.js` | Player debuffs (freezing, corruption, burn, poison) and Drowned Hulk crew-buff aura. |
+| `EnemyMechanics.js` | Player debuffs (freezing, corruption, burn, poison). |
+| `EnemyLeaders.js` | Leader floor roll, aura spread to visible allies, tile flag; Drowned Hulk `crew-aura` only when Leader. |
 
 ## Patterns
 

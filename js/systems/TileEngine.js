@@ -9,6 +9,11 @@ import {
 import Logger         from '../core/Logger.js'
 import { getSave }    from '../core/RunContext.js'
 import { scaleEnemyDef } from './EnemyScaling.js'
+import { session } from '../core/RunContext.js'
+import { isVoidTrialRun, isBossFloorForRun, voidEffectiveEnemyFloor, voidEnemyStatMult } from './VoidTrial.js'
+import { getCorruptionModifiers } from './VoidCorruption.js'
+import EnemyLeaders from './EnemyLeaders.js'
+import { computeDungeonTileWeights } from './TileDensity.js'
 
 // ── Grid state ───────────────────────────────────────────────
 let _grid = []
@@ -57,7 +62,19 @@ function refreshEnemyDamageOnTile(tile) {
 function createEnemy(type, floor = 1) {
   const def = ENEMY_DEFS[type]
   if (!def) { Logger.error(`[TileEngine] Unknown enemy type: ${type}`); return null }
-  const scaled = scaleEnemyDef(def, floor)
+  let scaled = scaleEnemyDef(def, floor)
+  if (isVoidTrialRun(session.run)) {
+    scaled = scaleEnemyDef(def, voidEffectiveEnemyFloor(session.run, floor))
+    const mult = voidEnemyStatMult(session.run.voidTier)
+    const corrupt = getCorruptionModifiers(session.run)
+    const hpMult = mult * (1 + (corrupt.enemyHpMult ?? 0))
+    const dmgMult = mult * (1 + (corrupt.enemyDmgMult ?? 0))
+    scaled = {
+      ...scaled,
+      hp: Math.ceil(scaled.hp * hpMult),
+      dmg: scaled.dmg.map(d => Math.ceil(d * dmgMult)),
+    }
+  }
   const threatLevel = Number.isFinite(def.threatLevel)
     ? def.threatLevel
     : Math.max(1, Math.min(12, scaled.xpDrop ?? 2))
@@ -89,26 +106,9 @@ function weightedRandom(types, weights, total) {
   return types[types.length - 1]
 }
 
-// Tile weight adjustments by floor depth: deeper = more enemies, fewer empties
+/** Per-floor dungeon tile weights — CONFIG.enemyDensity curve via TileDensity.js */
 function _adjustedWeights(floor) {
-  const defs = { ...TILE_DEFS }
-  const weights = {}
-  for (const [t, d] of Object.entries(defs)) {
-    // Rest-only tile types never roll on dungeon floors
-    if (t === 'well' || t === 'anvil' || t === 'rope') continue
-    // Special tiles placed only by GameController after generation
-    if (t === 'war_banner') continue
-    weights[t] = d.weight
-  }
-  // Boss weight is always 0 (placed explicitly)
-  weights.boss = 0
-  // Deeper floors: ramp enemy density, reduce empty
-  if (floor >= 5) {
-    weights.enemy      = Math.min(32, weights.enemy      + (floor - 4) * 2)
-    weights.enemy_fast = Math.min(14, weights.enemy_fast + (floor - 4))
-    weights.empty      = Math.max(10, weights.empty      - (floor - 4) * 2)
-  }
-  return weights
+  return computeDungeonTileWeights(floor)
 }
 
 /**
@@ -490,7 +490,7 @@ function generateGrid(floor = 1, opts = {}) {
   }
   _gridCols = cols
   _gridRows = rows
-  const isBossFloor = CONFIG.bossFloors.includes(floor)
+  const isBossFloor = isBossFloorForRun(session.run, floor)
 
   const weights   = _adjustedWeights(floor)
   const types     = Object.keys(weights).filter(t => t !== 'boss')
@@ -561,7 +561,10 @@ function generateGrid(floor = 1, opts = {}) {
 
   ensureExitConnectivityFromGrid(floor)
 
-  Logger.debug(`[TileEngine] Floor ${floor} grid generated (${cols}x${rows})${isBossFloor ? ' [BOSS]' : ''}`)
+  const leaderSlots = EnemyLeaders.rollLeaderSlotCount()
+  if (leaderSlots > 0) EnemyLeaders.assignFloorLeaders(_grid, leaderSlots)
+
+  Logger.debug(`[TileEngine] Floor ${floor} grid generated (${cols}x${rows})${isBossFloor ? ' [BOSS]' : ''}${leaderSlots ? ` [leaders:${leaderSlots}]` : ''}`)
 }
 
 /**
@@ -862,6 +865,7 @@ function _buildTileElement(tile, r, c, onTap, onHold, scrollable = false) {
   const iconHTML = _tileFaceIconHTML(tile, def)
   const showBannerOnBack = tile.type === 'war_banner' && !tile.revealed && tile.warBannerFlying !== false
   const backFlag = showBannerOnBack ? '<span class="tile-war-banner-fly" aria-hidden="true">🚩</span>' : ''
+  const leaderFlag = EnemyLeaders.leaderFlagHTML(tile)
 
   let enemyStatsHTML = ''
   if (def.isEnemy && tile.enemyData) {
@@ -877,7 +881,7 @@ function _buildTileElement(tile, r, c, onTap, onHold, scrollable = false) {
 
   div.innerHTML = `
     <div class="tile-inner">
-      <div class="tile-back">${backFlag}</div>
+      <div class="tile-back">${backFlag}${leaderFlag}</div>
       <div class="tile-front ${def.cssClass}${isBoss ? ' is-boss' : ''}">
         ${iconHTML}
         ${def.isEnemy ? '' : `<span class="tile-label">${def.label}</span>`}

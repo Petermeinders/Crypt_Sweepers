@@ -71,7 +71,7 @@ export const CHANGELOG = [
     items: [
       {
         tag:  'Feature',
-        text: 'Game completion — floor 100 boss kill shows a Congratulations modal, sets gameCompleted, and grants +1 Void Pearl (first time only).',
+        text: 'Void Pearls — +1 on floor 50 boss (Void becomes playable); +2 on first floor 100 completion. Main menu Void requires at least one Pearl.',
       },
       {
         tag:  'Feature',

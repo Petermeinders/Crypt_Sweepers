@@ -174,6 +174,11 @@ export function onTileTap(ctx, row, col) {
   const tile  = TileEngine.getTile(row, col)
   if (!tile) return
 
+  if (session.run?._voidCorruptionBlocking) {
+    UI.setMessage('Choose a Void corruption curse before exploring.', true)
+    return
+  }
+
   if (state === States.NPC_INTERACT) return
 
   ctx.syncAllUnrevealedLockedDom()

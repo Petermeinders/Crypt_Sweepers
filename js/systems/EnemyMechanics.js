@@ -1,9 +1,5 @@
 import UI from '../ui/UI.js'
-import TileEngine from './TileEngine.js'
 import { session } from '../core/RunContext.js'
-
-const CREW_BUFF_HP = 3
-
 
 export function applyFreezingHit() {
   if (!session.run) return
@@ -52,52 +48,4 @@ export function applyPlayerPoison(amount = 2) {
   session.run.player.poisonStacks = stacks
   UI.setPlayerPoison(stacks)
   UI.spawnFloat(document.getElementById('hud-portrait'), `☠️ Poisoned! (${stacks})`, 'damage')
-}
-
-export function findLiveHulk() {
-  const grid = TileEngine.getGrid()
-  if (!grid) return null
-  for (const row of grid) {
-    for (const t of row) {
-      if (t.revealed && t.enemyData && !t.enemyData._slain && t.enemyData.crewBuffAura) return t
-    }
-  }
-  return null
-}
-
-export function applyHulkBuffToTile(t) {
-  if (!t.revealed || !t.enemyData || t.enemyData._slain || t.enemyData.crewBuffAura) return
-  if (t.enemyData._hulkBuffed) return
-  const cur = Number(t.enemyData.currentHP)
-  const base = Number.isFinite(cur) ? cur : Number(t.enemyData.hp)
-  t.enemyData.currentHP = (Number.isFinite(base) ? base : 1) + CREW_BUFF_HP
-  t.enemyData._hulkBuffed = true
-  UI.updateEnemyHP(t.element, t.enemyData.currentHP)
-  UI.spawnFloat(t.element, `⚓ +${CREW_BUFF_HP} HP`, 'heal')
-}
-
-export function removeHulkBuffFromAll() {
-  const grid = TileEngine.getGrid()
-  if (!grid) return
-  for (const row of grid) {
-    for (const t of row) {
-      if (!t.enemyData || t.enemyData._slain || !t.enemyData._hulkBuffed) continue
-      const cur = Number(t.enemyData.currentHP)
-      const safe = Number.isFinite(cur) ? cur : Number(t.enemyData.hp ?? 1)
-      t.enemyData.currentHP = Math.max(1, safe - CREW_BUFF_HP)
-      t.enemyData._hulkBuffed = false
-      UI.updateEnemyHP(t.element, t.enemyData.currentHP)
-      UI.spawnFloat(t.element, `⚓ -${CREW_BUFF_HP} HP`, 'damage')
-    }
-  }
-}
-
-export function applyHulkBuffToAll() {
-  const grid = TileEngine.getGrid()
-  if (!grid) return
-  for (const row of grid) {
-    for (const t of row) {
-      _applyHulkBuffToTile(t)
-    }
-  }
 }

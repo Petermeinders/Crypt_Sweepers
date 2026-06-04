@@ -14,7 +14,9 @@ The `js/` directory contains all game source code. Two files live at this level;
 
 `CONFIG` contains helper methods alongside plain values:
 - `CONFIG.gridSize(floor, opts)` — returns `{ cols, rows }`; rest = 3×3; pass `opts.cols`/`opts.rows` or use `ensureFloorGridSize`
-- `CONFIG.ensureFloorGridSize(floor, run, opts)` — rolls 5–7 per axis once per floor per run
+- `CONFIG.gridSizeForFloor(floor)` — floors 1–5 fixed 5×6; floor 6+ random per axis in `[grid.minDim, grid.maxDim]`
+- `CONFIG.enemyDensity` — per-floor enemy tile pool share (`TileDensity.js`); tune `shareAtFloor1/50/100`
+- `CONFIG.ensureFloorGridSize(floor, run, opts)` — persists size once per floor per run (via `gridSizeForFloor`)
 - `CONFIG.rollGridSize()` — random `{ cols, rows }` in `[grid.minDim, grid.maxDim]`
 - `CONFIG.biomeFor(floor)` — returns the biome object
 - `CONFIG.floorLabelFor(floor)` — display name for the biome segment (one label per biome)

@@ -15,11 +15,32 @@ export function migrateSave(save) {
   if (save.safePocketTrinket === undefined) save.safePocketTrinket = null
 
   if (!save.meta) {
-    save.meta = { gameCompleted: false, voidPearls: 0 }
+    save.meta = {
+      gameCompleted: false,
+      voidPearls: 0,
+      voidPearlFloor50Awarded: false,
+      voidUnlocked: false,
+    }
     changed = true
   } else {
     if (save.meta.gameCompleted == null) save.meta.gameCompleted = false
     if (save.meta.voidPearls == null) save.meta.voidPearls = 0
+    if (save.meta.voidPearlFloor50Awarded == null) {
+      save.meta.voidPearlFloor50Awarded = save.meta.voidPearls > 0 || !!save.meta.gameCompleted
+      changed = true
+    }
+    if (save.meta.voidUnlocked == null) {
+      save.meta.voidUnlocked = !!(
+        save.meta.voidPearlFloor50Awarded ||
+        save.meta.voidPearls > 0 ||
+        save.meta.gameCompleted
+      )
+      changed = true
+    }
+    if (save.meta.voidPearls > 0 && !save.meta.voidUnlocked) {
+      save.meta.voidUnlocked = true
+      changed = true
+    }
   }
 
   if (save.equippedGear) {

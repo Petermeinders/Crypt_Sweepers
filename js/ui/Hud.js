@@ -826,9 +826,11 @@ export const HudMethods = {
   },
 
   applyFloorTheme(floor, opts = {}) {
-    const bg = opts.rest
-      ? CONFIG.restSanctuaryBackground
-      : CONFIG.floorBackgroundFor(floor)
+    const bg = opts.isVoidTrial
+      ? 'assets/ui/void/void-selection-background.png'
+      : opts.rest
+        ? CONFIG.restSanctuaryBackground
+        : CONFIG.floorBackgroundFor(floor)
     // Resolve against the document: relative URLs inside custom props are otherwise resolved
     // relative to css/main.css (where var() is used), which breaks paths like assets/…
     const abs = new URL(bg, window.location.href).href

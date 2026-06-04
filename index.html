@@ -59,6 +59,16 @@
           </div>
         </div>
       </div>
+      <div id="void-corruption-wrap" class="void-corruption-wrap hidden">
+        <button type="button" id="void-corruption-toggle" class="void-corruption-toggle" aria-expanded="false" aria-controls="void-corruption-dropdown">
+          <span class="void-corruption-toggle-label">☣ Corruption</span>
+          <span id="void-corruption-badge" class="void-corruption-badge hidden" aria-hidden="true">0</span>
+          <span class="void-corruption-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div id="void-corruption-dropdown" class="void-corruption-dropdown hidden" aria-hidden="true">
+          <div id="void-corruption-list" class="void-corruption-list" aria-live="polite"></div>
+        </div>
+      </div>
     </div>
 
     <div id="cheat-debug-stack" class="cheat-debug-stack hidden" aria-hidden="true">
@@ -340,33 +350,183 @@
     </div>
   </div>
 
+  <!-- ── Floor 50 — first Void Pearl ── -->
+  <div id="void-pearl-discovered-overlay" class="trap-modal-overlay hidden" aria-hidden="true">
+    <div class="trap-modal-backdrop" id="void-pearl-discovered-backdrop" aria-hidden="true"></div>
+    <div class="trap-modal void-pearl-discovered-modal" role="dialog" aria-modal="true" aria-labelledby="void-pearl-discovered-title">
+      <div class="trap-modal-emoji" aria-hidden="true">🔮</div>
+      <h2 id="void-pearl-discovered-title" class="trap-modal-title">Void Pearl Discovered</h2>
+      <div class="trap-modal-body">
+        <p>Deep in the crypt, something impossible crystallizes—a Void Pearl, cold and hungry. It thrums against your soul like a second heartbeat.</p>
+        <p class="void-pearl-discovered-reward">+1 Void Pearl</p>
+        <p><strong>The Void</strong> is now playable on the main menu—you hold a Void Pearl. Spend one Pearl per trial when you dare.</p>
+      </div>
+      <button type="button" id="void-pearl-discovered-ok" class="menu-btn primary">Continue</button>
+    </div>
+  </div>
+
   <!-- ── Floor 100 completion ── -->
   <div id="game-completed-overlay" class="trap-modal-overlay game-completed-overlay hidden" aria-hidden="true">
     <div class="trap-modal-backdrop" id="game-completed-backdrop" aria-hidden="true"></div>
     <div class="trap-modal game-completed-modal" role="dialog" aria-modal="true" aria-labelledby="game-completed-title">
       <div class="trap-modal-emoji" aria-hidden="true">🏆</div>
-      <h2 id="game-completed-title" class="trap-modal-title game-completed-title">You have retrieved the anchient artifact. (It belongs in a museum!)</h2>
+      <h2 id="game-completed-title" class="trap-modal-title game-completed-title">You have retrieved the ancient artifact. (It belongs in a museum!)</h2>
       <div class="trap-modal-body game-completed-body">
         <p>You have conquered the depths — all one hundred floors lie behind you. The crypt has no more secrets to withhold.</p>
         <p class="game-completed-pearl-wrap">
-          <span id="game-completed-pearl-reward" class="game-completed-pearl-reward">+1 Void Pearl</span>
+          <span id="game-completed-pearl-reward" class="game-completed-pearl-reward">+2 Void Pearls</span>
         </p>
-        <p class="game-completed-unlock-note">🌀 <strong>The Void</strong> is now unlocked on the main menu. Spend Pearls to enter high-risk trials when you're ready.</p>
+        <p class="game-completed-unlock-note">The deepest vault is yours. Spend your Pearls in <strong>The Void</strong> when you are ready for a harder trial.</p>
       </div>
       <button type="button" id="game-completed-menu-btn" class="menu-btn primary">Return to Main Menu</button>
     </div>
   </div>
 
-  <!-- ── Void stub (trials not yet implemented) ── -->
-  <div id="void-stub-overlay" class="trap-modal-overlay hidden" aria-hidden="true">
-    <div class="trap-modal-backdrop" id="void-stub-backdrop" aria-hidden="true"></div>
-    <div class="trap-modal void-stub-modal" role="dialog" aria-modal="true" aria-labelledby="void-stub-title">
-      <div class="trap-modal-emoji" aria-hidden="true">🌀</div>
-      <h2 id="void-stub-title" class="trap-modal-title">The Void</h2>
-      <div class="trap-modal-body">
-        <p>Void trials are coming soon. Stockpile Void Pearls — you'll need one per attempt.</p>
+  <!-- ── Void trial selection (layout per void-selection-prototype.html) ── -->
+  <div id="void-trial-overlay" class="void-trial-overlay hidden" aria-hidden="true">
+    <div class="void-screen">
+      <div class="void-back" aria-hidden="true"></div>
+      <div class="void-fx" aria-hidden="true">
+        <div class="vs-vignette"></div>
+        <div class="vs-particles" id="void-vs-particles"></div>
       </div>
-      <button type="button" id="void-stub-ok" class="menu-btn primary">OK</button>
+      <div class="void-content">
+        <header class="void-header">
+          <div class="void-titlewrap">
+            <p class="void-eyebrow">THE VOID</p>
+            <h2 class="void-title">TRIALS</h2>
+            <div class="void-titlerule" aria-hidden="true"></div>
+          </div>
+          <div id="void-trial-pearls" class="void-pearls" aria-live="polite">
+            <span class="void-pearl-icon" aria-hidden="true">🔮</span>
+            <span id="void-trial-pearl-count">0</span>
+            <span class="void-pearl-label">VOID PEARLS</span>
+          </div>
+        </header>
+        <div class="void-banners" role="listbox" aria-label="Void trial tier">
+          <div class="banner" data-tier="1" data-selected="1" role="option" tabindex="0" aria-selected="true">
+            <div class="banner-pivot">
+              <div class="banner-body">
+              <img class="banner-art" src="assets/ui/void/void-banner-tier-1.png" alt="" width="217" height="920">
+              <div class="banner-roman" aria-hidden="true"></div>
+              <div class="banner-name"></div>
+              <div class="banner-info">
+                <div class="bstat-tier"></div>
+                <div class="banner-stats">
+                  <div class="bstat bstat-enemy">
+                    <span class="bstat-icon bstat-icon-enemy" aria-hidden="true">☠</span>
+                    <span class="bstat-val hp"></span>
+                  </div>
+                  <div class="bstat bstat-loot">
+                    <img class="bstat-icon bstat-icon-loot" src="assets/sprites/Items/chest-closed.png" alt="" width="14" height="14">
+                    <span class="bstat-val loot"></span>
+                  </div>
+                </div>
+                <div class="banner-flavor"></div>
+                <div class="banner-floors">FLOORS <b></b></div>
+              </div>
+              </div>
+            </div>
+          </div>
+          <div class="banner" data-tier="2" data-selected="0" role="option" tabindex="0" aria-selected="false">
+            <div class="banner-pivot">
+              <div class="banner-body">
+              <img class="banner-art" src="assets/ui/void/void-banner-tier-2.png" alt="" width="217" height="920">
+              <div class="banner-roman" aria-hidden="true"></div>
+              <div class="banner-name"></div>
+              <div class="banner-info">
+                <div class="bstat-tier"></div>
+                <div class="banner-stats">
+                  <div class="bstat bstat-enemy">
+                    <span class="bstat-icon bstat-icon-enemy" aria-hidden="true">☠</span>
+                    <span class="bstat-val hp"></span>
+                  </div>
+                  <div class="bstat bstat-loot">
+                    <img class="bstat-icon bstat-icon-loot" src="assets/sprites/Items/chest-closed.png" alt="" width="14" height="14">
+                    <span class="bstat-val loot"></span>
+                  </div>
+                </div>
+                <div class="banner-flavor"></div>
+                <div class="banner-floors">FLOORS <b></b></div>
+              </div>
+              </div>
+            </div>
+          </div>
+          <div class="banner" data-tier="3" data-selected="0" role="option" tabindex="0" aria-selected="false">
+            <div class="banner-pivot">
+              <div class="banner-body">
+              <img class="banner-art" src="assets/ui/void/void-banner-tier-3.png" alt="" width="217" height="920">
+              <div class="banner-roman" aria-hidden="true"></div>
+              <div class="banner-name"></div>
+              <div class="banner-info">
+                <div class="bstat-tier"></div>
+                <div class="banner-stats">
+                  <div class="bstat bstat-enemy">
+                    <span class="bstat-icon bstat-icon-enemy" aria-hidden="true">☠</span>
+                    <span class="bstat-val hp"></span>
+                  </div>
+                  <div class="bstat bstat-loot">
+                    <img class="bstat-icon bstat-icon-loot" src="assets/sprites/Items/chest-closed.png" alt="" width="14" height="14">
+                    <span class="bstat-val loot"></span>
+                  </div>
+                </div>
+                <div class="banner-flavor"></div>
+                <div class="banner-floors">FLOORS <b></b></div>
+              </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <footer class="void-footer">
+        <button type="button" id="void-trial-enter" class="void-begin" disabled>
+          <span class="void-begin-label">ENTER THE VOID</span>
+          <span id="void-trial-enter-sub" class="void-begin-sub"></span>
+        </button>
+        <button type="button" id="void-trial-back" class="void-back-btn">BACK</button>
+      </footer>
+    </div>
+  </div>
+
+  <div id="void-corruption-intro-overlay" class="trap-modal-overlay hidden" aria-hidden="true">
+    <div class="trap-modal-backdrop void-corruption-intro-backdrop" aria-hidden="true"></div>
+    <div class="trap-modal void-corruption-modal" role="dialog" aria-modal="true" aria-labelledby="void-corruption-intro-title">
+      <h2 id="void-corruption-intro-title" class="trap-modal-title">Void Corruption</h2>
+      <div class="trap-modal-body void-corruption-intro-body">
+        Every floor, the Void offers three curses—you must choose one before you explore. Each curse lasts the whole trial and stacks if you choose it again on a later floor. There is no way to remove them.
+      </div>
+      <button type="button" id="void-corruption-intro-continue" class="menu-btn primary">Continue</button>
+    </div>
+  </div>
+
+  <div id="void-corruption-pick-overlay" class="trap-modal-overlay hidden" aria-hidden="true">
+    <div class="trap-modal-backdrop" aria-hidden="true"></div>
+    <div class="trap-modal void-corruption-pick-modal" role="dialog" aria-modal="true" aria-labelledby="void-corruption-pick-title">
+      <h2 id="void-corruption-pick-title" class="trap-modal-title">Choose a Curse</h2>
+      <p class="void-corruption-pick-hint">You must accept one before exploring this floor.</p>
+      <div id="void-corruption-pick-cards" class="void-corruption-pick-cards"></div>
+    </div>
+  </div>
+
+  <div id="void-completion-overlay" class="trap-modal-overlay hidden" aria-hidden="true">
+    <div class="trap-modal-backdrop" aria-hidden="true"></div>
+    <div class="trap-modal void-completion-modal" role="dialog" aria-modal="true" aria-labelledby="void-completion-title">
+      <h2 id="void-completion-title" class="trap-modal-title">Void Conquered</h2>
+      <p class="void-completion-hint">Choose one reward. Equip it now or trash for scrap.</p>
+      <div id="void-completion-cards" class="void-completion-cards"></div>
+    </div>
+  </div>
+
+  <div id="void-pearl-confirm-overlay" class="trap-modal-overlay hidden" aria-hidden="true">
+    <div class="trap-modal-backdrop" id="void-pearl-confirm-backdrop" aria-hidden="true"></div>
+    <div class="trap-modal void-pearl-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="void-pearl-confirm-title">
+      <div class="trap-modal-emoji" aria-hidden="true">🔮</div>
+      <h2 id="void-pearl-confirm-title" class="trap-modal-title">Enter the Void?</h2>
+      <div id="void-pearl-confirm-body" class="trap-modal-body"></div>
+      <div class="retreat-confirm-btns">
+        <button type="button" id="void-pearl-confirm-yes" class="menu-btn primary">Spend Pearl</button>
+        <button type="button" id="void-pearl-confirm-no" class="menu-btn secondary">Cancel</button>
+      </div>
     </div>
   </div>
 
@@ -909,6 +1069,13 @@
               <input type="checkbox" id="cheat-increase-stats">
               <span class="toggle-track"><span class="toggle-thumb"></span></span>
             </label>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-label-title">+1 Void Pearl</span>
+              <span class="settings-label-desc">Adds one Void Pearl to your save and unlocks The Void on the main menu</span>
+            </div>
+            <button type="button" id="cheat-add-void-pearl-btn" class="settings-action-btn">+1 Pearl</button>
           </div>
         </div>
       </div>

@@ -10,6 +10,7 @@ const GEAR_ADJECTIVES = {
   rare:      ['Sturdy', 'Tempered', 'Balanced', 'Reinforced', 'Engraved', 'Polished'],
   epic:      ['Masterwork', 'Enchanted', 'Shadowed', 'Arcane', 'Runed', 'Forged'],
   legendary: ['Ancient', 'Infernal', 'Celestial', 'Void-touched', 'Eternal', 'Abyssal'],
+  void:      ['Unmade', 'Hollow', 'Abyssal', 'Null', 'Eclipsed', 'Unbound'],
 }
 
 const GEAR_NOUNS = {
@@ -38,7 +39,7 @@ export const GEAR_SLOT_DEFS = {
   },
 }
 
-export const GEAR_UPGRADE_MAX = { common: 3, rare: 3, epic: 3, legendary: 3 }
+export const GEAR_UPGRADE_MAX = { common: 3, rare: 3, epic: 3, legendary: 3, void: 3 }
 
 // Detriment stats are stored in piece.stats with negative sign applied at roll time.
 // These keys map to the CONFIG.gear.statRanges keys used for rolling.
@@ -56,7 +57,8 @@ export function generateGearUID() {
 }
 
 export function generateGearName(slot, tier) {
-  const adjs  = GEAR_ADJECTIVES[tier]
+  const adjTier = tier === 'void' ? 'void' : tier
+  const adjs  = GEAR_ADJECTIVES[adjTier] ?? GEAR_ADJECTIVES.common
   const nouns = GEAR_NOUNS[slot]
   const adj  = adjs[Math.floor(Math.random() * adjs.length)]
   const noun = nouns[Math.floor(Math.random() * nouns.length)]

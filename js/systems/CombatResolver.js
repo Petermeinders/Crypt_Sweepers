@@ -129,4 +129,26 @@ function abilityDmgFloor(floor) {
   return Math.max(1, Math.floor((floor ?? 1) / 10))
 }
 
-export default { resolveFight, resolveSpell, resolveFlee, resolveFastReveal, rollMerchant, abilityDmgFloor }
+/**
+ * Armor absorption after effective damage is known (iron-skin, mana shield, etc. already applied).
+ * Negation rolls only when armor > 0; on fail, armor absorbs min(armor, effective), overflow hits HP.
+ * @param {{ effective: number, armor: number, negation?: number, negationCap?: number, rng?: number }} opts
+ * @param {number} [opts.rng] — 0–1 roll for negation; omit to use Math.random()
+ * @returns {{ negated: boolean, armorAbsorbed: number, hpDamage: number }}
+ */
+function resolveArmorHit({ effective, armor, negation = 0, negationCap = 1, rng }) {
+  const eff = Math.max(0, Math.floor(effective))
+  const arm = Math.max(0, Math.floor(armor))
+  if (eff <= 0 || arm <= 0) {
+    return { negated: false, armorAbsorbed: 0, hpDamage: eff }
+  }
+  const neg = Math.min(Math.max(0, negation), negationCap ?? 1)
+  const roll = typeof rng === 'number' ? rng : Math.random()
+  if (neg > 0 && roll < neg) {
+    return { negated: true, armorAbsorbed: 0, hpDamage: 0 }
+  }
+  const absorbed = Math.min(arm, eff)
+  return { negated: false, armorAbsorbed: absorbed, hpDamage: eff - absorbed }
+}
+
+export default { resolveFight, resolveSpell, resolveFlee, resolveFastReveal, rollMerchant, abilityDmgFloor, resolveArmorHit }

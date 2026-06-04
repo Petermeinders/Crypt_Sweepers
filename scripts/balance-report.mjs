@@ -4,8 +4,21 @@
  * Run: npm run balance-report
  */
 import { computeBalanceSnapshot } from '../js/balance/snapshot.js'
+import { enemyDensityShare, expectedEnemyTiles } from '../js/systems/TileDensity.js'
+import { CONFIG } from '../js/config.js'
 
 const snap = computeBalanceSnapshot()
+
+console.log('=== Enemy tile density (pool share × grid size) ===')
+for (const floor of [1, 5, 10, 25, 50, 100]) {
+  const size = CONFIG.gridSizeForFloor(floor)
+  const ex = expectedEnemyTiles(floor, size.cols, size.rows)
+  console.log(
+    `  Floor ${floor} (${size.cols}×${size.rows}): share ${(enemyDensityShare(floor) * 100).toFixed(1)}%` +
+      ` → ~${ex.expectedEnemy.toFixed(1)} enemy cells (weights enemy=${ex.weights.enemy} fast=${ex.weights.enemy_fast} empty=${ex.weights.empty})`,
+  )
+}
+console.log('')
 
 console.log('=== Balance pillars ===')
 for (const p of snap.pillars) {

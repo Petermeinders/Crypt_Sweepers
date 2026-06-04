@@ -13,6 +13,7 @@ import { FORGE_RECIPES } from '../data/combinations.js'
 import { ENGINEER_SEISMIC_PING } from '../data/engineer.js'
 import { resolveEnemySpriteSrc, ITEM_ICONS_BASE, TILE_TYPE_ICON_FILES } from '../data/tileIcons.js'
 import { TILE_BLURBS } from '../data/tileBlurbs.js'
+import { tickShockedDurations } from '../systems/Thunderstruck.js'
 import {
   getActiveTiles,
   setCombatEngagement,
@@ -294,6 +295,8 @@ export function tickPoisonArrowDotOnGlobalTurn(ctx, opts = {}) {
       UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
     }
   }
+  tickShockedDurations(getActiveTiles())
+
   // Hemorrhage bleed tick: enemies bleeding from Slam → Hemorrhage branch
   for (const tile of getActiveTiles()) {
     if (!tile.revealed || !tile.enemyData || tile.enemyData._slain) continue
@@ -431,12 +434,7 @@ export async function revealTile(ctx, tile) {
   // Drowned Hulk aura: if the revealed tile IS the hulk, buff all current visible enemies.
   // If a hulk is already alive, buff this newly revealed enemy.
   if (tile.enemyData && !tile.enemyData._slain) {
-    if (tile.enemyData.crewBuffAura) {
-      ctx.applyHulkBuffToAll()
-    } else {
-      const hulk = ctx.findLiveHulk()
-      if (hulk && hulk !== tile) ctx.applyHulkBuffToTile(tile)
-    }
+    ctx.onEnemyLeaderReveal(tile)
     ctx.engineerTurretAfterReveal(tile)
   }
   // Blockage / hole tiles do not extend reachability — player must path around them

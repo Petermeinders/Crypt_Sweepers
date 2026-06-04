@@ -5,6 +5,8 @@ import UI from '../ui/UI.js'
 import { session } from '../core/RunContext.js'
 import { BACKPACK_MAX_SLOTS } from '../systems/LootTables.js'
 import * as gearModule from '../data/gear.js'
+import { voidLootMult } from '../systems/VoidTrial.js'
+import { voidLootChanceMult } from '../systems/VoidCorruption.js'
 
 
 export function adjustPlayerStat(stat, delta) {
@@ -203,13 +205,43 @@ export function handleGearPickup(ctx, piece) {
 
 /** Try to drop a gear piece; returns true if a piece was added to backpack. */
 export function tryGearDrop(ctx, floor, chance) {
-  if (Math.random() >= chance) return false
+  let rollChance = chance
+  if (session.run?.isVoidTrial) {
+    rollChance *= voidLootMult(session.run.voidTier)
+    rollChance *= voidLootChanceMult(session.run)
+    rollChance = Math.min(1, rollChance)
+  }
+  if (Math.random() >= rollChance) return false
   const { generateGear, pickDropTier, pickDropSlot } = gearModule
   const tier  = pickDropTier(floor)
   const slot  = pickDropSlot()
   const piece = generateGear(slot, tier, floor)
   handleGearPickup(ctx, piece)
   return true
+}
+
+/** Persist completion reward directly to save (void trial end). */
+export function equipCompletionRewardToSave(ctx, piece) {
+  if (!session.save || !piece?.slot) return
+  if (!session.save.equippedGear) {
+    session.save.equippedGear = { weapon: null, breastplate: null, offhand: null }
+  }
+  const slot = piece.slot
+  const prev = session.save.equippedGear[slot]
+  session.save.equippedGear[slot] = piece
+  if (prev?.uid) {
+    adjustScrap(CONFIG.blacksmith.trashScrapYield[prev.tier] ?? 1)
+  }
+  SaveManager.save(session.save).catch(() => {})
+}
+
+export function trashCompletionReward(piece) {
+  if (!piece) return 0
+  const scrap = piece.tier === 'void'
+    ? (CONFIG.void?.trashScrapVoid ?? 50)
+    : (CONFIG.blacksmith.trashScrapYield[piece.tier] ?? 1)
+  adjustScrap(scrap)
+  return scrap
 }
 
 

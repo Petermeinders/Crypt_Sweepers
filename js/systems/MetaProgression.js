@@ -55,6 +55,10 @@ export function defaultSave() {
       gameCompleted: false,
       /** Ultra-rare currency for Void trial entry. */
       voidPearls: 0,
+      /** First Void Pearl granted (floor 50 boss, main game). */
+      voidPearlFloor50Awarded: false,
+      /** Main menu Void trials unlocked. */
+      voidUnlocked: false,
     },
     settings: {
       difficulty:  'normal',
@@ -432,9 +436,32 @@ function calcRunXP(runStats) {
 // ── Void / game completion meta ───────────────────────────────
 
 function ensureMeta(save) {
-  if (!save.meta) save.meta = { gameCompleted: false, voidPearls: 0 }
+  if (!save.meta) {
+    save.meta = {
+      gameCompleted: false,
+      voidPearls: 0,
+      voidPearlFloor50Awarded: false,
+      voidUnlocked: false,
+    }
+  }
   if (save.meta.gameCompleted == null) save.meta.gameCompleted = false
   if (save.meta.voidPearls == null) save.meta.voidPearls = 0
+  if (save.meta.voidPearlFloor50Awarded == null) save.meta.voidPearlFloor50Awarded = false
+  if (save.meta.voidUnlocked == null) {
+    save.meta.voidUnlocked = !!(
+      save.meta.voidPearlFloor50Awarded ||
+      save.meta.voidPearls > 0 ||
+      save.meta.gameCompleted
+    )
+  }
+  if (save.meta.voidPearls > 0) {
+    save.meta.voidUnlocked = true
+  }
+}
+
+export function isVoidUnlocked(save) {
+  ensureMeta(save)
+  return !!save.meta.voidUnlocked
 }
 
 function isGameCompleted(save) {
@@ -442,15 +469,43 @@ function isGameCompleted(save) {
   return !!save.meta.gameCompleted
 }
 
-/** First floor-100 boss kill — sets gameCompleted and awards one Pearl. */
+/** First floor-50 boss kill (main game) — awards one Pearl and unlocks Void trials. */
+function awardFloor50VoidPearl(save) {
+  ensureMeta(save)
+  if (save.meta.voidPearlFloor50Awarded) {
+    return { firstTime: false, pearlGranted: 0 }
+  }
+  save.meta.voidPearlFloor50Awarded = true
+  save.meta.voidUnlocked = true
+  save.meta.voidPearls += 1
+  return { firstTime: true, pearlGranted: 1 }
+}
+
+/** First floor-100 boss kill — sets gameCompleted and awards bonus Pearls. */
 function completeGame(save) {
   ensureMeta(save)
   const firstTime = !save.meta.gameCompleted
+  let pearlGranted = 0
   if (firstTime) {
     save.meta.gameCompleted = true
-    save.meta.voidPearls += 1
+    save.meta.voidUnlocked = true
+    pearlGranted = CONFIG.void?.floor100PearlReward ?? 2
+    save.meta.voidPearls += pearlGranted
   }
-  return { firstTime, pearlGranted: firstTime ? 1 : 0 }
+  return { firstTime, pearlGranted }
+}
+
+/** Spend one Void Pearl to enter a trial. Returns false if none available. */
+function spendVoidPearl(save) {
+  ensureMeta(save)
+  if (save.meta.voidPearls < 1) return false
+  save.meta.voidPearls -= 1
+  return true
+}
+
+function getVoidPearls(save) {
+  ensureMeta(save)
+  return save.meta.voidPearls
 }
 
 // ── End-of-run update ─────────────────────────────────────────
@@ -515,7 +570,11 @@ export default {
   defaultSave,
   ensureMeta,
   isGameCompleted,
+  isVoidUnlocked,
+  awardFloor50VoidPearl,
   completeGame,
+  spendVoidPearl,
+  getVoidPearls,
   canBuyUpgrade,
   buyUpgrade,
   canBuyGlobalPassive,

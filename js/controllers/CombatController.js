@@ -1,3 +1,4 @@
+import { CONFIG } from '../config.js'
 import GameState, { States } from '../core/GameState.js'
 import EventBus from '../core/EventBus.js'
 import TileEngine from '../systems/TileEngine.js'
@@ -11,6 +12,8 @@ import {
   clearCombatEngagementForTile,
   isInSubFloor,
 } from './TileTapRouter.js'
+import { rollParryFail, rollStrikeMiss } from '../systems/VoidCorruption.js'
+import { tryConsumeShocked } from '../systems/Thunderstruck.js'
 
 const MSG_COMBAT_ACTION_BLOCKED = 'Cannot perform action when in combat with enemy'
 const RANGER_FIGHT_ATTACK_PORTRAIT_MS = 4000
@@ -133,7 +136,16 @@ export function fightAction(ctx, tile) {
   // Ogre: 10% shield block — cancels entire melee attack
   if (checkShieldBlock(ctx, tile)) { session.tap.combatBusy = false; return }
 
-  playerDmg = ctx.scaleOutgoingDamageToEnemy(playerDmg)
+  const shock = tryConsumeShocked(ctx, tile, { source: 'melee' })
+  playerDmg = ctx.scaleOutgoingDamageToEnemy(playerDmg) + shock.bonus
+  if (rollStrikeMiss(session.run)) {
+    playerDmg = 0
+    UI.setMessage('Your strike goes wide! (Void corruption)', true)
+  }
+  if (tile.enemyData?.crystalAura) {
+    const pct = Number(tile.enemyData.crystalAura) || 0
+    playerDmg = Math.max(1, Math.round(playerDmg * (1 - pct)))
+  }
 
   // Solarflare III: +50% melee damage vs stunned blinded enemies
   if (tile.enemyData.solarflareVulnerable && (tile.enemyData.stunTurns ?? 0) > 0) {
@@ -315,8 +327,7 @@ export function fightAction(ctx, tile) {
         const _isBot = new URLSearchParams(location.search).has('balanceBot')
           || new URLSearchParams(location.search).has('testBotOngoing')
           || new URLSearchParams(location.search).has('testHarness')
-        const _doParryWindow = () => {
-        UI.showParryWindow(tile.enemyData, (parryResult) => {
+        const _handleParryResult = (parryResult) => {
           if (!session.run || !tile.enemyData || tile.enemyData._slain) { session.tap.combatBusy = false; return }
 
           let finalEnemyDmg = result.enemyDmg
@@ -399,8 +410,14 @@ export function fightAction(ctx, tile) {
             })
             session.tap.combatBusy = false
           }, 500)
-        }, ctx.charKey())
-        } // end _doParryWindow
+        }
+        const _doParryWindow = () => {
+          if (rollParryFail(session.run)) {
+            _handleParryResult('miss-block')
+            return
+          }
+          UI.showParryWindow(tile.enemyData, _handleParryResult, ctx.charKey())
+        }
         if (!_isBot && !(session.save.settings?.parryTutorialSeen)) {
           session.save.settings.parryTutorialSeen = true
           SaveManager.save(session.save).catch(() => {})
@@ -501,10 +518,8 @@ export function endCombatVictory(ctx, tile) {
   const killEchoKill = ctx.charKey() === 'warrior' && !!(tile.killEchoMarked || tile.senseEvilMarked)
   tile.enemyData._slain = true
   clearCombatEngagementForTile(tile)
-  // Drowned Hulk: remove crew aura from all buffed enemies on death
-  if (tile.enemyData.crewBuffAura) {
-    UI.setMessage('⚓ The Drowned Hulk falls — its crew weakens!')
-    ctx.removeHulkBuffFromAll()
+  if (tile.enemyData.isLeader) {
+    ctx.onLeaderSlain(tile)
   }
   TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
   // Paladin Kill Echo: widen quota; add new marks from this kill without stripping other marked foes
@@ -519,13 +534,16 @@ export function endCombatVictory(ctx, tile) {
     TileEngine.markReachable(tile.row, tile.col, ctx.markReachableUi)
   }
   if (tile.enemyData?.isBoss) {
-    session.run.bossFloorExitPending = true
-    tile.type = 'exit'
-    tile.enemyData = null
-    UI.markBossTileAsExit(tile.element)
-    tile.exitResolved = false
-    tile.element?.classList.add('exit-pending')
-    UI.setMessage('🚪 The way forward opens. Tap the stairs when you are ready.')
+    const voidFinale = session.run.isVoidTrial && session.run.floor === session.run.voidMaxFloor
+    if (!voidFinale) {
+      session.run.bossFloorExitPending = true
+      tile.type = 'exit'
+      tile.enemyData = null
+      UI.markBossTileAsExit(tile.element)
+      tile.exitResolved = false
+      tile.element?.classList.add('exit-pending')
+      UI.setMessage('🚪 The way forward opens. Tap the stairs when you are ready.')
+    }
   } else {
     UI.markTileSlain(tile.element)
     // Necromancer: slain tiles become ash piles — re-enable pointer events for Raise Minion
@@ -662,7 +680,17 @@ export function endCombatVictory(ctx, tile) {
   EventBus.emit('combat:end', { outcome: 'victory' })
   TileEngine.refreshAllThreatClueDisplays()
 
+  const pearlFloor = CONFIG.void?.pearlAwardFloor ?? 50
+  if (wasBoss && session.run.floor === pearlFloor && !session.run.isVoidTrial) {
+    ctx.tryFloor50VoidPearl?.()
+  }
+
   if (wasBoss && session.run.floor === 100 && ctx.tryGameCompletion?.()) return
+
+  if (wasBoss && session.run.isVoidTrial && session.run.floor === session.run.voidMaxFloor) {
+    ctx.tryVoidTrialComplete?.()
+    return
+  }
 
   ctx.checkFloorCleared()
   ctx.maybeOfferDeadlockEscape()

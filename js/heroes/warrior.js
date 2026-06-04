@@ -100,6 +100,7 @@ export function paladinKillEchoAddMarksAfterKill(tile) {
 
 export function slamAction(ctx) {
   if (ctx.isSilenced()) return
+  if (ctx.voidAbilityFizzle?.()) return
   if (!(session.save.warrior?.upgrades ?? []).includes('slam')) return
   if (session.tap.combatBusy) return
 
