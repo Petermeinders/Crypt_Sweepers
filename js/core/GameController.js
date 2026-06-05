@@ -8,7 +8,12 @@ import ProgressionSystem     from '../systems/ProgressionSystem.js'
 import MetaProgression       from '../systems/MetaProgression.js'
 import { isBossFloorForRun, voidLootMult } from '../systems/VoidTrial.js'
 import { rollVoidCompletionChoices } from '../systems/VoidCompletion.js'
-import { voidLootChanceMult, rollAbilityFizzle } from '../systems/VoidCorruption.js'
+import {
+  voidLootChanceMult,
+  rollAbilityFizzle,
+  applyCorruptionCapsToPlayer,
+  bumpVoidCorruptionBaseCaps,
+} from '../systems/VoidCorruption.js'
 import SaveManager           from '../save/SaveManager.js'
 import UI                    from '../ui/UI.js'
 import { RANGER_BASE, RANGER_UPGRADES } from '../data/ranger.js'
@@ -2106,8 +2111,17 @@ function _triggerLevelUp() {
 
     UI.setLevelUpSubtitle(subtitle)
     UI.showLevelUpOverlay(choiceData, (abilityId) => {
-      ProgressionSystem.applyAbility(abilityId, session.run.player, char, { floor: session.run.floor })
       const def = ProgressionSystem.getAbilityDef(abilityId, char)
+      ProgressionSystem.applyAbility(abilityId, session.run.player, char, { floor: session.run.floor })
+      if (session.run.isVoidTrial && def?.effect) {
+        if (def.effect.type === 'buff-hp' && def.effect.maxHp) {
+          bumpVoidCorruptionBaseCaps(session.run.player, { maxHpDelta: def.effect.maxHp })
+        }
+        if (def.effect.type === 'buff-mana' && def.effect.maxMana) {
+          bumpVoidCorruptionBaseCaps(session.run.player, { maxManaDelta: def.effect.maxMana })
+        }
+        applyCorruptionCapsToPlayer(session.run, session.run.player)
+      }
       session.run.levelUpLog.push({
         level:     session.run.player.level,
         abilityId,

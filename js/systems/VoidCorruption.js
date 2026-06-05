@@ -152,19 +152,46 @@ export function voidLootChanceMult(run) {
   return Math.max(0, 1 + loot)
 }
 
-/** Reapply max HP/mana after gear + corruption (multiplicative hp/mp curses). */
+/** Clear per-run corruption cap snapshot (new void trial). */
+export function resetVoidCorruptionBaseCaps(player) {
+  delete player.voidCorruptionBaseMaxHp
+  delete player.voidCorruptionBaseMaxMana
+}
+
+/**
+ * Snapshot uncorrupted max HP/mana once per void run (gear-inclusive).
+ * Must NOT use baseMaxHp/baseMaxMana — those are pre-gear and would slash caps on first pick.
+ */
+export function ensureVoidCorruptionBaseCaps(player) {
+  if (player.voidCorruptionBaseMaxHp == null) {
+    player.voidCorruptionBaseMaxHp = player.maxHp
+  }
+  if (player.voidCorruptionBaseMaxMana == null) {
+    player.voidCorruptionBaseMaxMana = player.maxMana
+  }
+}
+
+/** After in-run max HP/mana gains (vitality, arcane reserve), keep corruption base in sync. */
+export function bumpVoidCorruptionBaseCaps(player, { maxHpDelta = 0, maxManaDelta = 0 } = {}) {
+  if (maxHpDelta && player.voidCorruptionBaseMaxHp != null) {
+    player.voidCorruptionBaseMaxHp += maxHpDelta
+  }
+  if (maxManaDelta && player.voidCorruptionBaseMaxMana != null) {
+    player.voidCorruptionBaseMaxMana += maxManaDelta
+  }
+}
+
+/** @deprecated Use ensureVoidCorruptionBaseCaps — kept for import stability. */
 export function recomputePlayerCapsFromCorruption(player) {
-  const baseHp = player.baseMaxHp ?? player.maxHp
-  const baseMana = player.baseMaxMana ?? player.maxMana
-  player.voidCorruptionBaseMaxHp = baseHp
-  player.voidCorruptionBaseMaxMana = baseMana
+  ensureVoidCorruptionBaseCaps(player)
 }
 
 export function applyCorruptionCapsToPlayer(run, player) {
   if (!isVoidTrialRun(run)) return
+  ensureVoidCorruptionBaseCaps(player)
   const mods = getCorruptionModifiers(run)
-  const baseHp = player.voidCorruptionBaseMaxHp ?? player.baseMaxHp ?? player.maxHp
-  const baseMana = player.voidCorruptionBaseMaxMana ?? player.baseMaxMana ?? player.maxMana
+  const baseHp = player.voidCorruptionBaseMaxHp
+  const baseMana = player.voidCorruptionBaseMaxMana
   const hpMult = 1 + (mods.maxHpMult ?? 0)
   const manaMult = 1 + (mods.maxManaMult ?? 0)
   player.maxHp = Math.max(1, Math.floor(baseHp * hpMult))

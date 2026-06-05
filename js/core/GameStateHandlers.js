@@ -5,6 +5,7 @@ import Logger from './Logger.js'
 import TileEngine from '../systems/TileEngine.js'
 import MetaProgression from '../systems/MetaProgression.js'
 import { getVoidTierConfig } from '../systems/VoidTrial.js'
+import { resetVoidCorruptionBaseCaps } from '../systems/VoidCorruption.js'
 import SaveManager from '../save/SaveManager.js'
 import UI from '../ui/UI.js'
 import * as Haptics from '../systems/Haptics.js'
@@ -171,6 +172,7 @@ function applyVoidTrialToRun(run, voidTier) {
   run.voidTier = voidTier
   run.voidMaxFloor = cfg.maxFloor
   run.corruption = { stacks: {}, pickedFloors: [], pendingTriplet: null, introShown: false }
+  resetVoidCorruptionBaseCaps(run.player)
 }
 
 

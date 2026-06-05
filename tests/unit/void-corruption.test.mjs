@@ -4,6 +4,7 @@ import {
   rollCorruptionTriplet,
   getCorruptionModifiers,
   applyCorruptionPick,
+  applyCorruptionCapsToPlayer,
   needsCorruptionPick,
 } from '../../js/systems/VoidCorruption.js'
 import { rollVoidCompletionCard } from '../../js/systems/VoidCompletion.js'
@@ -28,6 +29,33 @@ describe('VoidCorruption', () => {
     const run = { isVoidTrial: true, voidTier: 1, corruption: { stacks: { hp_pct: 2 }, pickedFloors: [] } }
     const mods = getCorruptionModifiers(run)
     assert.equal(mods.maxHpMult, -0.02)
+  })
+
+  it('mp_pct uses gear-inclusive max caps, not baseMaxHp', () => {
+    const player = {
+      maxHp: 109,
+      hp: 109,
+      maxMana: 110,
+      mana: 110,
+      baseMaxHp: 54,
+      baseMaxMana: 50,
+    }
+    const run = { isVoidTrial: true, voidTier: 1, corruption: { stacks: { mp_pct: 1 }, pickedFloors: [1] } }
+    applyCorruptionCapsToPlayer(run, player)
+    assert.equal(player.voidCorruptionBaseMaxHp, 109)
+    assert.equal(player.voidCorruptionBaseMaxMana, 110)
+    assert.equal(player.maxHp, 109)
+    assert.equal(player.maxMana, Math.floor(110 * 0.99))
+    assert.equal(player.hp, 109)
+    assert.equal(player.mana, Math.floor(110 * 0.99))
+  })
+
+  it('hp_pct one pick reduces max HP by 1% only', () => {
+    const player = { maxHp: 100, hp: 100, maxMana: 80, mana: 80, baseMaxHp: 50, baseMaxMana: 40 }
+    const run = { isVoidTrial: true, voidTier: 1, corruption: { stacks: { hp_pct: 1 }, pickedFloors: [1] } }
+    applyCorruptionCapsToPlayer(run, player)
+    assert.equal(player.maxHp, 99)
+    assert.equal(player.maxMana, 80)
   })
 
   it('applyCorruptionPick increments stack and marks floor', () => {

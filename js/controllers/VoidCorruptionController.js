@@ -5,7 +5,6 @@ import {
   applyCorruptionPick,
   getCorruptionPool,
   needsCorruptionPick,
-  recomputePlayerCapsFromCorruption,
   rollCorruptionTriplet,
 } from '../systems/VoidCorruption.js'
 import { isVoidTrialRun } from '../systems/VoidTrial.js'
@@ -24,7 +23,6 @@ export function beginVoidCorruptionFlow(ctx) {
     UI.renderVoidCorruptionPanel(run)
     return
   }
-  recomputePlayerCapsFromCorruption(run.player)
   applyCorruptionCapsToPlayer(run, run.player)
   if (!needsCorruptionPick(run)) {
     run._voidCorruptionBlocking = false
@@ -44,7 +42,6 @@ export function beginVoidCorruptionFlow(ctx) {
     }
     UI.showVoidCorruptionPick(triplet, curseId => {
       applyCorruptionPick(run, curseId)
-      recomputePlayerCapsFromCorruption(run.player)
       applyCorruptionCapsToPlayer(run, run.player)
       const [d0, d1] = ctx.playerDamageRange(run.player)
       UI.updateHP(run.player.hp, run.player.maxHp)
