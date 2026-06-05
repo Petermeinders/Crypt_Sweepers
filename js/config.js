@@ -1,7 +1,12 @@
 // ============================================================
 // CONFIG — all tunable gameplay values
 // SETTINGS — player preferences (overwritten by SaveManager on boot)
+// Floor difficulty tuning: js/data/balance/floor-difficulty.json
 // ============================================================
+
+import { loadFloorDifficulty } from './data/balance/loadFloorDifficulty.js'
+
+const _floorDifficulty = loadFloorDifficulty()
 
 function _randInt(lo, hi) {
   return Math.floor(Math.random() * (hi - lo + 1)) + lo
@@ -22,18 +27,8 @@ export const CONFIG = {
     fixedRows: 6,
   },
 
-  /**
-   * Per-floor enemy tile density (share of weighted random pool for enemy + enemy_fast).
-   * See js/systems/TileDensity.js and docs/smallChanges.md.
-   */
-  enemyDensity: {
-    shareAtFloor1:   0.20,
-    shareAtFloor50:  0.32,
-    shareAtFloor100: 0.38,
-    /** enemy_fast / (enemy + enemy_fast) — matches legacy 7:22 ratio ≈ 0.24 */
-    fastShareOfEnemies: 7 / 29,
-    minEmptyWeight: 12,
-  },
+  /** Per-floor enemy tile density — see js/data/balance/floor-difficulty.json */
+  enemyDensity: _floorDifficulty.enemyDensity,
 
   /** Random cols/rows in [grid.minDim, grid.maxDim] — independent per axis. */
   rollGridSize() {
@@ -95,25 +90,8 @@ export const CONFIG = {
     damage:     [1, 1],        // fallback; most enemies use their own def
     fastDamage: [1, 2],
     goldDrop:   [1, 2],
-    // Stat scaling per floor
-    floorScaleHP:  0.24,       // +24% HP per floor (floors 1–50); tuned with lower enemy density
-    // Damage: compound per floor (moderate exponential)
-    floorScaleDmgExpRate:      0.045,  // dmgMult ×(1+r) per floor (floors 2–50)
-    floorScaleDmgExpRate_late:   0.021,  // continued compound above floor 50
-    // Steeper HP scaling for floors 51–100 (piecewise linear inflection)
-    floorScaleHP_late:  0.30,  // +30% HP per floor above 50
-    /** Global multiplier applied after floor scaling (HP + damage). */
-    statMult: 1.25,
-    /**
-     * Leader spawn budget per floor (see docs/enemy-leaders-design.md).
-     * 90% no leaders; 5% one slot; 5% two slots. Max 2 visible at once.
-     */
-    leader: {
-      floorChanceNone: 0.90,
-      floorChanceOne:  0.05,
-      floorChanceTwo:  0.05,
-      maxVisible:      2,
-    },
+    ..._floorDifficulty.enemyScaling,
+    leader: _floorDifficulty.enemyLeaders,
   },
 
   spell: {
@@ -201,8 +179,10 @@ export const CONFIG = {
     spawnChance: 0.05,
   },
 
-  /** Pre-revealed archer; floor 1 always spawns (see FloorController) */
+  /** Pre-revealed archer; harasses each global turn until killed (see FloorController) */
   archerGoblin: {
+    /** First floor that may roll spawnChance (floors 1–5 are archer-free). */
+    minSpawnFloor: 6,
     spawnChance: 0.15,
   },
 
@@ -512,7 +492,7 @@ export const CONFIG = {
   /** Epic 12 — The Void (see docs/epics/the-void/implementation-decisions.md) */
   void: {
     /** Void trial floor 1 uses main-game enemy scaling at this depth; each void floor adds +1. */
-    enemyBaseFloor: 50,
+    enemyBaseFloor: _floorDifficulty.voidTrial.enemyBaseFloor,
     /** Main-game boss floor that awards the first Void Pearl (once per account). */
     pearlAwardFloor: 50,
     /** Pearls granted on first floor-100 completion (main game). */

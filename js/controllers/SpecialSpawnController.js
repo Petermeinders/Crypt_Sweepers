@@ -126,7 +126,7 @@ export async function finishTreasureGoblinReward(ctx, tile) {
   tile._treasureRewardGranted = true
   session.run.treasureGoblin = null
   tile.element?.querySelector('.treasure-goblin-timer')?.remove()
-  const owned = new Set(session.run.player.inventory.map(e => e.id))
+  const owned = new Set(session.run.player.inventory.flatMap(e => (e?.id ? [e.id] : [])))
   let pool = RARE_TRINKET_IDS.filter(id => !owned.has(id))
   if (pool.length === 0) pool = [...RARE_TRINKET_IDS]
   const id = ctx.pickRandom(pool)

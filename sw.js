@@ -22,6 +22,8 @@ const PRECACHE_ASSETS = [
   './js/lib/matter.min.js',
   './js/ui/DiceRoller.js',
   './js/config.js',
+  './js/data/balance/loadFloorDifficulty.js',
+  './js/data/balance/floor-difficulty.json',
   './js/core/GameState.js',
   './js/core/EventBus.js',
   './js/core/Logger.js',

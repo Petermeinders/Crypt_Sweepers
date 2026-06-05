@@ -295,7 +295,7 @@ function rollTrinketTradeReward(offeredRarity) {
   else if (offeredRarity === 'legendary' && r < 0.15) targetRarity = 'epic'
 
   // Build pool from the matching rarity, excluding what player already has and what they just traded
-  const owned = new Set(session.run.player.inventory.map(e => e.id))
+  const owned = new Set(session.run.player.inventory.flatMap(e => (e?.id ? [e.id] : [])))
   let pool = []
   if (targetRarity === 'common')    pool = COMMON_LOOT_IDS.filter(id => !owned.has(id) && ITEMS[id]?.rarity === 'common')
   if (targetRarity === 'rare')      pool = RARE_TRINKET_IDS.filter(id => !owned.has(id))

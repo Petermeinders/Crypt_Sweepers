@@ -219,10 +219,12 @@ export function startFloor(ctx) {
       && Math.random() < (CONFIG.treasureGoblin?.spawnChance ?? 0.05)) {
     ctx.spawnTreasureGoblin(specialSpawnUsed)
   }
-  // Archer Goblin: always floor 1, CONFIG.archerGoblin.spawnChance on later floors.
+  // Archer Goblin: from minSpawnFloor onward, CONFIG.archerGoblin.spawnChance per dungeon floor.
   // Immediately revealed; starts firing arrows each turn until killed.
+  const archerMinFloor = CONFIG.archerGoblin?.minSpawnFloor ?? 6
   if (!gridRestored && !session.run.atRest && !isBossFloorForRun(session.run, session.run.floor)
-      && (session.run.floor === 1 || Math.random() < (CONFIG.archerGoblin?.spawnChance ?? 0.15))) {
+      && session.run.floor >= archerMinFloor
+      && Math.random() < (CONFIG.archerGoblin?.spawnChance ?? 0.15)) {
     ctx.spawnArcherGoblin(specialSpawnUsed)
   }
 
@@ -403,7 +405,7 @@ export function handleExit(ctx) {
     Logger.info(`[GameController] Floor transition → ${session.run.floor}`, {
       hp: session.run.player.hp, maxHp: session.run.player.maxHp,
       mana: session.run.player.mana, gold: session.run.player.gold,
-      inventory: session.run.player.inventory.map(e => e.id),
+      inventory: session.run.player.inventory.map(e => e?.id ?? null),
     })
     EventBus.emit('audio:crossfade', { track: ctx.runMusicTrack(), duration: 1500 })
     EventBus.emit('audio:play', { sfx: 'footsteps' })

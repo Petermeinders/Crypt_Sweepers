@@ -440,7 +440,7 @@ export function die(ctx, killerData = null, opts = {}) {
     cause: explicitCause ?? resolved?.enemyId ?? 'unknown',
     killer: resolved?.label ?? null,
     isBoss: !!(resolved?.isBoss),
-    inventory: session.run?.player?.inventory?.map(e => e.id) ?? [],
+    inventory: session.run?.player?.inventory?.map(e => e?.id ?? null) ?? [],
   })
 
   ctx.resetCombatOnDeath()

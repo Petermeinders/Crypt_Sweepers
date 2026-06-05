@@ -1,6 +1,8 @@
 import { CONFIG } from '../config.js'
 
-const FLOOR_DAMAGE_INFLECTION = 50
+function hpInflectionFloor() {
+  return CONFIG.enemy.hpInflectionFloor ?? 50
+}
 
 /**
  * Enemy damage multiplier by floor — compound growth (moderate exponential curve).
@@ -12,11 +14,12 @@ export function floorDamageMult(floor) {
   const e = CONFIG.enemy
   const earlyRate = e.floorScaleDmgExpRate ?? 0.048
   const lateRate  = e.floorScaleDmgExpRate_late ?? 0.024
-  if (f <= FLOOR_DAMAGE_INFLECTION) {
+  const inf = hpInflectionFloor()
+  if (f <= inf) {
     return Math.pow(1 + earlyRate, f - 1)
   }
-  const base50 = Math.pow(1 + earlyRate, FLOOR_DAMAGE_INFLECTION - 1)
-  return base50 * Math.pow(1 + lateRate, f - FLOOR_DAMAGE_INFLECTION)
+  const base50 = Math.pow(1 + earlyRate, inf - 1)
+  return base50 * Math.pow(1 + lateRate, f - inf)
 }
 
 /**
@@ -27,11 +30,12 @@ export function floorDamageMult(floor) {
 export function scaleEnemyDef(def, floor) {
   // HP: piecewise linear; damage: compound (see floorDamageMult)
   let hpMult
-  if (floor <= FLOOR_DAMAGE_INFLECTION) {
+  const inf = hpInflectionFloor()
+  if (floor <= inf) {
     hpMult = 1 + CONFIG.enemy.floorScaleHP * (floor - 1)
   } else {
-    const base50Hp = 1 + CONFIG.enemy.floorScaleHP * (FLOOR_DAMAGE_INFLECTION - 1)
-    hpMult = base50Hp + CONFIG.enemy.floorScaleHP_late * (floor - FLOOR_DAMAGE_INFLECTION)
+    const base50Hp = 1 + CONFIG.enemy.floorScaleHP * (inf - 1)
+    hpMult = base50Hp + CONFIG.enemy.floorScaleHP_late * (floor - inf)
   }
   const dmgMult = floorDamageMult(floor)
   const statMult = CONFIG.enemy.statMult ?? 1

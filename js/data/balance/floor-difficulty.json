@@ -1,0 +1,67 @@
+{
+  "schemaVersion__doc": "Increment when you make breaking structural changes to this file (not required for value tweaks).",
+  "schemaVersion": 1,
+
+  "description__doc": "Short summary of what this file controls. Game code reads values via loadFloorDifficulty.js → CONFIG.",
+  "description": "Main-game floor difficulty: enemy tile density, HP/damage scaling, leader cadence, Void trial anchor floor.",
+
+  "enemyDensity__doc": "How many dungeon tiles are enemies vs empty/loot. Drives TileDensity.js weight pool (not individual enemy stats).",
+  "enemyDensity": {
+    "shareAtFloor1__doc": "Target share of the random tile pool for enemy + enemy_fast at floor 1 (e.g. 0.2 = 20%). Lower = fewer fights, more pathing room.",
+    "shareAtFloor1": 0.2,
+
+    "shareAtFloor50__doc": "Same as shareAtFloor1, anchor at floor 50. Values between floors 1–50 are linearly interpolated.",
+    "shareAtFloor50": 0.32,
+
+    "shareAtFloor100__doc": "Same anchors, at floor 100. Floors 50–100 interpolate between shareAtFloor50 and this value.",
+    "shareAtFloor100": 0.38,
+
+    "fastShareRatio__doc": "Of all enemy tiles spawned, what fraction are fast (enemy_fast). Computed as numerator/denominator → fastShareOfEnemies in CONFIG.",
+    "fastShareRatio": { "numerator": 7, "denominator": 29 },
+
+    "minEmptyWeight__doc": "Minimum weight for empty tiles in the pool so the generator always leaves non-enemy outcomes (prevents 100% enemy grids).",
+    "minEmptyWeight": 12
+  },
+
+  "enemyScaling__doc": "Per-floor HP and damage multipliers applied in EnemyScaling.scaleEnemyDef() to every enemy type (base stats still live in enemies.js).",
+  "enemyScaling": {
+    "hpInflectionFloor__doc": "Floor where HP growth switches from floorScaleHP to floorScaleHP_late. Damage uses the dmg rates below with the same inflection.",
+    "hpInflectionFloor": 50,
+
+    "floorScaleHP__doc": "Linear HP growth per floor for floors 2 through hpInflectionFloor. Example 0.24 → +24% of base HP per floor step (before statMult).",
+    "floorScaleHP": 0.24,
+
+    "floorScaleHP_late__doc": "Extra linear HP per floor above hpInflectionFloor (steeper deep-run scaling). Added on top of HP already gained through the inflection floor.",
+    "floorScaleHP_late": 0.3,
+
+    "floorScaleDmgExpRate__doc": "Compound enemy damage per floor for floors 2–inflection: damage mult × (1 + rate) each floor. Moderate exponential curve.",
+    "floorScaleDmgExpRate": 0.045,
+
+    "floorScaleDmgExpRate_late__doc": "Compound damage rate continued above hpInflectionFloor (usually lower than early rate to avoid one-shots).",
+    "floorScaleDmgExpRate_late": 0.021,
+
+    "statMult__doc": "Global multiplier applied to scaled enemy HP and damage after floor math. 1.25 = +25% on final rolled stats.",
+    "statMult": 1.25
+  },
+
+  "enemyLeaders__doc": "Per-floor chance to spawn leader-augmented enemies (see EnemyLeaders.js). Chances should sum to 1.0 with floorChanceNone.",
+  "enemyLeaders": {
+    "floorChanceNone__doc": "Probability this floor has zero leader slots (no promoted enemies).",
+    "floorChanceNone": 0.9,
+
+    "floorChanceOne__doc": "Probability this floor gets exactly one leader slot.",
+    "floorChanceOne": 0.05,
+
+    "floorChanceTwo__doc": "Probability this floor gets two leader slots.",
+    "floorChanceTwo": 0.05,
+
+    "maxVisible__doc": "Cap on how many leader-framed enemies can be visible on the grid at once.",
+    "maxVisible": 2
+  },
+
+  "voidTrial__doc": "Void difficulty is relative to the main game: void uses main-game scaling at an equivalent floor, then void tier mults apply.",
+  "voidTrial": {
+    "enemyBaseFloor__doc": "Void trial floor 1 uses main-game enemy scaling as if the player were on this main-game floor. Each void floor adds +1 (voidEffectiveEnemyFloor).",
+    "enemyBaseFloor": 50
+  }
+}

@@ -30,6 +30,6 @@ export const BALANCE_PILLARS = [
  */
 export const RECOMMENDED_TUNING_ORDER = [
   'Global passive flat damage (js/data/passives.js) — largest swing on melee TTK',
-  'Enemy base HP and CONFIG.enemy.floorScaleHP (js/data/enemies.js, js/config.js)',
+  'Enemy base HP and floor scaling (js/data/enemies.js, js/data/balance/floor-difficulty.json)',
   'Persistent gold income vs passive prices (economy pacing)',
 ]
