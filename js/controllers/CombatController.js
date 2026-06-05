@@ -33,7 +33,7 @@ export function shouldShowParryWindow(tile) {
   if (session.save?.settings?.cheats?.godMode) return false
   if (!(session.save?.settings?.parryEnabled ?? true)) return false
   const attrs = tile.enemyData?.attributes ?? []
-  return attrs.includes('telegraphs') && !attrs.includes('fast') && tile.enemyData?.behaviour !== 'fast'
+  return attrs.includes('telegraphs') && !attrs.includes('fast')
 }
 
 /** Mushroom Harvester taunt: if a live, visible Harvester exists and the target is NOT one,

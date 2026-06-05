@@ -1,4 +1,5 @@
 import { CONFIG } from '../config.js'
+import { isFoeTileType } from '../data/tiles.js'
 import {
   isVoidTrialRun,
   isVoidPreBossSanctuaryFloor,
@@ -241,7 +242,7 @@ export function startFloor(ctx) {
     const grid = TileEngine.getGrid()
     for (const row of grid) {
       for (const t of row) {
-        if (!t.revealed && (t.type === 'enemy' || t.type === 'enemy_fast' || t.type === 'boss')) {
+        if (!t.revealed && isFoeTileType(t.type)) {
           t.revealed = true
           session.run.tilesRevealed++
           TileEngine.markReachable(t.row, t.col, ctx.markReachableUi)

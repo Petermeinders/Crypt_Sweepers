@@ -13,7 +13,7 @@ import { session } from '../core/RunContext.js'
 import { isVoidTrialRun, isBossFloorForRun, voidEffectiveEnemyFloor, voidEnemyStatMult } from './VoidTrial.js'
 import { getCorruptionModifiers } from './VoidCorruption.js'
 import EnemyLeaders from './EnemyLeaders.js'
-import { computeDungeonTileWeights } from './TileDensity.js'
+import { computeDungeonTileWeights, fastEnemyShare } from './TileDensity.js'
 
 // ── Grid state ───────────────────────────────────────────────
 let _grid = []
@@ -135,9 +135,13 @@ function _enemySpawnAllowed(enemyId, biomeId, floor) {
   return true
 }
 
-// Pick enemy type for standard enemy slot, scaling by floor
-function _pickEnemyType(floor, tileType) {
-  if (tileType === 'boss') {
+function _isFastTaggedEnemy(def) {
+  return !!def?.attributes?.includes('fast') && !def?.isBoss
+}
+
+// Pick enemy type for an enemy tile, scaling by floor
+function _pickEnemyType(floor, opts = {}) {
+  if (opts.boss) {
     const idx = Math.floor((floor - 1) / 5) % BOSS_POOL.length
     return BOSS_POOL[idx]
   }
@@ -150,22 +154,27 @@ function _pickEnemyType(floor, tileType) {
     return def.behaviour !== 'boss' && _enemySpawnAllowed(id, biomeId, floor)
   })
 
-  if (tileType === 'enemy_fast') {
-    const fastPool = allIds.filter(e => {
-      const def = ENEMY_DEFS[e]
-      return def.behaviour === 'fast' || def.attributes?.includes('fast')
-    })
+  if (opts.forceFast) {
+    const fastPool = allIds.filter(id => _isFastTaggedEnemy(ENEMY_DEFS[id]))
     return fastPool.length ? fastPool[Math.floor(Math.random() * fastPool.length)] : 'goblin'
   }
-  // Standard enemy tile — exclude behaviour-fast, behaviour-archer, behaviour-mouse, treasure_goblin
+  // Standard enemy tile — exclude fast-tagged, archer, mouse, treasure_goblin
   // (archer_goblin / treasure_goblin / mouse spawn via GameController only)
-  const stdPool = allIds.filter(e => {
-    const b = ENEMY_DEFS[e]?.behaviour
-    return b !== 'fast' && b !== 'archer' && b !== 'mouse' && b !== 'treasure_goblin'
+  const stdPool = allIds.filter(id => {
+    const def = ENEMY_DEFS[id]
+    const b = def?.behaviour
+    return !_isFastTaggedEnemy(def) && b !== 'archer' && b !== 'mouse' && b !== 'treasure_goblin'
   })
   return stdPool.length
     ? stdPool[Math.floor(Math.random() * stdPool.length)]
     : allIds[Math.floor(Math.random() * allIds.length)]
+}
+
+function _rollEnemyTypeForTile(type, floor) {
+  if (type === 'boss') return _pickEnemyType(floor, { boss: true })
+  if (type !== 'enemy') return _pickEnemyType(floor, { forceFast: false })
+  const forceFast = Math.random() < fastEnemyShare()
+  return _pickEnemyType(floor, { forceFast })
 }
 
 // ── Sub-floor generation ─────────────────────────────────────
@@ -192,7 +201,7 @@ function generateSubFloor(type, mainFloor) {
 function _sfTile(type, row, col, floor) {
   const base = { row, col, type, revealed: false, locked: false, enemyData: null, itemData: null, element: null, reachable: false }
   if (TILE_DEFS[type]?.isEnemy) {
-    base.enemyData = createEnemy(_pickEnemyType(floor, type), floor)
+    base.enemyData = createEnemy(_rollEnemyTypeForTile(type, floor), floor)
   }
   return base
 }
@@ -207,7 +216,7 @@ function _pickSingleMobType(floor) {
   const biomeId = CONFIG.biomeFor(floor)?.id ?? 'dungeon'
   const pool = Object.keys(ENEMY_DEFS).filter(id => {
     const d = ENEMY_DEFS[id]
-    return d.behaviour !== 'boss' && d.behaviour !== 'fast' && _enemySpawnAllowed(id, biomeId, floor)
+    return d.behaviour !== 'boss' && !_isFastTaggedEnemy(d) && _enemySpawnAllowed(id, biomeId, floor)
   })
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : 'skeleton'
 }
@@ -710,7 +719,7 @@ function importGridFromSnapshot(snapshot, floor, opts = {}) {
       const tile = {
         row: r,
         col: c,
-        type: st.type,
+        type: st.type === 'enemy_fast' ? 'enemy' : st.type,
         revealed: !!st.revealed,
         locked: !!st.locked,
         reachable: !!st.reachable,
@@ -755,8 +764,7 @@ function _createTileWithEnemy(type, row, col, floor) {
 
   let enemyData = null
   if (def.isEnemy) {
-    const enemyType = _pickEnemyType(floor, type)
-    enemyData = createEnemy(enemyType, floor)
+    enemyData = createEnemy(_rollEnemyTypeForTile(type, floor), floor)
   }
 
   const tile = {

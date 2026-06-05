@@ -4,6 +4,7 @@ import TileEngine from '../systems/TileEngine.js'
 import CombatResolver from '../systems/CombatResolver.js'
 import UI from '../ui/UI.js'
 import { WARRIOR_UPGRADES } from '../data/upgrades.js'
+import { isFoeTileType } from '../data/tiles.js'
 import { session, charKey } from '../core/RunContext.js'
 
 export function isKillEchoHiddenEnemyTile(t) {
@@ -12,7 +13,7 @@ export function isKillEchoHiddenEnemyTile(t) {
     !t.revealed &&
     t.enemyData &&
     !t.enemyData._slain &&
-    (t.type === 'enemy' || t.type === 'enemy_fast' || t.type === 'boss')
+    isFoeTileType(t.type)
   )
 }
 

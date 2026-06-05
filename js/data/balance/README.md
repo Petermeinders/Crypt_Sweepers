@@ -14,8 +14,8 @@ Tunable curves and multipliers that are awkward to maintain inside `config.js`. 
 Each tunable value has a sibling key **`fieldName__doc`** on the line above it with a plain-English explanation. The loader strips all `*__doc` keys before merging into `CONFIG` — they are documentation only.
 
 ### `enemyDensity`
-- **`shareAtFloor1` / `shareAtFloor50` / `shareAtFloor100`** — target share of the dungeon weight pool for `enemy` + `enemy_fast` (interpolated between anchors). See `js/systems/TileDensity.js`.
-- **`fastShareRatio`** — fraction of enemy pool that is `enemy_fast` (default 7/29).
+- **`shareAtFloor1` / `shareAtFloor50` / `shareAtFloor100`** — target share of the dungeon weight pool for `enemy` tiles (interpolated between anchors). See `js/systems/TileDensity.js`.
+- **`fastShareRatio`** — fraction of enemy tiles that roll a fast-tagged enemy (`attributes: ['fast']`; default 7/29).
 - **`minEmptyWeight`** — floor weight for empty tiles so the pool never collapses.
 
 ### `enemyScaling`

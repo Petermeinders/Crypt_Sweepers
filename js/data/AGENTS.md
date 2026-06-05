@@ -38,7 +38,7 @@ The data directory is the game's content layer. Every file is a plain JS export 
   - `{ fromBiome: 'id' }` — that biome and all later ones
   - `{ biomes: ['id', ...] }` — only listed biomes
   - `{ minFloor: N }` — floor N and deeper
-- **Enemy `behaviour` field** controls spawn routing in `TileEngine`: `'standard'`, `'fast'`, `'boss'`, `'archer'` (archer is never spawned via normal pool — only via `_spawnArcherGoblin()`).
+- **Enemy `behaviour` field** controls spawn routing in `TileEngine`: `'standard'`, `'boss'`, `'archer'` (archer is never spawned via normal pool — only via `_spawnArcherGoblin()`). Fast ambush enemies use `attributes: ['fast']` instead of a separate tile type.
 - **Item `rarity`** controls loot pool assignment in `js/systems/LootTables.js`: `'common'` → `COMMON_LOOT_IDS`, `'rare'` → `RARE_TRINKET_IDS`, `'epic'` → `EPIC_TRINKET_IDS`, `'legendary'` → `LEGENDARY_TRINKET_IDS`. Magic-chest-exclusive items are in `MAGIC_CHEST_EXCLUSIVE_IDS` in `LootTables.js`, not in `items.js`. Legendary trinkets only drop from floor 10+ (`LEGENDARY_MIN_FLOOR`).
 - **`dowsing-rod`** (common, stacks to 10) — one-time use, instantly reveals the nearest unrevealed trap. Uses safe reveal (sets `tile.revealed = true` + `patchMainGridTileAt`) so the trap is exposed but does NOT trigger trap damage. Handled by `dowsingRodAction()` in `GameController`.
 - **Upgrade `requires`** is a single prerequisite upgrade ID. `MetaProgression` enforces this gate before purchase.

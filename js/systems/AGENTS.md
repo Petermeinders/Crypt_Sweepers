@@ -7,7 +7,7 @@ The systems directory contains all stateful and stateless game systems that are 
 | File | Purpose |
 |------|---------|
 | `TileEngine.js` | Owns the grid model (`_grid`). Generates floors, creates tile/enemy objects, manages sub-floor state, provides `getGrid()` / `getActiveTiles()` / `patchMainGridTileAt()` accessors. |
-| `TileDensity.js` | `CONFIG.enemyDensity` curve → dungeon tile weights (`enemy` / `enemy_fast` / `empty`); `expectedEnemyTiles()` for balance-report. |
+| `TileDensity.js` | `CONFIG.enemyDensity` curve → dungeon tile weights (`enemy` / `empty`); `fastEnemyShare()` for fast-tagged enemy rolls; `expectedEnemyTiles()` for balance-report. |
 | `CombatResolver.js` | Pure combat math — no DOM, no state transitions. Returns result objects. `GameController` acts on the results. |
 | `EnemyScaling.js` | Single exported function `scaleEnemyDef(def, floor)`. Applies piecewise linear HP/DMG scaling. Used by `TileEngine.createEnemy()` and `js/balance/snapshot.js`. |
 | `MetaProgression.js` | Manages the persistent save structure (hero XP trees, global passives, gold shop, hero unlocks). `defaultSave()` defines the canonical save schema. `applyToPlayer()` applies save state to a fresh player object at run start. |

@@ -16,6 +16,7 @@ import {
 } from '../systems/VoidCorruption.js'
 import SaveManager           from '../save/SaveManager.js'
 import UI                    from '../ui/UI.js'
+import { isFoeTileType, isHiddenEnemyTileType } from '../data/tiles.js'
 import { RANGER_BASE, RANGER_UPGRADES } from '../data/ranger.js'
 import { ENGINEER_BASE, ENGINEER_UPGRADES, ENGINEER_TURRET, ENGINEER_CONSTRUCT_MANA_COST, ENGINEER_MOVE_MANA_COST, ENGINEER_SEISMIC_PING } from '../data/engineer.js'
 import { MAGE_BASE, MAGE_UPGRADES } from '../data/mage.js'
@@ -196,7 +197,7 @@ function _tryDemonFlip(demonTile) {
   const candidates = []
   for (const row of grid) {
     for (const t of row) {
-      if (!t.revealed && (t.type === 'enemy' || t.type === 'enemy_fast')) {
+      if (!t.revealed && isHiddenEnemyTileType(t.type)) {
         candidates.push(t)
       }
     }
@@ -353,7 +354,7 @@ function _markTileTypeHint(tile, opts = {}) {
 }
 
 function _echoCharmCategoryForTileType(type) {
-  if (type === 'enemy' || type === 'enemy_fast' || type === 'boss') return '⚔️'
+  if (isFoeTileType(type)) return '⚔️'
   if (type === 'trap') return '🕸️'
   if (type === 'gold' || type === 'chest' || type === 'heart') return '🪙'
   if (type === 'event' || type === 'checkpoint') return '✨'
@@ -365,7 +366,7 @@ function _echoCharmCategoryForTileType(type) {
 }
 
 function _spyglassHintLabel(type) {
-  if (type === 'enemy' || type === 'enemy_fast' || type === 'boss') return '⚔️ Foe'
+  if (isFoeTileType(type)) return '⚔️ Foe'
   if (type === 'trap') return '🕸️ Snare'
   if (type === 'gold' || type === 'chest' || type === 'heart') return '🪙 Loot'
   if (type === 'event' || type === 'checkpoint') return '✨ Special'
@@ -2329,7 +2330,7 @@ function _checkFloorCleared() {
   const grid = TileEngine.getGrid()
   for (const row of grid) {
     for (const tile of row) {
-      if (tile.type === 'enemy' || tile.type === 'enemy_fast') {
+      if (isHiddenEnemyTileType(tile.type)) {
         if (!tile.revealed || !tile.enemyData?._slain) return
       }
     }

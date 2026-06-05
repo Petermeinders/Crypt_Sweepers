@@ -810,28 +810,7 @@ export function resolveEffect(ctx, tile) {
       UI.showRetreat()
       break
 
-    case 'boss':
-    case 'enemy_fast': {
-      // Boss tiles: no free ambush hit or forced engagement — tap the boss to start the fight.
-      const isBossTile = tile.type === 'boss'
-      /** Vampire: no fast-tile ambush damage, shake, or forced engagement — reveal plays like a normal foe. */
-      const skipFastAmbushForVampire = p.isVampire && !isBossTile
-      let reflexDodge = false
-      if (!isBossTile && !skipFastAmbushForVampire) {
-        const { dmg } = CombatResolver.resolveFastReveal(tile.enemyData)
-        const wardensBlock = p.inventory.some(e => e?.id === 'wardens-brand')
-        reflexDodge =
-          !wardensBlock
-          && !tile.enemyData?.isBoss
-          && (p.reflexDodgeChance ?? 0) > 0
-          && Math.random() < p.reflexDodgeChance
-        if (!wardensBlock && !reflexDodge) {
-          const baseDmg = dmg + (p.inventory.some(e => e?.id === 'abyssal-lens') ? 1 : 0)
-          const r = applyRangerTrapfinderMitigation(baseDmg, p)
-          ctx.takeDamage(r.dmg, tile.element, false, null, { enemyAttack: true, deathCause: 'fast_enemy' })
-        }
-        UI.shakeTile(tile.element)
-      }
+    case 'boss': {
       const rangerSkipLock = p.isRanger && Math.random() < RANGER_PASSIVE_SKIP_ADJ_LOCK
       if (rangerSkipLock) {
         tile.enemyData.rangerSkipAdjacentLock = true
@@ -840,26 +819,54 @@ export function resolveEffect(ctx, tile) {
       }
       UI.markTileEnemyAlive(tile.element)
       if (!GameState.is(States.DEATH)) {
-        if (isBossTile) {
-          UI.setMessage(
-            `⚠️ BOSS: ${tile.enemyData.label} — stands before you. Tap when ready to fight.`,
-            true,
-          )
-        } else if (skipFastAmbushForVampire) {
-          UI.setMessage(`A ${tile.enemyData?.label ?? 'enemy'} lurks. Tap it to fight.`)
-        } else {
-          const label = tile.enemyData?.isBoss ? `⚠️ BOSS: ${tile.enemyData.label}` : '⚡ Fast enemy'
-          const dodgeNote = reflexDodge ? ' Your reflexes kick in — ambush dodged!' : ''
-          UI.setMessage(`${label} strikes first!${dodgeNote} Tap it to fight.`, true)
-          if (reflexDodge) UI.spawnFloat(tile.element, '⚡ Dodged!', 'heal')
-        }
+        UI.setMessage(
+          `⚠️ BOSS: ${tile.enemyData.label} — stands before you. Tap when ready to fight.`,
+          true,
+        )
         UI.showRetreat()
         EventBus.emit('tile:locked', {})
       }
       break
     }
 
-    case 'enemy': {
+    case 'enemy':
+    case 'enemy_fast': {
+      const isFastAmbush =
+        (tile.type === 'enemy_fast' || tile.enemyData?.attributes?.includes('fast'))
+        && !tile.enemyData?.isBoss
+        && !p.isVampire
+
+      if (isFastAmbush) {
+        let reflexDodge = false
+        const { dmg } = CombatResolver.resolveFastReveal(tile.enemyData)
+        const wardensBlock = p.inventory.some(e => e?.id === 'wardens-brand')
+        reflexDodge =
+          !wardensBlock
+          && (p.reflexDodgeChance ?? 0) > 0
+          && Math.random() < p.reflexDodgeChance
+        if (!wardensBlock && !reflexDodge) {
+          const baseDmg = dmg + (p.inventory.some(e => e?.id === 'abyssal-lens') ? 1 : 0)
+          const r = applyRangerTrapfinderMitigation(baseDmg, p)
+          ctx.takeDamage(r.dmg, tile.element, false, null, { enemyAttack: true, deathCause: 'fast_enemy' })
+        }
+        UI.shakeTile(tile.element)
+        const rangerSkipLock = p.isRanger && Math.random() < RANGER_PASSIVE_SKIP_ADJ_LOCK
+        if (rangerSkipLock) {
+          tile.enemyData.rangerSkipAdjacentLock = true
+        } else if (tile.enemyData?.behaviour !== 'archer') {
+          TileEngine.lockAdjacent(tile.row, tile.col, UI.lockTile.bind(UI))
+        }
+        UI.markTileEnemyAlive(tile.element)
+        if (!GameState.is(States.DEATH)) {
+          const dodgeNote = reflexDodge ? ' Your reflexes kick in — ambush dodged!' : ''
+          UI.setMessage(`⚡ Fast enemy strikes first!${dodgeNote} Tap it to fight.`, true)
+          if (reflexDodge) UI.spawnFloat(tile.element, '⚡ Dodged!', 'heal')
+          UI.showRetreat()
+          EventBus.emit('tile:locked', {})
+        }
+        break
+      }
+
       const rangerSkipLock = p.isRanger && Math.random() < RANGER_PASSIVE_SKIP_ADJ_LOCK
       if (rangerSkipLock) {
         tile.enemyData.rangerSkipAdjacentLock = true
@@ -889,27 +896,8 @@ export function resolveEffect(ctx, tile) {
         }
       }
 
-      // Fast enemies get a free strike the moment they're revealed (bosses never ambush)
-      const hasWardenBrand = p.inventory.some(e => e?.id === 'wardens-brand')
-      const hasWarden = hasWardenBrand
-      const hasLens   = p.inventory.some(e => e?.id === 'abyssal-lens')
-      if (tile.enemyData?.attributes?.includes('fast') && !tile.enemyData?.isBoss && !p.isVampire) {
-        const d = tile.enemyData.dmg
-        const ambushDmg  = tile.enemyData.hitDamage ?? (Array.isArray(d) ? d[0] : d)
-        const reflexDodge = !hasWarden && (p.reflexDodgeChance ?? 0) > 0 && Math.random() < p.reflexDodgeChance
-        if (hasWardenBrand) {
-          UI.setMessage(`The ${tile.enemyData.label} lunges — but your brand holds. Tap to fight.`)
-        } else if (reflexDodge) {
-          UI.spawnFloat(tile.element, '⚡ Dodged!', 'heal')
-          UI.setMessage(`⚡ The ${tile.enemyData.label} lunges — your reflexes save you! Tap to fight.`)
-        } else {
-          const finalDmg = ambushDmg + (hasLens ? 1 : 0)
-          const r = applyRangerTrapfinderMitigation(finalDmg, p)
-          ctx.takeDamage(r.dmg, tile.element, false, tile.enemyData, { enemyAttack: true })
-          const tf = r.proc ? ' Trapfinder!' : ''
-          UI.setMessage(`⚡ The ${tile.enemyData.label} strikes first for ${r.dmg}!${tf} Tap to fight back.`)
-        }
-      } else if (hasLens && !tile.enemyData?.isBoss && !p.isVampire) {
+      const hasLens = p.inventory.some(e => e?.id === 'abyssal-lens')
+      if (hasLens && !tile.enemyData?.isBoss && !p.isVampire) {
         // Abyssal Lens: normal enemies also deal 1 ambush damage
         ctx.takeDamage(1, tile.element, false, tile.enemyData, { enemyAttack: true })
         if (!GameState.is(States.DEATH)) {

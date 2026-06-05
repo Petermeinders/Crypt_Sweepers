@@ -7,7 +7,7 @@
 
   "enemyDensity__doc": "How many dungeon tiles are enemies vs empty/loot. Drives TileDensity.js weight pool (not individual enemy stats).",
   "enemyDensity": {
-    "shareAtFloor1__doc": "Target share of the random tile pool for enemy + enemy_fast at floor 1 (e.g. 0.2 = 20%). Lower = fewer fights, more pathing room.",
+    "shareAtFloor1__doc": "Target share of the random tile pool for enemy tiles at floor 1 (e.g. 0.2 = 20%). Lower = fewer fights, more pathing room.",
     "shareAtFloor1": 0.2,
 
     "shareAtFloor50__doc": "Same as shareAtFloor1, anchor at floor 50. Values between floors 1–50 are linearly interpolated.",
@@ -16,7 +16,7 @@
     "shareAtFloor100__doc": "Same anchors, at floor 100. Floors 50–100 interpolate between shareAtFloor50 and this value.",
     "shareAtFloor100": 0.38,
 
-    "fastShareRatio__doc": "Of all enemy tiles spawned, what fraction are fast (enemy_fast). Computed as numerator/denominator → fastShareOfEnemies in CONFIG.",
+    "fastShareRatio__doc": "Of all enemy tiles spawned, what fraction roll a fast-tagged enemy (attributes: fast). Computed as numerator/denominator → fastShareOfEnemies in CONFIG.",
     "fastShareRatio": { "numerator": 7, "denominator": 29 },
 
     "minEmptyWeight__doc": "Minimum weight for empty tiles in the pool so the generator always leaves non-enemy outcomes (prevents 100% enemy grids).",

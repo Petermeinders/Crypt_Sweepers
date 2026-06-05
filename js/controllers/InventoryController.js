@@ -1,4 +1,5 @@
 import { CONFIG } from '../config.js'
+import { isFoeTileType } from '../data/tiles.js'
 import GameState, { States } from '../core/GameState.js'
 import EventBus from '../core/EventBus.js'
 import Logger from '../core/Logger.js'
@@ -419,7 +420,7 @@ export function useItem(ctx, id, inventoryIndex = null) {
     let count = 0
     for (const row of grid) {
       for (const t of row) {
-        if ((t.type === 'enemy' || t.type === 'enemy_fast' || t.type === 'boss') && !t.enemyData?._slain) count++
+        if (isFoeTileType(t.type) && !t.enemyData?._slain) count++
       }
     }
     UI.setMessage(`👂 Sonic Ear — ${count} living enem${count === 1 ? 'y' : 'ies'} remain on this floor.`)

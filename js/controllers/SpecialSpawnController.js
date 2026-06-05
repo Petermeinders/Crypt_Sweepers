@@ -1,4 +1,5 @@
 import TileEngine from '../systems/TileEngine.js'
+import { isHiddenEnemyTileType } from '../data/tiles.js'
 import UI from '../ui/UI.js'
 import { ITEMS } from '../data/items.js'
 import { RARE_TRINKET_IDS } from '../systems/LootTables.js'
@@ -9,7 +10,7 @@ function pickSpecialSpawnEnemyTile(usedCoords) {
   const candidates = []
   for (const row of grid) {
     for (const t of row) {
-      if (!t.revealed && (t.type === 'enemy' || t.type === 'enemy_fast') && t.enemyData) {
+      if (!t.revealed && isHiddenEnemyTileType(t.type) && t.enemyData) {
         const k = `${t.row},${t.col}`
         if (usedCoords?.has(k)) continue
         candidates.push(t)

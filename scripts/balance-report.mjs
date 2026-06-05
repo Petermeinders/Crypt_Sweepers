@@ -15,7 +15,7 @@ for (const floor of [1, 5, 10, 25, 50, 100]) {
   const ex = expectedEnemyTiles(floor, size.cols, size.rows)
   console.log(
     `  Floor ${floor} (${size.cols}×${size.rows}): share ${(enemyDensityShare(floor) * 100).toFixed(1)}%` +
-      ` → ~${ex.expectedEnemy.toFixed(1)} enemy cells (weights enemy=${ex.weights.enemy} fast=${ex.weights.enemy_fast} empty=${ex.weights.empty})`,
+      ` → ~${ex.expectedEnemy.toFixed(1)} enemy cells (weights enemy=${ex.weights.enemy} fastShare=${(ex.weights.fastShareOfEnemies * 100).toFixed(1)}% empty=${ex.weights.empty})`,
   )
 }
 console.log('')

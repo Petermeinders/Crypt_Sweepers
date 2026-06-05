@@ -4,6 +4,7 @@ import TileEngine from '../systems/TileEngine.js'
 import UI from '../ui/UI.js'
 import { VAMPIRE_BASE, VAMPIRE_DARK_EYES_MAX_TILES, VAMPIRE_UPGRADES } from '../data/vampire.js'
 import { session, charKey } from '../core/RunContext.js'
+import { isFoeTileType } from '../data/tiles.js'
 
 export function refreshVampireHud(ctx) {
   if (charKey() !== 'vampire') return
@@ -40,7 +41,7 @@ export function refreshVampireHud(ctx) {
 }
 
 export function isDarkEyesEnemyTileType(type) {
-  return type === 'enemy' || type === 'enemy_fast' || type === 'boss'
+  return isFoeTileType(type)
 }
 
 export function vampireDrainKillPresentationThenResolve(ctx, t, damageDealt, onDone) {

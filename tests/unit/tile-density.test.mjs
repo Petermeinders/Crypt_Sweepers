@@ -19,14 +19,14 @@ describe('TileDensity', () => {
     const w = computeDungeonTileWeights(floor)
     const types = Object.keys(w).filter(t => t !== 'boss')
     const total = types.reduce((s, t) => s + w[t], 0)
-    const share = (w.enemy + w.enemy_fast) / total
+    const share = w.enemy / total
     assert.ok(Math.abs(share - enemyDensityShare(floor)) < 0.02)
   })
 
   it('floor 1 has lower enemy weights than floor 50', () => {
     const w1 = computeDungeonTileWeights(1)
     const w50 = computeDungeonTileWeights(50)
-    assert.ok(w1.enemy + w1.enemy_fast < w50.enemy + w50.enemy_fast)
+    assert.ok(w1.enemy < w50.enemy)
   })
 
   it('expectedEnemyTiles on 5×6 floor 1 is below legacy ~9', () => {

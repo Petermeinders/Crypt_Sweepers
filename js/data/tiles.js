@@ -1,11 +1,11 @@
 // Tile type definitions — plain data only, no functions.
 // Factory function lives in TileEngine.js.
-// Base weights for non-enemy tiles; enemy / enemy_fast / empty come from CONFIG.enemyDensity (TileDensity.js).
+// Base weights for non-enemy tiles; enemy / empty come from CONFIG.enemyDensity (TileDensity.js).
+// Fast enemies use attributes: ['fast'] on ENEMY_DEFS — not a separate tile type.
 
 export const TILE_DEFS = {
   empty:      { emoji: '',     label: '',           cssClass: 'type-empty',      weight: 29, isEnemy: false },
   enemy:      { emoji: '💀',   label: 'enemy',      cssClass: 'type-enemy',      weight: 22, isEnemy: true,  enemyType: 'skeleton'    },
-  enemy_fast: { emoji: '⚡',   label: 'fast!',      cssClass: 'type-enemy-fast', weight:  7, isEnemy: true,  enemyType: 'goblin' },
   gold:       { emoji: '🪙',   label: '',           cssClass: 'type-gold',       weight: 16, isEnemy: false },
   chest:      { emoji: '📦',   label: '',           cssClass: 'type-chest',      weight:  2, isEnemy: false },
   trap:       { emoji: '🕸️',   label: '',           cssClass: 'type-trap',       weight:  5, isEnemy: false },
@@ -44,4 +44,14 @@ export const TILE_DEFS = {
   rubble: { emoji: '🪨', label: 'Rubble', cssClass: 'type-rubble', weight: 0, isEnemy: false },
   /** Dungeon floor — awards +1/+2/+3 armor on reveal; weight tuned by TileEngine per floor */
   armor:  { emoji: '🛡️',  label: 'Armor',  cssClass: 'type-armor',  weight: 5, isEnemy: false },
+}
+
+/** Combat foe tiles on the main grid (legacy saves may still carry type enemy_fast). */
+export function isFoeTileType(type) {
+  return type === 'enemy' || type === 'boss' || type === 'enemy_fast'
+}
+
+/** Unrevealed enemy slot (not boss). Legacy saves may use enemy_fast. */
+export function isHiddenEnemyTileType(type) {
+  return type === 'enemy' || type === 'enemy_fast'
 }
