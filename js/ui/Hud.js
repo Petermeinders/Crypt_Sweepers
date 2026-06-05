@@ -822,12 +822,12 @@ export const HudMethods = {
     }
     const name = CONFIG.floorLabelFor(floor)
     el.floorInfo.textContent = `Floor ${floor} — ${name}`
-    this.applyFloorTheme(floor, { rest: false })
+    this.applyFloorTheme(floor, { rest: false, isVoidTrial: !!opts.isVoidTrial })
   },
 
   applyFloorTheme(floor, opts = {}) {
     const bg = opts.isVoidTrial
-      ? 'assets/ui/void/void-selection-background.png'
+      ? CONFIG.void.floorBackground
       : opts.rest
         ? CONFIG.restSanctuaryBackground
         : CONFIG.floorBackgroundFor(floor)

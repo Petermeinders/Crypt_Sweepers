@@ -28,7 +28,7 @@ describe('VoidCorruption', () => {
   it('getCorruptionModifiers stacks hp_pct picks', () => {
     const run = { isVoidTrial: true, voidTier: 1, corruption: { stacks: { hp_pct: 2 }, pickedFloors: [] } }
     const mods = getCorruptionModifiers(run)
-    assert.equal(mods.maxHpMult, -0.02)
+    assert.equal(mods.maxHpMult, -0.04)
   })
 
   it('mp_pct uses gear-inclusive max caps, not baseMaxHp', () => {
@@ -45,16 +45,16 @@ describe('VoidCorruption', () => {
     assert.equal(player.voidCorruptionBaseMaxHp, 109)
     assert.equal(player.voidCorruptionBaseMaxMana, 110)
     assert.equal(player.maxHp, 109)
-    assert.equal(player.maxMana, Math.floor(110 * 0.99))
+    assert.equal(player.maxMana, Math.floor(110 * 0.98))
     assert.equal(player.hp, 109)
-    assert.equal(player.mana, Math.floor(110 * 0.99))
+    assert.equal(player.mana, Math.floor(110 * 0.98))
   })
 
-  it('hp_pct one pick reduces max HP by 1% only', () => {
+  it('hp_pct one pick reduces max HP by 2% only', () => {
     const player = { maxHp: 100, hp: 100, maxMana: 80, mana: 80, baseMaxHp: 50, baseMaxMana: 40 }
     const run = { isVoidTrial: true, voidTier: 1, corruption: { stacks: { hp_pct: 1 }, pickedFloors: [1] } }
     applyCorruptionCapsToPlayer(run, player)
-    assert.equal(player.maxHp, 99)
+    assert.equal(player.maxHp, 98)
     assert.equal(player.maxMana, 80)
   })
 
@@ -133,7 +133,7 @@ describe('VoidCorruption entries', () => {
     assert.equal(frailty.stacks, 2)
     assert.equal(frailty.label, 'Frailty')
     assert.ok(frailty.description.includes('max HP'))
-    assert.ok(frailty.summary.includes('2%'))
+    assert.ok(frailty.summary.includes('4%'))
   })
 })
 

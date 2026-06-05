@@ -24,7 +24,9 @@ The data directory is the game's content layer. Every file is a plain JS export 
 | `changelog.js` | In-game changelog entries shown on the main menu. Not game logic. |
 | `characters.js` | `CHARACTERS` hero roster for hero-select UI + `SELECTABLE_HEROES` guard for `SaveMigrator`. Imports upgrade maps and `CONFIG` unlock costs. |
 | `balance/floor-difficulty.json` | Main-game floor difficulty tuning (density, HP/dmg scaling, Void anchor floor). Loaded by `balance/loadFloorDifficulty.js` into `CONFIG`. |
+| `balance/void-corruption.json` | Void trial curse pool and per-pick magnitudes. Loaded by `balance/loadVoidCorruption.js` into `CONFIG.void.corruption`. |
 | `balance/loadFloorDifficulty.js` | Imports JSON; normalizes derived fields; used only from `config.js`. |
+| `balance/loadVoidCorruption.js` | Imports void-corruption JSON; strips `*__doc` keys; used only from `config.js`. |
 
 ## Patterns
 

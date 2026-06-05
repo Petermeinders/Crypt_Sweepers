@@ -1,12 +1,15 @@
 // ============================================================
 // CONFIG — all tunable gameplay values
 // SETTINGS — player preferences (overwritten by SaveManager on boot)
-// Floor difficulty tuning: js/data/balance/floor-difficulty.json
+// Floor difficulty: js/data/balance/floor-difficulty.json
+// Void corruption: js/data/balance/void-corruption.json
 // ============================================================
 
 import { loadFloorDifficulty } from './data/balance/loadFloorDifficulty.js'
+import { loadVoidCorruption } from './data/balance/loadVoidCorruption.js'
 
 const _floorDifficulty = loadFloorDifficulty()
+const _voidCorruption = loadVoidCorruption()
 
 function _randInt(lo, hi) {
   return Math.floor(Math.random() * (hi - lo + 1)) + lo
@@ -363,7 +366,8 @@ export const CONFIG = {
     return this.biomes[this.biomes.length - 1]
   },
 
-  tileBacksFor(floor) {
+  tileBacksFor(floor, opts = {}) {
+    if (opts.isVoidTrial) return this.void.tileBacks
     return this.biomeFor(floor).tileBacks ?? this.defaultTileBacks
   },
 
@@ -491,6 +495,15 @@ export const CONFIG = {
 
   /** Epic 12 — The Void (see docs/epics/the-void/implementation-decisions.md) */
   void: {
+    /** Full-screen background during void trial dungeon floors (not trial selection UI). */
+    floorBackground: 'assets/ui/void/void-floor-background.png',
+    /** Unrevealed tile backs — one picked at random per tile on void dungeon floors. */
+    tileBacks: [
+      'assets/sprites/tiles/void-tile-back-1.png',
+      'assets/sprites/tiles/void-tile-back-2.png',
+      'assets/sprites/tiles/void-tile-back-3.png',
+      'assets/sprites/tiles/void-tile-back-4.png',
+    ],
     /** Void trial floor 1 uses main-game enemy scaling at this depth; each void floor adds +1. */
     enemyBaseFloor: _floorDifficulty.voidTrial.enemyBaseFloor,
     /** Main-game boss floor that awards the first Void Pearl (once per account). */
@@ -531,51 +544,7 @@ export const CONFIG = {
         flavor: 'Near-impossible without strong gear.',
       },
     },
-    corruption: {
-      tripletSize: 3,
-      curses: {
-        hp_pct: {
-          label: 'Frailty',
-          description: '−1% max HP (stacks)',
-          perPick: { maxHpMult: -0.01 },
-        },
-        mp_pct: {
-          label: 'Mind Drain',
-          description: '−1% max MP (stacks)',
-          perPick: { maxManaMult: -0.01 },
-        },
-        miss_strike: {
-          label: 'Unsteady Grip',
-          description: '+2% miss on basic attacks (stacks)',
-          perPick: { missStrike: 0.02 },
-        },
-        loot_drop: {
-          label: 'Barren Floor',
-          description: '−5% loot drops (stacks)',
-          perPick: { lootMult: -0.05 },
-        },
-        block_fail: {
-          label: 'Cracked Guard',
-          description: '+5% block/parry fail (stacks)',
-          perPick: { blockFail: 0.05 },
-        },
-        ability_fail: {
-          label: 'Arcane Static',
-          description: '+5% ability fail (stacks)',
-          perPick: { abilityFail: 0.05 },
-        },
-        enemy_dmg: {
-          label: 'Void Fury',
-          description: 'Enemies deal +5% damage (stacks)',
-          perPick: { enemyDmgMult: 0.05 },
-        },
-        enemy_hp: {
-          label: 'Swollen Horde',
-          description: 'Enemies have +5% HP (stacks)',
-          perPick: { enemyHpMult: 0.05 },
-        },
-      },
-    },
+    corruption: _voidCorruption,
   },
 }
 

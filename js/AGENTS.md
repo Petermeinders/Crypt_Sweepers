@@ -22,7 +22,7 @@ The `js/` directory contains all game source code. Two files live at this level;
 - `CONFIG.floorLabelFor(floor)` — display name for the biome segment (one label per biome)
 - `CONFIG.maxFloor` — highest playable floor (100)
 - `CONFIG.floorBackgroundFor(floor)` — returns the background image path
-- `CONFIG.tileBacksFor(floor)` — unrevealed tile back textures (biome `tileBacks` or `defaultTileBacks`)
+- `CONFIG.tileBacksFor(floor, { isVoidTrial })` — unrevealed tile back textures (void `tileBacks`, biome `tileBacks`, or `defaultTileBacks`)
 - `CONFIG.tileBackBorderFor(floor)` — optional 9-slice border-image settings (`tileBackBorderSlice`)
 
 `SETTINGS` is a mutable object shared with `AudioManager`. `SaveManager` overwrites it on load.

@@ -857,7 +857,8 @@ function _buildTileElement(tile, r, c, onTap, onHold, scrollable = false) {
   div.dataset.col = c
   div.setAttribute('aria-label', 'hidden tile')
 
-  const backImages = CONFIG.tileBacksFor(_currentFloor)
+  const useVoidBacks = isVoidTrialRun(session.run) && _gridMode === 'dungeon'
+  const backImages = CONFIG.tileBacksFor(_currentFloor, { isVoidTrial: useVoidBacks })
   const backSrc = backImages[Math.floor(Math.random() * backImages.length)]
 
   const isBoss = tile.enemyData?.isBoss

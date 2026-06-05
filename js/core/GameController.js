@@ -2709,7 +2709,7 @@ function testHarnessSetupRun(opts = {}) {
   if (!session.run) return false
   if (floor !== session.run.floor) session.run.floor = floor
   if (Object.keys(playerOverrides).length) Object.assign(session.run.player, playerOverrides)
-  UI.updateFloor(session.run.floor, { rest: session.run.atRest })
+  UI.updateFloor(session.run.floor, { rest: session.run.atRest, isVoidTrial: !!session.run.isVoidTrial })
   UI.updateHP(session.run.player.hp, session.run.player.maxHp)
   UI.updateMana(session.run.player.mana, session.run.player.maxMana)
   UI.updateGold(session.run.player.gold)

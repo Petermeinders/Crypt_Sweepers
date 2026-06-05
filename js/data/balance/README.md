@@ -7,6 +7,7 @@ Tunable curves and multipliers that are awkward to maintain inside `config.js`. 
 | File | Purpose |
 |------|---------|
 | `floor-difficulty.json` | Enemy tile density curve, per-floor HP/damage scaling, leader spawn chances, Void trial anchor floor (`enemyBaseFloor`) |
+| `void-corruption.json` | Void trial curse pool — per-pick modifiers, labels, descriptions (`CONFIG.void.corruption`) |
 
 ## Editing `floor-difficulty.json`
 
@@ -27,6 +28,11 @@ Each tunable value has a sibling key **`fieldName__doc`** on the line above it w
 
 ### `voidTrial`
 - **`enemyBaseFloor`** — void trial floor 1 uses main-game scaling at this depth; each void floor adds +1 (`voidEffectiveEnemyFloor` in `js/systems/VoidTrial.js`).
+
+### `void-corruption.json`
+- **`tripletSize`** — curse cards offered per floor (pick 1).
+- **`curses.<id>.perPick`** — modifier deltas per stack (e.g. `maxHpMult: -0.02` = −2% max HP per pick).
+- HUD stack totals read from `perPick` automatically (`corruptionStackSummary` in `VoidCorruption.js`).
 
 ## After changes
 

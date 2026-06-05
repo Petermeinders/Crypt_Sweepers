@@ -3,7 +3,7 @@
 // Version bump CACHE_NAME to force cache refresh on deploy.
 // Keep in sync with APP_VERSION in js/appVersion.js and version.json.
 
-const CACHE_NAME = 'crypt-sweepers-v489'
+const CACHE_NAME = 'crypt-sweepers-v491'
 
 const PRECACHE_ASSETS = [
   './',
@@ -24,6 +24,8 @@ const PRECACHE_ASSETS = [
   './js/config.js',
   './js/data/balance/loadFloorDifficulty.js',
   './js/data/balance/floor-difficulty.json',
+  './js/data/balance/loadVoidCorruption.js',
+  './js/data/balance/void-corruption.json',
   './js/core/GameState.js',
   './js/core/EventBus.js',
   './js/core/Logger.js',
@@ -147,6 +149,15 @@ const PRECACHE_ASSETS = [
   './assets/ui/menu-btn-wood-plaque.png',
   './assets/ui/menu-btn-crystal.png',
   './assets/ui/btn-void.png',
+  './assets/ui/void/void-floor-background.png',
+  './assets/sprites/tiles/void-tile-back-1.png',
+  './assets/sprites/tiles/void-tile-back-2.png',
+  './assets/sprites/tiles/void-tile-back-3.png',
+  './assets/sprites/tiles/void-tile-back-4.png',
+  './assets/ui/void/void-selection-background.png',
+  './assets/ui/void/void-banner-tier-1.png',
+  './assets/ui/void/void-banner-tier-2.png',
+  './assets/ui/void/void-banner-tier-3.png',
   './assets/ui/title-logo.gif',
   './assets/ui/diff-shelf.png',
   './assets/ui/rune-ring.png',

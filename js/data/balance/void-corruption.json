@@ -1,0 +1,57 @@
+{
+  "schemaVersion__doc": "Increment when curse ids or perPick keys change structurally.",
+  "schemaVersion": 1,
+
+  "description__doc": "Void trial per-floor curse pool. One pick per dungeon floor; stacks accumulate for the whole trial.",
+  "description": "Void corruption curses — loaded into CONFIG.void.corruption.",
+
+  "tripletSize__doc": "How many curse cards are offered each floor (player chooses exactly one).",
+  "tripletSize": 3,
+
+  "curses__doc": "Each curse: label + description for UI; perPick maps to VoidCorruption modifier keys.",
+  "curses": {
+    "hp_pct": {
+      "label__doc": "Display name on corruption pick cards and HUD.",
+      "label": "Frailty",
+      "description__doc": "Shown on pick card; HUD total uses perPick via corruptionStackSummary().",
+      "description": "−2% max HP (stacks)",
+      "perPick__doc": "maxHpMult is additive per stack: 2 picks → 1 + (−0.02 × 2) on void cap snapshot.",
+      "perPick": { "maxHpMult": -0.02 }
+    },
+    "mp_pct": {
+      "label": "Mind Drain",
+      "description": "−2% max MP (stacks)",
+      "perPick": { "maxManaMult": -0.02 }
+    },
+    "miss_strike": {
+      "label": "Unsteady Grip",
+      "description": "+2% miss on basic attacks (stacks)",
+      "perPick": { "missStrike": 0.02 }
+    },
+    "loot_drop": {
+      "label": "Barren Floor",
+      "description": "−2% loot drops (stacks)",
+      "perPick": { "lootMult": -0.02 }
+    },
+    "block_fail": {
+      "label": "Cracked Guard",
+      "description": "+5% block/parry fail (stacks)",
+      "perPick": { "blockFail": 0.05 }
+    },
+    "ability_fail": {
+      "label": "Arcane Static",
+      "description": "+5% ability fail (stacks)",
+      "perPick": { "abilityFail": 0.05 }
+    },
+    "enemy_dmg": {
+      "label": "Void Fury",
+      "description": "Enemies deal +5% damage (stacks)",
+      "perPick": { "enemyDmgMult": 0.05 }
+    },
+    "enemy_hp": {
+      "label": "Swollen Horde",
+      "description": "Enemies have +5% HP (stacks)",
+      "perPick": { "enemyHpMult": 0.05 }
+    }
+  }
+}

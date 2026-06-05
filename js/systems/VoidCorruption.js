@@ -54,19 +54,54 @@ export function curseDisplay(id) {
   return { id, label: def.label ?? id, description: def.description ?? '' }
 }
 
+function _pctFromPerPick(perPick, key, stacks, { negate = false } = {}) {
+  const v = perPick?.[key]
+  if (typeof v !== 'number') return null
+  const pct = Math.round(stacks * Math.abs(v) * 100)
+  const sign = negate ? (v < 0 ? '−' : '+') : (v < 0 ? '−' : '+')
+  return { pct, sign }
+}
+
 export function corruptionStackSummary(id, stacks) {
   const n = Number(stacks) || 0
   if (n < 1) return ''
-  if (id === 'hp_pct') return `−${Math.round(n * 1)}% max HP (total)`
-  if (id === 'mp_pct') return `−${Math.round(n * 1)}% max MP (total)`
-  if (id === 'miss_strike') return `+${Math.round(n * 2)}% miss on strikes (total)`
-  if (id === 'loot_drop') return `−${Math.round(n * 5)}% loot drops (total)`
-  if (id === 'block_fail') return `+${Math.round(n * 5)}% block/parry fail (total)`
-  if (id === 'ability_fail') return `+${Math.round(n * 5)}% ability fail (total)`
-  if (id === 'enemy_dmg') return `+${Math.round(n * 5)}% enemy damage (total)`
-  if (id === 'enemy_hp') return `+${Math.round(n * 5)}% enemy HP (total)`
   const def = CONFIG.void?.corruption?.curses?.[id]
-  return def?.description ?? ''
+  const per = def?.perPick
+  if (!per) return def?.description ?? ''
+
+  if (per.maxHpMult != null) {
+    const { pct, sign } = _pctFromPerPick(per, 'maxHpMult', n, { negate: true })
+    return `${sign}${pct}% max HP (total)`
+  }
+  if (per.maxManaMult != null) {
+    const { pct, sign } = _pctFromPerPick(per, 'maxManaMult', n, { negate: true })
+    return `${sign}${pct}% max MP (total)`
+  }
+  if (per.missStrike != null) {
+    const { pct, sign } = _pctFromPerPick(per, 'missStrike', n)
+    return `${sign}${pct}% miss on strikes (total)`
+  }
+  if (per.lootMult != null) {
+    const { pct, sign } = _pctFromPerPick(per, 'lootMult', n, { negate: true })
+    return `${sign}${pct}% loot drops (total)`
+  }
+  if (per.blockFail != null) {
+    const { pct, sign } = _pctFromPerPick(per, 'blockFail', n)
+    return `${sign}${pct}% block/parry fail (total)`
+  }
+  if (per.abilityFail != null) {
+    const { pct, sign } = _pctFromPerPick(per, 'abilityFail', n)
+    return `${sign}${pct}% ability fail (total)`
+  }
+  if (per.enemyDmgMult != null) {
+    const { pct, sign } = _pctFromPerPick(per, 'enemyDmgMult', n)
+    return `${sign}${pct}% enemy damage (total)`
+  }
+  if (per.enemyHpMult != null) {
+    const { pct, sign } = _pctFromPerPick(per, 'enemyHpMult', n)
+    return `${sign}${pct}% enemy HP (total)`
+  }
+  return def.description ?? ''
 }
 
 /** Net effect summary for HUD (one line per active curse). */
