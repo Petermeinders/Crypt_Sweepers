@@ -3,7 +3,7 @@
 // Version bump CACHE_NAME to force cache refresh on deploy.
 // Keep in sync with APP_VERSION in js/appVersion.js and version.json.
 
-const CACHE_NAME = 'crypt-sweepers-v491'
+const CACHE_NAME = 'crypt-sweepers-v493'
 
 const PRECACHE_ASSETS = [
   './',
@@ -86,6 +86,8 @@ const PRECACHE_ASSETS = [
   './js/systems/LootTables.js',
   './js/systems/PlayerStats.js',
   './js/systems/EnemyMechanics.js',
+  './js/systems/VoidEnemyMechanics.js',
+  './js/systems/VoidTrial.js',
   './js/systems/Haptics.js',
   './js/ui/menus/Changelog.js',
   './js/save/SaveManager.js',
@@ -304,6 +306,13 @@ const PRECACHE_ASSETS = [
   './assets/sprites/monsters/archer_goblin/archer-goblin-idle.gif',
   './assets/sprites/monsters/archer_goblin/archer-goblin-attack.gif',
   './assets/sprites/monsters/mouse/mouse-idle.gif',
+  './assets/sprites/monsters/void/void-maw.png',
+  './assets/sprites/monsters/void/void-ghast.png',
+  './assets/sprites/monsters/void/hook-crawler.png',
+  './assets/sprites/monsters/void/shard-ravager.png',
+  './assets/sprites/monsters/void/void-behemoth.png',
+  './assets/sprites/monsters/void/rift-lich.png',
+  './assets/sprites/monsters/void/void-overseer.png',
   './assets/sprites/monsters/child_mode/cat.png',
   './assets/sprites/monsters/child_mode/bee.png',
   './assets/sprites/monsters/child_mode/cow.png',

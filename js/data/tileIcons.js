@@ -65,6 +65,13 @@ export const ENEMY_SPRITES = {
   skeleton_lord: null,
   goblin_king:   null,
   troll_warlord: null,
+  void_maw:        { idle: 'void/void-maw.png', attack: 'void/void-maw.png' },
+  void_ghast:      { idle: 'void/void-ghast.png', attack: 'void/void-ghast.png' },
+  hook_crawler:    { idle: 'void/hook-crawler.png', attack: 'void/hook-crawler.png' },
+  shard_ravager:   { idle: 'void/shard-ravager.png', attack: 'void/shard-ravager.png' },
+  void_behemoth:   { idle: 'void/void-behemoth.png', attack: 'void/void-behemoth.png' },
+  rift_lich:       { idle: 'void/rift-lich.png', attack: 'void/rift-lich.png' },
+  void_overseer:   { idle: 'void/void-overseer.png', attack: 'void/void-overseer.png' },
 }
 
 /** Static PNG replacements shown when Child Mode is enabled (paths relative to MONSTER_ICONS_BASE). */

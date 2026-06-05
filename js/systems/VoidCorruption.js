@@ -171,7 +171,9 @@ export function rollStrikeMiss(run) {
 
 export function rollAbilityFizzle(run) {
   if (!isVoidTrialRun(run)) return false
-  const rate = getCorruptionModifiers(run).abilityFail ?? 0
+  const corrupt = getCorruptionModifiers(run).abilityFail ?? 0
+  const gaze = (run.player?.voidGazeStacks ?? 0) * (run.player?.voidGazeFizzlePerStack ?? 0.05)
+  const rate = corrupt + gaze
   return rate > 0 && Math.random() < rate
 }
 

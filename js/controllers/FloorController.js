@@ -93,6 +93,7 @@ export function startFloor(ctx) {
       session.run.treasureGoblin = null
       session.run.floorStartRow = null
       session.run.floorStartCol = null
+      session.run.player.voidGazeStacks = 0
     }
   }
   if (!session.run.atRest) {

@@ -4,6 +4,42 @@
  */
 export const CHANGELOG = [
   {
+    dateLabel: 'Jun 2026',
+    dateIso:   '2026-06-01',
+    version:   'v493',
+    title:     'Void trial finale boss',
+    summary:
+      'Void trials now end with the Void Overseer — a unique tentacled boss with custom art on every tier finale (floors 20 / 30 / 50).',
+    items: [
+      {
+        tag:  'Feature',
+        text: 'Void Overseer — replaces the rotating main-game boss on void trial finale floors. Scales with void depth and tier multiplier; telegraphs counter-attacks like other bosses.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Jun 2026',
+    dateIso:   '2026-06-01',
+    version:   'v492',
+    title:     'Void monsters & trial atmosphere',
+    summary:
+      'Six void-only enemies with unique mechanics, purple void tile backs and backdrop, and fast ambush enemies now use an attributes tag instead of a separate tile type.',
+    items: [
+      {
+        tag:  'Feature',
+        text: 'Void roster — Void Maw (fast + Death Split), Void Ghast (Gaze fizzle stacks), Hook Crawler (Armor Rend on reveal and counter), Shard Ravager (Shatter Shell), Void Behemoth (Obsidian Plate), Rift Lich (Rift Maw mana/HP drain). Void trials spawn these only — no main-game enemies mixed in.',
+      },
+      {
+        tag:  'Feature',
+        text: 'Void visuals — crypt floor backdrop and four purple cobblestone tile backs on void trial grids.',
+      },
+      {
+        tag:  'Balance',
+        text: 'Fast enemies — collapsed `enemy_fast` tile type into `attributes: ["fast"]`; ~7/29 enemy rolls stay fast with no pre-flip telegraph. Goblin removed from the normal enemy pool.',
+      },
+    ],
+  },
+  {
     dateLabel: 'May 2026',
     dateIso:   '2026-05-31',
     version:   'v486',

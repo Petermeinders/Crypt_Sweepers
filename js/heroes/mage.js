@@ -4,6 +4,7 @@ import EventBus from '../core/EventBus.js'
 import TileEngine from '../systems/TileEngine.js'
 import CombatResolver from '../systems/CombatResolver.js'
 import { applyShocked, tryConsumeShocked } from '../systems/Thunderstruck.js'
+import { resolveVoidEnemyIncomingDamage } from '../systems/VoidEnemyMechanics.js'
 import UI from '../ui/UI.js'
 import { MAGE_UPGRADES } from '../data/mage.js'
 import { session, charKey } from '../core/RunContext.js'
@@ -118,19 +119,24 @@ export function castSpell(ctx, tile) {
   if (shock.consumed && tile.element) UI.spawnFloat(tile.element, `⚡ +${shock.bonus}`, 'xp')
   const bonusSuffix = (session.run.player.undeadBonus && isUndead) || (session.run.player.beastBonus && isBeast)
     ? ' (2×!)' : ''
-  tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - spellDmg)
+  const mit = resolveVoidEnemyIncomingDamage(tile.enemyData, spellDmg)
+  if (mit.floatText) UI.spawnFloat(tile.element, mit.floatText, mit.floatKind)
+  if (mit.playerPulse > 0) {
+    ctx.takeDamage(mit.playerPulse, tile.element, false, tile.enemyData, { enemyAttack: true })
+  }
+  tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - mit.hpDamage)
   ctx.checkOnionLayer(tile)
   EventBus.emit('audio:play', { sfx: 'spell' })
   EventBus.emit('combat:spell', { manaCost: effectiveCost })
   setTimeout(() => UI.setPortraitAnim('idle'), 600)
   if (tile.enemyData.currentHP <= 0) {
     const spellGoldDrop = tile.enemyData.goldDrop ? ctx.rand(...tile.enemyData.goldDrop) : 1
-    UI.setMessage(`Spell blasts for ${spellDmg}${bonusSuffix}! +${spellGoldDrop} gold.`)
+    UI.setMessage(`Spell blasts for ${mit.hpDamage}${bonusSuffix}! +${spellGoldDrop} gold.`)
     ctx.gainGold(spellGoldDrop, tile.element, true)
     ctx.gainXP(result.xpDrop ?? 0, tile.element)
     ctx.endCombatVictory(tile)
   } else {
-    UI.setMessage(`Spell blasts for ${spellDmg}${bonusSuffix}! Enemy has ${tile.enemyData.currentHP} HP left.`)
+    UI.setMessage(`Spell blasts for ${mit.hpDamage}${bonusSuffix}! Enemy has ${tile.enemyData.currentHP} HP left.`)
     UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
   }
 }

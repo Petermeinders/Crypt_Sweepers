@@ -1,6 +1,6 @@
 import { CONFIG }     from '../config.js'
 import { TILE_DEFS }  from '../data/tiles.js'
-import { ENEMY_DEFS, BOSS_POOL } from '../data/enemies.js'
+import { ENEMY_DEFS, BOSS_POOL, VOID_TRIAL_BOSS_ID } from '../data/enemies.js'
 import {
   ITEM_ICONS_BASE,
   TILE_TYPE_ICON_FILES,
@@ -14,6 +14,7 @@ import { isVoidTrialRun, isBossFloorForRun, voidEffectiveEnemyFloor, voidEnemySt
 import { getCorruptionModifiers } from './VoidCorruption.js'
 import EnemyLeaders from './EnemyLeaders.js'
 import { computeDungeonTileWeights, fastEnemyShare } from './TileDensity.js'
+import { initVoidEnemyRuntime, pickVoidEnemyId } from './VoidEnemyMechanics.js'
 
 // ── Grid state ───────────────────────────────────────────────
 let _grid = []
@@ -78,7 +79,11 @@ function createEnemy(type, floor = 1) {
   const threatLevel = Number.isFinite(def.threatLevel)
     ? def.threatLevel
     : Math.max(1, Math.min(12, scaled.xpDrop ?? 2))
-  return { ...scaled, enemyId: type, threatLevel }
+  const enemyData = { ...scaled, enemyId: type, threatLevel }
+  if (def.armorRend != null) enemyData.armorRend = def.armorRend
+  if (def.deathSplitBurst != null) enemyData.deathSplitBurst = def.deathSplitBurst
+  if (def.spawn?.voidTrial) initVoidEnemyRuntime(enemyData, def)
+  return enemyData
 }
 
 function createTile(type, row, col, floor = 1) {
@@ -115,10 +120,26 @@ function _adjustedWeights(floor) {
  * Returns true if an enemy's spawn rule allows it on the given floor + biome.
  * spawn: 'universal' | { minFloor?, fromBiome?, biomes? }
  */
+function _voidSpawnRuleAllowed(def, floor) {
+  const spawn = def.spawn
+  if (!spawn?.voidTrial) return false
+  const tier = session.run?.voidTier ?? 1
+  if (spawn.voidMinTier != null && tier < spawn.voidMinTier) return false
+  if (spawn.voidMinFloor != null && floor < spawn.voidMinFloor) return false
+  return true
+}
+
 function _enemySpawnAllowed(enemyId, biomeId, floor) {
   const def   = ENEMY_DEFS[enemyId]
   if (!def) return false
   const spawn = def.spawn ?? 'universal'
+  const inVoid = isVoidTrialRun(session.run)
+
+  if (typeof spawn === 'object' && spawn.voidTrial) {
+    return inVoid && _voidSpawnRuleAllowed(def, floor)
+  }
+  if (inVoid) return false
+
   if (typeof spawn === 'object' && spawn.minFloor != null && floor < spawn.minFloor) {
     return false
   }
@@ -126,7 +147,6 @@ function _enemySpawnAllowed(enemyId, biomeId, floor) {
   if (typeof spawn !== 'object') return true
   if (spawn.biomes) return spawn.biomes.includes(biomeId)
   if (spawn.fromBiome) {
-    // Find ordered biome index; enemy allowed if current biome index >= fromBiome index
     const biomes = CONFIG.biomes.map(b => b.id)
     const fromIdx    = biomes.indexOf(spawn.fromBiome)
     const currentIdx = biomes.indexOf(biomeId)
@@ -142,13 +162,17 @@ function _isFastTaggedEnemy(def) {
 // Pick enemy type for an enemy tile, scaling by floor
 function _pickEnemyType(floor, opts = {}) {
   if (opts.boss) {
+    if (isVoidTrialRun(session.run)) return VOID_TRIAL_BOSS_ID
     const idx = Math.floor((floor - 1) / 5) % BOSS_POOL.length
     return BOSS_POOL[idx]
   }
 
+  if (isVoidTrialRun(session.run)) {
+    return pickVoidEnemyId(floor, { run: session.run, forceFast: !!opts.forceFast })
+  }
+
   const biomeId = CONFIG.biomeFor(floor)?.id ?? 'dungeon'
 
-  // All non-boss enemies, filtered by spawn rules for this biome
   const allIds = Object.keys(ENEMY_DEFS).filter(id => {
     const def = ENEMY_DEFS[id]
     return def.behaviour !== 'boss' && _enemySpawnAllowed(id, biomeId, floor)
@@ -158,8 +182,6 @@ function _pickEnemyType(floor, opts = {}) {
     const fastPool = allIds.filter(id => _isFastTaggedEnemy(ENEMY_DEFS[id]))
     return fastPool.length ? fastPool[Math.floor(Math.random() * fastPool.length)] : 'goblin'
   }
-  // Standard enemy tile — exclude fast-tagged, archer, mouse, treasure_goblin
-  // (archer_goblin / treasure_goblin / mouse spawn via GameController only)
   const stdPool = allIds.filter(id => {
     const def = ENEMY_DEFS[id]
     const b = def?.behaviour
@@ -175,6 +197,23 @@ function _rollEnemyTypeForTile(type, floor) {
   if (type !== 'enemy') return _pickEnemyType(floor, { forceFast: false })
   const forceFast = Math.random() < fastEnemyShare()
   return _pickEnemyType(floor, { forceFast })
+}
+
+/** At most one Void Behemoth per void floor — reroll extras. */
+function _capVoidBehemothPerFloor(floor) {
+  let kept = false
+  for (let r = 0; r < _gridRows; r++) {
+    for (let c = 0; c < _gridCols; c++) {
+      const t = _grid[r]?.[c]
+      if (t?.enemyData?.enemyId !== 'void_behemoth') continue
+      if (!kept) {
+        kept = true
+        continue
+      }
+      const replacement = pickVoidEnemyId(floor, { run: session.run, forceFast: false })
+      t.enemyData = createEnemy(replacement, floor)
+    }
+  }
 }
 
 // ── Sub-floor generation ─────────────────────────────────────
@@ -569,6 +608,10 @@ function generateGrid(floor = 1, opts = {}) {
   }
 
   ensureExitConnectivityFromGrid(floor)
+
+  if (isVoidTrialRun(session.run)) {
+    _capVoidBehemothPerFloor(floor)
+  }
 
   const leaderSlots = EnemyLeaders.rollLeaderSlotCount()
   if (leaderSlots > 0) EnemyLeaders.assignFloorLeaders(_grid, leaderSlots)

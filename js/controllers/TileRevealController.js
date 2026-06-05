@@ -14,6 +14,7 @@ import { ENGINEER_SEISMIC_PING } from '../data/engineer.js'
 import { resolveEnemySpriteSrc, ITEM_ICONS_BASE, TILE_TYPE_ICON_FILES } from '../data/tileIcons.js'
 import { TILE_BLURBS } from '../data/tileBlurbs.js'
 import { tickShockedDurations } from '../systems/Thunderstruck.js'
+import { tickVoidEnemyGlobalTurn, applyRevealArmorRend } from '../systems/VoidEnemyMechanics.js'
 import {
   getActiveTiles,
   setCombatEngagement,
@@ -319,6 +320,7 @@ export function tickPoisonArrowDotOnGlobalTurn(ctx, opts = {}) {
     }
   }
   if (!grid) return
+  tickVoidEnemyGlobalTurn(ctx, grid)
   // Harass tick: each revealed living enemy with harassPlayer=true fires at player every global turn
   let totalHarassDmg = 0
   let archerCount = 0
@@ -847,7 +849,7 @@ export function resolveEffect(ctx, tile) {
         if (!wardensBlock && !reflexDodge) {
           const baseDmg = dmg + (p.inventory.some(e => e?.id === 'abyssal-lens') ? 1 : 0)
           const r = applyRangerTrapfinderMitigation(baseDmg, p)
-          ctx.takeDamage(r.dmg, tile.element, false, null, { enemyAttack: true, deathCause: 'fast_enemy' })
+          ctx.takeDamage(r.dmg, tile.element, false, tile.enemyData, { enemyAttack: true, deathCause: 'fast_enemy' })
         }
         UI.shakeTile(tile.element)
         const rangerSkipLock = p.isRanger && Math.random() < RANGER_PASSIVE_SKIP_ADJ_LOCK
@@ -861,6 +863,7 @@ export function resolveEffect(ctx, tile) {
           const dodgeNote = reflexDodge ? ' Your reflexes kick in — ambush dodged!' : ''
           UI.setMessage(`⚡ Fast enemy strikes first!${dodgeNote} Tap it to fight.`, true)
           if (reflexDodge) UI.spawnFloat(tile.element, '⚡ Dodged!', 'heal')
+          if (wardensBlock || reflexDodge) applyRevealArmorRend(p, tile)
           UI.showRetreat()
           EventBus.emit('tile:locked', {})
         }
@@ -905,6 +908,7 @@ export function resolveEffect(ctx, tile) {
           setCombatEngagement(tile, { force: true })
         }
       } else {
+        applyRevealArmorRend(p, tile)
         UI.setMessage(`A ${tile.enemyData?.label ?? 'enemy'} lurks. Tap it to fight.`)
       }
       UI.showRetreat()

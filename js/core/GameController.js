@@ -17,6 +17,7 @@ import {
 import SaveManager           from '../save/SaveManager.js'
 import UI                    from '../ui/UI.js'
 import { isFoeTileType, isHiddenEnemyTileType } from '../data/tiles.js'
+import { applyArmorRend } from '../systems/VoidEnemyMechanics.js'
 import { RANGER_BASE, RANGER_UPGRADES } from '../data/ranger.js'
 import { ENGINEER_BASE, ENGINEER_UPGRADES, ENGINEER_TURRET, ENGINEER_CONSTRUCT_MANA_COST, ENGINEER_MOVE_MANA_COST, ENGINEER_SEISMIC_PING } from '../data/engineer.js'
 import { MAGE_BASE, MAGE_UPGRADES } from '../data/mage.js'
@@ -1836,8 +1837,23 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
     }
     effective = hit.hpDamage
     if (effective <= 0) {
+      if (enemyAttack && killerData?.armorRend) {
+        const shaved = applyArmorRend(session.run.player, killerData.armorRend)
+        if (shaved > 0) {
+          UI.updateArmor(session.run.player.armor)
+          UI.spawnFloat(tileEl, `🪝 −${shaved} armor`, 'damage')
+        }
+      }
       UI.updateHP(session.run.player.hp, session.run.player.maxHp)
       return
+    }
+  }
+
+  if (enemyAttack && killerData?.armorRend) {
+    const shaved = applyArmorRend(session.run.player, killerData.armorRend)
+    if (shaved > 0) {
+      UI.updateArmor(session.run.player.armor)
+      UI.spawnFloat(tileEl, `🪝 −${shaved} armor`, 'damage')
     }
   }
 

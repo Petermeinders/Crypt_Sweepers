@@ -3,6 +3,7 @@ import GameState, { States } from '../core/GameState.js'
 import EventBus from '../core/EventBus.js'
 import TileEngine from '../systems/TileEngine.js'
 import CombatResolver from '../systems/CombatResolver.js'
+import { resolveVoidEnemyIncomingDamage, tryDeathSplit } from '../systems/VoidEnemyMechanics.js'
 import SaveManager from '../save/SaveManager.js'
 import UI from '../ui/UI.js'
 import { session } from '../core/RunContext.js'
@@ -164,7 +165,17 @@ export function fightAction(ctx, tile) {
   const hpBeforeStrike = tile.enemyData.currentHP
   const pd = Number(playerDmg)
   const safePd = Number.isFinite(pd) ? pd : ctx.scaleOutgoingDamageToEnemy(1)
-  const newEnemyHP = session.save.settings.cheats?.instantKill ? 0 : Math.max(0, safeCurHp - safePd)
+  let mitigatedHp = safePd
+  if (!session.save.settings.cheats?.instantKill) {
+    const mitigated = resolveVoidEnemyIncomingDamage(tile.enemyData, safePd)
+    if (mitigated.floatText) UI.spawnFloat(tile.element, mitigated.floatText, mitigated.floatKind)
+    if (mitigated.playerPulse > 0) {
+      ctx.takeDamage(mitigated.playerPulse, tile.element, false, tile.enemyData, { enemyAttack: true })
+      if (GameState.is(States.DEATH)) { session.tap.combatBusy = false; return }
+    }
+    mitigatedHp = mitigated.hpDamage
+  }
+  const newEnemyHP = session.save.settings.cheats?.instantKill ? 0 : Math.max(0, safeCurHp - mitigatedHp)
   const killsEnemy = newEnemyHP <= 0
 
   // Fire Ring: 10% chance to ignite on hit
@@ -516,6 +527,14 @@ export function endCombatVictory(ctx, tile) {
   ctx.telemetryBumpKill(session.run.floor)
   const wasBoss = !!tile.enemyData?.isBoss
   const killEchoKill = ctx.charKey() === 'warrior' && !!(tile.killEchoMarked || tile.senseEvilMarked)
+  if (tile.enemyData?.attributes?.includes('death-split')) {
+    tryDeathSplit(
+      TileEngine.getGrid(),
+      tile.row,
+      tile.col,
+      tile.enemyData.deathSplitBurst ?? 1,
+    )
+  }
   tile.enemyData._slain = true
   clearCombatEngagementForTile(tile)
   if (tile.enemyData.isLeader) {
