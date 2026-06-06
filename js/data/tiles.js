@@ -44,6 +44,8 @@ export const TILE_DEFS = {
   rubble: { emoji: '🪨', label: 'Rubble', cssClass: 'type-rubble', weight: 0, isEnemy: false },
   /** Dungeon floor — awards +1/+2/+3 armor on reveal; weight tuned by TileEngine per floor */
   armor:  { emoji: '🛡️',  label: 'Armor',  cssClass: 'type-armor',  weight: 5, isEnemy: false },
+  /** Dungeon floor only — a lost journal page; flip to reveal, tap again to collect */
+  manuscript: { emoji: '📄', label: 'Journal Page', cssClass: 'type-manuscript', weight: 0, isEnemy: false },
 }
 
 /** Combat foe tiles on the main grid (legacy saves may still carry type enemy_fast). */

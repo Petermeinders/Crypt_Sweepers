@@ -182,6 +182,15 @@ export function startFloor(ctx) {
       SaveManager.save(session.save).catch(() => {})
     })
   }
+  // Manuscript tile spawn: guaranteed floor 1 for first-time players; 5% per floor thereafter
+  if (!_isBot && !gridRestored && !session.run.atRest) {
+    const noManuscriptsYet = !session.save.manuscriptsSeen?.length
+    const guaranteed = noManuscriptsYet && session.run.floor === 1
+    if (guaranteed || Math.random() < 0.05) {
+      ctx.spawnManuscriptTile()
+    }
+  }
+
   // Cracked Compass: mark the exit like spyglass (skip rest floors)
   if (!session.run.atRest && session.run.player.inventory.some(e => e?.id === 'cracked-compass')) {
     const grid = TileEngine.getGrid()

@@ -501,9 +501,13 @@ export function onTileTap(ctx, row, col) {
         ctx.destroyWarBanner(tile)
         return
       }
-      // Chests are world interactions (like the banner), not new exploration — allow while engaged.
+      // Chests and manuscripts are world interactions — allow while engaged.
       if (tile.revealed && tile.type === 'chest' && tile.chestReady && !tile.chestLooted) {
         ctx.openChest(tile)
+        return
+      }
+      if (tile.revealed && tile.type === 'manuscript' && tile.manuscriptReady && !tile.manuscriptCollected) {
+        ctx.collectManuscript(tile)
         return
       }
       if (tile.revealed && tile.type === 'magic_chest' && tile.magicChestReady) {
@@ -542,6 +546,8 @@ export function onTileTap(ctx, row, col) {
       ctx.confirmRope(tile)
     } else if (tile.revealed && tile.type === 'merchant') {
       ctx.openSanctuaryMerchant(tile)
+    } else if (tile.revealed && tile.type === 'manuscript' && tile.manuscriptReady && !tile.manuscriptCollected) {
+      ctx.collectManuscript(tile)
     } else if (tile.revealed && tile.type === 'event' && !tile.eventResolved) {
       ctx.openEvent(tile)
     } else if (tile.revealed && tile.type === 'hole') {

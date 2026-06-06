@@ -137,6 +137,8 @@ function _eventCtx() {
 const _openEvent = (tile) => EventTileController.openEvent(_eventCtx(), tile)
 const _openSanctuaryMerchant = (tile) => EventTileController.openSanctuaryMerchant(_eventCtx(), tile)
 const _closeEventSession = (tile) => EventTileController.closeEventSession(_eventCtx(), tile)
+const _spawnManuscriptTile = () => EventTileController.spawnManuscriptTile({ _manuscriptDeps: () => ({ TileEngine }) })
+const _collectManuscript = (tile) => EventTileController.collectManuscript({}, tile)
 
 function _subFloorCtx() {
   return {
@@ -680,6 +682,8 @@ function _floorCtx() {
     restoreTreasureGoblinAfterResume: _restoreTreasureGoblinAfterResume,
     spawnSubFloorEntry: _spawnSubFloorEntry,
     spawnWarBannerEntry: _spawnWarBannerEntry,
+    spawnManuscriptTile: _spawnManuscriptTile,
+    collectManuscript: _collectManuscript,
     spawnTreasureGoblin: _spawnTreasureGoblin,
     spawnArcherGoblin: _spawnArcherGoblin,
     spawnMouse: _spawnMouse,
@@ -1072,6 +1076,7 @@ function _tapCtx() {
     confirmRope: _confirmRope,
     openEvent: _openEvent,
     openSanctuaryMerchant: _openSanctuaryMerchant,
+    collectManuscript: _collectManuscript,
     climbThroughHazard: _climbThroughHazard,
     necroRaiseMinion: _necroRaiseMinion,
     fightAction,

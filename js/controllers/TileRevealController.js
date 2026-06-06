@@ -775,6 +775,15 @@ export function resolveEffect(ctx, tile) {
       break
     }
 
+    case 'manuscript': {
+      tile.manuscriptReady = true
+      if (tile.element) tile.element.classList.add('manuscript-ready')
+      EventBus.emit('audio:play', { sfx: 'chest' })
+      UI.setMessage('📄 A crumpled journal page — tap again to read it.')
+      UI.showRetreat()
+      break
+    }
+
     case 'checkpoint': {
       const healAmt = Math.floor(p.maxHp * CONFIG.checkpoint.healPercent)
       const manaAmt = CONFIG.checkpoint.manaRestore

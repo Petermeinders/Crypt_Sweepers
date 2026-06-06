@@ -1139,7 +1139,7 @@ function unflipTile(tile) {
 const UNFLIP_EXCLUDED_TYPES = new Set([
   'exit', 'boss', 'checkpoint', 'heart', 'sub_floor_entry', 'war_banner',
   'stairs_up', 'shrine', 'well', 'anvil', 'rope', 'magic_chest', 'forge',
-  'map', 'rubble', 'sub_floor_used', 'hole',
+  'map', 'rubble', 'sub_floor_used', 'hole', 'manuscript',
 ])
 
 /**

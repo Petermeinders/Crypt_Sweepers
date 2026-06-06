@@ -814,6 +814,10 @@
         <span class="menu-btn-ic" aria-hidden="true">🔮</span>
         <span class="menu-btn-label menu-btn-label--single">Trinkets</span>
       </button>
+      <button id="manuscript-codex-btn" class="menu-btn secondary menu-btn--split" type="button">
+        <span class="menu-btn-ic" aria-hidden="true">📜</span>
+        <span class="menu-btn-label menu-btn-label--single">Journals</span>
+      </button>
     </div>
     <div id="difficulty-row">
       <div id="diff-shelf-wrap">
@@ -1553,6 +1557,75 @@
       <p id="trinket-detail-blurb" class="trinket-discovery-blurb"></p>
       <ul id="trinket-detail-effects" class="trinket-discovery-effects"></ul>
       <button type="button" id="trinket-detail-back" class="panel-back-btn">← Back</button>
+    </div>
+  </div>
+
+  <!-- Manuscript discovery (in-run, 5% per floor) -->
+  <div id="manuscript-discovery-overlay" class="manuscript-discovery-overlay hidden" aria-hidden="true">
+    <div id="manuscript-discovery-backdrop" class="manuscript-discovery-backdrop"></div>
+    <div class="manuscript-found-banner">📜 Journal Entry Found</div>
+    <div class="manuscript-discovery-modal" role="dialog" aria-modal="true" aria-labelledby="manuscript-discovery-title">
+      <div class="manuscript-discovery-header">
+        <div id="manuscript-discovery-number" class="manuscript-entry-number"></div>
+        <h2 id="manuscript-discovery-title" class="manuscript-entry-title"></h2>
+        <div id="manuscript-discovery-author" class="manuscript-entry-author"></div>
+      </div>
+      <div id="manuscript-discovery-audio" class="manuscript-audio-wrap hidden">
+        <button type="button" id="manuscript-discovery-play" class="manuscript-audio-btn" aria-label="Play recording">
+          <span class="manuscript-audio-icon">▶</span>
+          <span class="manuscript-audio-label">Play Recording</span>
+        </button>
+        <div id="manuscript-discovery-progress" class="manuscript-audio-progress">
+          <div id="manuscript-discovery-bar" class="manuscript-audio-bar"></div>
+        </div>
+        <span id="manuscript-discovery-time" class="manuscript-audio-time">0:00</span>
+      </div>
+      <div id="manuscript-discovery-text" class="manuscript-entry-text"></div>
+      <button type="button" id="manuscript-discovery-ok" class="menu-btn primary">Pocket It</button>
+    </div>
+  </div>
+
+  <!-- Manuscript codex panel (accessed from main menu) -->
+  <div id="manuscript-codex-overlay" class="panel-overlay hidden">
+    <div class="panel-header">
+      <button class="panel-back-btn" id="manuscript-codex-back">← Back</button>
+      <div class="panel-title">📜 Journals</div>
+    </div>
+    <div class="manuscript-codex-author-card">
+      <div class="manuscript-codex-profile-frame-wrap">
+        <img class="manuscript-codex-profile-img" src="assets/sprites/characters/brannik-stonefuse.png" alt="Brannik Stonefuse">
+        <img class="manuscript-codex-profile-frame" src="assets/ui/gear-card-frame.png" alt="" aria-hidden="true">
+      </div>
+      <div class="manuscript-codex-author-info">
+        <div class="manuscript-codex-author-name">Brannik Stonefuse</div>
+        <div class="manuscript-codex-author-role">Demolitions Expert — Aurelian Syndicate Expedition</div>
+        <div class="manuscript-codex-author-tagline">"He believed any problem in the world could be solved with enough TNT. The Crypt was not of this world."</div>
+      </div>
+    </div>
+    <div id="manuscript-codex-list" class="manuscript-codex-list panel-list"></div>
+  </div>
+
+  <!-- Manuscript detail card (from Codex panel) -->
+  <div id="manuscript-detail-overlay" class="manuscript-detail-overlay hidden" aria-hidden="true">
+    <div id="manuscript-detail-backdrop" class="manuscript-discovery-backdrop"></div>
+    <div class="manuscript-discovery-modal" role="dialog" aria-modal="true" aria-labelledby="manuscript-detail-title">
+      <div class="manuscript-discovery-header">
+        <div id="manuscript-detail-number" class="manuscript-entry-number"></div>
+        <h2 id="manuscript-detail-title" class="manuscript-entry-title"></h2>
+        <div id="manuscript-detail-author" class="manuscript-entry-author"></div>
+      </div>
+      <div id="manuscript-detail-audio" class="manuscript-audio-wrap hidden">
+        <button type="button" id="manuscript-detail-play" class="manuscript-audio-btn" aria-label="Play recording">
+          <span class="manuscript-audio-icon">▶</span>
+          <span class="manuscript-audio-label">Play Recording</span>
+        </button>
+        <div id="manuscript-detail-progress" class="manuscript-audio-progress">
+          <div id="manuscript-detail-bar" class="manuscript-audio-bar"></div>
+        </div>
+        <span id="manuscript-detail-time" class="manuscript-audio-time">0:00</span>
+      </div>
+      <div id="manuscript-detail-text" class="manuscript-entry-text"></div>
+      <button type="button" id="manuscript-detail-back" class="panel-back-btn">← Back</button>
     </div>
   </div>
 

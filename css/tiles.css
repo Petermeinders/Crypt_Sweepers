@@ -1154,3 +1154,46 @@ body.tile-colors .tile-front.type-rope {
   pointer-events: none !important;
   cursor: default;
 }
+
+/* ── Manuscript tile ─────────────────────────────────────────── */
+
+/* Revealed face — aged parchment tint */
+.tile-front.type-manuscript {
+  background:
+    linear-gradient(145deg, rgba(30, 24, 10, 0.72), rgba(55, 44, 15, 0.80)),
+    var(--tile-art-revealed);
+  border-color: #8a7030;
+}
+body.tile-colors .tile-front.type-manuscript {
+  background: linear-gradient(145deg, rgba(45, 35, 8, 0.80), rgba(70, 55, 12, 0.88));
+  border-color: #a88030;
+}
+
+/* Revealed manuscript — second tap to read (mirrors .tile.revealed.chest-ready) */
+.tile.revealed.tile-type-manuscript.manuscript-ready {
+  cursor: pointer;
+  pointer-events: all;
+}
+
+/* Pulse glow when ready to collect */
+.tile-type-manuscript.manuscript-ready .tile-front {
+  box-shadow:
+    0 0 0 2px rgba(200, 168, 74, 0.5),
+    0 0 12px rgba(200, 168, 74, 0.3);
+  animation: manuscript-pulse 2s ease-in-out infinite;
+}
+
+@keyframes manuscript-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(200,168,74,0.4), 0 0 10px rgba(200,168,74,0.2); }
+  50%       { box-shadow: 0 0 0 2px rgba(200,168,74,0.7), 0 0 18px rgba(200,168,74,0.5); }
+}
+
+/* Icon positioning — centered like chest */
+.tile-type-manuscript .tile-icon-wrap {
+  top: 0;
+  bottom: 0;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8em;
+}

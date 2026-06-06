@@ -455,6 +455,7 @@ function cacheFirst(request) {
     return fetch(request)
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        if (res.status === 206) return res
         const clone = res.clone()
         caches.open(CACHE_NAME).then(c => c.put(request, clone))
         return res

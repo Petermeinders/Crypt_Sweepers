@@ -161,6 +161,10 @@ export function wireMenus(ctx) {
   })
   document.getElementById('trinket-codex-back')?.addEventListener('click', () => ctx.UI.hideTrinketCodexPanel())
   document.getElementById('trinket-detail-back')?.addEventListener('click', () => ctx.UI.hideTrinketDetail())
+  document.getElementById('manuscript-codex-btn')?.addEventListener('click', () => {
+    ctx.UI.showManuscriptCodexPanel(ctx.GameController.getSave())
+  })
+  document.getElementById('manuscript-codex-back')?.addEventListener('click', () => ctx.UI.hideManuscriptCodexPanel())
 
   // Difficulty
   document.querySelectorAll('.diff-btn').forEach(btn => {

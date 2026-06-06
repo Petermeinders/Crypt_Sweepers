@@ -3,6 +3,7 @@ import EventBus from '../core/EventBus.js'
 import UI from '../ui/UI.js'
 import { ITEMS } from '../data/items.js'
 import { STORY_EVENTS, MERCHANT_ITEMS, rollEventType } from '../data/events.js'
+import ManuscriptCodex from '../systems/ManuscriptCodex.js'
 import {
   COMMON_LOOT_IDS,
   RARE_TRINKET_IDS,
@@ -16,6 +17,7 @@ import SaveManager from '../save/SaveManager.js'
 import MetaProgression from '../systems/MetaProgression.js'
 import { adjustScrap } from './GearController.js'
 import { CONFIG } from '../config.js'
+import { TILE_DEFS } from '../data/tiles.js'
 
 export function openEvent(ctx, tile) {
   if (tile.eventResolved) return
@@ -360,4 +362,87 @@ function applyStoryOutcome(ctx, outcome, tile) {
     default:
       break
   }
+}
+
+// ── Manuscript tile ────────────────────────────────────────────
+
+/**
+ * Place a manuscript tile on a random unrevealed, non-special dungeon tile.
+ * Called from FloorController when the spawn condition is met.
+ * The entry is pre-rolled and stored on the tile so the player discovers it on collect.
+ */
+export function spawnManuscriptTile(ctx) {
+  const { TileEngine } = ctx._manuscriptDeps()
+  const grid = TileEngine.getGrid()
+  if (!grid) return
+  const noManuscriptsYet = !session.save.manuscriptsSeen?.length
+  if (noManuscriptsYet && !session.run.manuscriptRunAuthor) {
+    session.run.manuscriptRunAuthor = 'brannik'
+  }
+  const authorId = session.run.manuscriptRunAuthor ?? null
+  const entry = authorId
+    ? ManuscriptCodex.pickUnseenForAuthor(session.save, authorId)
+    : ManuscriptCodex.pickUnseen(session.save)
+  if (!entry) return
+
+  // Find a safe candidate — unrevealed, unlocked, non-special dungeon tile
+  const SAFE_TYPES = new Set(['empty', 'gold', 'chest', 'trap', 'heart', 'blockage', 'armor', 'event'])
+  const candidates = []
+  const reachableCandidates = []
+  for (const row of grid) {
+    for (const t of row) {
+      if (!t.revealed && !t.isStart && !t.locked && SAFE_TYPES.has(t.type)) {
+        candidates.push(t)
+        if (t.reachable) reachableCandidates.push(t)
+      }
+    }
+  }
+  const pool = reachableCandidates.length ? reachableCandidates : candidates
+  if (!pool.length) return
+
+  const target = pool[Math.floor(Math.random() * pool.length)]
+  const def = TILE_DEFS.manuscript
+  target.type = 'manuscript'
+  target.manuscriptEntry = entry
+  target.enemyData = null
+  delete target.chestLoot
+  delete target.chestReady
+  delete target.chestLooted
+  delete target.magicChestReady
+  delete target.pendingLoot
+  delete target.eventResolved
+  delete target.eventType
+  // Update the tile DOM so the flip face shows the journal icon
+  if (target.element) {
+    for (const cls of [...target.element.classList]) {
+      if (cls.startsWith('tile-type-')) target.element.classList.remove(cls)
+    }
+    target.element.classList.add('tile-type-manuscript')
+    const front = target.element.querySelector('.tile-front')
+    if (front) {
+      front.className = 'tile-front type-manuscript'
+      front.innerHTML =
+        `<span class="tile-icon-wrap tile-icon-fallback"><span class="tile-emoji">${def.emoji}</span></span>`
+        + `<span class="tile-label">${def.label}</span>`
+        + '<span class="tile-threat-clue" aria-hidden="true"></span>'
+    }
+  }
+}
+
+/**
+ * Player taps a revealed manuscript tile to collect it.
+ * Registers the entry as seen, saves, shows the discovery modal.
+ */
+export async function collectManuscript(ctx, tile) {
+  if (!tile.manuscriptEntry || tile.manuscriptCollected) return
+  tile.manuscriptCollected = true
+
+  // Collect animation — fade out icon
+  const iconWrap = tile.element?.querySelector('.tile-icon-wrap')
+  if (iconWrap) iconWrap.classList.add('collecting')
+
+  ManuscriptCodex.registerIfNew(session.save, tile.manuscriptEntry.id)
+  SaveManager.save(session.save).catch(() => {})
+
+  await UI.showManuscriptDiscovery(tile.manuscriptEntry)
 }

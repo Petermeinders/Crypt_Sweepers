@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { ENEMY_DEFS } from '../../js/data/enemies.js'
+import { ENEMY_DEFS, VOID_TRIAL_BOSS_ID } from '../../js/data/enemies.js'
 import {
   applyArmorRend,
   applyRevealArmorRend,
@@ -18,6 +18,16 @@ const VOID_IDS = [
   'void_behemoth',
   'rift_lich',
 ]
+
+describe('Void trial boss', () => {
+  it('VOID_TRIAL_BOSS_ID points at void_overseer', () => {
+    assert.equal(VOID_TRIAL_BOSS_ID, 'void_overseer')
+    const def = ENEMY_DEFS[VOID_TRIAL_BOSS_ID]
+    assert.equal(def.behaviour, 'boss')
+    assert.equal(def.spawn?.voidBoss, true)
+    assert.equal(def.isBoss, true)
+  })
+})
 
 describe('Void enemies data', () => {
   for (const id of VOID_IDS) {

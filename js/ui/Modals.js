@@ -13,6 +13,8 @@ import { FORGE_RECIPES } from '../data/combinations.js'
 import { curseDisplay, getActiveCorruptionEntries } from '../systems/VoidCorruption.js'
 import MetaProgression from '../systems/MetaProgression.js'
 import { getVoidTierConfig, isVoidTrialRun, voidTrialBannerDisplay } from '../systems/VoidTrial.js'
+import ManuscriptCodex from '../systems/ManuscriptCodex.js'
+import { MANUSCRIPTS } from '../data/manuscripts.js'
 
 let _merchantToastTimer = null
 
@@ -174,6 +176,32 @@ export function cacheModalElements() {
     el.ropeModalBody      = document.getElementById('rope-modal-body')
     el.equipmentOverlay   = document.getElementById('equipment-overlay')
     el.gearCompareModal   = document.getElementById('gear-compare-modal')
+    el.manuscriptDiscoveryOverlay  = document.getElementById('manuscript-discovery-overlay')
+    el.manuscriptDiscoveryBackdrop = document.getElementById('manuscript-discovery-backdrop')
+    el.manuscriptDiscoveryNumber   = document.getElementById('manuscript-discovery-number')
+    el.manuscriptDiscoveryTitle    = document.getElementById('manuscript-discovery-title')
+    el.manuscriptDiscoveryAuthor   = document.getElementById('manuscript-discovery-author')
+    el.manuscriptDiscoveryAudio    = document.getElementById('manuscript-discovery-audio')
+    el.manuscriptDiscoveryPlay     = document.getElementById('manuscript-discovery-play')
+    el.manuscriptDiscoveryProgress = document.getElementById('manuscript-discovery-progress')
+    el.manuscriptDiscoveryBar      = document.getElementById('manuscript-discovery-bar')
+    el.manuscriptDiscoveryTime     = document.getElementById('manuscript-discovery-time')
+    el.manuscriptDiscoveryText     = document.getElementById('manuscript-discovery-text')
+    el.manuscriptDiscoveryOk       = document.getElementById('manuscript-discovery-ok')
+    el.manuscriptCodexOverlay      = document.getElementById('manuscript-codex-overlay')
+    el.manuscriptCodexList         = document.getElementById('manuscript-codex-list')
+    el.manuscriptDetailOverlay     = document.getElementById('manuscript-detail-overlay')
+    el.manuscriptDetailBackdrop    = document.getElementById('manuscript-detail-backdrop')
+    el.manuscriptDetailNumber      = document.getElementById('manuscript-detail-number')
+    el.manuscriptDetailTitle       = document.getElementById('manuscript-detail-title')
+    el.manuscriptDetailAuthor      = document.getElementById('manuscript-detail-author')
+    el.manuscriptDetailAudio       = document.getElementById('manuscript-detail-audio')
+    el.manuscriptDetailPlay        = document.getElementById('manuscript-detail-play')
+    el.manuscriptDetailProgress    = document.getElementById('manuscript-detail-progress')
+    el.manuscriptDetailBar         = document.getElementById('manuscript-detail-bar')
+    el.manuscriptDetailTime        = document.getElementById('manuscript-detail-time')
+    el.manuscriptDetailText        = document.getElementById('manuscript-detail-text')
+    el.manuscriptDetailBack        = document.getElementById('manuscript-detail-back')
 }
 
 let _voidCorruptionDropdownOpen = false
@@ -1875,6 +1903,174 @@ export const ModalsMethods = {
     el.trinketCodexOverlay?.classList.add('hidden')
     el.trinketDetailOverlay?.classList.add('hidden')
     el.trinketDetailOverlay?.setAttribute('aria-hidden', 'true')
+  },
+
+  _mountManuscriptAudio(entry, els) {
+    const { wrap, playBtn, progressEl, barEl, timeEl } = els
+    if (!wrap) return null
+    if (!entry.audioSrc) { wrap.classList.add('hidden'); return null }
+
+    wrap.classList.remove('hidden')
+    const audio = new Audio(entry.audioSrc)
+    let raf = null
+
+    const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+
+    const tick = () => {
+      if (!audio.duration) return
+      const pct = (audio.currentTime / audio.duration) * 100
+      if (barEl) barEl.style.width = `${pct}%`
+      if (timeEl) timeEl.textContent = fmt(audio.currentTime)
+      if (!audio.paused) raf = requestAnimationFrame(tick)
+    }
+
+    const syncBtn = () => {
+      if (!playBtn) return
+      const icon  = playBtn.querySelector('.manuscript-audio-icon')
+      const label = playBtn.querySelector('.manuscript-audio-label')
+      if (audio.paused) {
+        if (icon)  icon.textContent  = '▶'
+        if (label) label.textContent = 'Play Recording'
+        playBtn.setAttribute('aria-label', 'Play recording')
+      } else {
+        if (icon)  icon.textContent  = '⏸'
+        if (label) label.textContent = 'Pause'
+        playBtn.setAttribute('aria-label', 'Pause recording')
+      }
+    }
+
+    audio.addEventListener('timeupdate', tick)
+    audio.addEventListener('ended', () => {
+      cancelAnimationFrame(raf)
+      if (barEl) barEl.style.width = '0%'
+      if (timeEl) timeEl.textContent = '0:00'
+      syncBtn()
+    })
+
+    if (playBtn) {
+      playBtn.onclick = () => {
+        if (audio.paused) { audio.play().catch(() => {}); raf = requestAnimationFrame(tick) }
+        else              { audio.pause(); cancelAnimationFrame(raf) }
+        syncBtn()
+      }
+    }
+
+    if (progressEl) {
+      progressEl.addEventListener('click', (e) => {
+        if (!audio.duration) return
+        const rect = progressEl.getBoundingClientRect()
+        audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration
+        if (barEl) barEl.style.width = `${(audio.currentTime / audio.duration) * 100}%`
+        if (timeEl) timeEl.textContent = fmt(audio.currentTime)
+      })
+    }
+
+    return () => { audio.pause(); cancelAnimationFrame(raf); audio.src = '' }
+  },
+
+  showManuscriptDiscovery(entry) {
+    return new Promise((resolve) => {
+      if (!entry || !el.manuscriptDiscoveryOverlay) { resolve(); return }
+      if (el.manuscriptDiscoveryNumber) el.manuscriptDiscoveryNumber.textContent = `Entry ${String(entry.number).padStart(2, '0')}`
+      if (el.manuscriptDiscoveryTitle)  el.manuscriptDiscoveryTitle.textContent  = entry.title
+      if (el.manuscriptDiscoveryAuthor) el.manuscriptDiscoveryAuthor.textContent = `— ${MANUSCRIPTS.author}, ${MANUSCRIPTS.role}`
+      if (el.manuscriptDiscoveryText) {
+        el.manuscriptDiscoveryText.innerHTML = entry.text
+          .split('\n\n')
+          .map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`)
+          .join('')
+      }
+      const stopAudio = this._mountManuscriptAudio(entry, {
+        wrap: el.manuscriptDiscoveryAudio, playBtn: el.manuscriptDiscoveryPlay,
+        progressEl: el.manuscriptDiscoveryProgress, barEl: el.manuscriptDiscoveryBar,
+        timeEl: el.manuscriptDiscoveryTime,
+      })
+      const close = () => {
+        stopAudio?.()
+        el.manuscriptDiscoveryOk?.blur()
+        el.manuscriptDiscoveryOverlay.classList.add('hidden')
+        el.manuscriptDiscoveryOverlay.setAttribute('aria-hidden', 'true')
+        el.manuscriptDiscoveryOk?.removeEventListener('click', close)
+        el.manuscriptDiscoveryBackdrop?.removeEventListener('click', close)
+        resolve()
+      }
+      el.manuscriptDiscoveryOverlay.classList.remove('hidden')
+      el.manuscriptDiscoveryOverlay.setAttribute('aria-hidden', 'false')
+      el.manuscriptDiscoveryOk?.addEventListener('click', close)
+      el.manuscriptDiscoveryBackdrop?.addEventListener('click', close)
+      EventBus.emit('audio:play', { sfx: 'chest' })
+    })
+  },
+
+  showManuscriptCodexPanel(save) {
+    if (!el.manuscriptCodexOverlay || !el.manuscriptCodexList) return
+    const entries = ManuscriptCodex.allEntriesWithStatus(save)
+    el.manuscriptCodexList.innerHTML = ''
+
+    const seenEntries = entries.filter(e => e.seen)
+    const unseenCount = entries.length - seenEntries.length
+
+    if (seenEntries.length === 0) {
+      const p = document.createElement('p')
+      p.className = 'bestiary-empty'
+      p.textContent = 'No journal entries found yet. Explore the dungeon — there\'s a chance of finding one each floor.'
+      el.manuscriptCodexList.appendChild(p)
+    } else {
+      const grid = document.createElement('div')
+      grid.className = 'manuscript-codex-grid'
+      for (const entry of seenEntries) {
+        const card = document.createElement('button')
+        card.type = 'button'
+        card.className = 'manuscript-codex-card'
+        card.innerHTML = `
+          <div class="manuscript-codex-card-number">Entry ${String(entry.number).padStart(2, '0')}</div>
+          <div class="manuscript-codex-card-title">${entry.title}</div>
+          ${entry.audioSrc ? '<div class="manuscript-codex-card-audio">🔊 Recording</div>' : ''}`
+        card.addEventListener('click', () => this._showManuscriptDetail(entry))
+        grid.appendChild(card)
+      }
+      el.manuscriptCodexList.appendChild(grid)
+    }
+
+    if (unseenCount > 0) {
+      const footer = document.createElement('p')
+      footer.className = 'manuscript-codex-footer'
+      footer.textContent = `${unseenCount} entr${unseenCount === 1 ? 'y' : 'ies'} still undiscovered`
+      el.manuscriptCodexList.appendChild(footer)
+    }
+
+    el.manuscriptCodexOverlay.classList.remove('hidden')
+  },
+
+  hideManuscriptCodexPanel() {
+    el.manuscriptCodexOverlay?.classList.add('hidden')
+    el.manuscriptDetailOverlay?.classList.add('hidden')
+    el.manuscriptDetailOverlay?.setAttribute('aria-hidden', 'true')
+  },
+
+  _showManuscriptDetail(entry) {
+    if (!el.manuscriptDetailOverlay) return
+    if (el.manuscriptDetailNumber) el.manuscriptDetailNumber.textContent = `Entry ${String(entry.number).padStart(2, '0')}`
+    if (el.manuscriptDetailTitle)  el.manuscriptDetailTitle.textContent  = entry.title
+    if (el.manuscriptDetailAuthor) el.manuscriptDetailAuthor.textContent = `— ${MANUSCRIPTS.author}, ${MANUSCRIPTS.role}`
+    if (el.manuscriptDetailText) {
+      el.manuscriptDetailText.innerHTML = entry.text
+        .split('\n\n')
+        .map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`)
+        .join('')
+    }
+    const stopAudio = this._mountManuscriptAudio(entry, {
+      wrap: el.manuscriptDetailAudio, playBtn: el.manuscriptDetailPlay,
+      progressEl: el.manuscriptDetailProgress, barEl: el.manuscriptDetailBar,
+      timeEl: el.manuscriptDetailTime,
+    })
+    el.manuscriptDetailOverlay.classList.remove('hidden')
+    el.manuscriptDetailOverlay.setAttribute('aria-hidden', 'false')
+    el.manuscriptDetailBack?.addEventListener('click', () => {
+      stopAudio?.()
+      el.manuscriptDetailOverlay.classList.add('hidden')
+      el.manuscriptDetailOverlay.setAttribute('aria-hidden', 'true')
+    }, { once: true })
   },
 
   showForgeOverlay(recipes, itemDefs, onForge, onLeave) {
