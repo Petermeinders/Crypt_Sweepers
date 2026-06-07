@@ -8702,14 +8702,65 @@ body.bestiary-detail-open #app {
 }
 .manuscript-detail-overlay.hidden { display: none; }
 
-/* Author card at top of codex */
-.manuscript-codex-author-card {
+/* ── Manuscript codex accordion ────────────────────────── */
+.manuscript-codex-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0 0 16px;
+}
+
+.manuscript-accordion-item {
+  border-bottom: 1px solid rgba(200,168,74,0.14);
+}
+
+/* Clickable profile-card header */
+.manuscript-accordion-header {
   display: flex;
   align-items: flex-start;
   gap: 14px;
   padding: 16px 16px 18px;
-  border-bottom: 1px solid rgba(200,168,74,0.18);
-  margin-bottom: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  position: relative;
+  transition: background 0.15s;
+}
+.manuscript-accordion-header:hover {
+  background: rgba(200,168,74,0.05);
+}
+
+/* Collapse chevron */
+.manuscript-accordion-chevron {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%) rotate(-90deg);
+  font-size: 1.1rem;
+  color: rgba(200,168,74,0.5);
+  transition: transform 0.2s;
+  line-height: 1;
+}
+.manuscript-accordion-item.is-open .manuscript-accordion-chevron {
+  transform: translateY(-50%) rotate(0deg);
+}
+
+/* Collapsible body */
+.manuscript-accordion-body {
+  display: none;
+  padding: 0 16px 16px;
+}
+.manuscript-accordion-item.is-open .manuscript-accordion-body {
+  display: block;
+}
+
+/* Author card layout (shared between header and old static card) */
+.manuscript-codex-author-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
 }
 
 /* Square profile frame */
@@ -8769,10 +8820,6 @@ body.bestiary-detail-open #app {
 }
 
 /* Entry grid — 2 columns of paper cards */
-.manuscript-codex-list {
-  padding: 4px 8px 16px;
-}
-
 .manuscript-codex-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -8822,6 +8869,13 @@ body.bestiary-detail-open #app {
   color: rgba(80,50,20,0.6);
   margin-top: auto;
   padding-top: 6px;
+}
+
+.manuscript-codex-section-empty {
+  font-size: 0.75rem;
+  color: rgba(180,160,120,0.4);
+  font-style: italic;
+  margin: 4px 0 0;
 }
 
 .manuscript-codex-footer {

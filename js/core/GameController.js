@@ -703,6 +703,7 @@ function _floorCtx() {
     runMusicTrack: _runMusicTrack,
     xpNeeded: _xpNeeded,
     markTileTypeHint: _markTileTypeHint,
+    refreshMainGridDomFromModel: _refreshMainGridDomFromModel,
   }
 }
 
@@ -1250,6 +1251,9 @@ function _syncGridDomClassesFromModel() {
       }
       if (t.type === 'magic_chest') {
         el.classList.toggle('chest-ready', !!t.magicChestReady)
+      }
+      if (t.type === 'manuscript') {
+        el.classList.toggle('manuscript-ready', !!(t.manuscriptReady && !t.manuscriptCollected))
       }
       if (t.type === 'forge') {
         el.classList.toggle('forge-used', !!t.forgeUsed)

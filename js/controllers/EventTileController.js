@@ -375,14 +375,14 @@ export function spawnManuscriptTile(ctx) {
   const { TileEngine } = ctx._manuscriptDeps()
   const grid = TileEngine.getGrid()
   if (!grid) return
-  const noManuscriptsYet = !session.save.manuscriptsSeen?.length
-  if (noManuscriptsYet && !session.run.manuscriptRunAuthor) {
-    session.run.manuscriptRunAuthor = 'brannik'
+  // Lock to one author per run; advance to the next author when all entries for the current one are found.
+  if (!session.run.manuscriptRunAuthor) {
+    session.run.manuscriptRunAuthor = ManuscriptCodex.pickRandomAuthor(session.save)
+    console.log(`[Manuscripts] Run author: ${session.run.manuscriptRunAuthor}`)
   }
-  const authorId = session.run.manuscriptRunAuthor ?? null
-  const entry = authorId
-    ? ManuscriptCodex.pickUnseenForAuthor(session.save, authorId)
-    : ManuscriptCodex.pickUnseen(session.save)
+  const authorId = session.run.manuscriptRunAuthor
+  if (!authorId) return // every entry across all authors has been found
+  const entry = ManuscriptCodex.pickUnseenForAuthor(session.save, authorId)
   if (!entry) return
 
   // Find a safe candidate — unrevealed, unlocked, non-special dungeon tile

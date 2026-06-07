@@ -984,6 +984,16 @@
               <span class="toggle-track"><span class="toggle-thumb"></span></span>
             </label>
           </div>
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="settings-label-title">Reveal all tiles</span>
+              <span class="settings-label-desc">Instantly reveals every tile when entering a floor</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="cheat-reveal-all-tiles">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -1591,18 +1601,7 @@
       <button class="panel-back-btn" id="manuscript-codex-back">← Back</button>
       <div class="panel-title">📜 Journals</div>
     </div>
-    <div class="manuscript-codex-author-card">
-      <div class="manuscript-codex-profile-frame-wrap">
-        <img class="manuscript-codex-profile-img" src="assets/sprites/characters/brannik-stonefuse.png" alt="Brannik Stonefuse">
-        <img class="manuscript-codex-profile-frame" src="assets/ui/gear-card-frame.png" alt="" aria-hidden="true">
-      </div>
-      <div class="manuscript-codex-author-info">
-        <div class="manuscript-codex-author-name">Brannik Stonefuse</div>
-        <div class="manuscript-codex-author-role">Demolitions Expert — Aurelian Syndicate Expedition</div>
-        <div class="manuscript-codex-author-tagline">"He believed any problem in the world could be solved with enough TNT. The Crypt was not of this world."</div>
-      </div>
-    </div>
-    <div id="manuscript-codex-list" class="manuscript-codex-list panel-list"></div>
+    <div id="manuscript-codex-accordion" class="manuscript-codex-accordion panel-list"></div>
   </div>
 
   <!-- Manuscript detail card (from Codex panel) -->

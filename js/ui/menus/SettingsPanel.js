@@ -39,6 +39,7 @@ function _populateSettingsForm(s) {
   document.getElementById('setting-auto-potions').checked = s.settings.autoPotions ?? false
   document.getElementById('setting-parry').checked         = s.settings.parryEnabled ?? true
   document.getElementById('setting-child-mode').checked   = s.settings.childMode    ?? false
+  document.getElementById('cheat-reveal-all-tiles').checked = c.revealAllTiles ?? false
   document.getElementById('cheat-god-mode').checked       = c.godMode      ?? false
   document.getElementById('cheat-instant-kill').checked   = c.instantKill  ?? false
   document.getElementById('cheat-999-gold').checked       = c.gold999      ?? false
@@ -136,6 +137,7 @@ export function wireSettingsPanel(ctx) {
   })
 
   const _cheatMap = [
+    { id: 'cheat-reveal-all-tiles', key: 'revealAllTiles' },
     { id: 'cheat-god-mode',     key: 'godMode'     },
     { id: 'cheat-instant-kill', key: 'instantKill' },
     { id: 'cheat-999-gold',     key: 'gold999'     },

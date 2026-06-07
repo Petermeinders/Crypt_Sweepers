@@ -6,6 +6,8 @@ export const MANUSCRIPTS = {
   authorId: 'brannik',
   author:   'Brannik Stonefuse',
   role:     'Demolitions Expert',
+  portrait: 'assets/sprites/characters/brannik-stonefuse.png',
+  tagline:  '"He believed any problem in the world could be solved with enough TNT. The Crypt was not of this world."',
   entries: [
     {
       id:       'brannik-01',

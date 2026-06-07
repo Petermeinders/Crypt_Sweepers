@@ -14,7 +14,6 @@ import { curseDisplay, getActiveCorruptionEntries } from '../systems/VoidCorrupt
 import MetaProgression from '../systems/MetaProgression.js'
 import { getVoidTierConfig, isVoidTrialRun, voidTrialBannerDisplay } from '../systems/VoidTrial.js'
 import ManuscriptCodex from '../systems/ManuscriptCodex.js'
-import { MANUSCRIPTS } from '../data/manuscripts.js'
 
 let _merchantToastTimer = null
 
@@ -189,7 +188,7 @@ export function cacheModalElements() {
     el.manuscriptDiscoveryText     = document.getElementById('manuscript-discovery-text')
     el.manuscriptDiscoveryOk       = document.getElementById('manuscript-discovery-ok')
     el.manuscriptCodexOverlay      = document.getElementById('manuscript-codex-overlay')
-    el.manuscriptCodexList         = document.getElementById('manuscript-codex-list')
+    el.manuscriptCodexAccordion    = document.getElementById('manuscript-codex-accordion')
     el.manuscriptDetailOverlay     = document.getElementById('manuscript-detail-overlay')
     el.manuscriptDetailBackdrop    = document.getElementById('manuscript-detail-backdrop')
     el.manuscriptDetailNumber      = document.getElementById('manuscript-detail-number')
@@ -1973,7 +1972,7 @@ export const ModalsMethods = {
       if (!entry || !el.manuscriptDiscoveryOverlay) { resolve(); return }
       if (el.manuscriptDiscoveryNumber) el.manuscriptDiscoveryNumber.textContent = `Entry ${String(entry.number).padStart(2, '0')}`
       if (el.manuscriptDiscoveryTitle)  el.manuscriptDiscoveryTitle.textContent  = entry.title
-      if (el.manuscriptDiscoveryAuthor) el.manuscriptDiscoveryAuthor.textContent = `— ${MANUSCRIPTS.author}, ${MANUSCRIPTS.role}`
+      if (el.manuscriptDiscoveryAuthor) el.manuscriptDiscoveryAuthor.textContent = `— ${entry.author}, ${entry.role}`
       if (el.manuscriptDiscoveryText) {
         el.manuscriptDiscoveryText.innerHTML = entry.text
           .split('\n\n')
@@ -2003,40 +2002,87 @@ export const ModalsMethods = {
   },
 
   showManuscriptCodexPanel(save) {
-    if (!el.manuscriptCodexOverlay || !el.manuscriptCodexList) return
-    const entries = ManuscriptCodex.allEntriesWithStatus(save)
-    el.manuscriptCodexList.innerHTML = ''
+    if (!el.manuscriptCodexOverlay || !el.manuscriptCodexAccordion) return
+    const allWithStatus = ManuscriptCodex.allEntriesWithStatus(save)
+    const cols = ManuscriptCodex.collections()
 
-    const seenEntries = entries.filter(e => e.seen)
-    const unseenCount = entries.length - seenEntries.length
+    el.manuscriptCodexAccordion.innerHTML = ''
 
-    if (seenEntries.length === 0) {
-      const p = document.createElement('p')
-      p.className = 'bestiary-empty'
-      p.textContent = 'No journal entries found yet. Explore the dungeon — there\'s a chance of finding one each floor.'
-      el.manuscriptCodexList.appendChild(p)
-    } else {
-      const grid = document.createElement('div')
-      grid.className = 'manuscript-codex-grid'
-      for (const entry of seenEntries) {
-        const card = document.createElement('button')
-        card.type = 'button'
-        card.className = 'manuscript-codex-card'
-        card.innerHTML = `
-          <div class="manuscript-codex-card-number">Entry ${String(entry.number).padStart(2, '0')}</div>
-          <div class="manuscript-codex-card-title">${entry.title}</div>
-          ${entry.audioSrc ? '<div class="manuscript-codex-card-audio">🔊 Recording</div>' : ''}`
-        card.addEventListener('click', () => this._showManuscriptDetail(entry))
-        grid.appendChild(card)
+    const openAccordion = (item) => {
+      for (const sibling of el.manuscriptCodexAccordion.querySelectorAll('.manuscript-accordion-item')) {
+        sibling.classList.toggle('is-open', sibling === item)
       }
-      el.manuscriptCodexList.appendChild(grid)
     }
 
-    if (unseenCount > 0) {
+    let firstWithEntries = null
+    const items = []
+
+    for (const col of cols) {
+      const colEntries = allWithStatus.filter(e => e.authorId === col.authorId && e.seen)
+
+      const item = document.createElement('div')
+      item.className = 'manuscript-accordion-item'
+
+      // Header = clickable profile card
+      const header = document.createElement('button')
+      header.type = 'button'
+      header.className = 'manuscript-accordion-header'
+      header.innerHTML = `
+        <div class="manuscript-codex-profile-frame-wrap">
+          <img class="manuscript-codex-profile-img" src="${col.portrait}" alt="${col.author}">
+          <img class="manuscript-codex-profile-frame" src="assets/ui/gear-card-frame.png" alt="" aria-hidden="true">
+        </div>
+        <div class="manuscript-codex-author-info">
+          <div class="manuscript-codex-author-name">${col.author}</div>
+          <div class="manuscript-codex-author-role">${col.role} — Aurelian Syndicate Expedition</div>
+          <div class="manuscript-codex-author-tagline">${col.tagline}</div>
+        </div>
+        <span class="manuscript-accordion-chevron" aria-hidden="true">▾</span>`
+      header.addEventListener('click', () => openAccordion(item))
+
+      // Body = entries grid (or empty message)
+      const body = document.createElement('div')
+      body.className = 'manuscript-accordion-body'
+
+      if (colEntries.length === 0) {
+        const empty = document.createElement('p')
+        empty.className = 'manuscript-codex-section-empty'
+        empty.textContent = 'No entries found yet.'
+        body.appendChild(empty)
+      } else {
+        const grid = document.createElement('div')
+        grid.className = 'manuscript-codex-grid'
+        for (const entry of colEntries) {
+          const cardBtn = document.createElement('button')
+          cardBtn.type = 'button'
+          cardBtn.className = 'manuscript-codex-card'
+          cardBtn.innerHTML = `
+            <div class="manuscript-codex-card-number">Entry ${String(entry.number).padStart(2, '0')}</div>
+            <div class="manuscript-codex-card-title">${entry.title}</div>
+            ${entry.audioSrc ? '<div class="manuscript-codex-card-audio">🔊 Recording</div>' : ''}`
+          cardBtn.addEventListener('click', () => this._showManuscriptDetail(entry))
+          grid.appendChild(cardBtn)
+        }
+        body.appendChild(grid)
+        if (!firstWithEntries) firstWithEntries = item
+      }
+
+      item.appendChild(header)
+      item.appendChild(body)
+      el.manuscriptCodexAccordion.appendChild(item)
+      items.push(item)
+    }
+
+    // Open the first author that has entries, or the first author if none do
+    const defaultOpen = firstWithEntries ?? items[0]
+    if (defaultOpen) defaultOpen.classList.add('is-open')
+
+    const totalUnseen = allWithStatus.filter(e => !e.seen).length
+    if (totalUnseen > 0) {
       const footer = document.createElement('p')
       footer.className = 'manuscript-codex-footer'
-      footer.textContent = `${unseenCount} entr${unseenCount === 1 ? 'y' : 'ies'} still undiscovered`
-      el.manuscriptCodexList.appendChild(footer)
+      footer.textContent = `${totalUnseen} entr${totalUnseen === 1 ? 'y' : 'ies'} still undiscovered`
+      el.manuscriptCodexAccordion.appendChild(footer)
     }
 
     el.manuscriptCodexOverlay.classList.remove('hidden')
@@ -2052,7 +2098,7 @@ export const ModalsMethods = {
     if (!el.manuscriptDetailOverlay) return
     if (el.manuscriptDetailNumber) el.manuscriptDetailNumber.textContent = `Entry ${String(entry.number).padStart(2, '0')}`
     if (el.manuscriptDetailTitle)  el.manuscriptDetailTitle.textContent  = entry.title
-    if (el.manuscriptDetailAuthor) el.manuscriptDetailAuthor.textContent = `— ${MANUSCRIPTS.author}, ${MANUSCRIPTS.role}`
+    if (el.manuscriptDetailAuthor) el.manuscriptDetailAuthor.textContent = `— ${entry.author}, ${entry.role}`
     if (el.manuscriptDetailText) {
       el.manuscriptDetailText.innerHTML = entry.text
         .split('\n\n')

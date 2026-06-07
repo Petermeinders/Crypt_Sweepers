@@ -182,11 +182,11 @@ export function startFloor(ctx) {
       SaveManager.save(session.save).catch(() => {})
     })
   }
-  // Manuscript tile spawn: guaranteed floor 1 for first-time players; 5% per floor thereafter
+  // Manuscript tile spawn: guaranteed floor 1 for first-time players; 10% per floor thereafter
   if (!_isBot && !gridRestored && !session.run.atRest) {
     const noManuscriptsYet = !session.save.manuscriptsSeen?.length
     const guaranteed = noManuscriptsYet && session.run.floor === 1
-    if (guaranteed || Math.random() < 0.05) {
+    if (guaranteed || Math.random() < 0.10) {
       ctx.spawnManuscriptTile()
     }
   }
@@ -263,6 +263,22 @@ export function startFloor(ctx) {
       }
     }
   }
+  // Reveal all tiles cheat — runs after all special spawning so manuscript/goblin tiles exist before reveal
+  if (!_isBot && !gridRestored && session.save.settings?.cheats?.revealAllTiles) {
+    const grid = TileEngine.getGrid()
+    if (grid) {
+      for (const row of grid) {
+        for (const t of row) {
+          if (!t.revealed) {
+            t.revealed = true
+            if (t.type === 'manuscript' && !t.manuscriptReady) t.manuscriptReady = true
+          }
+        }
+      }
+      ctx.refreshMainGridDomFromModel()
+    }
+  }
+
   // Paladin Kill Echo: mark closest hidden enemy/enemies to floor start; quota resets each floor
   if (!gridRestored && !session.run.atRest && ctx.charKey() === 'warrior') {
     session.run.killEchoQuota = 1
