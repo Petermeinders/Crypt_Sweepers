@@ -1,5 +1,6 @@
 import { computeRiskScore, computeTierWeights } from '../../systems/CasinoEngine.js'
 import { CASINO_CONFIG } from '../../data/casinoConfig.js'
+import { runSlotAnimation, resetSlots } from './SlotMachine.js'
 
 const TIERS = ['common', 'rare', 'epic', 'legendary']
 
@@ -96,7 +97,6 @@ function _showNonGearResult(reward, tierRolled, save) {
   _el('casino-result-tier').textContent = tierLabel[tierRolled] ?? tierRolled
   _el('casino-result-desc').textContent = desc
   _el('casino-result').classList.remove('hidden')
-  _el('casino-spin-btn').classList.add('hidden')
 }
 
 function _showVoidPearlCelebration(pearlsAwarded, save) {
@@ -107,22 +107,17 @@ function _showVoidPearlCelebration(pearlsAwarded, save) {
   tierEl.textContent = '🌑 VOID PEARL!'
   tierEl.style.color = '#c084fc'
   descEl.innerHTML = `
-    <div style="text-align:center;margin-bottom:6px">
-      <span style="font-size:2.5rem">🌑</span>
-    </div>
     <div>5 Void Fragments merged into a <strong style="color:#c084fc">Void Pearl</strong>!</div>
     <div style="margin-top:4px;color:#a1a1aa">You now have <strong>${totalPearls}</strong> Void Pearl${totalPearls !== 1 ? 's' : ''}.</div>
   `
   el.classList.remove('hidden')
   el.classList.add('casino-result--pearl')
-  _el('casino-spin-btn').classList.add('hidden')
 }
 
 function _showSpinAgainPrompt(tierLabel, desc) {
   _el('casino-result-tier').textContent = tierLabel
   _el('casino-result-desc').textContent = desc
   _el('casino-result').classList.remove('hidden')
-  _el('casino-spin-btn').classList.add('hidden')
 }
 
 function _resetBetView(save) {
@@ -135,8 +130,9 @@ function _resetBetView(save) {
   result.classList.remove('casino-result--pearl')
   const tierEl = _el('casino-result-tier')
   if (tierEl) tierEl.style.color = ''
-  _el('casino-spin-btn').classList.remove('hidden')
+  _el('casino-spin-btn').disabled = false
   _updateOdds(100, 0)
+  resetSlots()
 }
 
 // ── Gear compare modal ────────────────────────────────────────────────────────
@@ -175,15 +171,7 @@ function _showGearCompare(deps, piece, tierRolled) {
 export function wireCasinoPanel(deps) {
   const { GameController } = deps
 
-  _el('casino-btn')?.addEventListener('click', () => openCasino(deps))
   _el('casino-back')?.addEventListener('click', () => _el('casino-overlay').classList.add('hidden'))
-  _el('casino-done-btn')?.addEventListener('click', () => _el('casino-overlay').classList.add('hidden'))
-
-  _el('casino-spin-again-btn')?.addEventListener('click', () => {
-    const save = GameController.getSave()
-    _renderBalances(save)
-    _resetBetView(save)
-  })
 
   // Gold slider ↔ number input
   _el('casino-gold-slider')?.addEventListener('input', e => {
@@ -210,11 +198,20 @@ export function wireCasinoPanel(deps) {
   })
 
   // Spin
-  _el('casino-spin-btn')?.addEventListener('click', () => {
+  _el('casino-spin-btn')?.addEventListener('click', async () => {
     const gold  = _readGold()
     const scrap = _readScrap()
     const result = GameController.spinCasino(gold, scrap)
     if (result?.error) return
+
+    const spinBtn = _el('casino-spin-btn')
+    spinBtn.disabled = true
+    spinBtn.textContent = '🎰 Spinning…'
+
+    await runSlotAnimation(result.tierRolled)
+
+    spinBtn.textContent = '🎰 Spin'
+    spinBtn.disabled = false
     _renderBalances(GameController.getSave())
 
     if (result.reward.type === 'gear') {

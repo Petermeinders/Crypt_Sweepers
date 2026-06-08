@@ -1,7 +1,7 @@
 import { renderChangelogEntries } from '../ui/menus/Changelog.js'
-import { wireGoldShopPanel } from '../ui/menus/GoldShopPanel.js'
+import { wireGoldShopPanel, openShop, openPassiveUpgrades } from '../ui/menus/GoldShopPanel.js'
 import { wireBlacksmithPanel } from '../ui/menus/BlacksmithPanel.js'
-import { wireCasinoPanel } from '../ui/menus/CasinoPanel.js'
+import { wireCasinoPanel, openCasino } from '../ui/menus/CasinoPanel.js'
 import { openCheckpointSelect } from '../ui/menus/CheckpointPanel.js'
 import { wireHeroSelect, openHeroSelect, updateMenuHeroPreview } from '../ui/menus/HeroSelect.js'
 import { wireSettingsPanel } from '../ui/menus/SettingsPanel.js'
@@ -13,6 +13,40 @@ import MetaProgression from '../systems/MetaProgression.js'
 import { getVoidTierConfig } from '../systems/VoidTrial.js'
 
 let deferredInstallPrompt = null
+
+// Session-only tab memory (resets on page reload)
+let shopsLastTab = 'gold-shop'
+let collectionsLastTab = 'manuscript-codex'
+
+const SHOPS_OVERLAYS    = ['gold-shop-overlay', 'passive-upgrades-overlay', 'casino-overlay']
+const COLLECTIONS_OVERLAYS = ['bestiary-overlay', 'trinket-codex-overlay', 'manuscript-codex-overlay']
+
+function _setActiveTab(overlayIds, activeTab) {
+  overlayIds.forEach(id => {
+    document.getElementById(id)?.querySelectorAll('.panel-tab-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.tab === activeTab)
+    })
+  })
+}
+
+function _openShopsTab(tabId, deps) {
+  SHOPS_OVERLAYS.forEach(id => document.getElementById(id)?.classList.add('hidden'))
+  shopsLastTab = tabId
+  if (tabId === 'gold-shop') openShop(deps)
+  else if (tabId === 'passive-upgrades') openPassiveUpgrades(deps)
+  else if (tabId === 'casino') openCasino(deps)
+  _setActiveTab(SHOPS_OVERLAYS, tabId)
+}
+
+function _openCollectionsTab(tabId, ctx) {
+  COLLECTIONS_OVERLAYS.forEach(id => document.getElementById(id)?.classList.add('hidden'))
+  collectionsLastTab = tabId
+  const save = ctx.GameController.getSave()
+  if (tabId === 'manuscript-codex') ctx.UI.showManuscriptCodexPanel(save)
+  else if (tabId === 'bestiary') ctx.UI.showBestiaryPanel(save)
+  else if (tabId === 'trinket-codex') ctx.UI.showTrinketCodexPanel(save)
+  _setActiveTab(COLLECTIONS_OVERLAYS, tabId)
+}
 
 function wireInstallNudge() {
   const nudge      = document.getElementById('install-nudge')
@@ -155,18 +189,25 @@ export function wireMenus(ctx) {
     ov?.setAttribute('aria-hidden', 'true')
   })
 
-  document.getElementById('bestiary-btn')?.addEventListener('click', () => {
-    ctx.UI.showBestiaryPanel(ctx.GameController.getSave())
+  // Shops button (Gold Shop, Passives, Casino)
+  document.getElementById('shops-btn')?.addEventListener('click', () => _openShopsTab(shopsLastTab, ctx))
+  SHOPS_OVERLAYS.forEach(id => {
+    document.getElementById(id)?.querySelectorAll('.panel-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => _openShopsTab(btn.dataset.tab, ctx))
+    })
   })
+
+  // Collections button (Journals, Bestiary, Trinkets)
+  document.getElementById('collections-btn')?.addEventListener('click', () => _openCollectionsTab(collectionsLastTab, ctx))
+  COLLECTIONS_OVERLAYS.forEach(id => {
+    document.getElementById(id)?.querySelectorAll('.panel-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => _openCollectionsTab(btn.dataset.tab, ctx))
+    })
+  })
+
   document.getElementById('bestiary-back')?.addEventListener('click', () => ctx.UI.hideBestiaryPanel())
-  document.getElementById('trinket-codex-btn')?.addEventListener('click', () => {
-    ctx.UI.showTrinketCodexPanel(ctx.GameController.getSave())
-  })
   document.getElementById('trinket-codex-back')?.addEventListener('click', () => ctx.UI.hideTrinketCodexPanel())
   document.getElementById('trinket-detail-back')?.addEventListener('click', () => ctx.UI.hideTrinketDetail())
-  document.getElementById('manuscript-codex-btn')?.addEventListener('click', () => {
-    ctx.UI.showManuscriptCodexPanel(ctx.GameController.getSave())
-  })
   document.getElementById('manuscript-codex-back')?.addEventListener('click', () => ctx.UI.hideManuscriptCodexPanel())
 
   // Difficulty

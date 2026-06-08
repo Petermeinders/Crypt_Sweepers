@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "canvas": "^3.2.3",
-    "gif-encoder-2": "^1.0.5"
+    "gif-encoder-2": "^1.0.5",
+    "gsap": "^3.15.0"
   }
 }

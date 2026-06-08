@@ -2023,7 +2023,7 @@ export const ModalsMethods = {
           <img class="manuscript-codex-profile-img" src="${col.portrait}" alt="${col.author}" loading="lazy">
           <img class="manuscript-codex-profile-frame" src="assets/ui/gear-card-frame.png" alt="" aria-hidden="true">
         </div>
-        <span class="manuscript-nav-portrait-name">${col.author.split(' ')[0]}</span>`
+        <span class="manuscript-nav-portrait-name">${col.author.split(' ').slice(-1)[0]}</span>`
       navBtn.addEventListener('click', () => {
         const section = el.manuscriptCodexAccordion.querySelector(`[data-author-id="${col.authorId}"]`)
         if (section) {

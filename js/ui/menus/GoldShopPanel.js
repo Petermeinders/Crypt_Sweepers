@@ -2,10 +2,8 @@ import { GLOBAL_PASSIVE_UPGRADES, GLOBAL_PASSIVE_IDS } from '../../data/passives
 import { SHOP_ITEMS } from '../../data/upgrades.js'
 
 export function wireGoldShopPanel(deps) {
-  const { GameController, SaveManager, MetaProgression, UI } = deps
+  const { UI } = deps
 
-  document.getElementById('gold-shop-btn').addEventListener('click', () => openShop(deps))
-  document.getElementById('passive-upgrades-btn').addEventListener('click', () => openPassiveUpgrades(deps))
   document.getElementById('passive-upgrades-back').addEventListener('click', () => {
     document.getElementById('passive-upgrades-overlay').classList.add('hidden')
   })

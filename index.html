@@ -792,35 +792,13 @@
     <button type="button" id="latest-updates-btn" class="menu-updates-chip">✨ Latest Updates</button>
     <button id="settings-btn" class="menu-btn secondary">⚙️ Settings</button>
     <div id="menu-secondary">
-      <button id="gold-shop-btn" class="menu-btn secondary menu-btn--split" type="button">
+      <button id="shops-btn" class="menu-btn secondary menu-btn--split" type="button">
         <span class="menu-btn-ic" aria-hidden="true">🛒</span>
-        <span class="menu-btn-label">
-          <span class="menu-btn-line">Gold</span>
-          <span class="menu-btn-line">Shop</span>
-        </span>
+        <span class="menu-btn-label menu-btn-label--single">Shops</span>
       </button>
-      <button id="passive-upgrades-btn" class="menu-btn secondary menu-btn--split" type="button">
-        <span class="menu-btn-ic" aria-hidden="true">📜</span>
-        <span class="menu-btn-label">
-          <span class="menu-btn-line">Passive</span>
-          <span class="menu-btn-line">Upgrades</span>
-        </span>
-      </button>
-      <button id="bestiary-btn" class="menu-btn secondary menu-btn--split" type="button">
-        <span class="menu-btn-ic" aria-hidden="true">📖</span>
-        <span class="menu-btn-label menu-btn-label--single">Bestiary</span>
-      </button>
-      <button id="trinket-codex-btn" class="menu-btn secondary menu-btn--split" type="button">
-        <span class="menu-btn-ic" aria-hidden="true">🔮</span>
-        <span class="menu-btn-label menu-btn-label--single">Trinkets</span>
-      </button>
-      <button id="manuscript-codex-btn" class="menu-btn secondary menu-btn--split" type="button">
-        <span class="menu-btn-ic" aria-hidden="true">📜</span>
-        <span class="menu-btn-label menu-btn-label--single">Journals</span>
-      </button>
-      <button id="casino-btn" class="menu-btn secondary menu-btn--split" type="button">
-        <span class="menu-btn-ic" aria-hidden="true">🎰</span>
-        <span class="menu-btn-label menu-btn-label--single">Casino</span>
+      <button id="collections-btn" class="menu-btn secondary menu-btn--split" type="button">
+        <span class="menu-btn-ic" aria-hidden="true">📚</span>
+        <span class="menu-btn-label menu-btn-label--single">Collections</span>
       </button>
     </div>
     <div id="difficulty-row">
@@ -1149,9 +1127,13 @@
   <div id="passive-upgrades-overlay" class="panel-overlay hidden">
     <div class="panel-header">
       <button class="panel-back-btn" id="passive-upgrades-back">← Back</button>
-      <div class="panel-title">Passive Upgrades</div>
-      <div class="panel-resource">💰 <span id="passive-upgrades-gold-val">0</span></div>
+      <div class="panel-tab-strip">
+        <button class="panel-tab-btn" data-tab="gold-shop">🛒 Gold Shop</button>
+        <button class="panel-tab-btn" data-tab="passive-upgrades">📜 Passives</button>
+        <button class="panel-tab-btn" data-tab="casino">🎰 Casino</button>
+      </div>
     </div>
+    <div class="panel-inline-gold">💰 <span id="passive-upgrades-gold-val">0</span></div>
     <div id="passive-upgrades-desc">Permanent upgrades that apply to every hero on every run.</div>
     <div id="passive-upgrades-list" class="panel-list"></div>
   </div>
@@ -1159,9 +1141,13 @@
   <div id="gold-shop-overlay" class="panel-overlay hidden">
     <div class="panel-header">
       <button class="panel-back-btn" id="gold-shop-back">← Back</button>
-      <div class="panel-title">Gold Shop</div>
-      <div class="panel-resource" id="shop-gold-val">💰 0</div>
+      <div class="panel-tab-strip">
+        <button class="panel-tab-btn" data-tab="gold-shop">🛒 Gold Shop</button>
+        <button class="panel-tab-btn" data-tab="passive-upgrades">📜 Passives</button>
+        <button class="panel-tab-btn" data-tab="casino">🎰 Casino</button>
+      </div>
     </div>
+    <div class="panel-inline-gold" id="shop-gold-val">💰 0</div>
     <div id="shop-desc">These items are one-time consumables — they apply only to your next run and are lost whether you win or die.</div>
     <div id="shop-cart-info" class="hidden">Items in cart are applied to your next run.</div>
     <div id="shop-list" class="panel-list"></div>
@@ -1232,7 +1218,11 @@
   <div id="casino-overlay" class="panel-overlay hidden" role="dialog" aria-modal="true" aria-label="Casino">
     <div class="panel-header">
       <button class="panel-back-btn" id="casino-back">← Back</button>
-      <div class="panel-title">🎰 Casino</div>
+      <div class="panel-tab-strip">
+        <button class="panel-tab-btn" data-tab="gold-shop">🛒 Gold Shop</button>
+        <button class="panel-tab-btn" data-tab="passive-upgrades">📜 Passives</button>
+        <button class="panel-tab-btn" data-tab="casino">🎰 Casino</button>
+      </div>
     </div>
 
     <!-- Balances -->
@@ -1306,18 +1296,24 @@
       </div>
     </div>
 
-    <!-- Spin -->
-    <div class="casino-spin-section">
-      <button id="casino-spin-btn" class="casino-spin-btn" type="button">🎰 Spin</button>
+    <!-- Slot Machine -->
+    <div id="casino-slot-machine" class="casino-slot-machine">
+      <div class="casino-reel-frame">
+        <div class="casino-reel-window">
+          <div class="casino-reel" id="casino-reel-0"><div class="casino-reel-strip" id="casino-strip-0"></div></div>
+          <div class="casino-reel" id="casino-reel-1"><div class="casino-reel-strip" id="casino-strip-1"></div></div>
+          <div class="casino-reel" id="casino-reel-2"><div class="casino-reel-strip" id="casino-strip-2"></div></div>
+        </div>
+        <div class="casino-reel-shine"></div>
+      </div>
     </div>
 
-    <!-- Result -->
-    <div id="casino-result" class="casino-result hidden">
-      <div class="casino-result-tier" id="casino-result-tier"></div>
-      <div class="casino-result-desc" id="casino-result-desc"></div>
-      <div class="casino-result-actions">
-        <button id="casino-spin-again-btn" class="casino-spin-btn" type="button">Spin Again</button>
-        <button id="casino-done-btn" class="casino-done-btn" type="button">Done</button>
+    <!-- Spin + Result -->
+    <div class="casino-spin-section">
+      <button id="casino-spin-btn" class="casino-spin-btn" type="button">🎰 Spin</button>
+      <div id="casino-result" class="casino-result hidden">
+        <div class="casino-result-tier" id="casino-result-tier"></div>
+        <div class="casino-result-desc" id="casino-result-desc"></div>
       </div>
     </div>
   </div>
@@ -1583,7 +1579,11 @@
   <div id="bestiary-overlay" class="panel-overlay hidden">
     <div class="panel-header">
       <button class="panel-back-btn" id="bestiary-back">← Back</button>
-      <div class="panel-title">📖 Bestiary</div>
+      <div class="panel-tab-strip">
+        <button class="panel-tab-btn" data-tab="manuscript-codex">📜 Journals</button>
+        <button class="panel-tab-btn" data-tab="bestiary">📖 Bestiary</button>
+        <button class="panel-tab-btn" data-tab="trinket-codex">🔮 Trinkets</button>
+      </div>
     </div>
     <p class="bestiary-panel-desc">Creatures you have encountered in the dungeon. Tap an entry for details.</p>
     <div id="bestiary-list" class="bestiary-list panel-list"></div>
@@ -1627,7 +1627,11 @@
   <div id="trinket-codex-overlay" class="panel-overlay hidden">
     <div class="panel-header">
       <button class="panel-back-btn" id="trinket-codex-back">← Back</button>
-      <div class="panel-title">🔮 Trinkets</div>
+      <div class="panel-tab-strip">
+        <button class="panel-tab-btn" data-tab="manuscript-codex">📜 Journals</button>
+        <button class="panel-tab-btn" data-tab="bestiary">📖 Bestiary</button>
+        <button class="panel-tab-btn" data-tab="trinket-codex">🔮 Trinkets</button>
+      </div>
     </div>
     <p class="trinket-codex-desc">Trinkets you have discovered on your runs. Tap an entry for details. Forged trinkets are created at the Sanctuary Forge.</p>
     <div id="trinket-codex-list" class="trinket-codex-list panel-list"></div>
@@ -1710,7 +1714,11 @@
   <div id="manuscript-codex-overlay" class="panel-overlay hidden">
     <div class="panel-header">
       <button class="panel-back-btn" id="manuscript-codex-back">← Back</button>
-      <div class="panel-title">📜 Journals</div>
+      <div class="panel-tab-strip">
+        <button class="panel-tab-btn" data-tab="manuscript-codex">📜 Journals</button>
+        <button class="panel-tab-btn" data-tab="bestiary">📖 Bestiary</button>
+        <button class="panel-tab-btn" data-tab="trinket-codex">🔮 Trinkets</button>
+      </div>
     </div>
     <div id="manuscript-codex-accordion" class="manuscript-codex-accordion panel-list"></div>
   </div>
@@ -1741,6 +1749,7 @@
 
   <script src="js/lib/omggif.js"></script>
   <script src="js/lib/matter.min.js"></script>
+  <script src="node_modules/gsap/dist/gsap.min.js"></script>
   <script>
     (function () {
       function loadMain(version) {

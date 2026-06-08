@@ -114,7 +114,10 @@ async function _loadSfx() {
 
 function playSfx(key) {
   if (!_sfxOn || !_ready || !_ctx) return
-  if (key === 'zap') { _synthesizeElectricalZap(); return }
+  if (key === 'zap')      { _synthesizeElectricalZap(); return }
+  if (key === 'slotSpin') { _synthesizeSlotSpin();      return }
+  if (key === 'slotTick') { _synthesizeSlotTick();      return }
+  if (key === 'slotWin')  { _synthesizeSlotWin();       return }
   if (!_sfxBuffers[key]) return
   try {
     const source = _ctx.createBufferSource()
@@ -200,6 +203,115 @@ function _synthesizeElectricalZap() {
   } catch (e) {
     Logger.error('[AudioManager] _synthesizeElectricalZap error', e)
   }
+}
+
+/** Mechanical whir + rapid ratchet ticks — plays while slot reels spin. */
+function _synthesizeSlotSpin() {
+  try {
+    const t   = _ctx.currentTime
+    const sr  = _ctx.sampleRate
+    const dur = 0.75
+
+    // Bandpass-filtered noise — the continuous whirring body
+    const noiseBuf = _ctx.createBuffer(1, Math.floor(sr * dur), sr)
+    const nd = noiseBuf.getChannelData(0)
+    for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1
+    const noise = _ctx.createBufferSource()
+    noise.buffer = noiseBuf
+    const bpf = _ctx.createBiquadFilter()
+    bpf.type = 'bandpass'
+    bpf.frequency.value = 700
+    bpf.Q.value = 2.5
+    const whirEnv = _ctx.createGain()
+    whirEnv.gain.setValueAtTime(0, t)
+    whirEnv.gain.linearRampToValueAtTime(_sfxVol * 0.45, t + 0.04)
+    whirEnv.gain.setValueAtTime(_sfxVol * 0.45, t + dur - 0.12)
+    whirEnv.gain.exponentialRampToValueAtTime(0.0001, t + dur)
+    noise.connect(bpf); bpf.connect(whirEnv); whirEnv.connect(_ctx.destination)
+    noise.start(t); noise.stop(t + dur)
+
+    // Rapid ticks — ratchet character, 10 evenly spaced
+    for (let i = 0; i < 10; i++) {
+      const at   = t + (i / 10) * dur * 0.85
+      const tlen = Math.floor(sr * 0.018)
+      const tbuf = _ctx.createBuffer(1, tlen, sr)
+      const td   = tbuf.getChannelData(0)
+      for (let j = 0; j < tlen; j++) td[j] = (Math.random() * 2 - 1) * Math.exp(-j / (tlen * 0.25))
+      const tsrc = _ctx.createBufferSource()
+      tsrc.buffer = tbuf
+      const tg = _ctx.createGain()
+      tg.gain.value = _sfxVol * 0.35
+      tsrc.connect(tg); tg.connect(_ctx.destination)
+      tsrc.start(at)
+    }
+  } catch (e) { Logger.error('[AudioManager] _synthesizeSlotSpin error', e) }
+}
+
+/** Short percussive thump + click — plays when each reel snaps into place. */
+function _synthesizeSlotTick() {
+  try {
+    const t  = _ctx.currentTime
+    const sr = _ctx.sampleRate
+
+    // Low thump — pitched oscillator swooping down
+    const osc = _ctx.createOscillator()
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(200, t)
+    osc.frequency.exponentialRampToValueAtTime(65, t + 0.09)
+    const oscEnv = _ctx.createGain()
+    oscEnv.gain.setValueAtTime(_sfxVol * 0.9, t)
+    oscEnv.gain.exponentialRampToValueAtTime(0.0001, t + 0.11)
+    osc.connect(oscEnv); oscEnv.connect(_ctx.destination)
+    osc.start(t); osc.stop(t + 0.12)
+
+    // High transient click
+    const clen = Math.floor(sr * 0.012)
+    const cbuf = _ctx.createBuffer(1, clen, sr)
+    const cd   = cbuf.getChannelData(0)
+    for (let i = 0; i < clen; i++) cd[i] = (Math.random() * 2 - 1) * Math.exp(-i / (clen * 0.12))
+    const csrc = _ctx.createBufferSource()
+    csrc.buffer = cbuf
+    const cg = _ctx.createGain()
+    cg.gain.value = _sfxVol * 1.4
+    csrc.connect(cg); cg.connect(_ctx.destination)
+    csrc.start(t)
+  } catch (e) { Logger.error('[AudioManager] _synthesizeSlotTick error', e) }
+}
+
+/** Ascending C-major arpeggio + held chord — tada fanfare when all reels land. */
+function _synthesizeSlotWin() {
+  try {
+    const t     = _ctx.currentTime
+    // C5, E5, G5, C6
+    const freqs = [523.25, 659.25, 783.99, 1046.5]
+
+    // Arpeggio — each note staggered 90ms
+    freqs.forEach((freq, i) => {
+      const at  = t + i * 0.09
+      const osc = _ctx.createOscillator()
+      osc.type  = 'triangle'
+      osc.frequency.value = freq
+      const env = _ctx.createGain()
+      env.gain.setValueAtTime(0, at)
+      env.gain.linearRampToValueAtTime(_sfxVol * 0.45, at + 0.018)
+      env.gain.exponentialRampToValueAtTime(0.0001, at + 0.32)
+      osc.connect(env); env.connect(_ctx.destination)
+      osc.start(at); osc.stop(at + 0.35)
+    })
+
+    // Held chord after arpeggio completes
+    const ct = t + freqs.length * 0.09 + 0.04
+    freqs.forEach(freq => {
+      const osc = _ctx.createOscillator()
+      osc.type  = 'triangle'
+      osc.frequency.value = freq
+      const env = _ctx.createGain()
+      env.gain.setValueAtTime(_sfxVol * 0.3, ct)
+      env.gain.exponentialRampToValueAtTime(0.0001, ct + 0.65)
+      osc.connect(env); env.connect(_ctx.destination)
+      osc.start(ct); osc.stop(ct + 0.7)
+    })
+  } catch (e) { Logger.error('[AudioManager] _synthesizeSlotWin error', e) }
 }
 
 /** Multiple overlapping BufferSources from the same decoded buffer (rain / volley). */

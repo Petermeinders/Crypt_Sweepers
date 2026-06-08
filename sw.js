@@ -20,6 +20,7 @@ const PRECACHE_ASSETS = [
   // JS
   './js/main.js',
   './js/lib/matter.min.js',
+  './node_modules/gsap/dist/gsap.min.js',
   './js/ui/DiceRoller.js',
   './js/config.js',
   './js/data/balance/loadFloorDifficulty.js',
