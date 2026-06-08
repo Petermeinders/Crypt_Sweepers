@@ -1,4 +1,6 @@
 import { CONFIG } from '../config.js'
+import { TD_PIECES as TD_PIECES_REF } from '../data/tdPieces.js'
+import { getRadiusCells as _tdGetRadius } from '../systems/TDPathfinder.js'
 import { trinketTrashDropSuffix, trinketTrashRewardText } from '../controllers/GearController.js'
 import TileEngine from '../systems/TileEngine.js'
 import { TILE_BLURBS } from '../data/tileBlurbs.js'
@@ -117,7 +119,25 @@ export function cacheModalElements() {
     el.shopList           = document.getElementById('shop-list')
     el.subFloorOverlay      = document.getElementById('sub-floor-overlay')
     el.subFloorGrid         = document.getElementById('sub-floor-grid')
+    el.subFloorGridWrap     = document.querySelector('.sub-floor-grid-wrap')
     el.subFloorMessage      = document.getElementById('sub-floor-message')
+    el.tdIntro              = document.getElementById('td-intro')
+    el.tdSurveyBtn          = document.getElementById('td-survey-btn')
+    el.tdHandTray           = document.getElementById('td-hand-tray')
+    el.tdLayTheTrapBtn      = document.getElementById('td-lay-the-trap-btn')
+    el.tdActionBar          = document.getElementById('td-action-bar')
+    el.tdRetreatBtn         = document.getElementById('td-retreat-btn')
+    el.tdReleaseBtn         = document.getElementById('td-release-btn')
+    el.tdHeroHpWrap         = document.getElementById('td-hero-hp-wrap')
+    el.tdHeroHpFill         = document.getElementById('td-hero-hp-fill')
+    el.tdHeroHpText         = document.getElementById('td-hero-hp-text')
+    el.tdOutcome            = document.getElementById('td-outcome')
+    el.tdOutcomeHeading     = document.getElementById('td-outcome-heading')
+    el.tdGearChoices        = document.getElementById('td-gear-choices')
+    el.tdOutcomeReturnBtn   = document.getElementById('td-outcome-return-btn')
+    el.tdRetreatConfirmBar  = document.getElementById('td-retreat-confirm-bar')
+    el.tdRetreatConfirmYes  = document.getElementById('td-retreat-confirm-yes')
+    el.tdRetreatConfirmNo   = document.getElementById('td-retreat-confirm-no')
     el.shrineOverlay        = document.getElementById('shrine-overlay')
     el.merchantShopOverlay  = document.getElementById('merchant-shop-overlay')
     el.gamblerOverlay       = document.getElementById('gambler-overlay')
@@ -2265,10 +2285,319 @@ export const ModalsMethods = {
     if (el.subFloorMessage) el.subFloorMessage.textContent = msg
   },
 
+  // ── TD Minigame UI ──────────────────────────────────────────────────────────
+
+  showTDSurvey(sf, onTileTap) {
+    // Show sub-floor overlay with TD title
+    const ov = el.subFloorOverlay
+    if (!ov) return
+    document.getElementById('sub-floor-icon').textContent  = '🪤'
+    document.getElementById('sub-floor-title').textContent = 'Monster Ambush!'
+    document.getElementById('sub-floor-subtitle').textContent = 'Reveal tiles to find your weapons.'
+    ov.classList.remove('hidden')
+    ov.removeAttribute('aria-hidden')
+    // Hide all TD panels except intro
+    this._tdHideAll()
+    el.tdIntro?.classList.remove('hidden')
+    el.tdSurveyBtn?.classList.remove('hidden')
+    el.tdIntro?._onSurvey && (el.tdIntro._onSurvey = null)
+    if (el.tdSurveyBtn) {
+      el.tdSurveyBtn.onclick = () => {
+        el.tdIntro?.classList.add('hidden')
+        el.tdSurveyBtn?.classList.add('hidden')
+        // Render survey grid
+        TileEngine.renderTileGridInto(el.subFloorGrid, sf.tiles, onTileTap, null)
+        el.subFloorGrid.classList.add('td-survey-grid')
+        this.setSubFloorMessage('Reveal tiles to find monsters and rocks for your hand.')
+      }
+    }
+  },
+
+  flipTDSurveyTile(tile, resultType) {
+    if (!tile.element) return
+    tile.element.classList.add('revealed')
+    if (resultType === null) {
+      // Piece consumed — fade out
+      setTimeout(() => {
+        tile.element?.classList.add('td-piece-consumed')
+      }, 200)
+    }
+  },
+
+  markTDTileReachable(tile) {
+    tile.element?.classList.add('reachable')
+  },
+
+  showTDLayTheTrapButton(onLayTheTrap) {
+    if (!el.tdLayTheTrapBtn) return
+    el.tdLayTheTrapBtn.classList.remove('hidden')
+    el.tdLayTheTrapBtn.onclick = () => {
+      el.tdLayTheTrapBtn.classList.add('hidden')
+      onLayTheTrap()
+    }
+  },
+
+  showTDDeployPhase(sf, onCellTap, onRelease, onRetreat, onSelectPiece) {
+    // Ensure the overlay is visible (may not have been opened if survey was skipped)
+    const ov = el.subFloorOverlay
+    if (ov) {
+      document.getElementById('sub-floor-icon').textContent  = '🪤'
+      document.getElementById('sub-floor-title').textContent = 'Monster Ambush!'
+      document.getElementById('sub-floor-subtitle').textContent = 'Place monsters to stop the hero.'
+      this._tdHideAll()
+      ov.classList.remove('hidden')
+      ov.removeAttribute('aria-hidden')
+    }
+    el.subFloorGrid.classList.remove('td-survey-grid')
+    el.subFloorGridWrap?.classList.remove('hidden')
+    this.renderTDDeployGrid(sf, onCellTap)
+    el.tdHandTray?.classList.remove('hidden')
+    el.tdActionBar?.classList.remove('hidden')
+    el.tdHeroHpWrap?.classList.add('hidden')
+    el.tdOutcome?.classList.add('hidden')
+    this.renderTDHand(sf.hand, sf.selectedPiece, onSelectPiece)
+    this.updateTDReleaseBtn(sf.placed.length > 0)
+    if (el.tdReleaseBtn) el.tdReleaseBtn.onclick = onRelease
+    if (el.tdRetreatBtn) el.tdRetreatBtn.onclick = onRetreat
+    this.setSubFloorMessage('Tap a piece in your hand, then tap a cell to place it.')
+    el.tdLayTheTrapBtn?.classList.add('hidden')
+  },
+
+  renderTDDeployGrid(sf, onCellTap) {
+    if (!el.subFloorGrid) return
+    if (onCellTap) el.subFloorGrid._onCellTap = onCellTap
+    const cb = el.subFloorGrid._onCellTap
+    el.subFloorGrid.innerHTML = ''
+    el.subFloorGrid.style.setProperty('--td-cols', sf.cols)
+    el.subFloorGrid.className = 'sub-floor-grid td-deploy-grid'
+
+
+    for (let r = 0; r < sf.rows; r++) {
+      for (let c = 0; c < sf.cols; c++) {
+        const cell = document.createElement('div')
+        cell.className = 'td-cell'
+        cell.dataset.row = r
+        cell.dataset.col = c
+
+        const isHero  = r === sf.heroPos.row  && c === sf.heroPos.col
+        const isChest = r === sf.chestPos.row && c === sf.chestPos.col
+        const placed  = sf.placed?.find(p => p.row === r && p.col === c)
+
+        if (isHero) {
+          cell.classList.add('td-cell-hero')
+          cell.innerHTML = '<span class="td-cell-icon">🗡️</span>'
+        } else if (isChest) {
+          cell.classList.add('td-cell-chest')
+          cell.innerHTML = '<span class="td-cell-icon">📦</span>'
+        } else if (placed) {
+          const def = TD_PIECES_REF[placed.pieceType]
+          cell.classList.add('td-cell-piece', `td-piece-${placed.pieceType}`)
+          cell.innerHTML = `<span class="td-cell-icon">${def?.emoji ?? '?'}</span>`
+          if (cb) cell.addEventListener('click', () => cb(r, c))
+        } else {
+          cell.classList.add('td-cell-empty')
+          if (cb) cell.addEventListener('click', () => cb(r, c))
+        }
+        el.subFloorGrid.appendChild(cell)
+      }
+    }
+
+    // Render radius overlays for placed pieces
+    this._applyTDRadiusOverlays(sf)
+
+    // Render hero icon if in simulation
+    if (sf.stage === 'simulation' && sf.heroSimPos) {
+      this._updateTDHeroOverlay(sf)
+    }
+  },
+
+  _applyTDRadiusOverlays(sf) {
+    if (!el.subFloorGrid) return
+    // Clear existing
+    el.subFloorGrid.querySelectorAll('.td-radius-overlay').forEach(el => el.remove())
+    const pieces = sf.stage === 'simulation' ? sf.placed : sf.placed
+    for (const piece of pieces) {
+      const def = TD_PIECES_REF[piece.pieceType]
+      if (!def || def.radiusType === 'none') continue
+      const radiusCells = _tdGetRadius(def.radiusType, piece.row, piece.col, sf.rows, sf.cols)
+      for (const { row, col } of radiusCells) {
+        const cellEl = el.subFloorGrid.querySelector(`[data-row="${row}"][data-col="${col}"]`)
+        if (cellEl) {
+          const overlay = document.createElement('div')
+          overlay.className = `td-radius-overlay td-radius-${piece.pieceType}`
+          cellEl.appendChild(overlay)
+        }
+      }
+    }
+  },
+
+  renderTDHand(hand, selectedPiece, onSelectPiece) {
+    if (!el.tdHandTray) return
+    // Store callback so re-renders can reuse it
+    if (onSelectPiece) el.tdHandTray._onSelectPiece = onSelectPiece
+    const cb = el.tdHandTray._onSelectPiece
+    // Clear only piece buttons, preserve the static label
+    el.tdHandTray.querySelectorAll('.td-hand-piece, .td-hand-empty').forEach(n => n.remove())
+    if (!hand.length) {
+      const empty = document.createElement('span')
+      empty.className = 'td-hand-empty'
+      empty.textContent = 'No pieces'
+      el.tdHandTray.appendChild(empty)
+      return
+    }
+    el.tdHandTray.classList.remove('hidden')
+    const groups = {}
+    for (const p of hand) {
+      groups[p.pieceType] = groups[p.pieceType] ?? []
+      groups[p.pieceType].push(p)
+    }
+    for (const [pieceType, pieces] of Object.entries(groups)) {
+      const def = TD_PIECES_REF[pieceType]
+      const btn = document.createElement('button')
+      btn.className = 'td-hand-piece'
+      btn.dataset.pieceType = pieceType
+      const isSelected = pieces.some(p => p.instanceId === selectedPiece?.instanceId)
+      if (isSelected) btn.classList.add('td-hand-piece-selected')
+      btn.innerHTML = `<span class="td-hand-emoji">${def?.emoji ?? '?'}</span>${pieces.length > 1 ? `<span class="td-hand-count">×${pieces.length}</span>` : ''}`
+      btn.title = def?.description ?? ''
+      btn.addEventListener('click', () => cb?.(pieces[0].instanceId))
+      el.tdHandTray.appendChild(btn)
+    }
+  },
+
+  updateTDReleaseBtn(hasPlaced) {
+    if (el.tdReleaseBtn) el.tdReleaseBtn.disabled = !hasPlaced
+  },
+
+  showTDSimulation(sf) {
+    el.tdActionBar?.classList.add('hidden')
+    el.tdHeroHpWrap?.classList.remove('hidden')
+    el.tdLayTheTrapBtn?.classList.add('hidden')
+    // Rebuild grid in simulation mode (locked cells, no taps)
+    this.renderTDDeployGrid(sf, null)
+    // Place initial hero at heroPos
+    sf.heroSimPos = { ...sf.heroPos }
+    this._updateTDHeroOverlay(sf)
+    this.setSubFloorMessage('The hero advances… can your traps stop them?')
+  },
+
+  moveTDHero(sf, row, col) {
+    sf.heroSimPos = { row, col }
+    this._updateTDHeroOverlay(sf)
+  },
+
+  _updateTDHeroOverlay(sf) {
+    if (!el.subFloorGrid) return
+    // Remove existing hero overlay
+    el.subFloorGrid.querySelector('.td-hero-overlay')?.remove()
+    if (!sf.heroSimPos) return
+    const cellEl = el.subFloorGrid.querySelector(`[data-row="${sf.heroSimPos.row}"][data-col="${sf.heroSimPos.col}"]`)
+    if (!cellEl) return
+    const heroEl = document.createElement('div')
+    heroEl.className = 'td-hero-overlay'
+    heroEl.textContent = '🗡️'
+    cellEl.appendChild(heroEl)
+  },
+
+  updateTDHeroHP(current, max) {
+    if (el.tdHeroHpFill) {
+      el.tdHeroHpFill.style.width = `${Math.max(0, (current / max) * 100)}%`
+    }
+    if (el.tdHeroHpText) el.tdHeroHpText.textContent = `${Math.max(0, current)}/${max}`
+  },
+
+  flashTDCell(row, col, type) {
+    const cellEl = el.subFloorGrid?.querySelector(`[data-row="${row}"][data-col="${col}"]`)
+    if (!cellEl) return
+    cellEl.classList.add(`td-flash-${type}`)
+    setTimeout(() => cellEl.classList.remove(`td-flash-${type}`), 500)
+  },
+
+  showTDRetreatConfirm(onConfirm) {
+    if (!el.tdRetreatConfirmBar) return
+    el.tdRetreatConfirmBar.classList.remove('hidden')
+    if (el.tdRetreatConfirmYes) {
+      el.tdRetreatConfirmYes.onclick = () => {
+        el.tdRetreatConfirmBar.classList.add('hidden')
+        onConfirm()
+      }
+    }
+    if (el.tdRetreatConfirmNo) {
+      el.tdRetreatConfirmNo.onclick = () => {
+        el.tdRetreatConfirmBar.classList.add('hidden')
+        this.setSubFloorMessage('Tap a piece in your hand, then tap a cell to place it.')
+      }
+    }
+  },
+
+  showTDWin(gearChoices, onPick) {
+    el.tdHeroHpWrap?.classList.add('hidden')
+    el.tdHandTray?.classList.add('hidden')
+    el.tdActionBar?.classList.add('hidden')
+    el.tdRetreatConfirmBar?.classList.add('hidden')
+    el.subFloorGridWrap?.classList.add('hidden')
+    el.tdOutcome?.classList.remove('hidden')
+    if (el.tdOutcomeHeading) el.tdOutcomeHeading.textContent = '⚔️ The hero falls! Choose your reward:'
+    if (el.tdGearChoices) {
+      el.tdGearChoices.innerHTML = ''
+      const tierLabels = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' }
+      gearChoices.forEach((piece) => {
+        const tier = piece.tier ?? 'common'
+        const card = document.createElement('div')
+        card.className = `td-gear-card gear-tier-${tier}`
+        card.innerHTML = `
+          <div class="td-gear-tier tier-${tier}">${tierLabels[tier] ?? tier}</div>
+          <div class="td-gear-name">${piece.name ?? 'Gear'}</div>
+          <div class="td-gear-slot">${piece.slot ?? ''}</div>
+          <div class="td-gear-stats">${this._formatGearStatLines(piece)}</div>
+          <button type="button" class="menu-btn primary td-gear-pick">Take</button>`
+        card.querySelector('.td-gear-pick')?.addEventListener('click', () => {
+          el.tdOutcome?.classList.add('hidden')
+          onPick(piece)
+        })
+        el.tdGearChoices.appendChild(card)
+      })
+    }
+    if (el.tdOutcomeReturnBtn) el.tdOutcomeReturnBtn.classList.add('hidden')
+    this.setSubFloorMessage('Tap a card to claim the gear.')
+  },
+
+  showTDLoss(onReturn) {
+    el.tdHeroHpWrap?.classList.add('hidden')
+    el.tdHandTray?.classList.add('hidden')
+    el.tdActionBar?.classList.add('hidden')
+    el.tdRetreatConfirmBar?.classList.add('hidden')
+    el.subFloorGridWrap?.classList.add('hidden')
+    el.tdOutcome?.classList.remove('hidden')
+    if (el.tdOutcomeHeading) el.tdOutcomeHeading.textContent = '📦 The hero escapes with the treasure!'
+    if (el.tdGearChoices) el.tdGearChoices.innerHTML = '<p class="td-loss-text">Better luck next time.</p>'
+    if (el.tdOutcomeReturnBtn) {
+      el.tdOutcomeReturnBtn.classList.remove('hidden')
+      el.tdOutcomeReturnBtn.textContent = 'Return to Dungeon'
+      el.tdOutcomeReturnBtn.onclick = () => {
+        el.tdOutcome?.classList.add('hidden')
+        onReturn()
+      }
+    }
+    this.setSubFloorMessage('The hero escapes. No reward this time.')
+  },
+
+  _tdHideAll() {
+    el.tdIntro?.classList.add('hidden')
+    el.tdSurveyBtn?.classList.add('hidden')
+    el.tdHandTray?.classList.add('hidden')
+    el.tdLayTheTrapBtn?.classList.add('hidden')
+    el.tdActionBar?.classList.add('hidden')
+    el.tdHeroHpWrap?.classList.add('hidden')
+    el.tdOutcome?.classList.add('hidden')
+    el.tdRetreatConfirmBar?.classList.add('hidden')
+  },
+
   hideSubFloor() {
     el.subFloorOverlay?.classList.add('hidden')
     el.subFloorOverlay?.setAttribute('aria-hidden', 'true')
     if (el.subFloorGrid) el.subFloorGrid.innerHTML = ''
+    this._tdHideAll()
     el.shrineOverlay?.classList.add('hidden')
   },
 

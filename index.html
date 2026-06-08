@@ -103,10 +103,46 @@
               <div class="sub-floor-subtitle" id="sub-floor-subtitle"></div>
             </div>
           </div>
+          <!-- TD Intro (shown before survey begins) -->
+          <div id="td-intro" class="td-intro hidden">
+            <p class="td-intro-text">You spring the trapdoor — a monster ambush! Set your traps before they arrive.</p>
+            <button id="td-survey-btn" class="td-btn td-btn-primary">Survey the Room</button>
+          </div>
+          <!-- TD Hand tray (shown during lay_the_trap) -->
+          <div id="td-hand-tray" class="td-hand-tray hidden">
+            <span class="td-hand-label">Monsters:</span>
+          </div>
+          <!-- TD Lay the Trap button (shown when survey is complete) -->
+          <button id="td-lay-the-trap-btn" class="td-btn td-btn-primary hidden">Lay the Trap →</button>
           <div class="sub-floor-grid-wrap">
             <div class="sub-floor-grid" id="sub-floor-grid"></div>
           </div>
+          <!-- TD Hero HP bar (shown during simulation) -->
+          <div id="td-hero-hp-wrap" class="td-hero-hp-wrap hidden">
+            <span class="td-hero-label">⚔️ Hero</span>
+            <div class="td-hero-hp-track">
+              <div id="td-hero-hp-fill" class="td-hero-hp-fill"></div>
+            </div>
+            <span id="td-hero-hp-text" class="td-hero-hp-text"></span>
+          </div>
+          <!-- TD Action bar (shown during lay_the_trap) -->
+          <div id="td-action-bar" class="td-action-bar hidden">
+            <button id="td-retreat-btn" class="td-btn td-btn-secondary">Retreat</button>
+            <button id="td-release-btn" class="td-btn td-btn-primary" disabled>Release!</button>
+          </div>
+          <!-- TD Retreat confirm bar -->
+          <div id="td-retreat-confirm-bar" class="td-retreat-confirm-bar hidden">
+            <span class="td-retreat-confirm-text">Abandon the ambush?</span>
+            <button id="td-retreat-confirm-yes" class="td-btn td-btn-danger">Yes, Retreat</button>
+            <button id="td-retreat-confirm-no" class="td-btn td-btn-secondary">Cancel</button>
+          </div>
           <div class="sub-floor-message-bar" id="sub-floor-message"></div>
+          <!-- TD Outcome panel (shown after simulation) -->
+          <div id="td-outcome" class="td-outcome hidden">
+            <div id="td-outcome-heading" class="td-outcome-heading"></div>
+            <div id="td-gear-choices" class="td-gear-choices"></div>
+            <button id="td-outcome-return-btn" class="td-btn td-btn-primary hidden">Return to Dungeon</button>
+          </div>
         </div>
       </div>
       <div id="floor-banner" class="floor-banner hidden" aria-hidden="true">

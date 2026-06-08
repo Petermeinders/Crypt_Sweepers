@@ -9,6 +9,11 @@ import { resolveEnemySpriteSrc, ITEM_ICONS_BASE } from '../data/tileIcons.js'
 import { TILE_BLURBS } from '../data/tileBlurbs.js'
 import { ITEMS } from '../data/items.js'
 import { session } from '../core/RunContext.js'
+import { hasPath, computePath } from '../systems/TDPathfinder.js'
+import { resolveDamageAtCell } from '../systems/TDCombat.js'
+import { TD_PIECES } from '../data/tdPieces.js'
+import * as gearModule from '../data/gear.js'
+import { handleGearPickup } from './GearController.js'
 
 export function spawnSubFloorEntry() {
   const grid = TileEngine.getGrid()
@@ -178,6 +183,7 @@ export function destroyWarBanner(ctx, tile) {
 
 export function enterSubFloor(ctx, tile) {
   if (tile.subFloorVisited) return // already depleted
+  if (CONFIG.subFloor.tdMode) { enterTDMinigame(ctx, tile); return }
 
   // ── Debug: type picker ───────────────────────────────────────
   if (window.__DEBUG_SUBFLOOR) {
@@ -701,6 +707,7 @@ export function patchActiveTileDom(ctx, row, col) {
   if (ctx.isInSubFloor()) {
     const sf = session.run?.subFloor
     if (!sf) return
+    if (sf.type === 'td_ambush') { UI.renderTDDeployGrid(sf); return }
     // Sub-floor tiles don't support a single-tile patch, so rebuild the whole grid.
     UI.showSubFloor(sf, (r, c) => onSubFloorTileTap(ctx, r, c), onSubFloorTileHold)
     return
@@ -708,4 +715,262 @@ export function patchActiveTileDom(ctx, row, col) {
   const gridEl = UI.getGridEl?.() ?? document.getElementById('grid')
   if (!gridEl) return
   TileEngine.patchMainGridTileAt(row, col, gridEl, ctx.onTileTap, ctx.onTileHold)
+}
+
+// ── TD Minigame ──────────────────────────────────────────────────────────────
+
+export function enterTDMinigame(ctx, tile) {
+  const floor = session.run.floor
+  const tdData = TileEngine.generateTDGrid(floor)
+  const rows = tdData.rows, cols = tdData.cols
+  const heroPos  = { row: Math.floor(rows / 2), col: 0 }
+  const chestPos = { row: Math.floor(rows / 2), col: cols - 1 }
+
+  // Pre-populate hand from all td_piece tiles — skip the survey/flip phase
+  const hand = []
+  for (const row of tdData.tiles) {
+    for (const t of row) {
+      if (t.type === 'td_piece') {
+        hand.push({ pieceType: t.pieceType, instanceId: `${t.pieceType}_${hand.length}` })
+        t.type = 'empty'
+        t.pieceType = null
+        t.revealed = true
+      } else {
+        t.revealed = true
+      }
+    }
+  }
+
+  session.run.subFloor = {
+    type: 'td_ambush',
+    stage: 'lay_the_trap',
+    tiles: tdData.tiles,
+    rows, cols,
+    hand,
+    placed: [],
+    selectedPiece: null,
+    entryTile: { row: tile.row, col: tile.col },
+    heroPos, chestPos,
+    heroHP: 0, heroMaxHP: 0,
+    active: true,
+  }
+
+  _startTDLayTheTrap(ctx)
+}
+
+function _onTDSurveyTileTap(ctx, row, col) {
+  const sf = session.run?.subFloor
+  if (!sf || sf.stage !== 'survey') return
+  const tile = sf.tiles[row]?.[col]
+  if (!tile || tile.revealed || !tile.reachable) return
+
+  tile.revealed = true
+  EventBus.emit('audio:play', { sfx: 'flip' })
+
+  if (tile.type === 'td_piece') {
+    // Consume piece into hand
+    const instanceId = `${tile.pieceType}_${sf.hand.length}`
+    sf.hand.push({ pieceType: tile.pieceType, instanceId })
+    // Cell becomes empty for deploy phase
+    tile.type = 'empty'
+    tile.pieceType = null
+    UI.flipTDSurveyTile(tile, null) // flip then fade
+    UI.renderTDHand(sf.hand, sf.selectedPiece)
+    const addedPiece = sf.hand[sf.hand.length - 1]
+    UI.setSubFloorMessage(`${TD_PIECES[addedPiece.pieceType]?.label ?? 'Piece'} added to your hand!`)
+  } else {
+    // Empty tile — stays on board
+    UI.flipTDSurveyTile(tile, 'empty')
+    UI.setSubFloorMessage('Nothing but stone — but useful space for your trap.')
+  }
+
+  // Expand reachability orthogonally
+  const dirs = [[-1,0],[1,0],[0,-1],[0,1]]
+  for (const [dr, dc] of dirs) {
+    const adj = sf.tiles[row + dr]?.[col + dc]
+    if (adj && !adj.revealed && !adj.reachable) {
+      adj.reachable = true
+      UI.markTDTileReachable(adj)
+    }
+  }
+
+  // Check if all revealed — show Lay the Trap button
+  const allRevealed = sf.tiles.flat().every(t => t.revealed)
+  if (allRevealed) UI.showTDLayTheTrapButton(() => _startTDLayTheTrap(ctx))
+}
+
+function _startTDLayTheTrap(ctx) {
+  const sf = session.run?.subFloor
+  if (!sf) return
+  // Unrevealed tiles become empty slots
+  for (const row of sf.tiles) {
+    for (const t of row) {
+      if (!t.revealed) { t.revealed = true; t.type = 'empty'; t.pieceType = null }
+    }
+  }
+  sf.stage = 'lay_the_trap'
+  sf.selectedPiece = null
+  UI.showTDDeployPhase(
+    sf,
+    (r, c) => _onTDDeployTileTap(ctx, r, c),
+    () => _releaseTDHero(ctx),
+    () => _tdRetreat(ctx),
+    (instanceId) => selectTDHandPiece(ctx, instanceId),
+  )
+}
+
+function _onTDDeployTileTap(ctx, row, col) {
+  const sf = session.run?.subFloor
+  if (!sf || sf.stage !== 'lay_the_trap') return
+
+  // Is this the hero or chest cell? Ignore.
+  if ((row === sf.heroPos.row && col === sf.heroPos.col) ||
+      (row === sf.chestPos.row && col === sf.chestPos.col)) return
+
+  // Is there already a placed piece here? Pick it back up.
+  const existingIdx = sf.placed.findIndex(p => p.row === row && p.col === col)
+  if (existingIdx !== -1) {
+    const [picked] = sf.placed.splice(existingIdx, 1)
+    sf.hand.push({ pieceType: picked.pieceType, instanceId: picked.instanceId })
+    sf.selectedPiece = { pieceType: picked.pieceType, instanceId: picked.instanceId }
+    EventBus.emit('audio:play', { sfx: 'flip' })
+    UI.renderTDDeployGrid(sf)
+    UI.renderTDHand(sf.hand, sf.selectedPiece)
+    UI.updateTDReleaseBtn(sf.placed.length > 0)
+    return
+  }
+
+  // No selected piece — tap on empty cell does nothing
+  if (!sf.selectedPiece) return
+
+  // Validate rock placement — cannot seal path
+  if (sf.selectedPiece.pieceType === 'rock') {
+    const rockCells = sf.placed
+      .filter(p => p.pieceType === 'rock')
+      .map(p => ({ row: p.row, col: p.col }))
+    rockCells.push({ row, col })
+    if (!hasPath(sf.rows, sf.cols, sf.heroPos, sf.chestPos, rockCells)) {
+      UI.setSubFloorMessage('The hero must have a way through!')
+      UI.flashTDCell(row, col, 'invalid')
+      return
+    }
+  }
+
+  // Place piece
+  const handIdx = sf.hand.findIndex(p => p.instanceId === sf.selectedPiece.instanceId)
+  if (handIdx !== -1) sf.hand.splice(handIdx, 1)
+  sf.placed.push({ pieceType: sf.selectedPiece.pieceType, instanceId: sf.selectedPiece.instanceId, row, col })
+  sf.selectedPiece = null
+  EventBus.emit('audio:play', { sfx: 'flip' })
+  UI.renderTDDeployGrid(sf)
+  UI.renderTDHand(sf.hand, sf.selectedPiece)
+  UI.updateTDReleaseBtn(sf.placed.length > 0)
+  UI.setSubFloorMessage('Piece placed. Tap it again to reposition.')
+}
+
+export function selectTDHandPiece(ctx, instanceId) {
+  const sf = session.run?.subFloor
+  if (!sf || sf.stage !== 'lay_the_trap') return
+  const piece = sf.hand.find(p => p.instanceId === instanceId)
+  if (!piece) return
+  // Toggle selection
+  if (sf.selectedPiece?.instanceId === instanceId) {
+    sf.selectedPiece = null
+  } else {
+    sf.selectedPiece = piece
+  }
+  UI.renderTDHand(sf.hand, sf.selectedPiece)
+  const def = TD_PIECES[sf.selectedPiece?.pieceType]
+  if (def) {
+    UI.setSubFloorMessage(`${def.label}: ${def.description}`)
+    UI.renderTDDeployGrid(sf) // re-render to update radius previews
+  }
+}
+
+function _tdRetreat(ctx) {
+  UI.setSubFloorMessage('Abandon the ambush? Tap Retreat again to confirm.')
+  UI.showTDRetreatConfirm(() => {
+    exitSubFloor()
+    UI.setMessage('You retreat to the main floor.')
+  })
+}
+
+function _releaseTDHero(ctx) {
+  const sf = session.run?.subFloor
+  if (!sf || sf.placed.length === 0) return
+  sf.stage = 'simulation'
+
+  const ratio = CONFIG.subFloor.tdHeroHpRatio ?? 0.5
+  const min   = CONFIG.subFloor.tdHeroHpMin   ?? 10
+  sf.heroMaxHP = Math.max(min, Math.floor(session.run.player.maxHp * ratio))
+  sf.heroHP    = sf.heroMaxHP
+
+  const rockCells = sf.placed.filter(p => p.pieceType === 'rock').map(p => ({ row: p.row, col: p.col }))
+  const path = computePath(sf.rows, sf.cols, sf.heroPos, sf.chestPos, rockCells)
+
+  UI.showTDSimulation(sf)
+  UI.updateTDHeroHP(sf.heroHP, sf.heroMaxHP)
+  EventBus.emit('audio:play', { sfx: 'flip' })
+
+  if (path.length === 0) {
+    // Should not happen — B-S2 guarantees a path
+    _tdLoss(ctx)
+    return
+  }
+
+  _stepHero(ctx, sf, path, 0)
+}
+
+function _stepHero(ctx, sf, path, stepIdx) {
+  if (stepIdx >= path.length) { _tdLoss(ctx); return }
+
+  const { row, col } = path[stepIdx]
+  UI.moveTDHero(sf, row, col)
+
+  const dmg = resolveDamageAtCell(row, col, sf.placed, sf.rows, sf.cols)
+  if (dmg > 0) {
+    sf.heroHP = Math.max(0, sf.heroHP - dmg)
+    UI.updateTDHeroHP(sf.heroHP, sf.heroMaxHP)
+    UI.flashTDCell(row, col, 'damage')
+    EventBus.emit('audio:play', { sfx: 'hit' })
+  }
+
+  if (sf.heroHP <= 0) { setTimeout(() => _tdWin(ctx), CONFIG.subFloor.tdHeroStepMs); return }
+
+  // Last step reached chest
+  const atChest = row === sf.chestPos.row && col === sf.chestPos.col
+  if (atChest) { setTimeout(() => _tdLoss(ctx), CONFIG.subFloor.tdHeroStepMs); return }
+
+  setTimeout(() => _stepHero(ctx, sf, path, stepIdx + 1), CONFIG.subFloor.tdHeroStepMs)
+}
+
+function _tdWin(ctx) {
+  const sf = session.run?.subFloor
+  if (!sf) return
+  sf.stage = 'done'
+  EventBus.emit('audio:play', { sfx: 'chest' })
+
+  const floor = session.run.floor
+  const choices = [1, 2, 3].map(() => {
+    const tier = gearModule.pickDropTier(floor)
+    const slot = gearModule.pickDropSlot()
+    return gearModule.generateGear(slot, tier, floor)
+  })
+
+  UI.showTDWin(choices, (piece) => {
+    handleGearPickup(null, piece)
+    exitSubFloor()
+    UI.setMessage('The hero falls! You claim your prize and slip back to the dungeon.')
+  })
+}
+
+function _tdLoss(ctx) {
+  const sf = session.run?.subFloor
+  if (!sf) return
+  sf.stage = 'done'
+  EventBus.emit('audio:play', { sfx: 'flip' })
+  UI.showTDLoss(() => {
+    exitSubFloor()
+    UI.setMessage('The hero escapes. You return to the dungeon empty-handed.')
+  })
 }

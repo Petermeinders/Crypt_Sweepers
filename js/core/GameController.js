@@ -176,6 +176,7 @@ const _onSubFloorTileHold = (r, c) => SubFloorController.onSubFloorTileHold(r, c
 const _recomputeSubFloorEnemyLocks = () => SubFloorController.recomputeSubFloorEnemyLocks()
 const _patchActiveTileDom = (r, c) => SubFloorController.patchActiveTileDom(_subFloorCtx(), r, c)
 const _sfUnlockAdjacent = (t) => SubFloorController.sfUnlockAdjacent(t)
+const _selectTDHandPiece = (id) => SubFloorController.selectTDHandPiece(_subFloorCtx(), id)
 
 
 function _lootRollCtx() {
@@ -1070,6 +1071,7 @@ function _tapCtx() {
     executeTelekineticThrow: _executeTelekineticThrow,
     getActiveTileAt: _getActiveTileAt,
     enterSubFloor: _enterSubFloor,
+    selectTDHandPiece: _selectTDHandPiece,
     destroyWarBanner: _destroyWarBanner,
     openChest: _openChest,
     openMagicChest: _openMagicChest,

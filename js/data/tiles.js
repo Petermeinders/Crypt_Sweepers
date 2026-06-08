@@ -46,6 +46,8 @@ export const TILE_DEFS = {
   armor:  { emoji: '🛡️',  label: 'Armor',  cssClass: 'type-armor',  weight: 5, isEnemy: false },
   /** Dungeon floor only — a lost journal page; flip to reveal, tap again to collect */
   manuscript: { emoji: '📄', label: 'Journal Page', cssClass: 'type-manuscript', weight: 0, isEnemy: false },
+  /** TD minigame survey grid — face-down monster or rock piece; consumed into hand on reveal */
+  td_piece:   { emoji: '❓', label: '',             cssClass: 'type-td-piece',   weight: 0, isEnemy: false },
 }
 
 /** Combat foe tiles on the main grid (legacy saves may still carry type enemy_fast). */

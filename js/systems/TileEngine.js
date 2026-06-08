@@ -484,6 +484,61 @@ function _genToxicGas(floor) {
   return { rows, cols, tiles, entryRow: er, entryCol: ec }
 }
 
+/**
+ * Generates a 6×6 (CONFIG-sized) survey grid for the TD minigame.
+ * Tiles are: 'empty' (stay on board) or 'td_piece' (consumed into hand on reveal).
+ * Returns { rows, cols, tiles }.
+ */
+function generateTDGrid(floor) {
+  const rows = CONFIG.subFloor.tdRows ?? 6
+  const cols = CONFIG.subFloor.tdCols ?? 6
+  const monsterTypes = ['monster_goblin', 'monster_archer', 'monster_skeleton', 'monster_troll']
+  const pool = []
+  for (let i = 0; i < rows * cols; i++) {
+    const r = Math.random()
+    if      (r < 0.60) pool.push('empty')
+    else if (r < 0.68) pool.push('monster_goblin')
+    else if (r < 0.76) pool.push('monster_archer')
+    else if (r < 0.84) pool.push('monster_skeleton')
+    else if (r < 0.90) pool.push('monster_troll')
+    else               pool.push('rock')
+  }
+  // Fisher-Yates shuffle
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]]
+  }
+  // Guarantee at least 2 monster pieces
+  const monsterCount = pool.filter(t => monsterTypes.includes(t)).length
+  if (monsterCount < 2) {
+    let added = 0
+    for (let i = 0; i < pool.length && added < 2 - monsterCount; i++) {
+      if (pool[i] === 'empty') {
+        pool[i] = monsterTypes[Math.floor(Math.random() * monsterTypes.length)]
+        added++
+      }
+    }
+  }
+  const tiles = []
+  let idx = 0
+  for (let r = 0; r < rows; r++) {
+    const row = []
+    for (let c = 0; c < cols; c++) {
+      const type = pool[idx++]
+      row.push({
+        row: r, col: c,
+        type: type === 'empty' ? 'empty' : 'td_piece',
+        pieceType: type === 'empty' ? null : type,
+        revealed: false, locked: false,
+        reachable: (r === 0 && c === 0), // start reachable from top-left
+        element: null, enemyData: null, itemData: null,
+      })
+    }
+    tiles.push(row)
+  }
+  return { rows, cols, tiles }
+}
+
 /** Roll a weighted sub-floor type */
 function rollSubFloorType() {
   const weights = CONFIG.subFloor.typeWeights
@@ -1464,4 +1519,5 @@ export default {
   computeOrthogonalThreatSum,
   generateSubFloor,
   rollSubFloorType,
+  generateTDGrid,
 }

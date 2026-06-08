@@ -3,7 +3,7 @@
 // Version bump CACHE_NAME to force cache refresh on deploy.
 // Keep in sync with APP_VERSION in js/appVersion.js and version.json.
 
-const CACHE_NAME = 'crypt-sweepers-v499'
+const CACHE_NAME = 'crypt-sweepers-v500'
 
 const PRECACHE_ASSETS = [
   './',
@@ -392,6 +392,11 @@ const PRECACHE_ASSETS = [
   './audio/music/main-menu-theme.mp3',
   './audio/music/dungeon.mp3',
   './audio/music/echoes-celestial-sanctuary.mp3',
+
+  // TD Minigame
+  './js/data/tdPieces.js',
+  './js/systems/TDPathfinder.js',
+  './js/systems/TDCombat.js',
 ]
 
 // ── Install: precache all assets ──────────────────────────────

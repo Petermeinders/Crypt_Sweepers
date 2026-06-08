@@ -212,6 +212,16 @@ export const CONFIG = {
       toxic_gas:             4,
     },
     toxicGasDamagePerFlip: 2,
+    /** (experimental) When true, all subfloor entries launch the TD minigame instead of combat rooms */
+    tdMode: false,
+    tdCols: 6,
+    tdRows: 6,
+    /** ms delay between each hero step in simulation */
+    tdHeroStepMs: 450,
+    /** Hero HP = player.maxHp * this ratio */
+    tdHeroHpRatio: 0.5,
+    /** Minimum hero HP regardless of ratio */
+    tdHeroHpMin: 10,
     shrine: {
       bloodSacrificeDmgBonus: 1,   // +N damage
       bloodSacrificeHpPct:    0.20, // cost: 20% max HP
