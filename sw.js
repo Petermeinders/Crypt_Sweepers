@@ -3,7 +3,7 @@
 // Version bump CACHE_NAME to force cache refresh on deploy.
 // Keep in sync with APP_VERSION in js/appVersion.js and version.json.
 
-const CACHE_NAME = 'crypt-sweepers-v493'
+const CACHE_NAME = 'crypt-sweepers-v499'
 
 const PRECACHE_ASSETS = [
   './',
@@ -58,6 +58,8 @@ const PRECACHE_ASSETS = [
   './js/ui/menus/HeroSelect.js',
   './js/ui/menus/GoldShopPanel.js',
   './js/ui/menus/BlacksmithPanel.js',
+  './js/ui/menus/CasinoPanel.js',
+  './js/ui/menus/CheckpointPanel.js',
   './js/ui/menus/BackpackPanel.js',
   './js/ui/menus/EquipmentOverlay.js',
   './js/ui/menus/SettingsPanel.js',
@@ -95,6 +97,8 @@ const PRECACHE_ASSETS = [
   './js/systems/AudioManager.js',
   './js/systems/CombatResolver.js',
   './js/systems/MetaProgression.js',
+  './js/systems/CasinoEngine.js',
+  './js/data/casinoConfig.js',
   './js/systems/Bestiary.js',
   './js/systems/TrinketCodex.js',
   './js/systems/ProgressionSystem.js',

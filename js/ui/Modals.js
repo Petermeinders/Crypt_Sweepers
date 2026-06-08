@@ -866,7 +866,7 @@ export const ModalsMethods = {
     el.equipmentOverlay.setAttribute('aria-hidden', 'true')
   },
 
-  renderCompareModal(candidate, equipped, onEquip, onCancel, onTrash) {
+  renderCompareModal(candidate, equipped, onEquip, onCancel, onTrash, opts = {}) {
     const modal = el.gearCompareModal
     if (!modal) return
     modal.querySelector('.cmp-stat-panel')?.classList.remove('hidden')
@@ -924,6 +924,7 @@ export const ModalsMethods = {
     newEquipBtn.addEventListener('click',  onEquip)
     newCancelBtn.addEventListener('click', onCancel)
     newTrashBtn.addEventListener('click',  onTrash ?? onCancel)
+    if (opts.hideCancel) newCancelBtn.style.display = 'none'
 
     modal.classList.remove('hidden')
     modal.setAttribute('aria-hidden', 'false')
@@ -2008,47 +2009,62 @@ export const ModalsMethods = {
 
     el.manuscriptCodexAccordion.innerHTML = ''
 
-    const openAccordion = (item) => {
-      for (const sibling of el.manuscriptCodexAccordion.querySelectorAll('.manuscript-accordion-item')) {
-        sibling.classList.toggle('is-open', sibling === item)
-      }
+    // ── Portrait nav strip ────────────────────────────────────
+    const navStrip = document.createElement('div')
+    navStrip.className = 'manuscript-nav-strip'
+
+    for (const col of cols) {
+      const navBtn = document.createElement('button')
+      navBtn.type = 'button'
+      navBtn.className = 'manuscript-nav-portrait'
+      navBtn.setAttribute('aria-label', col.author)
+      navBtn.innerHTML = `
+        <div class="manuscript-codex-profile-frame-wrap">
+          <img class="manuscript-codex-profile-img" src="${col.portrait}" alt="${col.author}" loading="lazy">
+          <img class="manuscript-codex-profile-frame" src="assets/ui/gear-card-frame.png" alt="" aria-hidden="true">
+        </div>
+        <span class="manuscript-nav-portrait-name">${col.author.split(' ')[0]}</span>`
+      navBtn.addEventListener('click', () => {
+        const section = el.manuscriptCodexAccordion.querySelector(`[data-author-id="${col.authorId}"]`)
+        if (section) {
+          const overlay = el.manuscriptCodexOverlay
+          const stripH  = navStrip.offsetHeight
+          const headerH = overlay.querySelector('.panel-header')?.offsetHeight ?? 0
+          const target  = section.offsetTop - headerH - stripH - 8
+          overlay.scrollTo({ top: target, behavior: 'smooth' })
+        }
+        for (const b of navStrip.querySelectorAll('.manuscript-nav-portrait')) b.classList.remove('is-active')
+        navBtn.classList.add('is-active')
+      })
+      navStrip.appendChild(navBtn)
     }
+    el.manuscriptCodexAccordion.appendChild(navStrip)
 
-    let firstWithEntries = null
-    const items = []
-
+    // ── Author sections (always expanded) ────────────────────
     for (const col of cols) {
       const colEntries = allWithStatus.filter(e => e.authorId === col.authorId && e.seen)
 
-      const item = document.createElement('div')
-      item.className = 'manuscript-accordion-item'
+      const section = document.createElement('div')
+      section.className = 'manuscript-codex-section'
+      section.dataset.authorId = col.authorId
 
-      // Header = clickable profile card
-      const header = document.createElement('button')
-      header.type = 'button'
-      header.className = 'manuscript-accordion-header'
-      header.innerHTML = `
-        <div class="manuscript-codex-profile-frame-wrap">
-          <img class="manuscript-codex-profile-img" src="${col.portrait}" alt="${col.author}">
-          <img class="manuscript-codex-profile-frame" src="assets/ui/gear-card-frame.png" alt="" aria-hidden="true">
-        </div>
+      // Section header (non-interactive author card)
+      const sectionHeader = document.createElement('div')
+      sectionHeader.className = 'manuscript-section-header'
+      sectionHeader.innerHTML = `
         <div class="manuscript-codex-author-info">
           <div class="manuscript-codex-author-name">${col.author}</div>
           <div class="manuscript-codex-author-role">${col.role} — Aurelian Syndicate Expedition</div>
           <div class="manuscript-codex-author-tagline">${col.tagline}</div>
-        </div>
-        <span class="manuscript-accordion-chevron" aria-hidden="true">▾</span>`
-      header.addEventListener('click', () => openAccordion(item))
+        </div>`
 
-      // Body = entries grid (or empty message)
-      const body = document.createElement('div')
-      body.className = 'manuscript-accordion-body'
+      section.appendChild(sectionHeader)
 
       if (colEntries.length === 0) {
         const empty = document.createElement('p')
         empty.className = 'manuscript-codex-section-empty'
         empty.textContent = 'No entries found yet.'
-        body.appendChild(empty)
+        section.appendChild(empty)
       } else {
         const grid = document.createElement('div')
         grid.className = 'manuscript-codex-grid'
@@ -2063,19 +2079,11 @@ export const ModalsMethods = {
           cardBtn.addEventListener('click', () => this._showManuscriptDetail(entry))
           grid.appendChild(cardBtn)
         }
-        body.appendChild(grid)
-        if (!firstWithEntries) firstWithEntries = item
+        section.appendChild(grid)
       }
 
-      item.appendChild(header)
-      item.appendChild(body)
-      el.manuscriptCodexAccordion.appendChild(item)
-      items.push(item)
+      el.manuscriptCodexAccordion.appendChild(section)
     }
-
-    // Open the first author that has entries, or the first author if none do
-    const defaultOpen = firstWithEntries ?? items[0]
-    if (defaultOpen) defaultOpen.classList.add('is-open')
 
     const totalUnseen = allWithStatus.filter(e => !e.seen).length
     if (totalUnseen > 0) {
@@ -2084,6 +2092,9 @@ export const ModalsMethods = {
       footer.textContent = `${totalUnseen} entr${totalUnseen === 1 ? 'y' : 'ies'} still undiscovered`
       el.manuscriptCodexAccordion.appendChild(footer)
     }
+
+    // Activate first nav portrait by default
+    navStrip.querySelector('.manuscript-nav-portrait')?.classList.add('is-active')
 
     el.manuscriptCodexOverlay.classList.remove('hidden')
   },

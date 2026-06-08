@@ -491,6 +491,9 @@ export function nextFloor(ctx) {
   session.run._ropeUsedThisSanctuary = false
   session.run.floorKeyAwarded = false
   session.run.floor++
+  if (session.save?.meta && session.run.floor > (session.save.meta.deepestFloor ?? 1)) {
+    session.save.meta.deepestFloor = session.run.floor
+  }
   EventBus.emit('audio:crossfade', { track: ctx.runMusicTrack(), duration: 1500 })
   EventBus.emit('audio:play', { sfx: 'footsteps' })
   UI.setMessage(`🚪 Descending to floor ${session.run.floor}...`)

@@ -59,6 +59,9 @@ export function defaultSave() {
       voidPearlFloor50Awarded: false,
       /** Main menu Void trials unlocked. */
       voidUnlocked: false,
+      casino: { totalSpins: 0, totalGoldSpent: 0, totalScrapSpent: 0, voidFragments: 0, pendingGear: [] },
+      /** Deepest floor reached across all runs — used for casino gear scaling and checkpoint unlocks. */
+      deepestFloor: 1,
     },
     settings: {
       difficulty:  'normal',

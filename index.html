@@ -818,6 +818,10 @@
         <span class="menu-btn-ic" aria-hidden="true">📜</span>
         <span class="menu-btn-label menu-btn-label--single">Journals</span>
       </button>
+      <button id="casino-btn" class="menu-btn secondary menu-btn--split" type="button">
+        <span class="menu-btn-ic" aria-hidden="true">🎰</span>
+        <span class="menu-btn-label menu-btn-label--single">Casino</span>
+      </button>
     </div>
     <div id="difficulty-row">
       <div id="diff-shelf-wrap">
@@ -1222,6 +1226,113 @@
     </div>
 
     <div id="blacksmith-result-msg" class="blacksmith-result hidden"></div>
+  </div>
+
+  <!-- ── Casino ── -->
+  <div id="casino-overlay" class="panel-overlay hidden" role="dialog" aria-modal="true" aria-label="Casino">
+    <div class="panel-header">
+      <button class="panel-back-btn" id="casino-back">← Back</button>
+      <div class="panel-title">🎰 Casino</div>
+    </div>
+
+    <!-- Balances -->
+    <div class="casino-balances">
+      <span class="casino-balance-item casino-balance-gold">💰 <span id="casino-gold-balance">0</span></span>
+      <span class="casino-balance-item casino-balance-scrap">⚙️ <span id="casino-scrap-balance">0</span></span>
+      <span class="casino-balance-item casino-balance-frag">🔮 <span id="casino-fragment-balance">0</span> / 5</span>
+    </div>
+
+    <!-- Wager Sliders -->
+    <div class="casino-wager-section">
+      <!-- Gold -->
+      <div class="casino-wager-row">
+        <div class="casino-wager-header">
+          <span class="casino-wager-label"><span class="casino-dot casino-dot--gold"></span>Gold Wagered</span>
+          <div class="casino-wager-amount">
+            <input type="number" id="casino-gold-input" class="casino-num-input" min="100" value="100">
+            <span class="casino-cap-label">/ 1000 Cap</span>
+          </div>
+        </div>
+        <input type="range" id="casino-gold-slider" class="casino-slider casino-slider--gold" min="100" max="1000" step="1" value="100">
+        <div class="casino-range-labels"><span>100 Gold</span><span>1000 Gold</span></div>
+      </div>
+      <!-- Scrap -->
+      <div class="casino-wager-row">
+        <div class="casino-wager-header">
+          <span class="casino-wager-label"><span class="casino-dot casino-dot--scrap"></span>Scrap Wagered</span>
+          <div class="casino-wager-amount">
+            <input type="number" id="casino-scrap-input" class="casino-num-input" min="0" value="0">
+            <span class="casino-cap-label">/ 200 Cap</span>
+          </div>
+        </div>
+        <input type="range" id="casino-scrap-slider" class="casino-slider casino-slider--scrap" min="0" max="200" step="1" value="0">
+        <div class="casino-range-labels"><span>0 Scrap</span><span>200 Scrap</span></div>
+      </div>
+    </div>
+
+    <!-- Live Drop Probabilities -->
+    <div class="casino-drop-section">
+      <div class="casino-drop-header">
+        <span class="casino-drop-title">📊 Live Drop Probabilities</span>
+        <span class="casino-drop-sum" id="casino-prob-sum">Sum: 100.0%</span>
+      </div>
+      <div class="casino-prob-bar">
+        <div id="casino-bar-common"    class="casino-bar-seg casino-bar-common"    style="width:70%"></div>
+        <div id="casino-bar-rare"      class="casino-bar-seg casino-bar-rare"      style="width:22%"></div>
+        <div id="casino-bar-epic"      class="casino-bar-seg casino-bar-epic"      style="width:7%"></div>
+        <div id="casino-bar-legendary" class="casino-bar-seg casino-bar-legendary" style="width:1%"></div>
+      </div>
+      <div class="casino-prob-cards">
+        <div class="casino-prob-card casino-prob-common">
+          <span class="casino-prob-tier-label">COMMON</span>
+          <div id="casino-pct-common" class="casino-prob-pct">70.0%</div>
+          <span id="casino-diff-common" class="casino-prob-diff">Base</span>
+        </div>
+        <div class="casino-prob-card casino-prob-rare">
+          <span class="casino-prob-tier-label">RARE</span>
+          <div id="casino-pct-rare" class="casino-prob-pct casino-prob-pct--rare">22.0%</div>
+          <span id="casino-diff-rare" class="casino-prob-diff">Base</span>
+        </div>
+        <div class="casino-prob-card casino-prob-epic">
+          <span class="casino-prob-tier-label">EPIC</span>
+          <div id="casino-pct-epic" class="casino-prob-pct casino-prob-pct--epic">7.0%</div>
+          <span id="casino-diff-epic" class="casino-prob-diff">Base</span>
+        </div>
+        <div class="casino-prob-card casino-prob-legendary">
+          <span class="casino-prob-tier-label">LEGENDARY</span>
+          <div id="casino-pct-legendary" class="casino-prob-pct casino-prob-pct--legendary">1.0%</div>
+          <span id="casino-diff-legendary" class="casino-prob-diff">Base</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Spin -->
+    <div class="casino-spin-section">
+      <button id="casino-spin-btn" class="casino-spin-btn" type="button">🎰 Spin</button>
+    </div>
+
+    <!-- Result -->
+    <div id="casino-result" class="casino-result hidden">
+      <div class="casino-result-tier" id="casino-result-tier"></div>
+      <div class="casino-result-desc" id="casino-result-desc"></div>
+      <div class="casino-result-actions">
+        <button id="casino-spin-again-btn" class="casino-spin-btn" type="button">Spin Again</button>
+        <button id="casino-done-btn" class="casino-done-btn" type="button">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Checkpoint Select ── -->
+  <div id="checkpoint-overlay" class="panel-overlay hidden" role="dialog" aria-modal="true" aria-label="Choose Starting Floor">
+    <div class="panel-header">
+      <div class="panel-title">⚔️ Choose Starting Floor</div>
+    </div>
+    <div class="checkpoint-body">
+      <p class="checkpoint-intro">Your furthest run unlocks earlier checkpoints. Starting deeper means a stronger challenge — no run gold or XP carry over.</p>
+      <div id="checkpoint-list" class="checkpoint-list">
+        <!-- Populated by JS -->
+      </div>
+    </div>
   </div>
 
   <!-- ── How to Play ── -->

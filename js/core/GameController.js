@@ -81,6 +81,8 @@ import * as EnemyMechanics from '../systems/EnemyMechanics.js'
 import EnemyLeaders from '../systems/EnemyLeaders.js'
 import * as ForgeController from '../controllers/ForgeController.js'
 import * as EventTileController from '../controllers/EventTileController.js'
+import * as casinoEngineModule from '../systems/CasinoEngine.js'
+import { CASINO_CONFIG as casinoConfigModule } from '../data/casinoConfig.js'
 import * as SubFloorController from '../controllers/SubFloorController.js'
 import * as TargetingController from '../controllers/TargetingController.js'
 import * as SpecialSpawnController from '../controllers/SpecialSpawnController.js'
@@ -1178,6 +1180,71 @@ function _tryGearDrop(floor, chance) { return GearController.tryGearDrop(_gearCt
 function _upgradeGear(slot) { return GearController.upgradeGear(_gearCtx(), slot) }
 function _disassembleGear(slot) { return GearController.disassembleGear(_gearCtx(), slot) }
 function _reduceDetriment(slot, statKey) { return GearController.reduceDetriment(_gearCtx(), slot, statKey) }
+
+function _spinCasino(gold, scrap) {
+  const save = session.save
+  const { canAffordSpin, spin } = casinoEngineModule
+  if (!canAffordSpin(gold, scrap, save)) return { error: 'insufficient_funds' }
+
+  save.persistentGold -= gold
+  save.scrap          -= scrap
+
+  const gearFloor = save.meta?.deepestFloor ?? 1
+  const { tier, riskScore, weights, reward } = spin(gold, scrap, undefined, gearFloor)
+
+  const casino = save.meta.casino
+  casino.totalSpins++
+  casino.totalGoldSpent  += gold
+  casino.totalScrapSpent += scrap
+
+  if (reward.type === 'gear') {
+    casino.pendingGear.push(reward.gear)
+  } else if (reward.type === 'voidFragment') {
+    casino.voidFragments += reward.fragments
+    const { voidFragmentsPerPearl } = casinoConfigModule
+    let pearlsAwarded = 0
+    while (casino.voidFragments >= voidFragmentsPerPearl) {
+      casino.voidFragments -= voidFragmentsPerPearl
+      save.meta.voidPearls = (save.meta.voidPearls ?? 0) + 1
+      pearlsAwarded++
+    }
+    if (pearlsAwarded > 0) reward.pearlsAwarded = pearlsAwarded
+  } else if (reward.type === 'currencyEcho') {
+    save.persistentGold += reward.gold
+    save.scrap          += reward.scrap
+  }
+
+  SaveManager.save(save)
+  return { tierRolled: tier, riskScore, weights, reward }
+}
+
+// Between-runs: equip a casino-won gear piece, scrapping the replaced piece.
+function _casinoEquipGear(piece) {
+  const save = session.save
+  const slot  = piece.slot
+  if (!save.equippedGear) save.equippedGear = { weapon: null, breastplate: null, offhand: null }
+  const prev = save.equippedGear[slot] ?? null
+  if (prev?.tier) {
+    save.scrap = Math.max(0, (save.scrap ?? 0) + (CONFIG.blacksmith.trashScrapYield[prev.tier] ?? 1))
+  }
+  save.equippedGear[slot] = piece
+  // Remove from pendingGear if present
+  const idx = save.meta.casino.pendingGear.findIndex(g => g.uid === piece.uid)
+  if (idx >= 0) save.meta.casino.pendingGear.splice(idx, 1)
+  SaveManager.save(save)
+}
+
+// Between-runs: scrap a casino-won gear piece without equipping it.
+function _casinoScrapGear(piece) {
+  const save = session.save
+  if (piece?.tier) {
+    save.scrap = Math.max(0, (save.scrap ?? 0) + (CONFIG.blacksmith.trashScrapYield[piece.tier] ?? 1))
+  }
+  const idx = save.meta.casino.pendingGear.findIndex(g => g.uid === piece.uid)
+  if (idx >= 0) save.meta.casino.pendingGear.splice(idx, 1)
+  SaveManager.save(save)
+}
+
 function _trashGear(inventoryIndex) { GearController.trashGear(_gearCtx(), inventoryIndex) }
 
 function _saveActiveRun() { GSH.saveActiveRun(_stateCtx()) }
@@ -2922,6 +2989,9 @@ export default {
   getSavedEquippedGear() { return session.save?.equippedGear ?? { weapon: null, breastplate: null, offhand: null } },
   upgradeGear(slot)                    { return _upgradeGear(slot) },
   disassembleGear(slot)                { return _disassembleGear(slot) },
+  spinCasino(gold, scrap)              { return _spinCasino(gold, scrap) },
+  casinoEquipGear(piece)               { _casinoEquipGear(piece) },
+  casinoScrapGear(piece)               { _casinoScrapGear(piece) },
   reduceDetriment(slot, statKey)       { return _reduceDetriment(slot, statKey) },
   equipGear(inventoryIndex)            { _equipGear(inventoryIndex) },
   equipSafePocket(inventoryIndex)      { _equipSafePocket(inventoryIndex) },

@@ -89,12 +89,54 @@ describe('migrateSave', () => {
     const save = MetaProgression.defaultSave()
     delete save.meta
     const { save: out, changed } = migrateSave(save)
-    assert.deepEqual(out.meta, {
-      gameCompleted: false,
-      voidPearls: 0,
-      voidPearlFloor50Awarded: false,
-      voidUnlocked: false,
+    assert.equal(out.meta.gameCompleted, false)
+    assert.equal(out.meta.voidPearls, 0)
+    assert.equal(out.meta.voidPearlFloor50Awarded, false)
+    assert.equal(out.meta.voidUnlocked, false)
+    assert.equal(changed, true)
+  })
+
+  test('adds casino block when missing', () => {
+    const save = MetaProgression.defaultSave()
+    delete save.meta.casino
+    const { save: out, changed } = migrateSave(save)
+    assert.deepEqual(out.meta.casino, {
+      totalSpins: 0,
+      totalGoldSpent: 0,
+      totalScrapSpent: 0,
+      voidFragments: 0,
+      pendingGear: [],
     })
     assert.equal(changed, true)
+  })
+
+  test('adds pendingGear to existing casino block if missing', () => {
+    const save = MetaProgression.defaultSave()
+    save.meta.casino = { totalSpins: 5, totalGoldSpent: 100, totalScrapSpent: 50, voidFragments: 2 }
+    const { save: out, changed } = migrateSave(save)
+    assert.deepEqual(out.meta.casino.pendingGear, [])
+    assert.equal(out.meta.casino.totalSpins, 5)
+    assert.equal(changed, true)
+  })
+
+  test('does not mark changed when casino block is already complete', () => {
+    const save = MetaProgression.defaultSave()
+    save.meta.casino = { totalSpins: 0, totalGoldSpent: 0, totalScrapSpent: 0, voidFragments: 0, pendingGear: [] }
+    const { changed } = migrateSave(save)
+    assert.equal(changed, false)
+  })
+
+  test('adds deepestFloor when missing', () => {
+    const save = MetaProgression.defaultSave()
+    delete save.meta.deepestFloor
+    const { save: out, changed } = migrateSave(save)
+    assert.equal(out.meta.deepestFloor, 1)
+    assert.equal(changed, true)
+  })
+
+  test('does not mark changed when deepestFloor already present', () => {
+    const save = MetaProgression.defaultSave()
+    const { changed } = migrateSave(save)
+    assert.equal(changed, false)
   })
 })

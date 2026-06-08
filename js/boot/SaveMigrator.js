@@ -100,6 +100,14 @@ export function migrateSave(save) {
     changed = true
   }
 
+  if (!save.meta.casino) {
+    save.meta.casino = { totalSpins: 0, totalGoldSpent: 0, totalScrapSpent: 0, voidFragments: 0, pendingGear: [] }
+    changed = true
+  } else {
+    if (!Array.isArray(save.meta.casino.pendingGear)) { save.meta.casino.pendingGear = []; changed = true }
+  }
+  if (save.meta.deepestFloor == null) { save.meta.deepestFloor = 1; changed = true }
+
   MetaProgression.normalizeUnlockedHeroes(save)
   {
     const selId = save.selectedCharacter ?? 'warrior'

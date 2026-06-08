@@ -111,12 +111,13 @@ describe('MetaProgression game completion', () => {
 
   test('defaultSave includes meta block', () => {
     const save = MetaProgression.defaultSave()
-    assert.deepEqual(save.meta, {
-      gameCompleted: false,
-      voidPearls: 0,
-      voidPearlFloor50Awarded: false,
-      voidUnlocked: false,
-    })
+    assert.equal(save.meta.gameCompleted, false)
+    assert.equal(save.meta.voidPearls, 0)
+    assert.equal(save.meta.voidPearlFloor50Awarded, false)
+    assert.equal(save.meta.voidUnlocked, false)
+    assert.ok(save.meta.casino, 'meta.casino should exist')
+    assert.equal(save.meta.casino.totalSpins, 0)
+    assert.deepEqual(save.meta.casino.pendingGear, [])
   })
 })
 

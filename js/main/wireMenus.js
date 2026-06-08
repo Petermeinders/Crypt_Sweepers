@@ -1,6 +1,8 @@
 import { renderChangelogEntries } from '../ui/menus/Changelog.js'
 import { wireGoldShopPanel } from '../ui/menus/GoldShopPanel.js'
 import { wireBlacksmithPanel } from '../ui/menus/BlacksmithPanel.js'
+import { wireCasinoPanel } from '../ui/menus/CasinoPanel.js'
+import { openCheckpointSelect } from '../ui/menus/CheckpointPanel.js'
 import { wireHeroSelect, openHeroSelect, updateMenuHeroPreview } from '../ui/menus/HeroSelect.js'
 import { wireSettingsPanel } from '../ui/menus/SettingsPanel.js'
 import { applyImportedSave } from '../ui/menus/saveTransfer.js'
@@ -75,6 +77,7 @@ export function wireMenus(ctx) {
 
   wireGoldShopPanel(ctx)
   wireBlacksmithPanel(ctx)
+  wireCasinoPanel(ctx)
   wireHeroSelect(ctx)
   wireSettingsPanel(ctx)
 
@@ -91,7 +94,7 @@ export function wireMenus(ctx) {
     ctx.EventBus.emit('audio:play', { sfx: 'menu' })
   })
 
-  document.getElementById('new-run-btn').addEventListener('click', () => ctx.GameController.newGame())
+  document.getElementById('new-run-btn').addEventListener('click', () => openCheckpointSelect(ctx))
 
   document.getElementById('void-btn')?.addEventListener('click', () => {
     const save = ctx.GameController.getSave()

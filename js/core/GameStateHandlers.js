@@ -197,6 +197,9 @@ export function newGame(ctx, opts = {}) {
   if (opts.voidTier >= 1 && opts.voidTier <= 3) {
     applyVoidTrialToRun(session.run, opts.voidTier)
   }
+  if (opts.startFloor && opts.startFloor > 1) {
+    session.run.floor = Math.max(1, Math.floor(opts.startFloor))
+  }
   TileEngine.setDiagonalMovement((session.save.selectedCharacter ?? 'warrior') === 'mage')
   UI.hideMainMenu()
   EventBus.emit('audio:crossfade', { track: 'dungeon', duration: 1500 })
