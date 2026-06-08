@@ -5,8 +5,12 @@
 
 import { MANUSCRIPTS } from '../data/manuscripts.js'
 import { MANUSCRIPTS_NAVIGATOR } from '../data/manuscripts-navigator.js'
+import { MANUSCRIPTS_HOLT } from '../data/manuscripts-holt.js'
+import { MANUSCRIPTS_MAREN } from '../data/manuscripts-maren.js'
+import { MANUSCRIPTS_VOSS } from '../data/manuscripts-voss.js'
+import { MANUSCRIPTS_REED } from '../data/manuscripts-reed.js'
 
-const ALL_COLLECTIONS = [MANUSCRIPTS, MANUSCRIPTS_NAVIGATOR]
+const ALL_COLLECTIONS = [MANUSCRIPTS, MANUSCRIPTS_NAVIGATOR, MANUSCRIPTS_HOLT, MANUSCRIPTS_MAREN, MANUSCRIPTS_VOSS, MANUSCRIPTS_REED]
 
 /** Flat list of all entries across all collections, each stamped with author/role. */
 function allEntries() {
