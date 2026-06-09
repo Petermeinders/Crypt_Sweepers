@@ -4,6 +4,7 @@ import { ENGINEER_UPGRADES }           from '../data/engineer.js'
 import { MAGE_UPGRADES }               from '../data/mage.js'
 import { NECROMANCER_UPGRADES }        from '../data/necromancer.js'
 import { VAMPIRE_UPGRADES }            from '../data/vampire.js'
+import { NINJA_UPGRADES }              from '../data/ninja.js'
 import { GLOBAL_PASSIVE_UPGRADES }     from '../data/passives.js'
 import { CONFIG }                       from '../config.js'
 import Logger                           from '../core/Logger.js'
@@ -46,6 +47,10 @@ export function defaultSave() {
       upgrades: [],
     },
     necromancer: {
+      totalXP:  0,
+      upgrades: [],
+    },
+    ninja: {
       totalXP:  0,
       upgrades: [],
     },
@@ -209,7 +214,9 @@ function applyToPlayer(player, save) {
           ? (save.vampire?.upgrades ?? [])
           : char === 'necromancer'
             ? (save.necromancer?.upgrades ?? [])
-            : (save.warrior?.upgrades ?? [])
+            : char === 'ninja'
+              ? (save.ninja?.upgrades ?? [])
+              : (save.warrior?.upgrades ?? [])
   const upgradeMap = char === 'ranger'
     ? RANGER_UPGRADES
     : char === 'engineer'
@@ -220,7 +227,9 @@ function applyToPlayer(player, save) {
           ? VAMPIRE_UPGRADES
           : char === 'necromancer'
             ? NECROMANCER_UPGRADES
-            : WARRIOR_UPGRADES
+            : char === 'ninja'
+              ? NINJA_UPGRADES
+              : WARRIOR_UPGRADES
 
   for (const id of upgradeIds) {
     const def = upgradeMap[id]
@@ -406,6 +415,25 @@ function buyNecromancerUpgrade(save, id) {
   return true
 }
 
+// ── Ninja XP tree ────────────────────────────────────────────
+
+function canBuyNinjaUpgrade(save, id) {
+  const def = NINJA_UPGRADES[id]
+  if (!def) return false
+  if (!save.ninja) return false
+  if (save.ninja.upgrades.includes(id)) return false
+  if (def.requires && !save.ninja.upgrades.includes(def.requires)) return false
+  return save.ninja.totalXP >= def.xpCost
+}
+
+function buyNinjaUpgrade(save, id) {
+  if (!canBuyNinjaUpgrade(save, id)) return false
+  save.ninja.totalXP -= NINJA_UPGRADES[id].xpCost
+  save.ninja.upgrades.push(id)
+  Logger.info(`[MetaProgression] Ninja upgrade: ${id}`)
+  return true
+}
+
 // ── Vampire XP tree ──────────────────────────────────────────
 
 function canBuyVampireUpgrade(save, id) {
@@ -542,6 +570,9 @@ function endRun(save, runStats, outcome) {
   } else if (char === 'necromancer') {
     if (!save.necromancer) save.necromancer = { totalXP: 0, upgrades: [] }
     save.necromancer.totalXP += xpRetained
+  } else if (char === 'ninja') {
+    if (!save.ninja) save.ninja = { totalXP: 0, upgrades: [] }
+    save.ninja.totalXP += xpRetained
   } else {
     save.warrior.totalXP += xpRetained
   }
@@ -600,6 +631,8 @@ export default {
   buyMageUpgrade,
   canBuyNecromancerUpgrade,
   buyNecromancerUpgrade,
+  canBuyNinjaUpgrade,
+  buyNinjaUpgrade,
   canBuyVampireUpgrade,
   buyVampireUpgrade,
   applyToPlayer,

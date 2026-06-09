@@ -91,6 +91,10 @@ export function migrateSave(save) {
     save.necromancer = { totalXP: 0, upgrades: [] }
     changed = true
   }
+  if (!save.ninja) {
+    save.ninja = { totalXP: 0, upgrades: [] }
+    changed = true
+  }
   if (!save.selectedCharacter) {
     save.selectedCharacter = 'warrior'
   }

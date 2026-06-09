@@ -5,6 +5,7 @@ import { ENGINEER_UPGRADES } from './engineer.js'
 import { MAGE_UPGRADES } from './mage.js'
 import { NECROMANCER_UPGRADES } from './necromancer.js'
 import { VAMPIRE_UPGRADES } from './vampire.js'
+import { NINJA_UPGRADES } from './ninja.js'
 
 export const CHARACTERS = [
   {
@@ -98,6 +99,22 @@ export const CHARACTERS = [
     baseMana:    55,
     baseDmg:     '1',
     complexity:  'Hard',
+  },
+  {
+    id:          'ninja',
+    name:        'Ninja',
+    tagline:     'A shadow operative who strikes unseen. Shadow Step stacks Concealment on each kill — spend stacks for silent reveals and bonus damage. Shadowstrike bypasses counters; Smoke Bomb blinds the floor; Shuriken picks off distant foes.',
+    gif:         null,
+    attackGif:   null,
+    attackMs:    0,
+    emoji:       '🥷',
+    upgrades:    NINJA_UPGRADES,
+    unlockCost:  CONFIG.ninjaUnlockCost,
+    baseHP:      38,
+    baseMana:    42,
+    baseDmg:     '1',
+    comingSoon:  false,
+    complexity:  'Medium',
   },
   {
     id:          'druid',

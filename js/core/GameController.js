@@ -1840,11 +1840,11 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
     UI.spawnFloat(tileEl, '🛡️ Blocked!', 'heal')
     return
   }
-  if (hasItem('') && Math.random() < 0.05) {
+  if (hasItem('devils-gambit') && Math.random() < 0.05) {
     UI.spawnFloat(tileEl, '🃏 Gambit!', 'heal')
     return
   }
-  if (hasItem('') && Math.random() < 0.02) {
+  if (hasItem('lucky-rabbit-foot') && Math.random() < 0.02) {
     UI.spawnFloat(tileEl, '🐰 Lucky!', 'heal')
     return
   }

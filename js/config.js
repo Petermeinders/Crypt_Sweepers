@@ -502,6 +502,7 @@ export const CONFIG = {
   vampireUnlockCost:   300,
   engineerUnlockCost:     400,
   necromancerUnlockCost:  500,
+  ninjaUnlockCost:        600,
 
   /** Epic 12 — The Void (see docs/epics/the-void/implementation-decisions.md) */
   void: {

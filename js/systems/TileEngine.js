@@ -988,8 +988,9 @@ function _buildTileElement(tile, r, c, onTap, onHold, scrollable = false) {
 
   div.innerHTML = `
     <div class="tile-inner">
-      <div class="tile-back">${backFlag}${leaderFlag}</div>
+      <div class="tile-back">${backFlag}</div>
       <div class="tile-front ${def.cssClass}${isBoss ? ' is-boss' : ''}">
+        ${leaderFlag}
         ${iconHTML}
         ${def.isEnemy ? '' : `<span class="tile-label">${def.label}</span>`}
         ${enemyStatsHTML}

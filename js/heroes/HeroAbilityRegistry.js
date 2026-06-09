@@ -36,6 +36,11 @@ export const HERO_ABILITY_SLOTS = {
     slotB: 'mistFormAction',
     slotC: 'bloodPactAction',
   },
+  ninja: {
+    slotA: 'shadowstrikeAction',
+    slotB: 'smokeBombAction',
+    slotC: 'shurikenAction',
+  },
 }
 
 /** Resolve a slot action name for a hero (returns null if unmapped). */

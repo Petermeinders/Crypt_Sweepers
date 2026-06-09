@@ -5,6 +5,7 @@ import { ENGINEER_UPGRADES } from '../../data/engineer.js'
 import { MAGE_UPGRADES } from '../../data/mage.js'
 import { NECROMANCER_UPGRADES } from '../../data/necromancer.js'
 import { VAMPIRE_UPGRADES } from '../../data/vampire.js'
+import { NINJA_UPGRADES } from '../../data/ninja.js'
 import { metaCharSave, heroIsGoldLocked } from './shared.js'
 
 let heroIdx = 0
@@ -500,6 +501,7 @@ function buyUpgradeForChar(ctx, s, charId, upgradeId) {
   if (charId === 'mage')        return ctx.MetaProgression.buyMageUpgrade(s, upgradeId)
   if (charId === 'necromancer') return ctx.MetaProgression.buyNecromancerUpgrade(s, upgradeId)
   if (charId === 'vampire')     return ctx.MetaProgression.buyVampireUpgrade(s, upgradeId)
+  if (charId === 'ninja')       return ctx.MetaProgression.buyNinjaUpgrade(s, upgradeId)
   return ctx.MetaProgression.buyUpgrade(s, upgradeId)
 }
 
@@ -527,7 +529,8 @@ function renderUpgradeDetail(ctx, id, def, isOwned, canAfford) {
       : char.id === 'mage' ? MAGE_UPGRADES
         : char.id === 'vampire' ? VAMPIRE_UPGRADES
           : char.id === 'necromancer' ? NECROMANCER_UPGRADES
-            : WARRIOR_UPGRADES
+            : char.id === 'ninja' ? NINJA_UPGRADES
+              : WARRIOR_UPGRADES
 
   // Cost line
   if (costEl) {

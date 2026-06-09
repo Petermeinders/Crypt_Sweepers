@@ -42,6 +42,7 @@ export const CombatUiMethods = {
     const y2 = b.top  + b.height / 2
     const dx = x2 - x1, dy = y2 - y1
     const len = Math.hypot(dx, dy)
+    if (len === 0) return
     const perpX = -dy / len, perpY = dx / len
 
     // Build jagged midpoints

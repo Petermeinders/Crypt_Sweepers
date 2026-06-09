@@ -5,6 +5,44 @@
 export const CHANGELOG = [
   {
     dateLabel: 'Jun 2026',
+    dateIso:   '2026-06-08',
+    version:   'v500',
+    title:     'Ninja hero, bug fixes & polish',
+    summary:
+      'Ninja is now a fully playable hero. Three trinkets that were silently doing nothing are fixed. Chain Lightning no longer spams console errors. Enemy stat bars no longer clip. Leader flags now appear only after a tile is flipped.',
+    items: [
+      {
+        tag:  'Feature',
+        text: 'Ninja hero — fully playable with Shadowstrike, Smoke Bomb, Shuriken abilities and Shadow Step I/II passives. Unlock for 600 gold. Abilities designed around manipulating the parry block/counter window.',
+      },
+      {
+        tag:  'Fix',
+        text: 'Lucky Rabbit Foot, Devil\'s Gambit, and Glass Cannon Shard were completely non-functional — hasItem checks had blank IDs. All three now work correctly.',
+      },
+      {
+        tag:  'Fix',
+        text: 'Chain Lightning no longer spams SVG errors when the bolt source and target are the same point (overload bounce or detached tile elements).',
+      },
+      {
+        tag:  'Fix',
+        text: 'Enemy HP/attack stat bar no longer clips at the tile edge for high-HP enemies (e.g. Rock Golem 176 HP).',
+      },
+      {
+        tag:  'Fix',
+        text: 'Leader flag 🚩 now appears only on revealed tiles (was visible on unrevealed tile backs). Repositioned to top-right corner, smaller.',
+      },
+      {
+        tag:  'UX',
+        text: 'Tapping a passive trinket in the backpack now opens the Safe Pocket compare modal instead of immediately using the item.',
+      },
+      {
+        tag:  'Balance',
+        text: 'TD minigame (experimental) disabled by default. Subfloor entries resume normal combat room behaviour unless CONFIG.subFloor.tdMode is manually enabled.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Jun 2026',
     dateIso:   '2026-06-01',
     version:   'v493',
     title:     'Void trial finale boss',

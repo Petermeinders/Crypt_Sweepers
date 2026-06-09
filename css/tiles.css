@@ -316,10 +316,10 @@
 /* Enemy stat row — HP and damage displayed on tile face */
 .tile-enemy-stats {
   display: flex;
-  gap: 3px;
+  gap: 2px;
   align-items: center;
   justify-content: center;
-  font-size: clamp(0.45rem, 2.2vw, 0.72rem);
+  font-size: clamp(0.42rem, 1.8vw, 0.6rem);
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-weight: 800;
   line-height: 1;
@@ -328,8 +328,9 @@
   text-shadow: 0 0 4px #000, 0 1px 4px rgba(0,0,0,1);
   background: rgba(0,0,0,0.45);
   border-radius: 6px;
-  padding: 2px 4px;
+  padding: 2px 3px;
   margin-bottom: 3px;
+  max-width: calc(100% - 4px);
 }
 
 .tile-enemy-stats .stat-hp  { color: #ff5555; text-shadow: 0 0 5px #000, 0 1px 4px rgba(0,0,0,1); }
@@ -860,14 +861,14 @@ body.tile-colors .tile-front.type-rope {
   50%       { transform: translate(-50%, -58%) rotate(5deg); }
 }
 
-/* Leader — small flag on unrevealed tile back (floor rolled up to 2 per floor) */
+/* Leader — small flag on revealed tile front, pinned to top-right corner */
 .tile-leader-flag {
   position: absolute;
-  right: 8%;
-  top: 12%;
-  font-size: clamp(0.85rem, 3vw, 1.1rem);
+  right: 4%;
+  top: 4%;
+  font-size: clamp(0.5rem, 1.8vw, 0.7rem);
   line-height: 1;
-  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.85));
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.9));
   pointer-events: none;
   z-index: 4;
 }

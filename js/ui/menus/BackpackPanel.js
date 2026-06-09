@@ -1,5 +1,6 @@
 import { ITEMS } from '../../data/items.js'
 import { adjustScrap, trinketTrashScrapYield, trinketTrashDropSuffix } from '../../controllers/GearController.js'
+import { isPassiveTrinketId } from '../../controllers/SafePocketController.js'
 
 let _pendingPickupId = null
 let _pendingGearPiece = null
@@ -25,6 +26,10 @@ export function renderBackpack(ctx, opts = {}) {
     (index) => {
       if (replaceMode) return
       const id = GameController.getInventory()[index]?.id
+      if (isPassiveTrinketId(id)) {
+        ctx.openSafePocketCompareModal(index)
+        return
+      }
       GameController.useItemAtIndex(index)
       const et = ITEMS[id]?.effect?.type
       if (et === 'lantern' || et === 'spyglass' || et === 'hourglass-sand') {

@@ -6,7 +6,7 @@ import { session } from '../core/RunContext.js'
 export function playerOutgoingDamageMult(ctx) {
   let mult = 1
   // Glass Cannon Shard
-  if (ctx.hasItem('')) {
+  if (ctx.hasItem('glass-cannon-shard')) {
     const p = session.run.player
     const ratio = p.maxHp > 0 ? p.hp / p.maxHp : 0
     mult *= ratio > 0.5 ? 1.5 : 0.5
