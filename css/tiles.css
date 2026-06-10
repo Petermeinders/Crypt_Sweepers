@@ -121,7 +121,7 @@
 
 /* Revealed enemy and chest tiles float above all neighbors so their sprite isn't clipped */
 .tile.is-enemy.revealed,
-.tile-type-chest.revealed { z-index: 4; }
+.tile-type-chest.revealed { z-index: 50; overflow: visible; }
 
 /* Reachable tiles sit above revealed neighbors so the drop shadow is visible */
 .tile.reachable:not(.revealed) { z-index: 2; }

@@ -3154,6 +3154,14 @@
   line-height: 1.4;
 }
 
+.ability-closes {
+  font-size: 0.68rem;
+  color: #c0704a;
+  font-family: sans-serif;
+  margin-top: 4px;
+  line-height: 1.3;
+}
+
 /* ── Killer card (death screen) ── */
 .killer-card {
   width: min(320px, 88vw);
@@ -9762,4 +9770,23 @@ body.bestiary-detail-open #app {
 .gear-detail-close {
   width: 100%;
   margin-top: 2px;
+}
+
+/* ── Backpack replace compare modal split layout ── */
+.cmp-replace-split {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+}
+.cmp-replace-col {
+  flex: 1;
+  min-width: 0;
+}
+.cmp-replace-col-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #a08060;
+  margin-bottom: 6px;
 }

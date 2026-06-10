@@ -18,6 +18,7 @@ import { pickModifier } from '../systems/FloorModifiers.js'
 import { beginVoidCorruptionFlow } from './VoidCorruptionController.js'
 import { session } from '../core/RunContext.js'
 import { WARRIOR_UPGRADES } from '../data/upgrades.js'
+import { divineLightHealRate } from '../heroes/warrior.js'
 import { clearAllCombatEngagement, syncCombatEngagementDom } from './TileTapRouter.js'
 
 export function startFloor(ctx) {
@@ -363,7 +364,7 @@ export function startFloor(ctx) {
     UI.setSlamBtn(ctx.isActiveUnlocked('slam', 'warrior'), WARRIOR_UPGRADES.slam.manaCost)
     UI.setArrowBarrageBtn(false)
     UI.setPoisonArrowShotBtn(false)
-    UI.setDivineLightBtn(ctx.isActiveUnlocked('divine-light', 'warrior'), WARRIOR_UPGRADES['divine-light'].manaCost)
+    UI.setDivineLightBtn(ctx.isActiveUnlocked('divine-light', 'warrior'), WARRIOR_UPGRADES['divine-light'].manaCost, divineLightHealRate())
   }
   // Blinding Light — warrior only, slot B (ranger uses B for Poison Arrow, C for Triple Volley)
   if (ctx.charKey() === 'warrior') {

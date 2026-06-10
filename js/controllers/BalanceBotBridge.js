@@ -264,6 +264,12 @@ export function getBalanceBotTapCandidates(deps) {
         out.push({ row: t.row, col: t.col })
       }
       if (t.revealed && t.enemyData && !t.enemyData._slain) {
+        // Archer / mouse enemies require a revealed neighbour — skip if none (game would reject the tap)
+        const behaviour = t.enemyData.behaviour
+        if (behaviour === 'archer' || behaviour === 'mouse') {
+          const nbrs = TileEngine.getOrthogonalTiles(t.row, t.col)
+          if (!nbrs.some(n => n.revealed)) continue
+        }
         out.push({ row: t.row, col: t.col })
       }
       if (t.revealed && t.type === 'chest' && t.chestReady && !t.chestLooted) {
@@ -276,18 +282,24 @@ export function getBalanceBotTapCandidates(deps) {
       if (t.revealed && t.type === 'exit' && !t.exitResolved) {
         // During sanctuary: hold off tapping exit until every other tile is revealed
         if (!run.atRest) {
-          out.push({ row: t.row, col: t.col })
+          // Warded dungeon: exit blocked until 60% tiles revealed — don't retry if threshold not met
+          if (run.floorModifier?.id === 'warded-dungeon') {
+            const total = grid.reduce((s, r) => s + r.length, 0)
+            const threshold = Math.ceil(total * 0.60)
+            if (run.tilesRevealed >= threshold) out.push({ row: t.row, col: t.col })
+          } else {
+            out.push({ row: t.row, col: t.col })
+          }
         }
       }
       if (t.revealed && t.type === 'event' && !t.eventResolved) {
         out.push({ row: t.row, col: t.col })
       }
-      if (t.revealed && t.type === 'rope' && !t.ropeResolved) {
+      // Rope: skip if already used this sanctuary — confirmRope returns early, tile stays unresolved
+      if (t.revealed && t.type === 'rope' && !t.ropeResolved && !run._ropeUsedThisSanctuary) {
         out.push({ row: t.row, col: t.col })
       }
-      if (t.revealed && t.type === 'forge' && !t.forgeUsed) {
-        out.push({ row: t.row, col: t.col })
-      }
+      // Forge excluded: leaving without crafting doesn't set forgeUsed → infinite open/close loop
     }
   }
   // Sanctuary exit: only add once all tiles are revealed (bot must explore every tile first)
@@ -356,11 +368,22 @@ export function balanceBotTryOpenRevealTool(deps) {
 export function getBalanceBotDiagnostics(deps) {
   const {
     getRun, GameState, getCombatBusy, flags, charKey, playerDamageRange,
-    isCombatCommitmentLocked, getCombatEngagementTile,
+    isCombatCommitmentLocked, getCombatEngagementTile, TileEngine,
   } = deps
   const run = getRun()
   const tap = getBalanceBotTapCandidates(deps)
   const use = getBalanceBotUseItemCandidates(deps)
+
+  // Count living enemies on current floor for progress tracking
+  let livingEnemies = 0
+  try {
+    const grid = TileEngine.getGrid()
+    if (grid) {
+      for (const row of grid) for (const t of row) {
+        if (t.revealed && t.enemyData && !t.enemyData._slain) livingEnemies++
+      }
+    }
+  } catch (_) {}
   const targeting = []
   if (flags.spellTargeting) targeting.push('spell')
   if (flags.lanternTargeting) targeting.push('lantern')
@@ -392,6 +415,7 @@ export function getBalanceBotDiagnostics(deps) {
     maxMana: run?.player?.maxMana ?? null,
     meleeDmg: run?.player ? playerDamageRange(run.player)[0] : null,
     hero: charKey() ?? null,
+    livingEnemies,
   }
 }
 

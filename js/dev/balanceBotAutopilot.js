@@ -148,7 +148,8 @@ function _tryDismissFloorExploreBlockingUi() {
   }
   const rope = document.getElementById('rope-modal-overlay')
   if (rope && !rope.classList.contains('hidden')) {
-    document.getElementById('rope-modal-cancel')?.click()
+    // Bank 100% to resolve the rope tile (cancel leaves ropeResolved=false → infinite loop)
+    document.getElementById('rope-modal-bank-100')?.click()
     return true
   }
 
@@ -475,81 +476,116 @@ function _buildStuckDiagnostics(stuckTick) {
 
 /**
  * Hero-aware tap selection. Priority order:
- *  1. Archers (all heroes) — silence them first to stop the harass chip
- *  2. Chests
- *  3. Kill-Echo-marked hidden tiles (Paladin)
- *  4. Dark-Eyes-hinted hidden tiles (Vampire — known enemy positions to reveal as "batteries")
- *  5. Everything else
+ *  1. Commitment-locked combat — resolve the current engagement first
+ *  2. Exit / stairs — always take the stairs if available
+ *  3. Archers — silence harass damage
+ *  4. Chests
+ *  5. One-hit-kill enemies (currentHP <= player min melee dmg) — free kill, no damage taken
+ *  6. Unrevealed tiles — explore rather than fight
+ *  7. Kill-Echo / Dark-Eyes hinted tiles
+ *  8. Lowest-HP enemy as last resort (abilities already tried by tick loop before this is called)
  *
  * Vampire special: when HP > 25%, avoid tapping revealed living enemies (keep them as battery).
- * Prefer revealing new enemies instead so Corrupted Blood heals more per flip.
  */
 function _performRandomTapFromCandidates(cands, floor, logTag = '[bot:tap]', heroOverride = null) {
   const diag = GameController.getBalanceBotDiagnostics()
   const hero = heroOverride ?? diag.hero ?? null
   const hpRatio = (diag.hp ?? 1) / (diag.maxHp ?? 1)
-  // When commitment-locked to a fight, skip all special priorities — just resolve the combat
+  const minMeleeDmg = diag.meleeDmg ?? 0
   const locked = diag.combatLocked
 
-  const archerPicks   = []
-  const chestPicks    = []
-  const echoPicks     = []
-  const darkEyePicks  = []
-  const enemyPicks    = []
+  const exitPicks      = []
+  const archerPicks    = []
+  const chestPicks     = []
+  const oneHitPicks    = []
+  const unrevealedPicks = []
+  const echoPicks      = []
+  const darkEyePicks   = []
+  const enemyPicks     = []
 
   for (const c of cands) {
     const t = TileEngine.getTile(c.row, c.col)
     if (!t) continue
 
-    if (t.revealed && t.enemyData && !t.enemyData._slain && t.enemyData.behaviour === 'archer') {
-      // Only prioritize archers that can actually be engaged (have at least one revealed neighbor)
+    if (t.revealed && t.type === 'exit' && !t.exitResolved) {
+      exitPicks.push(c)
+    } else if (t.revealed && t.enemyData && !t.enemyData._slain && t.enemyData.behaviour === 'archer') {
       const nbrs = TileEngine.getOrthogonalTiles(t.row, t.col)
-      if (nbrs.some(n => n.revealed)) {
-        archerPicks.push(c)
-      } else {
-        enemyPicks.push(c)  // treat as a regular enemy — will be reached organically
-      }
+      if (nbrs.some(n => n.revealed)) archerPicks.push(c)
+      else enemyPicks.push(c)
     } else if ((t.type === 'chest' && t.chestReady && !t.chestLooted) || (t.type === 'magic_chest' && t.magicChestReady)) {
       chestPicks.push(c)
-    } else if (!t.revealed && (t.killEchoMarked || t.senseEvilMarked)) {
-      echoPicks.push(c)
-    } else if (!t.revealed && t.darkEyesHint) {
-      darkEyePicks.push(c)
     } else if (t.revealed && t.enemyData && !t.enemyData._slain) {
-      enemyPicks.push(c)
+      const hp = t.enemyData.currentHP ?? t.enemyData.hp ?? Infinity
+      if (minMeleeDmg > 0 && hp <= minMeleeDmg) oneHitPicks.push(c)
+      else enemyPicks.push(c)
+    } else if (!t.revealed) {
+      if (t.killEchoMarked || t.senseEvilMarked) echoPicks.push(c)
+      else if (t.darkEyesHint) darkEyePicks.push(c)
+      else unrevealedPicks.push(c)
     }
   }
 
-  // Vampire: when HP is stable, filter out direct combat tiles — revealed enemies are "batteries"
   let pool
+  let poolLabel
+
   if (locked) {
-    // Commitment-locked: only fight revealed enemies (resolve the current engagement)
-    pool = enemyPicks.length > 0 ? enemyPicks : cands
+    // Commitment-locked: resolve the current engagement
+    pool = enemyPicks.length > 0 ? enemyPicks
+         : oneHitPicks.length > 0 ? oneHitPicks
+         : cands
+    poolLabel = 'locked'
   } else if (hero === 'vampire' && hpRatio > 0.25) {
-    const nonCombat = cands.filter(c => {
-      const t = TileEngine.getTile(c.row, c.col)
-      return !(t?.revealed && t.enemyData && !t.enemyData._slain && t.enemyData.behaviour !== 'archer')
-    })
-    pool = archerPicks.length > 0 ? archerPicks
-         : chestPicks.length  > 0 ? chestPicks
-         : darkEyePicks.length > 0 ? darkEyePicks
-         : nonCombat.length   > 0 ? nonCombat
+    // Vampire: keep living enemies as HP batteries, avoid direct combat when healthy
+    const nonCombat = [...unrevealedPicks, ...echoPicks, ...darkEyePicks]
+    pool = exitPicks.length     > 0 ? exitPicks
+         : archerPicks.length   > 0 ? archerPicks
+         : chestPicks.length    > 0 ? chestPicks
+         : oneHitPicks.length   > 0 ? oneHitPicks
+         : nonCombat.length     > 0 ? nonCombat
+         : enemyPicks.length    > 0 ? enemyPicks
          : cands
+    poolLabel = pool === exitPicks ? 'exit'
+              : pool === archerPicks ? 'archer'
+              : pool === chestPicks ? 'chest'
+              : pool === oneHitPicks ? 'onehit'
+              : pool === nonCombat ? 'nonCombat'
+              : 'all'
   } else {
-    pool = archerPicks.length  > 0 ? archerPicks
-         : chestPicks.length   > 0 ? chestPicks
-         : hero === 'warrior' && echoPicks.length > 0 ? echoPicks
+    // Default strategy: stairs → archers → chests → one-hit kills → explore → last-resort fight
+    const lowestHpEnemy = enemyPicks.length > 0
+      ? enemyPicks.reduce((best, c) => {
+          const t = TileEngine.getTile(c.row, c.col)
+          const hp = t?.enemyData?.currentHP ?? t?.enemyData?.hp ?? Infinity
+          const bHp = TileEngine.getTile(best.row, best.col)?.enemyData?.currentHP
+                   ?? TileEngine.getTile(best.row, best.col)?.enemyData?.hp ?? Infinity
+          return hp < bHp ? c : best
+        })
+      : null
+
+    pool = exitPicks.length      > 0 ? exitPicks
+         : archerPicks.length    > 0 ? archerPicks
+         : chestPicks.length     > 0 ? chestPicks
+         : oneHitPicks.length    > 0 ? oneHitPicks
+         : unrevealedPicks.length > 0 ? unrevealedPicks
+         : echoPicks.length      > 0 ? echoPicks
+         : darkEyePicks.length   > 0 ? darkEyePicks
+         : lowestHpEnemy         !== null ? [lowestHpEnemy]
          : cands
+    poolLabel = pool === exitPicks       ? 'exit'
+              : pool === archerPicks     ? 'archer'
+              : pool === chestPicks      ? 'chest'
+              : pool === oneHitPicks     ? 'onehit'
+              : pool === unrevealedPicks ? 'unrevealed'
+              : pool === echoPicks       ? 'echo'
+              : pool === darkEyePicks    ? 'darkEye'
+              : lowestHpEnemy !== null && pool.length === 1 ? 'lowestHp'
+              : 'all'
   }
 
   const pick = pool[Math.floor(Math.random() * pool.length)]
   const t = TileEngine.getTile(pick.row, pick.col)
-  const poolLabel = pool === archerPicks  ? 'archer'
-                  : pool === chestPicks   ? 'chest'
-                  : pool === echoPicks    ? 'echo'
-                  : pool === darkEyePicks ? 'darkEye'
-                  : 'all'
-  console.log(`${logTag} floor=${floor} tapping ${_tileTypeLabel(t)} at [${pick.row},${pick.col}] (pool=${poolLabel}, cands=${cands.length}, enemies=${enemyPicks.length})`)
+  console.log(`${logTag} floor=${floor} tapping ${_tileTypeLabel(t)} at [${pick.row},${pick.col}] (pool=${poolLabel}, cands=${cands.length}, oneHit=${oneHitPicks.length}, enemies=${enemyPicks.length})`)
   GameController.onTileTap(pick.row, pick.col)
 }
 
@@ -870,16 +906,7 @@ function tick() {
       }
     }
 
-    const policy = autopilotOpts.policy === 'abilities' ? 'abilities' : 'random'
-    if (policy === 'abilities') {
-      if (GameController.balanceBotTryAbilitiesPolicy(autopilotOpts.abilityWeights ?? {})) {
-        stuckNoTapTicks = 0
-        reachabilityRepaired = false
-        lastBranch = 'abilities'
-        return
-      }
-    }
-
+    // Build candidate list and classify tiles so we can decide whether to use abilities first
     let cands = GameController.getBalanceBotTapCandidates()
     if (cands.length === 0 && GameController.balanceBotTryOpenRevealTool()) {
       stuckNoTapTicks = 0
@@ -888,6 +915,41 @@ function tick() {
       return
     }
     cands = GameController.getBalanceBotTapCandidates()
+
+    // Determine whether all available tiles are multi-hit enemies (blocked by combat)
+    // If so, try abilities before committing to a damaging fight.
+    const _isBlockedByEnemies = () => {
+      if (cands.length === 0) return false
+      const minDmg = diag.meleeDmg ?? 0
+      return cands.every(c => {
+        const t = TileEngine.getTile(c.row, c.col)
+        if (!t) return true
+        if (!t.revealed) return false   // unrevealed tile available — not blocked
+        if (t.type === 'exit' && !t.exitResolved) return false
+        if (t.type === 'chest' || t.type === 'magic_chest') return false
+        if (t.enemyData && !t.enemyData._slain) {
+          const hp = t.enemyData.currentHP ?? t.enemyData.hp ?? Infinity
+          return minDmg <= 0 || hp > minDmg  // only blocked if enemy survives one hit
+        }
+        return false
+      })
+    }
+
+    const policy = autopilotOpts.policy === 'abilities' ? 'abilities' : 'random'
+    // Use abilities when: all candidates are multi-hit enemies AND mana is available.
+    // Once mana runs low (< 20%), stop using abilities and fight the lowest-HP enemy.
+    if (policy === 'abilities' && _isBlockedByEnemies()) {
+      const manaRatioNow = diag.maxMana > 0 ? (diag.mana ?? 0) / diag.maxMana : 0
+      if (manaRatioNow >= 0.20) {
+        if (GameController.balanceBotTryAbilitiesPolicy(autopilotOpts.abilityWeights ?? {})) {
+          stuckNoTapTicks = 0
+          reachabilityRepaired = false
+          lastBranch = 'abilities'
+          return
+        }
+      }
+    }
+
     if (cands.length > 0) {
       stuckNoTapTicks = 0
       reachabilityRepaired = false

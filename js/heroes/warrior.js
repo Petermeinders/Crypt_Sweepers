@@ -555,8 +555,8 @@ export function getDivineLightBreakdown(ctx) {
   if (!session.run || session.run.player?.isRanger) return null
   const avg  = avgMeleeDamage(ctx)
   const smite = Math.max(1, Math.round(avg))
-  const heal  = Math.max(1, Math.floor(session.run.player.maxHp * 0.10))
-  return { avgMelee: avg, smite, heal, maxHp: session.run.player.maxHp }
+  const heal  = Math.max(1, Math.floor(session.run.player.maxHp * divineLightHealRate()))
+  return { avgMelee: avg, smite, heal, maxHp: session.run.player.maxHp, healRate: divineLightHealRate() }
 }
 
 export function getBlindingLightBreakdown(ctx) {
@@ -588,6 +588,11 @@ export function blindingLightStunTurns(ctx) {
   const avg = avgMeleeDamage(ctx)
   const m = blindingLightMultFromStacks(session.run.player.blindingLightMasteryStacks ?? 0)
   return Math.max(2, Math.round(avg * m))
+}
+
+export function divineLightHealRate() {
+  const stacks = session.run?.player?.warriorActiveStacks?.['divine-light'] ?? 0
+  return stacks >= 3 ? 0.15 : stacks >= 2 ? 0.10 : stacks >= 1 ? 0.05 : 0.03
 }
 
 export function slamDamagePerTarget(ctx) {

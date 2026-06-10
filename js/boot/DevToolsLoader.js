@@ -52,6 +52,7 @@ export async function prepareSaveForDevSession(save, flags) {
     save.settings.firstRunIntroDismissed = true
     save.settings.parryChoiceDismissed = true
     save.settings.parryEnabled = false
+    save.settings.autoBlockEnabled = true
   }
 
   return false

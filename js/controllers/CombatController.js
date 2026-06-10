@@ -283,6 +283,7 @@ export function fightAction(ctx, tile) {
       afterAttackPortrait(() => {
         UI.setPortraitAnim('idle')
       })
+      ctx.saveActiveRun()
       session.tap.combatBusy = false
     }, _isBot ? 0 : 400)
   } else {
@@ -420,6 +421,7 @@ export function fightAction(ctx, tile) {
               if (finalEnemyDmg > 0) UI.setPortraitAnim('hit')
               setTimeout(() => UI.setPortraitAnim('idle'), finalEnemyDmg > 0 ? 500 : 0)
             })
+            ctx.saveActiveRun()
             session.tap.combatBusy = false
           }, _isBot ? 0 : 500)
         }
@@ -451,6 +453,9 @@ export function fightAction(ctx, tile) {
         return
       }
 
+      // Auto-block result (hoisted so setTimeout message can reference it)
+      let autoBlockResult = null
+
       // Enemy counter-attack (skipped if stunned)
       if (!isStunned) {
         setEnemySprite(tile, 'attack')
@@ -459,8 +464,21 @@ export function fightAction(ctx, tile) {
         if (tile.enemyData?.poisonHit)       ctx.applyPlayerPoison(tile.enemyData.poisonHitAmount ?? 2)
         if (tile.enemyData?.corruptionHit)   ctx.applyCorruption()
         if (tile.enemyData?.demonFlip)        ctx.tryDemonFlip(tile)
-        ctx.takeDamage(result.enemyDmg, tile.element, true, tile.enemyData, { enemyAttack: true })
-        UI.shakeTile(tile.element)
+
+        // Auto-block: only when parry is disabled and setting is on
+        if (!(session.save?.settings?.parryEnabled ?? true) && (session.save?.settings?.autoBlockEnabled ?? true)) {
+          const r = Math.random()
+          if (r < 0.20) autoBlockResult = 'parry'
+          else if (r < 0.70) autoBlockResult = 'block'
+        }
+
+        const effectiveEnemyDmg = autoBlockResult === 'parry' ? 0
+          : autoBlockResult === 'block' ? Math.floor(result.enemyDmg / 2)
+          : result.enemyDmg
+        if (effectiveEnemyDmg > 0) {
+          ctx.takeDamage(effectiveEnemyDmg, tile.element, true, tile.enemyData, { enemyAttack: true })
+          UI.shakeTile(tile.element)
+        }
         if (GameState.is(States.DEATH)) { session.tap.combatBusy = false; return }
       }
 
@@ -477,6 +495,10 @@ export function fightAction(ctx, tile) {
           tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Enemy is stunned — no counter-attack.`
         } else if (session.save.settings.cheats?.godMode) {
           tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Enemy strikes back — you take no damage.`
+        } else if (autoBlockResult === 'parry') {
+          tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Auto-parry — you deflect the blow entirely!`
+        } else if (autoBlockResult === 'block') {
+          tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Auto-block — you absorb half the damage.`
         } else {
           tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! ${ctx.getLastEnemyHitNarrative()}`
         }
@@ -490,6 +512,7 @@ export function fightAction(ctx, tile) {
             UI.setPortraitAnim('idle')
           }, isStunned ? 0 : 500)
         })
+        ctx.saveActiveRun()
         session.tap.combatBusy = false
       }, _isBot ? 0 : isStunned ? 200 : 500)
     }, _isBot ? 0 : 400)
@@ -747,6 +770,7 @@ export function endCombatVictory(ctx, tile) {
 
   ctx.checkFloorCleared()
   ctx.maybeOfferDeadlockEscape()
+  ctx.saveActiveRun()
 }
 
 function triggerStormcallerLightning(ctx, sourceTile, playerDmg) {

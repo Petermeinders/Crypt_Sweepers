@@ -35,10 +35,10 @@
     "floorScaleHP_late": 0.3,
 
     "floorScaleDmgExpRate__doc": "Compound enemy damage per floor for floors 2–inflection: damage mult × (1 + rate) each floor. Moderate exponential curve.",
-    "floorScaleDmgExpRate": 0.045,
+    "floorScaleDmgExpRate": 0.037,
 
     "floorScaleDmgExpRate_late__doc": "Compound damage rate continued above hpInflectionFloor (usually lower than early rate to avoid one-shots).",
-    "floorScaleDmgExpRate_late": 0.021,
+    "floorScaleDmgExpRate_late": 0.018,
 
     "statMult__doc": "Global multiplier applied to scaled enemy HP and damage after floor math. 1.25 = +25% on final rolled stats.",
     "statMult": 1.25

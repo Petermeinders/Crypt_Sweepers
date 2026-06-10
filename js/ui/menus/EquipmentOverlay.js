@@ -106,6 +106,7 @@ export function wireEquipmentOverlay(ctx) {
   const { GameController, EventBus, UI } = ctx
 
   document.getElementById('hud-portrait-wrap')?.addEventListener('click', () => {
+    if (GameController.divineLightSelecting) return
     const ov = document.getElementById('equipment-overlay')
     GameController.uiButtonHaptic()
     EventBus.emit('audio:play', { sfx: 'menu' })

@@ -954,6 +954,75 @@ export const ModalsMethods = {
     modal.setAttribute('aria-hidden', 'false')
   },
 
+  // Compare modal for backpack-full replacement: shows both items' descriptions before committing.
+  // Works for trinket-vs-trinket, gear-vs-trinket, or any mixed combo.
+  renderBackpackReplaceModal(incomingDef, existingDef, onReplace, onBack) {
+    const modal = el.gearCompareModal
+    if (!modal) return
+    modal.querySelector('.cmp-stat-panel')?.classList.add('hidden')
+    modal.querySelector('.cmp-trash-row')?.classList.add('hidden')
+
+    const detailsEl = document.getElementById('cmp-trinket-details')
+    if (detailsEl) {
+      detailsEl.classList.remove('hidden')
+      const _itemDetail = (def) => {
+        if (!def) return '<em style="color:#888">Empty slot</em>'
+        if (def.stats) {
+          // Gear: show tier + stat list
+          const STAT_LABELS = {
+            damageBonus: 'Attack', maxHpPct: 'HP', maxManaPct: 'Mana',
+            negation: 'Block', damageReduction: 'DEF', abilityPower: 'Power Bonus',
+            brittleArmor: 'Brittle Guard', barbedGear: 'Thorns', manaDrain: 'Drain',
+          }
+          const statLines = Object.entries(def.stats ?? {}).map(([k, v]) => {
+            const label = STAT_LABELS[k] ?? k
+            const display = k === 'negation' ? `${Math.round(v * 100)}%`
+              : (k === 'maxHpPct' || k === 'maxManaPct' || k === 'abilityPower' || k === 'brittleArmor') ? `${v > 0 ? '+' : ''}${v}%`
+              : k === 'barbedGear' ? `${v}HP`
+              : (v > 0 ? `+${v}` : `${v}`)
+            return `<div class="cmp-trinket-effect"><strong>${label}:</strong> ${display}</div>`
+          }).join('')
+          return statLines || '<em style="color:#888">No stats</em>'
+        }
+        // Trinket/consumable: show blurb + effects
+        const blurb = def.blurb ? `<p class="cmp-trinket-blurb">${def.blurb}</p>` : ''
+        const effects = (def.details ?? []).map(d =>
+          `<div class="cmp-trinket-effect"><strong>${d.label}:</strong> ${d.desc}</div>`
+        ).join('')
+        return blurb + effects || `<em style="color:#888">${def.description ?? ''}</em>`
+      }
+      detailsEl.innerHTML = `
+        <div class="cmp-replace-split">
+          <div class="cmp-replace-col">
+            <div class="cmp-replace-col-label">Incoming</div>
+            ${_itemDetail(incomingDef)}
+          </div>
+          <div class="cmp-replace-col">
+            <div class="cmp-replace-col-label">Will be replaced</div>
+            ${_itemDetail(existingDef)}
+          </div>
+        </div>
+      `
+    }
+
+    _renderCompareItemSide(modal.querySelector('.cmp-candidate'), incomingDef, incomingDef?.stats ? 'gear' : 'trinket')
+    _renderCompareItemSide(modal.querySelector('.cmp-equipped'), existingDef, existingDef?.stats ? 'gear' : 'trinket')
+
+    const equipBtn  = modal.querySelector('.cmp-equip-btn')
+    const cancelBtn = modal.querySelector('.cmp-cancel-btn')
+    const newEquipBtn  = equipBtn.cloneNode(true)
+    const newCancelBtn = cancelBtn.cloneNode(true)
+    newEquipBtn.textContent = 'Replace'
+    newCancelBtn.textContent = 'Back'
+    equipBtn.replaceWith(newEquipBtn)
+    cancelBtn.replaceWith(newCancelBtn)
+    newEquipBtn.addEventListener('click', onReplace)
+    newCancelBtn.addEventListener('click', onBack)
+
+    modal.classList.remove('hidden')
+    modal.setAttribute('aria-hidden', 'false')
+  },
+
   renderSafePocketCompareModal(candidateDef, equippedDef, onEquip, onCancel) {
     const modal = el.gearCompareModal
     if (!modal || !candidateDef) return
@@ -1128,11 +1197,15 @@ export const ModalsMethods = {
         : (choice.icon ?? '')
       const iconClass = `ability-icon${hasSprite ? ' ability-icon--sprite' : ''}`
       const tagHtml = choice.tag ? `<span class="ability-tag">${choice.tag}</span>` : ''
+      const closesHtml = choice.closesLabel
+        ? `<div class="ability-closes">⚠️ Locks out: ${choice.closesLabel}</div>`
+        : ''
       card.innerHTML = `
         <div class="${iconClass}">${iconHtml}</div>
         <div class="ability-info">
           <div class="ability-name">${tagHtml}${choice.name}</div>
           <div class="ability-desc">${choice.desc}</div>
+          ${closesHtml}
         </div>`
       card.addEventListener('click', () => onPick(choice.id), { once: true })
       el.abilityChoices.appendChild(card)

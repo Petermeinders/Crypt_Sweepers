@@ -587,17 +587,18 @@ export const HudMethods = {
     el.hudSlotD?.classList.toggle('is-life-tap-active', active)
   },
 
-  setDivineLightBtn(visible, manaCost = 10) {
+  setDivineLightBtn(visible, manaCost = 10, healRate = 0.03) {
     if (!el.hudSlotC) return
     el.hudSlotC.classList.remove('is-divine-light', 'is-divine-light-active')
     if (visible) {
+      const healPct = Math.round(healRate * 100)
       el.hudSlotC.innerHTML = `
         <span class="ability-btn-wrap ability-btn-wrap--divine-light">
           <img src="assets/sprites/abilities/ricochet-bg.png" class="ability-btn-bg" alt="" draggable="false"/>
           <img src="assets/sprites/abilities/divine-light-badge.jpg" class="ability-btn-badge" alt="Divine Light" draggable="false"/>
           <span class="ability-btn-cost">${manaCost}</span>
         </span>`
-      el.hudSlotC.title    = `Divine Light — smite an enemy or heal 10% HP (${manaCost} mana)`
+      el.hudSlotC.title    = `Divine Light — smite an enemy or heal ${healPct}% HP (${manaCost} mana)`
       el.hudSlotC.disabled = false
       el.hudSlotC.classList.remove('is-placeholder')
       el.hudSlotC.classList.add('is-divine-light')

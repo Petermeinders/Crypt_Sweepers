@@ -86,6 +86,8 @@ export function defaultSave() {
       mouseTutorialSeen: false,
       /** Feature flag: Block & Parry reaction window during enemy counter-attacks */
       parryEnabled: true,
+      /** When parry is disabled: 50% auto-block (half dmg) or 20% auto-parry (no dmg) on enemy counter-attacks */
+      autoBlockEnabled: true,
       /** Auto-use red potions when HP drops below 30% (off by default) */
       autoPotions: false,
     },

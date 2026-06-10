@@ -2229,6 +2229,11 @@ function _triggerLevelUp() {
       data.desc = `+${session.run.floor} gold (filler — pool was empty).`
     }
     if (d.kind === 'active') data.tag = 'NEW ACTIVE'
+    if (def.conflictsWith?.length) {
+      data.closesLabel = def.conflictsWith
+        .map(cid => ProgressionSystem.getAbilityDef(cid, char)?.name ?? cid)
+        .join(', ')
+    }
     return data
   })
 
@@ -2269,7 +2274,7 @@ function _triggerLevelUp() {
     else if (char === 'warrior')   {
       UI.setSlamBtn(_isActiveUnlocked('slam', 'warrior'), WARRIOR_UPGRADES.slam.manaCost)
       UI.setBlindingLightBtn(_isActiveUnlocked('blinding-light', 'warrior'), WARRIOR_UPGRADES['blinding-light'].manaCost)
-      UI.setDivineLightBtn(_isActiveUnlocked('divine-light', 'warrior'), WARRIOR_UPGRADES['divine-light'].manaCost)
+      UI.setDivineLightBtn(_isActiveUnlocked('divine-light', 'warrior'), WARRIOR_UPGRADES['divine-light'].manaCost, Warrior.divineLightHealRate())
     }
     GameState.transition(States.FLOOR_EXPLORE)
     _flushDeferredLevelUpXp()
@@ -2821,6 +2826,7 @@ function testHarnessSetupRun(opts = {}) {
   session.save.settings.firstRunIntroDismissed = true
   session.save.settings.parryChoiceDismissed = true
   session.save.settings.parryEnabled = false
+  session.save.settings.autoBlockEnabled = true
   _deepMergeSaveOverrides(session.save, saveOverrides)
   if (session.run) {
     _clearActiveRun()
@@ -2989,6 +2995,7 @@ export default {
   blindingLightAction,
   divineLightAction,
   divineLightHealAction,
+  get divineLightSelecting() { return session.tap.divineLightSelecting },
   lanternAction,
   dowsingRodAction,
   spyglassAction,

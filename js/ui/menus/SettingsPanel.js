@@ -38,6 +38,7 @@ function _populateSettingsForm(s) {
   document.getElementById('setting-sub-levels').checked   = s.settings.subLevelsEnabled ?? true
   document.getElementById('setting-auto-potions').checked = s.settings.autoPotions ?? false
   document.getElementById('setting-parry').checked         = s.settings.parryEnabled ?? true
+  document.getElementById('setting-auto-block').checked    = s.settings.autoBlockEnabled ?? true
   document.getElementById('setting-child-mode').checked   = s.settings.childMode    ?? false
   document.getElementById('cheat-reveal-all-tiles').checked = c.revealAllTiles ?? false
   document.getElementById('cheat-god-mode').checked       = c.godMode      ?? false
@@ -126,6 +127,12 @@ export function wireSettingsPanel(ctx) {
   document.getElementById('setting-parry').addEventListener('change', e => {
     const s = GameController.getSave()
     s.settings.parryEnabled = e.target.checked
+    SaveManager.save(s)
+  })
+
+  document.getElementById('setting-auto-block').addEventListener('change', e => {
+    const s = GameController.getSave()
+    s.settings.autoBlockEnabled = e.target.checked
     SaveManager.save(s)
   })
 

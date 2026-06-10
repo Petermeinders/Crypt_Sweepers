@@ -484,6 +484,7 @@ export async function revealTile(ctx, tile) {
     await maybeMouseUnflip(ctx, tile)
   }
   maybeOfferDeadlockEscape(ctx)
+  if (!tile._lensReveal) ctx.saveActiveRun()
 }
 
 export async function maybeWarBannerIntro() {

@@ -143,13 +143,25 @@ function doReplaceGearAtIndex(ctx, index) {
   if (!piece) return
   const existing = ctx.GameController.getInventory()[index]
   if (existing?.slot) {
-    // Gear-on-gear: show compare modal first; confirm/cancel handled there
+    // Gear-on-gear: show compare modal first
     ctx.openGearPickupCompareModal(index)
   } else {
-    // Non-gear (trinket/potion): immediate swap
-    clearPendingGear(ctx)
-    ctx.GameController.forceReplaceSlotWithGear(index, piece)
-    renderBackpack(ctx)
+    // Non-gear (trinket/consumable): show compare before replacing
+    const existingDef = existing?.id ? ITEMS[existing.id] : null
+    const incomingDef = { ...piece, name: piece.name, stats: piece.stats }
+    ctx.UI.renderBackpackReplaceModal(
+      incomingDef,
+      existingDef,
+      () => {
+        ctx.UI.hideCompareModal()
+        clearPendingGear(ctx)
+        ctx.GameController.forceReplaceSlotWithGear(index, piece)
+        renderBackpack(ctx)
+      },
+      () => {
+        ctx.UI.hideCompareModal()
+      },
+    )
   }
 }
 
@@ -182,12 +194,26 @@ export function clearPendingGear(ctx) {
 }
 
 async function doReplaceAtIndex(ctx, index) {
-  const { GameController } = ctx
+  const { GameController, UI } = ctx
   const newId = _pendingPickupId
   if (!newId) return
-  clearPendingTrinket(ctx)
-  await GameController.forceReplaceItemAtIndex(index, newId)
-  renderBackpack(ctx)
+  const existing = GameController.getInventory()[index]
+  const existingDef = existing?.id ? ITEMS[existing.id] : null
+  const incomingDef = ITEMS[newId]
+  // Show compare before committing replacement
+  UI.renderBackpackReplaceModal(
+    incomingDef,
+    existingDef,
+    async () => {
+      UI.hideCompareModal()
+      clearPendingTrinket(ctx)
+      await GameController.forceReplaceItemAtIndex(index, newId)
+      renderBackpack(ctx)
+    },
+    () => {
+      UI.hideCompareModal()
+    },
+  )
 }
 
 export function setBackpackOpen(ctx, open) {

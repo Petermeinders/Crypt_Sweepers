@@ -104,13 +104,14 @@ async function waitForReportWithProgress(page, targetRuns, pageErrors) {
     const bar = progressBar(state.completed, state.target)
     const d = state.debug
     const extra = d
-      ? ` | ${d.gameState ?? '?'} run=${d.runActive ? '1' : '0'} f=${d.floor ?? '—'} tiles=${d.tilesRevealed ?? '—'} tap=${d.tapCandidates ?? '?'} use=${d.useItemCandidates ?? '?'}${d.hp != null ? ` hp=${d.hp}/${d.maxHp}` : ''}${d.meleeDmg != null ? ` dmg=${d.meleeDmg}` : ''}${d.combatBusy ? ' combatBusy' : ''}${d.targeting ? ` [${d.targeting}]` : ''}${d.lastBranch ? ` branch=${d.lastBranch}` : ''}${d.preset ? ` preset=${d.preset}` : ''}`
+      ? ` | ${d.gameState ?? '?'} run=${d.runActive ? '1' : '0'} f=${d.floor ?? '—'} tiles=${d.tilesRevealed ?? '—'} tap=${d.tapCandidates ?? '?'} use=${d.useItemCandidates ?? '?'}${d.hp != null ? ` hp=${d.hp}/${d.maxHp}` : ''}${d.meleeDmg != null ? ` dmg=${d.meleeDmg}` : ''}${d.livingEnemies != null ? ` enemies=${d.livingEnemies}` : ''}${d.combatBusy ? ' combatBusy' : ''}${d.targeting ? ` [${d.targeting}]` : ''}${d.lastBranch ? ` branch=${d.lastBranch}` : ''}${d.preset ? ` preset=${d.preset}` : ''}`
       : ' | (autopilot not ready)'
     console.log(`[balance-bot] ${elapsedSec}s  ${bar}  finished ${state.completed}/${state.target}${extra}`)
 
     // Stuck detection: force-retreat the current run if no progress for ~30s (rather than aborting the batch)
-    const progressKey = `${state.completed}|${d?.floor ?? '—'}|${d?.tilesRevealed ?? '—'}`
-    if (progressKey === lastProgressKey) {
+    // combatBusy means the bot is actively fighting — HP ticking down is progress even if tiles/floor unchanged
+    const progressKey = `${state.completed}|${d?.floor ?? '—'}|${d?.tilesRevealed ?? '—'}|${d?.hp ?? '—'}|${d?.livingEnemies ?? '—'}`
+    if (progressKey === lastProgressKey && !d?.combatBusy) {
       stuckPolls++
       if (stuckPolls >= STUCK_POLL_LIMIT) {
         console.warn(`[balance-bot] STUCK for ${stuckPolls} polls — force-retreating current run. State: ${extra.trim()}`)
@@ -124,6 +125,7 @@ async function waitForReportWithProgress(page, targetRuns, pageErrors) {
       lastProgressKey = progressKey
       stuckPolls = 0
     }
+    if (d?.combatBusy) stuckPolls = 0
 
     await sleep(pollMs)
   }
