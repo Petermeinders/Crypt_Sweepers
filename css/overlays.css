@@ -9633,3 +9633,133 @@ body.bestiary-detail-open #app {
 .checkpoint-btn-label { display: flex; flex-direction: column; gap: 2px; }
 .checkpoint-btn-floor { font-size: 1.05rem; font-weight: 700; }
 .checkpoint-btn-sub   { font-size: 0.75rem; color: var(--text-secondary, #a1a1aa); font-weight: 400; }
+
+/* ── Gear detail (hold-to-inspect) modal ── */
+.gear-detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 295;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 16px;
+}
+.gear-detail-overlay.hidden { display: none; }
+
+.gear-detail-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.72);
+}
+
+.gear-detail-panel {
+  position: relative;
+  background: #1a1209;
+  border: 2px solid rgba(255,200,80,0.35);
+  border-radius: 12px;
+  padding: 18px 16px 14px;
+  width: min(92vw, 360px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+  font-family: 'Almendra', Georgia, serif;
+}
+
+.gear-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.gear-detail-art {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  background-size: cover;
+  background-position: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gear-detail-art img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.gear-detail-title-block {
+  flex: 1;
+  min-width: 0;
+}
+
+.gear-detail-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #f0d87a;
+  line-height: 1.2;
+  margin-bottom: 4px;
+}
+
+.gear-detail-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 10px;
+  display: inline-block;
+}
+.gear-detail-badge.tier-common    { background: #444; color: #ccc; }
+.gear-detail-badge.tier-rare      { background: #1a3a5c; color: #7ab8f5; }
+.gear-detail-badge.tier-epic      { background: #2a1a4a; color: #c084fc; }
+.gear-detail-badge.tier-legendary { background: #3a2000; color: #fbbf24; }
+
+.gear-detail-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.gd-stat-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.gd-stat-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.gd-stat-body {}
+
+.gd-stat-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #e0d0a0;
+  margin-bottom: 2px;
+}
+.gd-stat-title .gd-stat-val {
+  color: #fff;
+  margin-left: 4px;
+}
+.gd-stat-title .gd-stat-val.bad { color: #f87171; }
+
+.gd-stat-desc {
+  font-size: 0.74rem;
+  color: #9a8a6a;
+  line-height: 1.4;
+  font-family: var(--font-body, sans-serif);
+  font-weight: 400;
+}
+
+.gear-detail-close {
+  width: 100%;
+  margin-top: 2px;
+}

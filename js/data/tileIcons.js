@@ -19,11 +19,11 @@ export const TILE_TYPE_ICON_FILES = {
   blockage:   '../tiles/rubble.png',
   hole:       '../tiles/tile-hole.png',
   checkpoint: null,           // no matching sprite — use emoji
-  forge:      null,           // emoji ⚒️ fallback
+  forge:      'sanctuary-forge.webp',
   exit:       'stairs-down.png', // stairs art (tiles.js: no door emoji)
-  well:       null,
-  anvil:      null,
-  rope:       null,
+  well:       'sanctuary-fountain.webp',
+  anvil:      'sanctuary-anvil.webp',
+  rope:       'sanctuary-rope.webp',
   magic_chest: 'magic-chest-closed.png',
 }
 

@@ -17,6 +17,11 @@ export function createInitialTelemetry() {
     floorSnapshots: [],
     totalDamageTaken: 0,
     totalDamageDealtToEnemies: 0,
+    enemiesKilled: 0,
+    bossesKilled: 0,
+    potionsUsed: 0,
+    gearPickedUp: 0,
+    trinketsFound: 0,
     outcome: null,
     runStartSnapshotDone: false,
   }

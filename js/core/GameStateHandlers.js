@@ -519,18 +519,42 @@ export function runStats(ctx) {
 function buildRunEndSummary(ctx, outcomeType, extras = {}) {
   const rs = runStats(ctx)
   const tel = session.run.telemetry
+  const p   = session.run.player
   const taken = tel?.totalDamageTaken ?? 0
-  const gold = rs.gold ?? 0
+  const gold  = rs.gold ?? 0
+
+  // Inventory snapshot — split into trinkets vs consumables
+  const inventory = (p.inventory ?? []).filter(Boolean)
+  const trinkets   = inventory.filter(e => e?.id && !e.id.startsWith('potion') && !e.id.startsWith('rope') && !e.id.startsWith('bandage') && !e.id.startsWith('lantern') && !e.id.startsWith('spyglass') && !e.id.startsWith('smith') && !e.id.startsWith('sonic') && !e.id.startsWith('loose') && !e.id.startsWith('scavenger') && !e.id.startsWith('whetstone') && !e.id.startsWith('dowsing') && !e.id.startsWith('navigator')).map(e => e.id)
+  const consumables = inventory.filter(e => e?.id && !trinkets.includes(e.id)).map(e => e.id)
+
+  // Equipped gear
+  const gear = {}
+  for (const [slot, piece] of Object.entries(p.equippedGear ?? {})) {
+    if (piece) gear[slot] = `${piece.name ?? piece.id} (${piece.tier ?? '?'})`
+  }
+
   return {
-    outcome: outcomeType,
-    floor: rs.floor,
-    level: rs.level,
+    outcome:   outcomeType,
+    floor:     rs.floor,
+    level:     rs.level,
     character: rs.character,
+    hp:        `${p.hp}/${p.maxHp}`,
+    mana:      `${p.mana}/${p.maxMana}`,
     gold,
-    tilesRevealed: rs.tilesRevealed,
+    safeGold:  rs.safeGold ?? 0,
+    tilesRevealed:  rs.tilesRevealed,
+    enemiesKilled:  tel?.enemiesKilled   ?? 0,
+    bossesKilled:   tel?.bossesKilled    ?? 0,
+    potionsUsed:    tel?.potionsUsed     ?? 0,
+    gearPickedUp:   tel?.gearPickedUp    ?? 0,
+    trinketsFound:  tel?.trinketsFound   ?? 0,
     totalDamageTaken: taken,
     totalDamageDealtToEnemies: tel?.totalDamageDealtToEnemies ?? 0,
-    goldPerHpLost: taken > 0 ? gold / taken : null,
+    goldPerHpLost: taken > 0 ? Math.round(gold / taken * 10) / 10 : null,
+    gear,
+    trinkets,
+    consumables,
     ...extras,
   }
 }

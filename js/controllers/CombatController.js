@@ -13,6 +13,8 @@ import {
   clearCombatEngagementForTile,
   isInSubFloor,
 } from './TileTapRouter.js'
+import { handleGearPickup } from './GearController.js'
+import { generateGear, pickDropTier, pickDropSlot } from '../data/gear.js'
 import { rollParryFail, rollStrikeMiss } from '../systems/VoidCorruption.js'
 import { tryConsumeShocked } from '../systems/Thunderstruck.js'
 
@@ -207,9 +209,13 @@ export function fightAction(ctx, tile) {
     : (Math.random() < 0.5 ? 'hit' : 'hit2')
   EventBus.emit('audio:play', { sfx: attackSfx })
 
+  const _isBot = new URLSearchParams(location.search).has('balanceBot')
+    || new URLSearchParams(location.search).has('testBotOngoing')
+    || new URLSearchParams(location.search).has('testHarness')
+
   const attackPortraitT0 = performance.now()
   const isRanger = ctx.charKey() === 'ranger'
-  const afterAttackPortrait = (fn) => {
+  const afterAttackPortrait = _isBot ? (fn) => fn() : (fn) => {
     const holdMs = isRanger ? RANGER_FIGHT_ATTACK_PORTRAIT_MS : WARRIOR_FIGHT_ATTACK_PORTRAIT_MS
     const elapsed = performance.now() - attackPortraitT0
     setTimeout(fn, Math.max(0, holdMs - elapsed))
@@ -254,7 +260,7 @@ export function fightAction(ctx, tile) {
         UI.setPortraitAnim('idle')
       })
       session.tap.combatBusy = false
-    }, 400)
+    }, _isBot ? 0 : 400)
   } else if (canSplit) {
     setTimeout(() => {
       if (!session.run || !tile?.enemyData || tile.enemyData._slain) {
@@ -278,7 +284,7 @@ export function fightAction(ctx, tile) {
         UI.setPortraitAnim('idle')
       })
       session.tap.combatBusy = false
-    }, 400)
+    }, _isBot ? 0 : 400)
   } else {
     setTimeout(() => {
       if (!session.run) { session.tap.combatBusy = false; return }
@@ -335,9 +341,6 @@ export function fightAction(ctx, tile) {
 
       // Enemy counter-attack — telegraphing enemies show a parry window first
       if (!isStunned && shouldShowParryWindow(tile)) {
-        const _isBot = new URLSearchParams(location.search).has('balanceBot')
-          || new URLSearchParams(location.search).has('testBotOngoing')
-          || new URLSearchParams(location.search).has('testHarness')
         const _handleParryResult = (parryResult) => {
           if (!session.run || !tile.enemyData || tile.enemyData._slain) { session.tap.combatBusy = false; return }
 
@@ -405,12 +408,10 @@ export function fightAction(ctx, tile) {
               if (finalEnemyDmg === 0) {
                 tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Perfect block! You take no damage.`
               } else {
-                const taken = ctx.computeEffectiveDamageTaken(finalEnemyDmg)
-                tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Blocked! You absorb the hit for only ${taken} damage.`
+                tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! ${ctx.getLastEnemyHitNarrative()}`
               }
             } else {
-              const taken = ctx.computeEffectiveDamageTaken(result.enemyDmg)
-              tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! You miss the window — enemy strikes for ${taken} damage.`
+              tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! You miss the window — ${ctx.getLastEnemyHitNarrative()}`
             }
             UI.setMessage(tradeMsg)
             UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
@@ -420,11 +421,22 @@ export function fightAction(ctx, tile) {
               setTimeout(() => UI.setPortraitAnim('idle'), finalEnemyDmg > 0 ? 500 : 0)
             })
             session.tap.combatBusy = false
-          }, 500)
+          }, _isBot ? 0 : 500)
         }
         const _doParryWindow = () => {
           if (rollParryFail(session.run)) {
             _handleParryResult('miss-block')
+            return
+          }
+          if (_isBot) {
+            // Simulate realistic player parry distribution instead of waiting for UI timeout.
+            // Based on observed ~75% block/counter rate: 40% counter, 35% block, 15% miss-block, 10% ignore.
+            const r = Math.random()
+            const botResult = r < 0.40 ? 'counter'
+                            : r < 0.75 ? 'block'
+                            : r < 0.90 ? 'miss-block'
+                            : 'ignore'
+            _handleParryResult(botResult)
             return
           }
           UI.showParryWindow(tile.enemyData, _handleParryResult, ctx.charKey())
@@ -466,8 +478,7 @@ export function fightAction(ctx, tile) {
         } else if (session.save.settings.cheats?.godMode) {
           tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Enemy strikes back — you take no damage.`
         } else {
-          const taken = ctx.computeEffectiveDamageTaken(result.enemyDmg)
-          tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Enemy strikes back for ${taken} damage.`
+          tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! ${ctx.getLastEnemyHitNarrative()}`
         }
         UI.setMessage(tradeMsg)
         UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
@@ -480,8 +491,8 @@ export function fightAction(ctx, tile) {
           }, isStunned ? 0 : 500)
         })
         session.tap.combatBusy = false
-      }, isStunned ? 200 : 500)
-    }, 400)
+      }, _isBot ? 0 : isStunned ? 200 : 500)
+    }, _isBot ? 0 : 400)
   }
 }
 
@@ -536,6 +547,10 @@ export function endCombatVictory(ctx, tile) {
     )
   }
   tile.enemyData._slain = true
+  if (session.run?.telemetry) {
+    session.run.telemetry.enemiesKilled = (session.run.telemetry.enemiesKilled ?? 0) + 1
+    if (wasBoss) session.run.telemetry.bossesKilled = (session.run.telemetry.bossesKilled ?? 0) + 1
+  }
   clearCombatEngagementForTile(tile)
   if (tile.enemyData.isLeader) {
     ctx.onLeaderSlain(tile)
@@ -692,8 +707,27 @@ export function endCombatVictory(ctx, tile) {
     UI.updateMana(session.run.player.mana, session.run.player.maxMana)
   }
 
-  // Gear drop: boss = guaranteed, normal enemy = 5% chance
-  ctx.tryGearDrop(session.run.floor, wasBoss ? 1.0 : 0.05)
+  // Gear drop: boss = guaranteed, normal enemy = 2% chance
+  if (wasBoss) {
+    ctx.tryGearDrop(session.run.floor, 1.0)
+  } else {
+    const gearChance = CONFIG.gear.enemyDropChance
+    const roll = Math.random()
+    if (roll < gearChance) {
+      const floor = session.run.floor
+      const tier  = pickDropTier(floor)
+      const slot  = pickDropSlot()
+      const piece = generateGear(slot, tier, floor)
+      handleGearPickup(null, piece)
+      UI.spawnFloat(tile.element, '⚙️ Gear drop!', 'xp')
+    } else if (roll < gearChance + 0.05) {
+      const potions = ['potion-red', 'potion-blue', 'potion-mystery']
+      const id = potions[Math.floor(Math.random() * potions.length)]
+      void ctx.addToBackpack(id)
+      const icon = id === 'potion-red' ? '🧪' : id === 'potion-blue' ? '🔵' : '🤍'
+      UI.spawnFloat(tile.element, `${icon} Drop!`, 'heal')
+    }
+  }
 
   EventBus.emit('audio:play', { sfx: 'gold' })
   EventBus.emit('combat:end', { outcome: 'victory' })

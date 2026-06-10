@@ -154,6 +154,11 @@ export async function addToBackpack(ctx, id) {
   } else {
     inv.push({ id, qty: 1 })
   }
+  // Telemetry: count trinkets (non-potion, non-tool consumables)
+  const isTrinket = item.rarity && !id.startsWith('potion') && !['rope-coil','bandage-roll','shield-shard','smelling-salts','sonic-ear','loose-pouch','whetstone','field-kit','bone-dice','navigators-chart','lantern','spyglass','smith-tools','scavengers-bag','dowsing-rod','throwing-knife','flash-powder','rusty-nail','twin-blades','smoke-bomb'].includes(id)
+  if (isTrinket && session.run?.telemetry) {
+    session.run.telemetry.trinketsFound = (session.run.telemetry.trinketsFound ?? 0) + 1
+  }
   // Trinket Codex: show discovery card first time this trinket is seen
   if (TrinketCodex.registerIfNew(session.save, id)) {
     Logger.info(`[GameController] New trinket discovered: ${id} (floor ${session.run?.floor})`)
@@ -500,6 +505,9 @@ export function useItem(ctx, id, inventoryIndex = null) {
   }
 
   EventBus.emit('audio:play', { sfx: 'heal' })
+  if (effect.type === 'heal' || effect.type === 'mana' || effect.type === 'mystery-potion') {
+    if (session.run?.telemetry) session.run.telemetry.potionsUsed = (session.run.telemetry.potionsUsed ?? 0) + 1
+  }
   if (effect.type === 'heal') {
     const missing = session.run.player.maxHp - session.run.player.hp
     if (missing <= 0) { UI.setMessage('Already at full health!', true); return }

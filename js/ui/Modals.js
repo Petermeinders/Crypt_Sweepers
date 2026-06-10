@@ -749,8 +749,9 @@ export const ModalsMethods = {
       damageBonus:     { label: 'Attack',    dot: '#ff6633' },
       maxHpPct:        { label: 'HP',        dot: '#e74c3c' },
       maxManaPct:      { label: 'MANA',      dot: '#7766ff' },
-      negation:        { label: 'Block',        dot: '#44aaff' },
-      damageReduction: { label: 'DEF',         dot: '#44cc88' },
+      negation:        { label: 'Block',     dot: '#44aaff' },
+      damageReduction: { label: 'DEF',       dot: '#44cc88' },
+      abilityPower:    { label: 'Power',     dot: '#cc88ff' },
       brittleArmor:    { label: 'Brittle Guard', dot: '#ff8833', bad: true },
       barbedGear:      { label: 'THORNS',    dot: '#cc4444', bad: true },
       manaDrain:       { label: 'DRAIN',     dot: '#aa44cc', bad: true },
@@ -777,7 +778,7 @@ export const ModalsMethods = {
       const isNeg     = stat === 'negation'
       const isBarbed  = stat === 'barbedGear'
       const isBrittle = stat === 'brittleArmor'
-      const isPct     = stat === 'maxHpPct' || stat === 'maxManaPct'
+      const isPct     = stat === 'maxHpPct' || stat === 'maxManaPct' || stat === 'abilityPower'
       const isBad     = val < 0 || def.bad
       const display   = isNeg     ? `${Math.round(Math.abs(val) * 100)}%`
                       : isBarbed  ? `${val}HP`
@@ -844,6 +845,8 @@ export const ModalsMethods = {
       if (mana !== 0) parts.push(_chip('Mana', '#7766ff', mana > 0 ? `+${mana}%` : `${mana}%`, mana < 0))
       const def = totals.damageReduction ?? 0
       if (def !== 0) parts.push(_chip('Def', '#44cc88', def > 0 ? `+${def}` : `${def}`, def < 0))
+      const power = totals.abilityPower ?? 0
+      if (power !== 0) parts.push(_chip('Power', '#cc88ff', power > 0 ? `+${power}%` : `${power}%`, power < 0))
       const drain = totals.manaDrain ?? 0
       if (drain !== 0) parts.push(_chip('Drain', '#aa44cc', `${drain}`, true))
       summaryEl.innerHTML = parts.join('')
@@ -898,6 +901,7 @@ export const ModalsMethods = {
       maxManaPct:      'Max Mana',
       negation:        'Block Chance',
       damageReduction: 'Dmg Reduction',
+      abilityPower:    'Power Bonus',
       brittleArmor:    'Brittle Guard',
       barbedGear:      'Thorns',
       manaDrain:       'Mana Drain',
@@ -987,6 +991,104 @@ export const ModalsMethods = {
     if (!el.gearCompareModal) return
     el.gearCompareModal.classList.add('hidden')
     el.gearCompareModal.setAttribute('aria-hidden', 'true')
+  },
+
+  renderGearDetailModal(piece, slotKey) {
+    const ov = document.getElementById('gear-detail-overlay')
+    if (!ov) return
+
+    const GEAR_IMGS = {
+      weapon:     { common: 'assets/sprites/gear/weapon/common.webp', rare: 'assets/sprites/gear/weapon/rare.webp', epic: 'assets/sprites/gear/weapon/epic.webp', legendary: 'assets/sprites/gear/weapon/legendary.webp', default: 'assets/sprites/Items/sword.png' },
+      breastplate:{ common: 'assets/sprites/gear/breastplate/common.webp', rare: 'assets/sprites/gear/breastplate/rare.webp', epic: 'assets/sprites/gear/breastplate/epic.webp', legendary: 'assets/sprites/gear/breastplate/legendary.webp', default: 'assets/sprites/Items/armor.png' },
+      offhand:    { common: 'assets/sprites/gear/offhand/common.webp', rare: 'assets/sprites/gear/offhand/rare.webp', epic: 'assets/sprites/gear/offhand/epic.webp', legendary: 'assets/sprites/gear/offhand/legendary.webp', default: 'assets/sprites/Items/shield.png' },
+    }
+    const TIER_ART_BG = {
+      common: "url('assets/ui/common-tile.png')",
+      rare: "url('assets/ui/rare-tile.png')",
+      epic: "url('assets/ui/rare-tile.png')",
+      legendary: "url('assets/ui/legendary-tile.png')",
+    }
+    const STAT_INFO = {
+      damageBonus:     { label: 'Attack',       dot: '#ff6633', bad: false,
+        desc: (v) => `Adds +${v} to every melee hit.` },
+      maxHpPct:        { label: 'HP',            dot: '#e74c3c', bad: false,
+        desc: (v) => `Increases your maximum HP by ${v}%.` },
+      maxManaPct:      { label: 'Mana',          dot: '#7766ff', bad: false,
+        desc: (v) => `Increases your maximum mana by ${v}%.` },
+      negation:        { label: 'Block',         dot: '#44aaff', bad: false,
+        desc: (v) => `${Math.round(v * 100)}% chance to fully negate an incoming hit while armor is above 0.` },
+      damageReduction: { label: 'DEF',           dot: '#44cc88', bad: false,
+        desc: (v) => `Reduces all incoming damage by ${v} flat (applied after scaling).` },
+      abilityPower:    { label: 'Power Bonus',   dot: '#cc88ff', bad: false,
+        desc: (v) => `Increases damage from all hero active abilities by ${v}%.` },
+      brittleArmor:    { label: 'Brittle Guard', dot: '#ff8833', bad: true,
+        desc: (v) => `Reduces your block chance by ${Math.abs(v)}%. Detriment.` },
+      barbedGear:      { label: 'Thorns',        dot: '#cc4444', bad: true,
+        desc: (v) => `Reduces your maximum HP by ${Math.abs(v)} HP. Detriment.` },
+      manaDrain:       { label: 'Drain',         dot: '#aa44cc', bad: true,
+        desc: (v) => `Reduces your maximum mana by ${Math.abs(v)}. Detriment.` },
+    }
+
+    const imgSrc = GEAR_IMGS[slotKey]?.[piece.tier] ?? GEAR_IMGS[slotKey]?.default ?? ''
+    const artBg = TIER_ART_BG[piece.tier] ?? ''
+
+    const artEl = document.getElementById('gear-detail-art')
+    if (artEl) {
+      artEl.style.backgroundImage = artBg
+      artEl.innerHTML = `<img src="${imgSrc}" alt="">`
+    }
+
+    const nameEl = document.getElementById('gear-detail-name')
+    if (nameEl) nameEl.textContent = piece.name
+
+    const badgeEl = document.getElementById('gear-detail-badge')
+    if (badgeEl) {
+      const TIER_LABELS = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' }
+      badgeEl.textContent = TIER_LABELS[piece.tier] ?? piece.tier
+      badgeEl.className = `gear-detail-badge tier-${piece.tier}`
+    }
+
+    const statsEl = document.getElementById('gear-detail-stats')
+    if (statsEl) {
+      const DETRIM_SET = new Set(['brittleArmor', 'barbedGear', 'manaDrain'])
+      const rows = Object.entries(piece.stats ?? {})
+        .sort(([a], [b]) => (DETRIM_SET.has(a) ? 1 : 0) - (DETRIM_SET.has(b) ? 1 : 0))
+        .map(([stat, val]) => {
+          const info = STAT_INFO[stat]
+          if (!info) return ''
+          const isNeg = stat === 'negation'
+          const isPct = stat === 'maxHpPct' || stat === 'maxManaPct' || stat === 'abilityPower'
+          const display = isNeg
+            ? `${Math.round(Math.abs(val) * 100)}%`
+            : isPct ? `${val > 0 ? '+' : ''}${val}%`
+            : stat === 'brittleArmor' ? `${val}%`
+            : stat === 'barbedGear' ? `${val}HP`
+            : (val > 0 ? `+${val}` : `${val}`)
+          const isBad = info.bad || val < 0
+          return `<div class="gd-stat-row">
+            <span class="gd-stat-dot" style="background:${info.dot}"></span>
+            <div class="gd-stat-body">
+              <div class="gd-stat-title">${info.label}<span class="gd-stat-val${isBad ? ' bad' : ''}">${display}</span></div>
+              <div class="gd-stat-desc">${info.desc(val)}</div>
+            </div>
+          </div>`
+        }).filter(Boolean).join('')
+      statsEl.innerHTML = rows
+    }
+
+    ov.classList.remove('hidden')
+    ov.setAttribute('aria-hidden', 'false')
+
+    const close = () => this.hideGearDetailModal()
+    document.getElementById('gear-detail-close')?.addEventListener('click', close, { once: true })
+    document.getElementById('gear-detail-backdrop')?.addEventListener('click', close, { once: true })
+  },
+
+  hideGearDetailModal() {
+    const ov = document.getElementById('gear-detail-overlay')
+    if (!ov) return
+    ov.classList.add('hidden')
+    ov.setAttribute('aria-hidden', 'true')
   },
 
   renderBackpackLevelUpLog(entries) {
@@ -1497,16 +1599,17 @@ export const ModalsMethods = {
       maxManaPct:      'Max Mana',
       negation:        'Block Chance',
       damageReduction: 'Dmg Reduction',
+      abilityPower:    'Power Bonus',
       brittleArmor:    'Brittle Guard',
       barbedGear:      'Barbed Gear',
       manaDrain:       'Mana Drain',
     }
     const STAT_SHORT = {
       damageBonus: 'Atk', maxHpPct: 'HP', maxManaPct: 'Mana',
-      negation: 'Block', damageReduction: 'Def',
+      negation: 'Block', damageReduction: 'Def', abilityPower: 'Power',
       brittleArmor: 'BG', barbedGear: 'Thorns', manaDrain: 'Drain',
     }
-    const PCT_KEYS      = new Set(['maxHpPct', 'maxManaPct', 'xpPct', 'goldPct', 'brittleArmor', 'barbedGear', 'manaDrain'])
+    const PCT_KEYS      = new Set(['maxHpPct', 'maxManaPct', 'abilityPower', 'xpPct', 'goldPct', 'brittleArmor', 'barbedGear', 'manaDrain'])
     const DETRIMENT_KEYS = new Set(['brittleArmor', 'barbedGear', 'manaDrain'])
     const TIER_COLOR    = { common: '#888', rare: '#4a9eff', epic: '#a855f7', legendary: '#ffd700' }
     const TIER_LABELS   = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' }

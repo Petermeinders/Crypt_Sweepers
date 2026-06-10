@@ -7,6 +7,15 @@ import { WARRIOR_UPGRADES } from '../data/upgrades.js'
 import { isFoeTileType } from '../data/tiles.js'
 import { session, charKey } from '../core/RunContext.js'
 
+// Returns "(X base, Y from Z% Power Bonus)" when abilityPower > 0, else "".
+function apBreakdown(baseBeforeAp, finalAfterAp) {
+  const ap = session.run?.player?.abilityPower ?? 0
+  if (!ap) return ''
+  const bonus = finalAfterAp - baseBeforeAp
+  if (bonus <= 0) return ''
+  return ` (${baseBeforeAp} base, +${bonus} from ${ap}% Power Bonus)`
+}
+
 export function isKillEchoHiddenEnemyTile(t) {
   return !!(
     t &&
@@ -142,9 +151,14 @@ export function slamAction(ctx) {
   session.tap.combatBusy = true; session.tap.combatBusySetAt = Date.now()
   UI.setPortraitAnim('attack')
   const slamDmg = ctx.scaleOutgoingDamageToEnemy(slamDamagePerTarget(ctx))
+  const slamBase = ctx.scaleOutgoingDamageToEnemy((() => {
+    const avg = avgMeleeDamage(ctx)
+    const m = slamMultFromStacks(session.run.player.slamMasteryStacks ?? 0)
+    return Math.max(CombatResolver.abilityDmgFloor(session.run.floor), Math.round(avg * m))
+  })())
   const immuneNote = immuneSkipped ? ` (${immuneSkipped} immune)` : ''
   const freeNote   = isFree ? ' (free!)' : ''
-  UI.setMessage(`💥 Slam! ${targets.length} enem${targets.length > 1 ? 'ies' : 'y'} struck for ${slamDmg} each!${immuneNote}${freeNote}`)
+  UI.setMessage(`💥 Slam! ${targets.length} enem${targets.length > 1 ? 'ies' : 'y'} struck for ${slamDmg} each${apBreakdown(slamBase, slamDmg)}!${immuneNote}${freeNote}`)
 
   // Stagger slash effects across targets
   let slamKillCount = 0
@@ -502,7 +516,8 @@ export function castDivineLightSmite(ctx, tile) {
     return
   }
 
-  const dmg = ctx.scaleOutgoingDamageToEnemy(Math.max(1, Math.round(avgMeleeDamage(ctx))))
+  const _dlBase = ctx.scaleOutgoingDamageToEnemy(Math.max(1, Math.round(avgMeleeDamage(ctx))))
+  const dmg = ctx.scaleOutgoingDamageToEnemy(Math.max(1, Math.round(avgMeleeDamage(ctx) * CombatResolver.abilityPowerMult(session.run.player))))
   session.run.player.mana = Math.max(0, session.run.player.mana - cost)
   ctx.markStillWaterAbilityUsed()
   UI.updateMana(session.run.player.mana, session.run.player.maxMana)
@@ -514,14 +529,15 @@ export function castDivineLightSmite(ctx, tile) {
   EventBus.emit('audio:play', { sfx: 'divineLight' })
   setTimeout(() => UI.setPortraitAnim('idle'), 600)
 
+  const _dlBreakdown = apBreakdown(_dlBase, dmg)
   if (tile.enemyData.currentHP <= 0) {
-    UI.setMessage(`🌟 Divine Light smites for ${dmg}! The enemy is destroyed. +${tile.enemyData.goldDrop ? 1 : 0} gold.`)
+    UI.setMessage(`🌟 Divine Light smites for ${dmg}${_dlBreakdown}! The enemy is destroyed. +${tile.enemyData.goldDrop ? 1 : 0} gold.`)
     ctx.gainGold(1, tile.element)
     ctx.gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
     ctx.endCombatVictory(tile)
   } else {
     UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
-    UI.setMessage(`🌟 Divine Light smites for ${dmg}! ${tile.enemyData.label} has ${tile.enemyData.currentHP} HP left.`)
+    UI.setMessage(`🌟 Divine Light smites for ${dmg}${_dlBreakdown}! ${tile.enemyData.label} has ${tile.enemyData.currentHP} HP left.`)
   }
 }
 
@@ -578,5 +594,6 @@ export function slamDamagePerTarget(ctx) {
   const avg    = avgMeleeDamage(ctx)
   const stacks = session.run.player.slamMasteryStacks ?? 0
   const m      = slamMultFromStacks(stacks)
-  return Math.max(CombatResolver.abilityDmgFloor(session.run.floor), Math.round(avg * m))
+  const ap     = CombatResolver.abilityPowerMult(session.run.player)
+  return Math.max(CombatResolver.abilityDmgFloor(session.run.floor), Math.round(avg * m * ap))
 }

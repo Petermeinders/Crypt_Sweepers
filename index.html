@@ -356,6 +356,22 @@
     </div>
   </div>
 
+  <!-- ── Gear detail (hold-to-inspect) modal ── -->
+  <div id="gear-detail-overlay" class="gear-detail-overlay hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="gear-detail-name">
+    <div class="gear-detail-backdrop" id="gear-detail-backdrop"></div>
+    <div class="gear-detail-panel">
+      <div class="gear-detail-header">
+        <div class="gear-detail-art" id="gear-detail-art"></div>
+        <div class="gear-detail-title-block">
+          <div class="gear-detail-name" id="gear-detail-name"></div>
+          <div class="gear-detail-badge" id="gear-detail-badge"></div>
+        </div>
+      </div>
+      <div class="gear-detail-stats" id="gear-detail-stats"></div>
+      <button type="button" class="gear-detail-close menu-btn primary" id="gear-detail-close">Close</button>
+    </div>
+  </div>
+
   <!-- ── Floor modifier announcement ── -->
   <div id="floor-modifier-overlay" class="trap-modal-overlay hidden" aria-hidden="true">
     <div class="trap-modal-backdrop" id="floor-modifier-backdrop" aria-hidden="true"></div>

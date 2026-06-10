@@ -37,6 +37,8 @@ let combatBusyTicks = 0
 let summaryStuckTicks = 0
 /** Tracks the last floor we logged a floor-enter for (avoids duplicate logs). */
 let _loggedFloor = -1
+/** Set true when a level-up pick succeeds — trigger reachability repair on next FLOOR_EXPLORE tick. */
+let _pendingLevelUpRepair = false
 /**
  * Set true when the bot deliberately opens the retreat menu (deadlock exit).
  * Prevents _tryDismissFloorExploreBlockingUi from cancelling our own retreat.
@@ -45,6 +47,12 @@ let _botRetreatPending = false
 
 /** @type {{ policy?: string, preset?: string, levelUpWeights?: Record<string, number>, abilityWeights?: Record<string, number>, testBotOngoing?: boolean }} */
 let autopilotOpts = {}
+
+/**
+ * Accumulated stuck events across all runs — keyed by milestone type.
+ * Exposed on window.__balanceBotStuckLog for Playwright post-run analysis.
+ */
+const _stuckLog = []
 
 function _tryClickRetreatConfirm() {
   const confirm = document.getElementById('retreat-confirm')
@@ -331,8 +339,16 @@ function _finalizeAggregateReport() {
       }
     }
   }
+  // Attach stuck event summary
+  const stuckSummary = {}
+  for (const e of _stuckLog) stuckSummary[e.type] = (stuckSummary[e.type] ?? 0) + 1
+  report.stuckEventCounts = stuckSummary
+  report.stuckEvents = _stuckLog.map(e => ({ type: e.type, runIndex: e.runIndex, floor: e.snap?.grid?.floor ?? e.snap?.floor ?? null, overlays: e.snap?.visibleOverlays ?? e.forcedOverlays ?? [] }))
+
   window.__balanceBotReport = report
+  window.__balanceBotStuckLog = _stuckLog
   console.log('[bot:run] ALL RUNS COMPLETE', report.byOutcome, report.aggregate)
+  if (_stuckLog.length > 0) console.warn('[bot:run] stuck events:', stuckSummary)
 
   const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' })
   const a = document.createElement('a')
@@ -347,6 +363,114 @@ function _tileTypeLabel(t) {
   if (!t.revealed) return `unrevealed(${t.type})`
   if (t.enemyData && !t.enemyData._slain) return `enemy(${t.enemyData.enemyId ?? t.type})`
   return t.type
+}
+
+/**
+ * Builds a rich diagnostic snapshot used for stuck / deadlock logging.
+ * Reads DOM + GameController state; intentionally verbose — only called at milestones, not every tick.
+ */
+function _buildStuckDiagnostics(stuckTick) {
+  const diag = GameController.getBalanceBotDiagnostics()
+  const ddl  = GameController.getBalanceBotDeadlockDiagnostics()
+
+  // ── Grid tile-type map (one char per cell) ──
+  // Legend: . unrevealed-reachable  x unrevealed-locked  ? unrevealed-unreachable
+  //         E living enemy  e dead enemy  C chest  T trap  s sanctuary  r rest  * other-revealed
+  let gridMap = ''
+  let tileTypeCounts = {}
+  try {
+    const grid = GameController.getBalanceBotRawGrid?.()
+    if (grid) {
+      for (const row of grid) {
+        for (const t of row) {
+          let ch
+          if (!t.revealed) {
+            ch = t.locked ? 'x' : t.reachable ? '.' : '?'
+          } else if (t.enemyData && !t.enemyData._slain) {
+            ch = 'E'
+          } else if (t.enemyData?._slain) {
+            ch = 'e'
+          } else if (t.type === 'chest' || t.type === 'magic_chest') {
+            ch = 'C'
+          } else if (t.type === 'trap') {
+            ch = 'T'
+          } else if (t.type === 'sanctuary' || t.type === 'rest') {
+            ch = 's'
+          } else if (t.type === 'event') {
+            ch = t.eventResolved ? 'v' : 'N'
+          } else if (t.type === 'empty' || t.type === 'gold') {
+            ch = '_'
+          } else {
+            ch = '*'
+          }
+          tileTypeCounts[ch] = (tileTypeCounts[ch] ?? 0) + 1
+          gridMap += ch
+        }
+        gridMap += '\n'
+      }
+    }
+  } catch (_) { gridMap = '(unavailable)' }
+
+  // ── Visible overlay IDs ──
+  const visibleOverlays = []
+  for (const el of document.querySelectorAll('.panel-overlay, .event-overlay')) {
+    if (!el.classList.contains('hidden')) visibleOverlays.push(el.id || `(unnamed.${el.className.split(' ')[0]})`)
+  }
+  for (const id of ['backpack-overlay', 'retreat-confirm', 'trap-modal-overlay',
+      'level-up-overlay', 'bestiary-discovery-overlay', 'trinket-discovery-overlay',
+      'slam-overlay', 'story-event-overlay', 'merchant-shop-overlay',
+      'gambler-overlay', 'triple-chest-overlay', 'trinket-trader-overlay',
+      'backpack-pending-bar', 'info-card-overlay']) {
+    const el = document.getElementById(id)
+    if (!el) continue
+    const vis = el.id === 'backpack-overlay' ? el.classList.contains('is-open')
+              : el.id === 'info-card-overlay' ? el.classList.contains('visible')
+              : el.id === 'backpack-pending-bar' ? !el.classList.contains('hidden')
+              : !el.classList.contains('hidden')
+    if (vis && !visibleOverlays.includes(id)) visibleOverlays.push(id)
+  }
+
+  // ── Player state snapshot ──
+  let playerSnap = null
+  try {
+    const run = GameController.getRunSnapshot?.()
+    if (run?.player) {
+      const p = run.player
+      playerSnap = {
+        hp: `${p.hp}/${p.maxHp}`,
+        mana: `${p.mana}/${p.maxMana}`,
+        floor: run.floor,
+        level: p.level,
+        inventory: (p.inventory ?? []).filter(Boolean).map(e => e.id),
+        statusEffects: p.statusEffects ?? [],
+        atRest: !!run.atRest,
+      }
+    }
+  } catch (_) {}
+
+  return {
+    stuckTick,
+    gameState:      diag.gameState,
+    runActive:      diag.runActive,
+    combatBusy:     diag.combatBusy,
+    combatLocked:   diag.combatLocked,
+    targeting:      diag.targeting,
+    tapCandidates:  diag.tapCandidates,
+    useItems:       diag.useItemCandidates,
+    grid: {
+      floor:               ddl.floor,
+      atRest:              ddl.atRest,
+      revealed:            ddl.revealed,
+      locked:              ddl.locked,
+      unrevealedUnlocked:  ddl.unrevealedUnlocked,
+      unrevealedReachable: ddl.unrevealedReachable,
+      livingEnemies:       ddl.livingEnemies,
+      tileCounts:          tileTypeCounts,
+    },
+    gridMap,
+    visibleOverlays,
+    player: playerSnap,
+  }
 }
 
 /**
@@ -488,12 +612,6 @@ function _blockingModalOpen() {
     return true
   }
 
-  const heroSel = document.getElementById('hero-select-overlay')
-  if (heroSel && !heroSel.classList.contains('hidden')) {
-    console.log('[bot:modal] blocked by hero-select-overlay')
-    return true
-  }
-
   const slam = document.getElementById('slam-overlay')
   if (slam && !slam.classList.contains('hidden')) {
     console.log('[bot:modal] blocked by slam-overlay')
@@ -548,7 +666,7 @@ function tick() {
 
     if (state === States.LEVEL_UP) {
       lastBranch = 'level_up'
-      _pickWeightedLevelUp()
+      if (_pickWeightedLevelUp()) _pendingLevelUpRepair = true
       return
     }
 
@@ -621,6 +739,20 @@ function tick() {
       return
     }
 
+    // Checkpoint-select overlay (shows when deepestFloor >= 25): pick floor 25 for maxed preset, else floor 1.
+    // Must run BEFORE _tryDismissFloorExploreBlockingUi — that function's catch-all hides all .panel-overlay elements,
+    // and #checkpoint-overlay is a .panel-overlay, so it would be force-hidden before we can click a floor button.
+    const checkpointOverlay = document.getElementById('checkpoint-overlay')
+    if (checkpointOverlay && !checkpointOverlay.classList.contains('hidden') && runsCompleted < runsTarget) {
+      lastBranch = 'checkpoint_select'
+      const isMaxed = autopilotOpts.preset === 'maxed' || autopilotOpts.preset === 'hero'
+      const btn = isMaxed
+        ? (checkpointOverlay.querySelector('.checkpoint-btn--floor50') ?? checkpointOverlay.querySelector('.checkpoint-btn--floor25') ?? checkpointOverlay.querySelector('.checkpoint-btn'))
+        : checkpointOverlay.querySelector('.checkpoint-btn')
+      if (btn) btn.click()
+      return
+    }
+
     if (_tryDismissFloorExploreBlockingUi()) {
       lastBranch = 'modal_dismiss'
       return
@@ -632,13 +764,25 @@ function tick() {
       lastBranch = 'modal_wait'
       // After 10 ticks (~800ms) force-nuke every overlay and keep going
       if (modalWaitTicks >= 10) {
-        console.warn(`[bot:modal] stuck in modal_wait for ${modalWaitTicks} ticks — force-closing all overlays`)
-        document.querySelectorAll('.panel-overlay:not(.hidden)').forEach(el => { el.classList.add('hidden'); console.warn(`[bot:modal] force-hid panel-overlay #${el.id}`) })
-        document.querySelectorAll('.event-overlay:not(.hidden)').forEach(el => { el.classList.add('hidden'); console.warn(`[bot:modal] force-hid event-overlay #${el.id}`) })
+        const forcedOverlays = []
+        document.querySelectorAll('.panel-overlay:not(.hidden)').forEach(el => {
+          forcedOverlays.push(el.id || `(unnamed.${el.className.split(' ')[0]})`)
+          el.classList.add('hidden')
+          console.warn(`[bot:modal] force-hid panel-overlay #${el.id}`)
+        })
+        document.querySelectorAll('.event-overlay:not(.hidden)').forEach(el => {
+          forcedOverlays.push(el.id || `(unnamed.${el.className.split(' ')[0]})`)
+          el.classList.add('hidden')
+          console.warn(`[bot:modal] force-hid event-overlay #${el.id}`)
+        })
         // Trash pending backpack item if blocking
         const pb = document.getElementById('backpack-pending-bar')
         if (pb && !pb.classList.contains('hidden')) { document.getElementById('backpack-pending-trash')?.click(); console.warn('[bot:modal] force-trashed pending backpack item') }
         UI.hideInfoCard()
+        const modalSnap = { type: 'modal_force_close', runIndex: runsCompleted, forcedOverlays, gameState: GameController.getBalanceBotDiagnostics().gameState }
+        _stuckLog.push(modalSnap)
+        window.__balanceBotStuckLog = _stuckLog
+        console.warn(`[bot:modal] stuck in modal_wait for ${modalWaitTicks} ticks — force-closed: [${forcedOverlays.join(', ') || 'none'}]`, modalSnap)
         modalWaitTicks = 0
       }
       return
@@ -698,14 +842,32 @@ function tick() {
       console.log(`[bot:run] floor=${diag.floor} tilesRevealed=${diag.tilesRevealed} tapCandidates=${diag.tapCandidates}`)
     }
 
+    if (_pendingLevelUpRepair) {
+      _pendingLevelUpRepair = false
+      GameController.balanceBotRepairReachability()
+    }
+
     const useIds = GameController.getBalanceBotUseItemCandidates()
-    if (useIds.length > 0 && Math.random() < 0.125) {
-      stuckNoTapTicks = 0
-      reachabilityRepaired = false
-      lastBranch = 'use_item'
-      const id = useIds[Math.floor(Math.random() * useIds.length)]
-      GameController.useItem(id)
-      return
+    if (useIds.length > 0) {
+      const diag2 = GameController.getBalanceBotDiagnostics()
+      const hpRatio2 = diag2.maxHp > 0 ? (diag2.hp ?? diag2.maxHp) / diag2.maxHp : 1
+      const manaRatio = diag2.maxMana > 0 ? (diag2.mana ?? diag2.maxMana) / diag2.maxMana : 1
+      const hpPotions   = useIds.filter(id => id === 'potion-red' || id === 'potion-hp')
+      const manaPotions = useIds.filter(id => id === 'potion-blue' || id === 'potion-mana')
+      const wantHpPotion   = hpRatio2   < 0.40 && hpPotions.length   > 0
+      const wantManaPotion = manaRatio  < 0.30 && manaPotions.length  > 0
+      const shouldUse = wantHpPotion || wantManaPotion || Math.random() < 0.08
+      if (shouldUse) {
+        stuckNoTapTicks = 0
+        reachabilityRepaired = false
+        lastBranch = 'use_item'
+        let id
+        if (wantHpPotion)        id = hpPotions[Math.floor(Math.random() * hpPotions.length)]
+        else if (wantManaPotion) id = manaPotions[Math.floor(Math.random() * manaPotions.length)]
+        else                     id = useIds[Math.floor(Math.random() * useIds.length)]
+        GameController.useItem(id)
+        return
+      }
     }
 
     const policy = autopilotOpts.policy === 'abilities' ? 'abilities' : 'random'
@@ -741,8 +903,20 @@ function tick() {
       reachabilityRepaired = false
       if (d.combatBusy) {
         combatBusyTicks++
+        if (combatBusyTicks === 10) {
+          // First warning — log what combat state looks like
+          console.warn(`[bot:stuck] combatBusy for ${combatBusyTicks} ticks`, {
+            gameState: d.gameState,
+            combatLocked: d.combatLocked,
+            combatEngagement: d.combatEngagement ?? null,
+            targeting: d.targeting,
+            tapCandidates: d.tapCandidates,
+            hp: d.hp != null ? `${d.hp}/${d.maxHp}` : null,
+            mana: d.mana != null ? `${d.mana}/${d.maxMana}` : null,
+          })
+        }
         if (combatBusyTicks >= 30) {
-          console.warn(`[bot:stuck] combatBusy for ${combatBusyTicks} ticks — force-clearing _combatBusy`)
+          console.warn(`[bot:stuck] combatBusy for ${combatBusyTicks} ticks — force-clearing _combatBusy`, _buildStuckDiagnostics(combatBusyTicks))
           GameController.balanceBotClearCombatBusy()
           combatBusyTicks = 0
         }
@@ -757,20 +931,44 @@ function tick() {
 
     stuckNoTapTicks++
 
+    // Log a lightweight snapshot every 5 ticks so we can see the state leading up to the repair
+    if (stuckNoTapTicks > 0 && stuckNoTapTicks % 5 === 0 && stuckNoTapTicks < 20) {
+      console.warn(`[bot:stuck] tick=${stuckNoTapTicks} — no tap candidates`, {
+        gameState: d.gameState,
+        runActive: d.runActive,
+        combatBusy: d.combatBusy,
+        targeting: d.targeting,
+        tapCandidates: d.tapCandidates,
+        useItems: d.useItemCandidates,
+        hp: d.hp != null ? `${d.hp}/${d.maxHp}` : null,
+        floor: d.floor,
+      })
+    }
+
     // ── At 20 ticks (~1.6s): attempt a reachability repair before giving up ──
     // Stale reachable flags (e.g. after hourglass or rapid floor transitions) are the most common
     // cause of the bot seeing 0 candidates despite unlocked tiles existing on the grid.
     if (stuckNoTapTicks === 20 && !reachabilityRepaired) {
       reachabilityRepaired = true
       lastBranch = 'stuck_repair_reachability'
-      const deadlock = GameController.getBalanceBotDeadlockDiagnostics()
-      console.warn(`[bot:stuck] tick=20 — attempting reachability repair. grid=${JSON.stringify(deadlock)}`)
+      const snap = _buildStuckDiagnostics(stuckNoTapTicks)
+      _stuckLog.push({ type: 'reachability_repair', runIndex: runsCompleted, snap })
+      console.warn(`[bot:stuck] tick=20 — attempting reachability repair`, snap)
+      if (snap.gridMap) console.warn(`[bot:stuck] grid map (. reachable  x locked  ? blocked  E enemy):\n${snap.gridMap}`)
       GameController.balanceBotRepairReachability()
+      const afterRepair = GameController.getBalanceBotTapCandidates()
+      console.warn(`[bot:stuck] after reachability repair: tapCandidates=${afterRepair.length}`)
       return
     }
 
     // ── At 40 ticks (~3.2s): try a forced item use ──
     if (stuckNoTapTicks < 40) {
+      if (stuckNoTapTicks === 30) {
+        // Mid-stuck snapshot — reachability repair didn't help
+        const snap = _buildStuckDiagnostics(stuckNoTapTicks)
+        console.warn(`[bot:stuck] tick=30 — still no taps after repair. Waiting for item-use fallback`, snap)
+        if (snap.gridMap) console.warn(`[bot:stuck] grid map:\n${snap.gridMap}`)
+      }
       lastBranch = 'stuck_no_tap'
       return
     }
@@ -780,8 +978,8 @@ function tick() {
       reachabilityRepaired = false
       lastBranch = 'stuck_use_item'
       const id = useIds[Math.floor(Math.random() * useIds.length)]
+      console.warn(`[bot:stuck] tick=40 — forced item use: ${id}`, { useIds })
       GameController.useItem(id)
-      console.warn(`[bot:stuck] tick=40 — forced item use: ${id}`)
       return
     }
 
@@ -802,8 +1000,8 @@ function tick() {
     }
 
     const unlockedCount = GameController.balanceBotForceUnlockAll()
-    console.warn(`[bot:stuck] force-unlocked all tiles — ${unlockedCount} now available`)
     const afterUnlock = GameController.getBalanceBotTapCandidates()
+    console.warn(`[bot:stuck] force-unlocked all tiles — ${unlockedCount} now available, tapCandidates=${afterUnlock.length}`)
     if (afterUnlock.length > 0) {
       stuckNoTapTicks = 0
       reachabilityRepaired = false
@@ -812,8 +1010,14 @@ function tick() {
       return
     }
 
-    const deadlock = GameController.getBalanceBotDeadlockDiagnostics()
-    console.warn(`[bot:stuck] DEADLOCK tick=${stuckNoTapTicks} floor=${deadlock.floor} grid=${JSON.stringify(deadlock)}`)
+    // Full deadlock — log everything before retreating
+    const deadlockSnap = _buildStuckDiagnostics(stuckNoTapTicks)
+    _stuckLog.push({ type: 'deadlock', runIndex: runsCompleted, snap: deadlockSnap })
+    window.__balanceBotStuckLog = _stuckLog
+    console.warn(`[bot:stuck] DEADLOCK tick=${stuckNoTapTicks} — initiating retreat`, deadlockSnap)
+    if (deadlockSnap.gridMap) console.warn(`[bot:stuck] DEADLOCK grid map:\n${deadlockSnap.gridMap}`)
+    console.warn(`[bot:stuck] DEADLOCK visible overlays: [${deadlockSnap.visibleOverlays.join(', ') || 'none'}]`)
+    if (deadlockSnap.player) console.warn(`[bot:stuck] DEADLOCK player state:`, deadlockSnap.player)
     window.__balanceBotRetreatReason = 'balance_bot_deadlock'
     _botRetreatPending = true
     if (_tryClickRetreatConfirm()) {
@@ -856,11 +1060,14 @@ export function startBalanceBotAutopilot(opts = {}) {
   _botRetreatPending = false
   summaryStuckTicks = 0
   _loggedFloor = -1
+  _pendingLevelUpRepair = false
   if (intervalId) clearInterval(intervalId)
   intervalId = setInterval(tick, 80)
+  _stuckLog.length = 0
   window.__balanceBotRuns = runRecords
   window.__balanceBotRunsTarget = runsTarget
   window.__balanceBotReport = undefined
+  window.__balanceBotStuckLog = _stuckLog
   console.log(`[bot:run] balance bot started — runs=${runsTarget} policy=${autopilotOpts.policy ?? 'random'} preset=${autopilotOpts.preset ?? 'none'}`)
 }
 

@@ -391,7 +391,7 @@ export const CONFIG = {
   },
 
   armor: {
-    negationCap: 1.0,  // Deferred — tighten once gear tier values are tuned
+    negationCap: 0.45,
   },
 
   blacksmith: {
@@ -450,10 +450,11 @@ export const CONFIG = {
       // Primary stats — each tier's lo overlaps the tier below (floor scale widens gaps deep).
       damageBonus:     { common: [1, 4],    rare: [2, 7],    epic: [1, 11],   legendary: [3, 17]  },
       maxHpPct:        { common: [5, 14],   rare: [8, 24],   epic: [10, 36],  legendary: [16, 52] },
-      negation:        { common: [0.05, 0.10], rare: [0.06, 0.17], epic: [0.07, 0.25], legendary: [0.12, 0.32] },
+      negation:        { common: [0.005, 0.020], rare: [0.010, 0.030], epic: [0.020, 0.045], legendary: [0.030, 0.060] },
       // Secondary stats
       maxManaPct:      { common: [4, 10],   rare: [6, 18],   epic: [8, 26],   legendary: [14, 42] },
       damageReduction: { epic: [1, 2],      legendary: [1, 3] },
+      abilityPower:    { common: [1, 2],    rare: [1, 3],    epic: [2, 4],    legendary: [2, 5]   },
       // Detriment range sources (rolled negative; low end overlaps = milder bad rolls on high tiers)
       brittleArmor:    { common: [1, 4],    rare: [1, 7],    epic: [1, 10],   legendary: [3, 12]  },
       barbedGear:      { common: [1, 6],    rare: [1, 9],    epic: [2, 14],   legendary: [4, 18]  },
@@ -465,6 +466,8 @@ export const CONFIG = {
       '41-60':  { common: 40, rare: 35, epic: 20, legendary: 5  },
       '61-100': { common: 30, rare: 38, epic: 25, legendary: 7  },
     },
+    /** Chance a normal (non-boss) enemy kill drops a gear piece. Boss drops are always 100%. */
+    enemyDropChance: 0.05,
     /**
      * Stat-band multiplier at drop time — applies to all tiers and detriment rolls.
      * F10 ≈ 1.23×, F80 ≈ 3.28× vs F1 baseline (~2.7× common primary stats F80 vs F10).

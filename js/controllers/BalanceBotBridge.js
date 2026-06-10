@@ -388,6 +388,8 @@ export function getBalanceBotDiagnostics(deps) {
     targeting: targeting.length ? targeting.join('+') : null,
     hp: run?.player?.hp ?? null,
     maxHp: run?.player?.maxHp ?? null,
+    mana: run?.player?.mana ?? null,
+    maxMana: run?.player?.maxMana ?? null,
     meleeDmg: run?.player ? playerDamageRange(run.player)[0] : null,
     hero: charKey() ?? null,
   }

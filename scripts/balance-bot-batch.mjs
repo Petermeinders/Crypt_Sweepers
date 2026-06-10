@@ -27,14 +27,15 @@ import { fileURLToPath } from 'url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
 
-const ALL_HEROES = ['warrior', 'ranger', 'mage', 'engineer', 'vampire', 'necromancer']
+const ALL_HEROES = ['warrior', 'ranger', 'mage', 'engineer', 'vampire', 'necromancer', 'ninja']
+const ALL_PRESETS = ['fresh', 'beginner', 'early', 'mid', 'late', 'full', 'end', 'maxed', 'hero']
 
 function parseArgs(argv) {
   let runs = 20
   let preset = null
   let hero = process.env.BALANCE_BOT_HERO || null
   for (const a of argv) {
-    if (a === 'beginner' || a === 'end') preset = a
+    if (ALL_PRESETS.includes(a)) preset = a
     else if (ALL_HEROES.includes(a)) hero = a
     else if (/^\d+$/.test(a)) runs = Math.max(1, parseInt(a, 10))
   }
@@ -172,14 +173,14 @@ try {
   }
   entryUrl.searchParams.set('runs', String(runs))
   entryUrl.searchParams.set('_', String(Date.now()))
-  if (process.env.BALANCE_BOT_POLICY) entryUrl.searchParams.set('policy', process.env.BALANCE_BOT_POLICY)
+  entryUrl.searchParams.set('policy', process.env.BALANCE_BOT_POLICY || 'abilities')
   if (process.env.BALANCE_BOT_LEVEL_UP_WEIGHTS) {
     entryUrl.searchParams.set('levelUpWeights', process.env.BALANCE_BOT_LEVEL_UP_WEIGHTS)
   }
   if (process.env.BALANCE_BOT_ABILITY_WEIGHTS) {
     entryUrl.searchParams.set('abilityWeights', process.env.BALANCE_BOT_ABILITY_WEIGHTS)
   }
-  if (balanceBotPreset === 'beginner' || balanceBotPreset === 'end') {
+  if (balanceBotPreset && ALL_PRESETS.includes(balanceBotPreset)) {
     entryUrl.searchParams.set('balanceBotPreset', balanceBotPreset)
   }
   if (balanceBotHero && ALL_HEROES.includes(balanceBotHero)) {
@@ -220,6 +221,17 @@ try {
   if (Array.isArray(report.runsDetail) && report.runsDetail.length > 0) {
     writeFileSync(ndPath, `${report.runsDetail.map(r => JSON.stringify(r)).join('\n')}\n`)
     console.log('[balance-bot] Wrote', ndPath)
+  }
+
+  // Write stuck events log if any occurred
+  const stuckLog = await page.evaluate(() => window.__balanceBotStuckLog ?? [])
+  if (stuckLog.length > 0) {
+    const stuckPath = join(root, 'artifacts', `balance-bot-stuck${heroTag}${presetTag}.json`)
+    writeFileSync(stuckPath, JSON.stringify(stuckLog, null, 2))
+    console.log(`[balance-bot] Wrote ${stuckPath} (${stuckLog.length} stuck event(s))`)
+    if (report.stuckEventCounts) {
+      console.log('[balance-bot] Stuck event summary:', JSON.stringify(report.stuckEventCounts))
+    }
   }
 } finally {
   await browser.close()

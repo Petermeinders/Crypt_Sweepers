@@ -35,6 +35,8 @@ export function adjustPlayerStat(stat, delta) {
     p.negation = (p.negation ?? 0) + delta
   } else if (stat === 'damageReduction') {
     p.damageReduction = (p.damageReduction ?? 0) + delta
+  } else if (stat === 'abilityPower') {
+    p.abilityPower = (p.abilityPower ?? 0) + delta
   } else if (stat === 'brittleArmor') {
     p.negation = Math.max(0, (p.negation ?? 0) + delta / 100)
   } else if (stat === 'maxHp') {
@@ -86,6 +88,8 @@ export function applyEquippedGear(ctx, p) {
         p.negation = (p.negation ?? 0) + value
       } else if (stat === 'damageReduction') {
         p.damageReduction = (p.damageReduction ?? 0) + value
+      } else if (stat === 'abilityPower') {
+        p.abilityPower = (p.abilityPower ?? 0) + value
       } else if (stat === 'brittleArmor') {
         p.negation = Math.max(0, (p.negation ?? 0) + value / 100)
       } else if (stat === 'maxHp') {
@@ -195,6 +199,7 @@ export function handleGearPickup(ctx, piece) {
   if (usedSlots < BACKPACK_MAX_SLOTS) {
     const nullIdx = inv.indexOf(null)
     if (nullIdx >= 0) { inv[nullIdx] = piece } else { inv.push(piece) }
+    if (session.run?.telemetry) session.run.telemetry.gearPickedUp = (session.run.telemetry.gearPickedUp ?? 0) + 1
     EventBus.emit('inventory:changed')
     EventBus.emit('gear:pickedUp')
     UI.showGearFoundToast(piece)

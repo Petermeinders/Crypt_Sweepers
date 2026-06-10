@@ -10,6 +10,8 @@ export function parseDevUrlFlags(search = typeof location !== 'undefined' ? loca
     (urlParams.has('balanceBotBeginner') ? 'beginner' : null) ||
     (urlParams.has('balanceBotEnd') ? 'end' : null) ||
     (hasBalanceBot ? 'beginner' : null)
+  // ?applyPreset=maxed — applies a save preset without starting the bot (for manual play)
+  const applyPreset = urlParams.get('applyPreset') || null
 
   return {
     urlParams,
@@ -17,19 +19,32 @@ export function parseDevUrlFlags(search = typeof location !== 'undefined' ? loca
     hasTestBotOngoing,
     hasBalanceBot,
     balanceBotPreset,
+    applyPreset,
     isHeadlessBotSession: hasTestHarness || hasTestBotOngoing || hasBalanceBot,
   }
 }
 
 /** Apply balance-bot save preset and test-harness save tweaks before GameController.init. */
 export async function prepareSaveForDevSession(save, flags) {
-  const { hasTestHarness, hasBalanceBot, balanceBotPreset, urlParams } = flags
+  const { hasTestHarness, hasBalanceBot, balanceBotPreset, applyPreset, urlParams } = flags
 
-  if (hasBalanceBot && (balanceBotPreset === 'beginner' || balanceBotPreset === 'end')) {
-    const { applyBalanceBotSavePreset } = await import('../dev/balanceBotSavePresets.js')
-    const balanceBotHero = urlParams.get('balanceBotHero') || 'warrior'
-    applyBalanceBotSavePreset(save, balanceBotPreset, balanceBotHero)
-    return true
+  if (hasBalanceBot && balanceBotPreset) {
+    const { applyBalanceBotSavePreset, VALID_PRESETS } = await import('../dev/balanceBotSavePresets.js')
+    if (VALID_PRESETS.includes(balanceBotPreset)) {
+      const balanceBotHero = urlParams.get('balanceBotHero') || 'warrior'
+      applyBalanceBotSavePreset(save, balanceBotPreset, balanceBotHero)
+      return true
+    }
+  }
+
+  // ?applyPreset=maxed — one-shot save mutation for manual play, no bot started
+  if (applyPreset) {
+    const { applyBalanceBotSavePreset, VALID_PRESETS } = await import('../dev/balanceBotSavePresets.js')
+    if (VALID_PRESETS.includes(applyPreset)) {
+      const hero = urlParams.get('hero') || 'warrior'
+      applyBalanceBotSavePreset(save, applyPreset, hero)
+      return true
+    }
   }
 
   if (hasTestHarness) {
@@ -83,7 +98,7 @@ export async function loadDevToolsAtBootEnd(flags) {
   if (hasBalanceBot) {
     const policy = urlParams.get('policy') || 'random'
     let levelUpWeights = _parseJsonParam(urlParams, 'levelUpWeights')
-    if (balanceBotPreset === 'end' && levelUpWeights == null) {
+    if ((balanceBotPreset === 'end' || balanceBotPreset === 'full' || balanceBotPreset === 'late' || balanceBotPreset === 'maxed' || balanceBotPreset === 'hero') && levelUpWeights == null) {
       levelUpWeights = { vitality: 1000 }
     }
     const abilityWeights = _parseJsonParam(urlParams, 'abilityWeights') ?? undefined

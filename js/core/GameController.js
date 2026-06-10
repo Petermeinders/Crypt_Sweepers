@@ -107,6 +107,8 @@ const _playerOutgoingDamageMult = () => PlayerStats.playerOutgoingDamageMult(_st
 const _scaleOutgoingDamageToEnemy = (dmg) => PlayerStats.scaleOutgoingDamageToEnemy(_statsCtx(), dmg)
 const _xpNeeded = () => PlayerStats.xpNeeded()
 const _computeEffectiveDamageTaken = (raw) => PlayerStats.computeEffectiveDamageTaken(raw)
+const _computeEffectiveDamageTakenBreakdown = (raw) => PlayerStats.computeEffectiveDamageTakenBreakdown(raw)
+const _buildEnemyHitNarrative = (opts) => PlayerStats.buildEnemyHitNarrative(opts)
 const _playerDamageRange = (p) => PlayerStats.playerDamageRange(p)
 const _applyFreezingHit = () => EnemyMechanics.applyFreezingHit()
 const _applyCorruption = () => EnemyMechanics.applyCorruption()
@@ -968,6 +970,8 @@ function _combatCtx() {
     applyCorruption: _applyCorruption,
     tryDemonFlip: _tryDemonFlip,
     computeEffectiveDamageTaken: _computeEffectiveDamageTaken,
+    computeEffectiveDamageTakenBreakdown: _computeEffectiveDamageTakenBreakdown,
+    getLastEnemyHitNarrative: () => session.run?._lastEnemyHitNarrative ?? '',
     sfUnlockAdjacent: _sfUnlockAdjacent,
     finishTreasureGoblinReward: _finishTreasureGoblinReward,
     telemetryBumpKill: _telemetryBumpKill,
@@ -1825,6 +1829,9 @@ function doRetreat(reason = 'player') { GSH.doRetreat(_stateCtx(), reason) }
 function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null, opts = {}) {
   if (!session.run) return
   const enemyAttack = opts.enemyAttack === true
+  // Capture pre-hit state for narrative building
+  const _hpBefore    = session.run.player.hp
+  const _armorBefore = session.run.player.armor ?? 0
   if (enemyAttack && _charKey() === 'engineer' && session.run.turret?.hp > 0) {
     _damageTurretFromEnemyHit(amount, tileEl)
     return
@@ -1886,6 +1893,8 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
     }
   }
   // Armor / Negation — combat hits only (traps and self-damage bypass armor)
+  let _narrativeArmorAbsorbed = 0
+  let _narrativeNegated = false
   if (enemyAttack && effective > 0 && (session.run.player.armor ?? 0) > 0) {
     const hit = CombatResolver.resolveArmorHit({
       effective,
@@ -1894,24 +1903,21 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
       negationCap: CONFIG.armor.negationCap,
     })
     if (hit.negated) {
+      _narrativeNegated = true
+      const { narrative } = _buildEnemyHitNarrative({
+        rawAmount: amount, negated: true,
+        negationPct: session.run.player.negation ?? 0,
+      })
+      session.run._lastEnemyHitNarrative = narrative
       UI.spawnFloat(tileEl, '🛡️ Blocked!', 'armor')
-      UI.setMessage('The blow glances off your armor — blocked!')
       UI.updateHP(session.run.player.hp, session.run.player.maxHp)
       return
     }
     if (hit.armorAbsorbed > 0) {
+      _narrativeArmorAbsorbed = hit.armorAbsorbed
       session.run.player.armor -= hit.armorAbsorbed
       UI.updateArmor(session.run.player.armor)
       UI.spawnFloat(tileEl, `🛡️ -${hit.armorAbsorbed} Armor`, 'armor')
-      if (hit.hpDamage > 0) {
-        UI.setMessage(session.run.player.armor === 0
-          ? `Your armor shatters — ${hit.hpDamage} damage reaches you!`
-          : `Armor absorbs ${hit.armorAbsorbed} — ${hit.hpDamage} damage gets through!`)
-      } else if (session.run.player.armor === 0) {
-        UI.setMessage('Your armor shatters under the blow!')
-      } else {
-        UI.setMessage(`Your armor absorbs the blow (${session.run.player.armor} remaining).`)
-      }
     }
     effective = hit.hpDamage
     if (effective <= 0) {
@@ -1921,6 +1927,16 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
           UI.updateArmor(session.run.player.armor)
           UI.spawnFloat(tileEl, `🪝 −${shaved} armor`, 'damage')
         }
+      }
+      // Armor absorbed everything — build narrative now (HP unchanged)
+      if (enemyAttack) {
+        const { narrative } = _buildEnemyHitNarrative({
+          rawAmount: amount, armorBefore: _armorBefore,
+          armorAfter: session.run.player.armor,
+          hpBefore: _hpBefore, hpAfter: _hpBefore,
+          armorAbsorbed: _narrativeArmorAbsorbed,
+        })
+        session.run._lastEnemyHitNarrative = narrative
       }
       UI.updateHP(session.run.player.hp, session.run.player.maxHp)
       return
@@ -1958,6 +1974,18 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
       _telemetryBumpDamageSource(opts.deathCause ?? (opts.enemyAttack ? 'combat' : 'other'), effective)
     }
     UI.spawnFloat(tileEl, `-${effective} HP`, 'damage')
+  }
+  // Build and store narrative for CombatController to use in its trade message
+  if (enemyAttack) {
+    const { narrative } = _buildEnemyHitNarrative({
+      rawAmount: amount,
+      armorBefore: _armorBefore,
+      armorAfter: session.run.player.armor ?? 0,
+      hpBefore: _hpBefore,
+      hpAfter: session.run.player.hp,
+      armorAbsorbed: _narrativeArmorAbsorbed,
+    })
+    session.run._lastEnemyHitNarrative = narrative
   }
   UI.updateHP(session.run.player.hp, session.run.player.maxHp)
   if (opts.hapticChannel === 'gesture') {
@@ -3016,6 +3044,8 @@ export default {
   balanceBotTryWarriorAbilities,
   balanceBotTryAbilitiesPolicy,
   balanceBotDismissNpcEvent,
+  getBalanceBotRawGrid() { return TileEngine.getGrid() },
+  getRunSnapshot()       { return session.run ?? null },
   getRunTelemetry,
   getTearyEyesTurns()    { return session.run?.player?.tearyEyesTurns ?? 0 },
   getFreezingHitStacks() { return session.run?.player?.freezingHitStacks ?? 0 },

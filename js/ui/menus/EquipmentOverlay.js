@@ -103,7 +103,7 @@ export function openSafePocketCompareModal(ctx, inventoryIndex) {
 }
 
 export function wireEquipmentOverlay(ctx) {
-  const { GameController, EventBus } = ctx
+  const { GameController, EventBus, UI } = ctx
 
   document.getElementById('hud-portrait-wrap')?.addEventListener('click', () => {
     const ov = document.getElementById('equipment-overlay')
@@ -111,7 +111,51 @@ export function wireEquipmentOverlay(ctx) {
     EventBus.emit('audio:play', { sfx: 'menu' })
     if (ov?.classList.contains('is-open')) { closeEquipment(ctx) } else { openEquipment(ctx) }
   })
+
+  // Hold-to-inspect: 500 ms hold on a gear card opens detail modal
+  const gearRow = () => document.getElementById('equipment-gear-row')
+  let _holdTimer = null
+  let _holdTarget = null
+  let _holdFired = false
+  let _holdStartX = 0
+  let _holdStartY = 0
+
+  function _cancelHold() {
+    clearTimeout(_holdTimer)
+    _holdTimer = null
+    _holdTarget = null
+  }
+
+  document.getElementById('equipment-overlay')?.addEventListener('pointerdown', (e) => {
+    const card = e.target.closest('.eq-card[data-slot]')
+    if (!card || card.classList.contains('eq-card-empty')) return
+    _holdTarget = card
+    _holdFired = false
+    _holdStartX = e.clientX
+    _holdStartY = e.clientY
+    _holdTimer = setTimeout(() => {
+      _holdTimer = null
+      _holdFired = true
+      const slot = _holdTarget?.dataset.slot
+      if (!slot) return
+      const gear = GameController.getEquippedGear()
+      const piece = gear?.[slot]
+      if (!piece) return
+      UI.renderGearDetailModal(piece, slot)
+    }, 500)
+  })
+
+  document.getElementById('equipment-overlay')?.addEventListener('pointerup', _cancelHold)
+  document.getElementById('equipment-overlay')?.addEventListener('pointercancel', _cancelHold)
+  document.getElementById('equipment-overlay')?.addEventListener('pointermove', (e) => {
+    if (_holdTimer === null) return
+    const dx = e.clientX - _holdStartX
+    const dy = e.clientY - _holdStartY
+    if (dx * dx + dy * dy > 100) _cancelHold() // 10px threshold
+  })
+
   document.getElementById('equipment-overlay')?.addEventListener('click', (e) => {
+    if (_holdFired) { _holdFired = false; return }
     const slotEl = e.target.closest('[data-slot]')
     if (slotEl) {
       if (slotEl.dataset.slot === 'safe-pocket') {

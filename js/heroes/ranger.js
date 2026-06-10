@@ -1,8 +1,17 @@
 import { CONFIG } from '../config.js'
+import CombatResolver from '../systems/CombatResolver.js'
 import EventBus from '../core/EventBus.js'
 import UI from '../ui/UI.js'
 import { RANGER_UPGRADES } from '../data/ranger.js'
 import { session, charKey } from '../core/RunContext.js'
+
+function apBreakdown(baseBeforeAp, finalAfterAp) {
+  const ap = session.run?.player?.abilityPower ?? 0
+  if (!ap) return ''
+  const bonus = finalAfterAp - baseBeforeAp
+  if (bonus <= 0) return ''
+  return ` (${baseBeforeAp} base, +${bonus} from ${ap}% Power Bonus)`
+}
 
 export function ricochetAction(ctx) {
   if (ctx.isSilenced()) return
@@ -64,7 +73,14 @@ export function executeRicochet(ctx) {
   session.tap.combatBusy = true; session.tap.combatBusySetAt = Date.now()
   UI.setPortraitAnim('attack')
   const dmgSeq = ricochetDamageSequence(ctx, targets.length, 'ricochet')
-  UI.setMessage(`🏹 Ricochet — ${targets.length} shot${targets.length > 1 ? 's' : ''}! (${dmgSeq.join(' → ')})`)
+  const _ricBase = (() => {
+    const avg = ctx.avgMeleeDamage()
+    const m   = CONFIG.ability.ricochetUnitMult
+    const mult = rangerActiveDamageMult('ricochet')
+    return Math.max(1, Math.round(avg * m * mult))
+  })()
+  const _ricBreakdown = apBreakdown(_ricBase, dmgSeq[0] ?? dmgSeq[dmgSeq.length - 1])
+  UI.setMessage(`🏹 Ricochet — ${targets.length} shot${targets.length > 1 ? 's' : ''}! (${dmgSeq.join(' → ')})${_ricBreakdown}`)
 
   targets.forEach((target, i) => {
     const dmg = ctx.scaleOutgoingDamageToEnemy(dmgSeq[i])
@@ -126,7 +142,8 @@ export function tripleVolleyDamagePerEnemy(ctx) {
   const avg = ctx.avgMeleeDamage()
   const pct = CONFIG.ability.tripleVolleyHeroDamagePct
   const mult = rangerActiveDamageMult('arrow-barrage')
-  return Math.max(1, Math.round(avg * pct * mult))
+  const ap   = CombatResolver.abilityPowerMult(session.run.player)
+  return Math.max(1, Math.round(avg * pct * mult * ap))
 }
 
 export function tilesIn3x3(ctx, centerRow, centerCol) {
@@ -169,9 +186,15 @@ export function executeTripleVolley(ctx, center) {
   UI.updateMana(session.run.player.mana, session.run.player.maxMana)
 
   const dmg = ctx.scaleOutgoingDamageToEnemy(tripleVolleyDamagePerEnemy(ctx))
+  const _tvBase = ctx.scaleOutgoingDamageToEnemy((() => {
+    const avg = ctx.avgMeleeDamage()
+    const pct = CONFIG.ability.tripleVolleyHeroDamagePct
+    const mult = rangerActiveDamageMult('arrow-barrage')
+    return Math.max(1, Math.round(avg * pct * mult))
+  })())
   session.tap.combatBusy = true; session.tap.combatBusySetAt = Date.now()
   UI.setPortraitAnim('attack')
-  UI.setMessage(`🏹 Triple Volley! ${targets.length} enem${targets.length > 1 ? 'ies' : 'y'} for ${dmg} each.`)
+  UI.setMessage(`🏹 Triple Volley! ${targets.length} enem${targets.length > 1 ? 'ies' : 'y'} for ${dmg} each${apBreakdown(_tvBase, dmg)}.`)
 
   EventBus.emit('audio:play', {
     sfx: 'arrowShot',
@@ -295,7 +318,13 @@ export function executePoisonArrowShot(ctx, tile) {
   t0.enemyData.poisonTurns = 3
   UI.updateEnemyHP(t0.element, t0.enemyData.currentHP)
   UI.updateEnemyStatus(t0.element, t0.enemyData)
-  UI.setMessage(`☠️ Poison Arrow! The foe is poisoned (${initial} + ${3} ticks on turns — flips or melee).`)
+  const _paBase = (() => {
+    const avg = ctx.avgMeleeDamage()
+    const m   = CONFIG.ability.ricochetUnitMult
+    const mult = rangerActiveDamageMult('poison-arrow-shot')
+    return Math.max(1, Math.round(avg * m * mult))
+  })()
+  UI.setMessage(`☠️ Poison Arrow! The foe is poisoned (${initial}${apBreakdown(_paBase, initial)} + ${3} ticks on turns — flips or melee).`)
 
   setTimeout(() => {
     UI.setPortraitAnim('idle')
@@ -307,7 +336,8 @@ export function poisonArrowUnitDamage(ctx) {
   const avg = ctx.avgMeleeDamage()
   const m   = CONFIG.ability.ricochetUnitMult
   const mult = rangerActiveDamageMult('poison-arrow-shot')
-  return Math.max(1, Math.round(avg * m * mult))
+  const ap   = CombatResolver.abilityPowerMult(session.run.player)
+  return Math.max(1, Math.round(avg * m * mult * ap))
 }
 
 export function refreshRangerActiveHud(ctx) {
@@ -357,7 +387,8 @@ export function getArrowBarrageBreakdown(ctx) {
   const avg = ctx.avgMeleeDamage()
   const pct = CONFIG.ability.tripleVolleyHeroDamagePct
   const mult = rangerActiveDamageMult('arrow-barrage')
-  const perEnemy = Math.max(1, Math.round(avg * pct * mult))
+  const ap = CombatResolver.abilityPowerMult(session.run.player)
+  const perEnemy = Math.max(1, Math.round(avg * pct * mult * ap))
   return { perEnemy, avgMelee: avg, heroDamagePct: pct, mult, area: '3×3' }
 }
 
@@ -375,7 +406,8 @@ export function ricochetDamageSequence(ctx, targetCount, abilityKey = 'ricochet'
   const avg = ctx.avgMeleeDamage()
   const m   = CONFIG.ability.ricochetUnitMult
   const mult = rangerActiveDamageMult(abilityKey)
-  const unit = Math.max(1, Math.round(avg * m * mult))
+  const ap   = CombatResolver.abilityPowerMult(session.run.player)
+  const unit = Math.max(1, Math.round(avg * m * mult * ap))
   const weights =
     abilityKey === 'ricochet' && hasRicochetArcMasteryMeta() ? [4, 3, 2] : [3, 2, 1]
   const seq = weights.map(w => w * unit)

@@ -129,6 +129,11 @@ function abilityDmgFloor(floor) {
   return Math.max(1, Math.floor((floor ?? 1) / 10))
 }
 
+/** Multiplier from gear Ability Power stat. player.abilityPower is stored as integer %. */
+function abilityPowerMult(player) {
+  return 1 + (player?.abilityPower ?? 0) / 100
+}
+
 /**
  * Armor absorption after effective damage is known (iron-skin, mana shield, etc. already applied).
  * Negation rolls only when armor > 0; on fail, armor absorbs min(armor, effective), overflow hits HP.
@@ -151,4 +156,4 @@ function resolveArmorHit({ effective, armor, negation = 0, negationCap = 1, rng 
   return { negated: false, armorAbsorbed: absorbed, hpDamage: eff - absorbed }
 }
 
-export default { resolveFight, resolveSpell, resolveFlee, resolveFastReveal, rollMerchant, abilityDmgFloor, resolveArmorHit }
+export default { resolveFight, resolveSpell, resolveFlee, resolveFastReveal, rollMerchant, abilityDmgFloor, abilityPowerMult, resolveArmorHit }

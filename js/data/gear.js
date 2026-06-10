@@ -24,17 +24,17 @@ const GEAR_NOUNS = {
 export const GEAR_SLOT_DEFS = {
   weapon: {
     primaryStat: 'damageBonus',
-    secondaryPool: ['maxManaPct', 'damageReduction'],
+    secondaryPool: ['maxManaPct', 'damageReduction', 'abilityPower'],
     detrimentPool: ['barbedGear', 'manaDrain'],
   },
   breastplate: {
     primaryStat: 'maxHpPct',
-    secondaryPool: ['maxManaPct', 'damageReduction'],
+    secondaryPool: ['maxManaPct', 'damageReduction', 'abilityPower'],
     detrimentPool: ['brittleArmor', 'manaDrain'],
   },
   offhand: {
     primaryStat: 'negation',
-    secondaryPool: ['maxHpPct', 'maxManaPct'],
+    secondaryPool: ['maxHpPct', 'maxManaPct', 'abilityPower'],
     detrimentPool: ['brittleArmor', 'barbedGear'],
   },
 }

@@ -11,6 +11,14 @@ import { session, charKey } from '../core/RunContext.js'
 
 const MSG_COMBAT_ACTION_BLOCKED = 'Cannot perform action when in combat with enemy'
 
+function apBreakdown(baseBeforeAp, finalAfterAp) {
+  const ap = session.run?.player?.abilityPower ?? 0
+  if (!ap) return ''
+  const bonus = finalAfterAp - baseBeforeAp
+  if (bonus <= 0) return ''
+  return ` (${baseBeforeAp} base, +${bonus} from ${ap}% Power Bonus)`
+}
+
 export function spellAction(ctx) {
   if (ctx.isSilenced()) return
   const effectiveCost = previewSpellManaCostForUi(ctx)
@@ -168,7 +176,7 @@ export function chainLightningDamagePerZap(ctx) {
   const avg  = ctx.avgMeleeDamage()
   const unit = Math.max(1, Math.round(avg * CONFIG.ability.ricochetUnitMult))
   const mult = mageActiveDamageMult('chain-lightning')
-  return Math.max(CombatResolver.abilityDmgFloor(session.run.floor), Math.round(unit * 1.5 * mult))
+  return Math.max(CombatResolver.abilityDmgFloor(session.run.floor), Math.round(unit * 1.5 * mult * CombatResolver.abilityPowerMult(session.run.player)))
 }
 
 export function getChainLightningBreakdown(ctx) {
@@ -176,7 +184,7 @@ export function getChainLightningBreakdown(ctx) {
   const avg  = ctx.avgMeleeDamage()
   const unit = Math.max(1, Math.round(avg * CONFIG.ability.ricochetUnitMult))
   const mult = mageActiveDamageMult('chain-lightning')
-  const perZap = Math.max(1, Math.round(unit * 1.5 * mult))
+  const perZap = Math.max(1, Math.round(unit * 1.5 * mult * CombatResolver.abilityPowerMult(session.run.player)))
   const stacks = session.run.player.mageActiveStacks?.['chain-lightning'] ?? 0
   return { avgMelee: avg, unit, mult, stacks, perZap, maxZaps: 3 }
 }
@@ -228,9 +236,15 @@ export function executeChainLightning(ctx, primary) {
   UI.updateMana(session.run.player.mana, session.run.player.maxMana)
 
   const perZap = chainLightningDamagePerZap(ctx)
+  const perZapBase = (() => {
+    const avg  = ctx.avgMeleeDamage()
+    const unit = Math.max(1, Math.round(avg * CONFIG.ability.ricochetUnitMult))
+    const mult = mageActiveDamageMult('chain-lightning')
+    return Math.max(1, Math.round(unit * 1.5 * mult))
+  })()
   session.tap.combatBusy = true; session.tap.combatBusySetAt = Date.now()
   UI.setPortraitAnim('attack')
-  UI.setMessage(`⚡ Chain Lightning — ${targets.length} zap${targets.length > 1 ? 's' : ''} for ${perZap} each.`)
+  UI.setMessage(`⚡ Chain Lightning — ${targets.length} zap${targets.length > 1 ? 's' : ''} for ${perZap} each${apBreakdown(perZapBase, perZap)}.`)
 
   targets.forEach((target, i) => {
     const isOverloadBounce = overloadTier >= 3 && i === targets.length - 1 && target === primary && targets.length > 1
@@ -307,7 +321,8 @@ export function getTelekineticThrowBreakdown(ctx) {
   if (!session.run || !session.run.player?.isMage) return null
   const avg  = ctx.avgMeleeDamage()
   const mult = mageActiveDamageMult('telekinetic-throw')
-  const dmg  = Math.max(1, Math.round(avg * 3 * mult))
+  const ap   = CombatResolver.abilityPowerMult(session.run.player)
+  const dmg  = Math.max(1, Math.round(avg * 3 * mult * ap))
   const stacks = session.run.player.mageActiveStacks?.['telekinetic-throw'] ?? 0
   return { avgMelee: avg, mult, stacks, damage: dmg }
 }
@@ -315,7 +330,8 @@ export function getTelekineticThrowBreakdown(ctx) {
 export function telekineticThrowDamage(ctx) {
   const avg  = ctx.avgMeleeDamage()
   const mult = mageActiveDamageMult('telekinetic-throw')
-  return Math.max(CombatResolver.abilityDmgFloor(session.run.floor), Math.round(avg * 3 * mult))
+  const ap   = CombatResolver.abilityPowerMult(session.run.player)
+  return Math.max(CombatResolver.abilityDmgFloor(session.run.floor), Math.round(avg * 3 * mult * ap))
 }
 
 export function isTelekineticThrowDestination(ctx, tile) {
@@ -410,8 +426,13 @@ export function executeTelekineticThrow(ctx, originTile, destTile) {
   session.tap.combatBusy = true; session.tap.combatBusySetAt = Date.now()
   UI.setPortraitAnim('attack')
   const shock = tryConsumeShocked(ctx, destTile, { source: 'ability' })
+  const _ttBase = ctx.scaleOutgoingDamageToEnemy((() => {
+    const avg  = ctx.avgMeleeDamage()
+    const mult = mageActiveDamageMult('telekinetic-throw')
+    return Math.max(CombatResolver.abilityDmgFloor(session.run.floor), Math.round(avg * 3 * mult))
+  })())
   let dmg = ctx.scaleOutgoingDamageToEnemy(telekineticThrowDamage(ctx)) + shock.bonus
-  UI.setMessage(`🌀 Telekinetic Throw — slammed for ${dmg} damage!`)
+  UI.setMessage(`🌀 Telekinetic Throw — slammed for ${dmg} damage${apBreakdown(_ttBase, dmg - shock.bonus)}!`)
   setTimeout(() => {
     if (!destTile.enemyData || destTile.enemyData._slain) return
     EventBus.emit('audio:play', { sfx: 'telekineticSlam' })
