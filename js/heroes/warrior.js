@@ -565,7 +565,7 @@ export function getBlindingLightBreakdown(ctx) {
   const baseTenths = Math.round(CONFIG.ability.blindingLightStunMult * 10)
   const stacks = session.run.player.blindingLightMasteryStacks ?? 0
   const m = blindingLightMultFromStacks(stacks)
-  const stunTurns = Math.max(2, Math.round(avg * m))
+  const stunTurns = Math.max(2, Math.round(Math.sqrt(avg) * m))
   return { avgMelee: avg, baseTenths, stacks, mult: m, stunTurns, final: stunTurns }
 }
 
@@ -587,7 +587,7 @@ export function blindingLightMultFromStacks(stacks) {
 export function blindingLightStunTurns(ctx) {
   const avg = avgMeleeDamage(ctx)
   const m = blindingLightMultFromStacks(session.run.player.blindingLightMasteryStacks ?? 0)
-  return Math.max(2, Math.round(avg * m))
+  return Math.max(2, Math.round(Math.sqrt(avg) * m))
 }
 
 export function divineLightHealRate() {

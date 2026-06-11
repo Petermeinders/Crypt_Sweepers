@@ -560,6 +560,10 @@ export function onTileTap(ctx, row, col) {
       ctx.enterSubFloor(tile)
     } else if (tile.revealed && tile.type === 'war_banner' && tile.bannerReady && session.run.warBanner?.active) {
       ctx.destroyWarBanner(tile)
+    } else if (tile.revealed && tile.type === 'well') {
+      UI.setMessage('You have already been healed at this well.', true)
+    } else if (tile.revealed && tile.type === 'anvil') {
+      UI.setMessage('You have already upgraded your damage at this anvil.', true)
     } else if (tile.revealed && tile.enemyData && tile.enemyData._slain && ctx.charKey() === 'necromancer') {
       // Necromancer: tap ash pile to raise a minion
       ctx.necroRaiseMinion(tile)

@@ -114,8 +114,8 @@ export const CONFIG = {
     ricochetUnitMult:  0.5,   // unit = max(1, round(avgMelee × this)); shots 3×, 2×, 1× unit
     /** Triple Volley: max(1, round(avgMelee × this × rangerActiveStacks mult)) to each enemy in 3×3 */
     tripleVolleyHeroDamagePct: 0.5,
-    /** Blinding Light stun turns: max(2, round(avgMelee × (this + blindingLightMasteryStacks/10))) — no damage */
-    blindingLightStunMult: 0.25,
+    /** Blinding Light stun turns: max(2, round(√avgMelee × (this + blindingLightMasteryStacks/10))) — no damage */
+    blindingLightStunMult: 1.0,
     /** Ranger Trapfinder: chance per qualifying hit (trap, fast reveal, ambush) to reduce damage by trapfinderStacks */
     trapfinderProcChance: 0.10,
   },

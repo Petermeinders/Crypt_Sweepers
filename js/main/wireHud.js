@@ -256,7 +256,7 @@ export function wireHud(ctx) {
             const inner = stacks > 0
               ? `(${baseTenths}/10 + ${stacks}×0.1)`
               : `${mult.toFixed(1)}`
-            return `max(2, round(${avgStr} × ${inner})) = ${stunTurns} stun turn(s) — Undead/Beast Bane can double stun`
+            return `max(2, round(√${avgStr} × ${inner})) = ${stunTurns} stun turn(s) — Undead/Beast Bane can double stun`
           })()
         : 'Start a paladin run to see stun turns (scales with HUD attack + Blinding Mastery).'
       ctx.UI.showInfoCard({
