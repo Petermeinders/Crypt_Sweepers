@@ -525,6 +525,12 @@ export function onTileTap(ctx, row, col) {
       return
     }
 
+    // Seismic-peeked: tile is revealed but locked — player must reach it naturally
+    if (tile._seismicPeeked && tile.locked) {
+      UI.setMessage('🌊 Seismic-revealed tiles stay dark until you reach them naturally.', true)
+      return
+    }
+
     // Eagle Eye: one free flip to any unrevealed unlocked tile after a kill
     if (!session.tap.combatBusy && !tile.revealed && !tile.locked && session.run.player.eagleEyeFreeFlip) {
       session.run.player.eagleEyeFreeFlip = false

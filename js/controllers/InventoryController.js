@@ -493,9 +493,8 @@ export function useItem(ctx, id, inventoryIndex = null) {
     for (const row of grid) {
       for (const t of row) {
         if (t.revealed && t.enemyData && !t.enemyData._slain) {
-          TileEngine.refreshEnemyDamageOnTile(t, session.run.floor)
-          UI.updateEnemyHP(t.element, t.enemyData.currentHP)
-          count++
+          const newHP = TileEngine.rerollEnemyOnTile(t, session.run.floor)
+          if (newHP !== null) { UI.updateEnemyHP(t.element, newHP); count++ }
         }
       }
     }

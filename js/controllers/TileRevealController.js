@@ -619,6 +619,7 @@ export function resolveEffect(ctx, tile) {
     case 'gold': {
       const g = 1
       ctx.gainGold(g, tile.element)
+      tile.type = 'empty'
       UI.setMessage(`A coin on the floor. +1 gold.`)
       UI.showRetreat()
       // Animate the coin icon flying upward and fading out
@@ -766,6 +767,7 @@ export function resolveEffect(ctx, tile) {
     case 'armor': {
       const av = tile.armorValue ?? 1
       p.armor = (p.armor ?? 0) + av
+      tile.type = 'empty'
       EventBus.emit('audio:play', { sfx: 'armor_pickup' })
       UI.spawnFloat(tile.element, `+${av} Armor`, 'armor')
       UI.updateArmor(p.armor)

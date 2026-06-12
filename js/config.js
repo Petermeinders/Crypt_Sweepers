@@ -468,6 +468,8 @@ export const CONFIG = {
     },
     /** Chance a normal (non-boss) enemy kill drops a gear piece. Boss drops are always 100%. */
     enemyDropChance: 0.05,
+    /** Chance a normal enemy kill drops a random potion (independent of gear roll). */
+    enemyPotionDropChance: 0.10,
     /**
      * Stat-band multiplier at drop time — applies to all tiers and detriment rolls.
      * F10 ≈ 1.23×, F80 ≈ 3.28× vs F1 baseline (~2.7× common primary stats F80 vs F10).

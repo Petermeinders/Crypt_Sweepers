@@ -436,6 +436,7 @@ export function spawnManuscriptTile(ctx) {
 export async function collectManuscript(ctx, tile) {
   if (!tile.manuscriptEntry || tile.manuscriptCollected) return
   tile.manuscriptCollected = true
+  tile.type = 'empty'
 
   // Collect animation — fade out icon
   const iconWrap = tile.element?.querySelector('.tile-icon-wrap')

@@ -190,7 +190,7 @@ export const ITEMS = {
     stackable: false,
     blurb:     'Worn leather that remembers the first clean line of every duel.',
     details: [
-      { icon: '🧤', label: 'Passive', desc: 'Your first melee hit against each enemy deals +1 damage' },
+      { icon: '🧤', label: 'Passive', desc: 'Your first melee hit against each enemy deals +20% damage' },
       { icon: '🎲', label: 'Rare',    desc: '2% chance from chests' },
     ],
     effect: { type: 'passive-duelists-glove' },

@@ -169,6 +169,9 @@ export function wireMenus(ctx) {
   }
   document.getElementById('how-to-play-btn')?.addEventListener('click', _openHowToPlay)
   document.getElementById('hud-how-to-play-btn')?.addEventListener('click', _openHowToPlay)
+  document.getElementById('checkpoint-back')?.addEventListener('click', () => {
+    document.getElementById('checkpoint-overlay')?.classList.add('hidden')
+  })
   document.getElementById('how-to-play-back')?.addEventListener('click', () => {
     document.getElementById('how-to-play-overlay')?.classList.add('hidden')
   })

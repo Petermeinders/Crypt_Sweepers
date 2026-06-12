@@ -263,6 +263,72 @@ function _mean(arr) {
   return arr.reduce((a, b) => a + b, 0) / arr.length
 }
 
+/**
+ * Score a gear piece for the bot's equip decision.
+ * Weapons weight damageBonus heavily; all pieces penalise detriments.
+ */
+function _gearScore(piece) {
+  if (!piece?.stats) return -Infinity
+  const s = piece.stats
+  switch (piece.slot) {
+    case 'weapon':
+      return (s.damageBonus ?? 0) * 3
+           + (s.abilityPower ?? 0) * 2
+           + (s.damageReduction ?? 0)
+           + (s.maxManaPct ?? 0) * 0.1
+           - Math.abs(s.barbedGear ?? 0) * 2
+           - Math.abs(s.manaDrain ?? 0) * 0.5
+    case 'breastplate':
+      return (s.maxHpPct ?? 0) * 2
+           + (s.damageReduction ?? 0) * 2
+           + (s.abilityPower ?? 0)
+           + (s.maxManaPct ?? 0) * 0.5
+           - Math.abs(s.brittleArmor ?? 0) * 2
+           - Math.abs(s.manaDrain ?? 0) * 0.5
+    case 'offhand':
+      return (s.negation ?? 0) * 100
+           + (s.maxHpPct ?? 0)
+           + (s.abilityPower ?? 0)
+           + (s.maxManaPct ?? 0) * 0.5
+           - Math.abs(s.brittleArmor ?? 0) * 2
+           - Math.abs(s.barbedGear ?? 0)
+    default:
+      return 0
+  }
+}
+
+/**
+ * Scan inventory for gear that beats what's equipped. Equip the best upgrade found.
+ * Called each floor-explore tick so new drops get picked up immediately.
+ * Returns true if something was equipped.
+ */
+function _botAutoEquipBestGear() {
+  const inventory = GameController.getInventory()
+  if (!inventory?.length) return false
+
+  // Find the best candidate per slot among inventory gear pieces
+  const bestBySlot = {}  // slot → { index, piece, score }
+  for (let i = 0; i < inventory.length; i++) {
+    const piece = inventory[i]
+    if (!piece?.slot) continue
+    const score = _gearScore(piece)
+    if (!bestBySlot[piece.slot] || score > bestBySlot[piece.slot].score) {
+      bestBySlot[piece.slot] = { index: i, piece, score }
+    }
+  }
+
+  for (const [slot, candidate] of Object.entries(bestBySlot)) {
+    const equipped = GameController.getEquippedGear?.()[slot] ?? null
+    const equippedScore = equipped ? _gearScore(equipped) : -Infinity
+    if (candidate.score > equippedScore) {
+      console.log(`[bot:gear] equipping ${candidate.piece.name} (${candidate.piece.tier}) slot=${slot} score=${candidate.score.toFixed(1)} vs current=${equippedScore === -Infinity ? 'none' : equippedScore.toFixed(1)}`)
+      GameController.equipGear(candidate.index)
+      return true
+    }
+  }
+  return false
+}
+
 function _pickWeightedLevelUp() {
   const weights = autopilotOpts.levelUpWeights
   const cards = document.querySelectorAll('#level-up-overlay .ability-card')
@@ -737,6 +803,12 @@ function tick() {
         runsCompleted++
         const rs = snap?.telemetry?.outcome?.runEndSummary ?? snap?.runStats
         console.log(`[bot:run] RUN ${runsCompleted}/${runsTarget} ended — outcome=${rs?.outcome} floor=${rs?.floor} level=${rs?.level} tilesRevealed=${rs?.tilesRevealed} hp=${rs?.hpAtRetreat ?? rs?.hpAtDeath ?? '?'} killer=${rs?.killerLabel ?? '—'}`)
+        // Capture full save state for per-run export
+        if (autopilotOpts.testBotOngoing) {
+          const saveCopy = JSON.parse(JSON.stringify(GameController.getSave() ?? {}))
+          if (!window.__balanceBotRunSaves) window.__balanceBotRunSaves = []
+          window.__balanceBotRunSaves.push({ runIndex: runsCompleted, save: saveCopy, telemetry: snap })
+        }
         document.getElementById('try-again-btn')?.click()
         if (runsCompleted >= runsTarget) {
           if (intervalId) clearInterval(intervalId)
@@ -781,10 +853,10 @@ function tick() {
     const checkpointOverlay = document.getElementById('checkpoint-overlay')
     if (checkpointOverlay && !checkpointOverlay.classList.contains('hidden') && runsCompleted < runsTarget) {
       lastBranch = 'checkpoint_select'
-      const isMaxed = autopilotOpts.preset === 'maxed' || autopilotOpts.preset === 'hero'
-      const btn = isMaxed
-        ? (checkpointOverlay.querySelector('.checkpoint-btn--floor50') ?? checkpointOverlay.querySelector('.checkpoint-btn--floor25') ?? checkpointOverlay.querySelector('.checkpoint-btn'))
-        : checkpointOverlay.querySelector('.checkpoint-btn')
+      // Always pick the deepest available checkpoint button (highest floor number).
+      // testBotOngoing and maxed presets both want the furthest possible starting point.
+      const allBtns = Array.from(checkpointOverlay.querySelectorAll('.checkpoint-btn'))
+      const btn = allBtns.length > 0 ? allBtns[allBtns.length - 1] : null
       if (btn) btn.click()
       return
     }
@@ -882,6 +954,9 @@ function tick() {
       _pendingLevelUpRepair = false
       GameController.balanceBotRepairReachability()
     }
+
+    // Auto-equip any inventory gear that beats what's currently equipped
+    if (_botAutoEquipBestGear()) return
 
     const useIds = GameController.getBalanceBotUseItemCandidates()
     if (useIds.length > 0) {

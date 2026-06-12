@@ -893,7 +893,8 @@ export const ModalsMethods = {
     const modal = el.gearCompareModal
     if (!modal) return
     modal.querySelector('.cmp-stat-panel')?.classList.remove('hidden')
-    document.getElementById('cmp-trinket-details')?.classList.add('hidden')
+    const _detailsEl = document.getElementById('cmp-trinket-details')
+    if (_detailsEl) { _detailsEl.classList.add('hidden'); _detailsEl.innerHTML = '' }
     modal.querySelector('.cmp-trash-row')?.classList.remove('hidden')
     const STAT_LABELS = {
       damageBonus:     'Attack',

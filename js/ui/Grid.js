@@ -180,6 +180,8 @@ export const GridMethods = {
     if (hpBar) hpBar.remove()
     const stats = front.querySelector('.tile-enemy-stats')
     if (stats) stats.remove()
+    const statusEffects = front.querySelector('.tile-status-effects')
+    if (statusEffects) statusEffects.remove()
     if (TILE_SPIRIT_RELEASE) {
       const spirit = document.createElement('img')
       spirit.src = TILE_SPIRIT_RELEASE

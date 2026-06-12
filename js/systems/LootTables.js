@@ -93,13 +93,13 @@ function rollDelversKitTrinket(floor) {
 export function rollCommonLoot({ hasItem, rand }) {
   // Weighted: potions more likely than utility items (smiths-tools removed — 0.5% via dedicated band in chest rolls)
   const r = Math.random()
-  if (r < 0.28) return { type: 'potion-red' }
-  if (r < 0.50) return { type: 'potion-blue' }
-  if (r < 0.58) return { type: 'potion-mystery' }
-  if (r < 0.70) return { type: 'lantern' }
-  if (r < 0.80) return { type: 'dowsing-rod' }
-  if (r < 0.88) return { type: 'spyglass' }
-  if (r < 0.95) return { type: 'scavengers-bag' }
+  if (r < 0.365) return { type: 'potion-red' }
+  if (r < 0.585) return { type: 'potion-blue' }
+  if (r < 0.665) return { type: 'potion-mystery' }
+  if (r < 0.755) return { type: 'lantern' }
+  if (r < 0.835) return { type: 'dowsing-rod' }
+  if (r < 0.895) return { type: 'spyglass' }
+  if (r < 0.950) return { type: 'scavengers-bag' }
   return { type: 'gold', amount: rand(...CONFIG.chest.goldDrop) }
 }
 

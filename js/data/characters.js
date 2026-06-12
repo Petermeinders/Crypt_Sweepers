@@ -113,7 +113,7 @@ export const CHARACTERS = [
     baseHP:      38,
     baseMana:    42,
     baseDmg:     '1',
-    comingSoon:  false,
+    comingSoon:  true,
     complexity:  'Medium',
   },
   {

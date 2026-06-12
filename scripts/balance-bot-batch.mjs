@@ -235,6 +235,53 @@ try {
       console.log('[balance-bot] Stuck event summary:', JSON.stringify(report.stuckEventCounts))
     }
   }
+
+  // Per-run save snapshots + summaries (test-bot-ongoing only)
+  if (testBotOngoing) {
+    const runSaves = await page.evaluate(() => window.__balanceBotRunSaves ?? [])
+    if (runSaves.length > 0) {
+      const runDir = join(root, 'artifacts', `ongoing-runs-${Date.now()}`)
+      mkdirSync(runDir, { recursive: true })
+      for (const { runIndex, save, telemetry } of runSaves) {
+        const tag = String(runIndex).padStart(2, '0')
+        // Full save state
+        const savePath = join(runDir, `run-${tag}-save.json`)
+        writeFileSync(savePath, JSON.stringify(save, null, 2))
+        // Human-readable summary
+        const rs = telemetry?.telemetry?.outcome?.runEndSummary ?? telemetry?.runStats ?? {}
+        const lvlSnaps = telemetry?.telemetry?.levelSnapshots ?? []
+        const summary = {
+          runIndex,
+          outcome:      rs.outcome ?? null,
+          floorReached: rs.floor ?? null,
+          levelReached: rs.level ?? null,
+          tilesRevealed: rs.tilesRevealed ?? null,
+          killedBy:     rs.killerLabel ?? null,
+          hpAtEnd:      rs.hpAtRetreat ?? rs.hpAtDeath ?? null,
+          deepestFloor: save?.meta?.deepestFloor ?? null,
+          persistentGold: save?.persistentGold ?? null,
+          scrap:        save?.scrap ?? null,
+          equippedGear: save?.equippedGear ?? null,
+          globalPassives: save?.globalPassives ?? [],
+          heroUpgrades: save?.[save?.selectedCharacter ?? 'warrior']?.upgrades ?? [],
+          levelSnapshots: lvlSnaps.map(s => ({
+            level: s.characterLevel,
+            floor: s.floor,
+            hp: s.hp,
+            maxHp: s.maxHp,
+            mana: s.mana,
+            maxMana: s.maxMana,
+            dmgRange: s.meleeDamageRange,
+            gold: s.gold,
+          })),
+        }
+        const summaryPath = join(runDir, `run-${tag}-summary.json`)
+        writeFileSync(summaryPath, JSON.stringify(summary, null, 2))
+        console.log(`[balance-bot] Run ${tag}: floor=${summary.floorReached} level=${summary.levelReached} outcome=${summary.outcome} → ${runDir}`)
+      }
+      console.log(`[balance-bot] Wrote ${runSaves.length} per-run save+summary files to ${runDir}`)
+    }
+  }
 } finally {
   await browser.close()
 }

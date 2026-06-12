@@ -232,7 +232,7 @@ export function slamSeismicReveal(ctx, targets, tier) {
   for (const t of targets) {
     for (const tile of ctx.getActiveTiles()) {
       const key = `${tile.row},${tile.col}`
-      if (seen.has(key) || tile.revealed || tile.locked) continue
+      if (seen.has(key) || tile.revealed) continue
       if (Math.abs(tile.row - t.row) <= 1 && Math.abs(tile.col - t.col) <= 1) {
         seen.add(key)
         candidates.push(tile)
@@ -242,15 +242,21 @@ export function slamSeismicReveal(ctx, targets, tier) {
 
   candidates.sort(() => Math.random() - 0.5)
   const toReveal = candidates.slice(0, revealCount)
-  if (toReveal.length === 0) return
+  if (toReveal.length === 0) {
+    UI.setMessage('🌊 Seismic — no unrevealed tiles adjacent to targets.')
+    return
+  }
 
   let extraKills = 0
   for (const tile of toReveal) {
+    // Peek only: flip visually but keep locked so the player can't interact until they
+    // reach it naturally. No outcomes trigger (no loot, no traps, no combat).
+    // _seismicPeeked tells recomputeAllEnemyLocks to preserve the lock on this revealed tile.
     tile.revealed = true
+    tile.locked = true
+    tile._seismicPeeked = true
     session.run.tilesRevealed++
-    TileEngine.markReachable(tile.row, tile.col, ctx.markReachableUi)
     if (tile.element) TileEngine.flipTile(tile)
-    ctx.applyRevealOutcome(tile)
 
     if (dealExtraDmg && tile.enemyData && !tile.enemyData._slain && !tile.enemyData.spellImmune) {
       const dmg = ctx.scaleOutgoingDamageToEnemy(slamDamagePerTarget(ctx))
@@ -565,7 +571,7 @@ export function getBlindingLightBreakdown(ctx) {
   const baseTenths = Math.round(CONFIG.ability.blindingLightStunMult * 10)
   const stacks = session.run.player.blindingLightMasteryStacks ?? 0
   const m = blindingLightMultFromStacks(stacks)
-  const stunTurns = Math.max(2, Math.round(Math.sqrt(avg) * m))
+  const stunTurns = blindingLightStunTurns(ctx)
   return { avgMelee: avg, baseTenths, stacks, mult: m, stunTurns, final: stunTurns }
 }
 
@@ -581,7 +587,8 @@ export function slamMultFromStacks(stacks) {
 
 export function blindingLightMultFromStacks(stacks) {
   const baseTenths = Math.round(CONFIG.ability.blindingLightStunMult * 10)
-  return (baseTenths + stacks) / 10
+  // Mastery stacks use sqrt so early upgrades matter most; later ones give diminishing returns
+  return (baseTenths / 10) + Math.sqrt(stacks) * 0.1
 }
 
 export function blindingLightStunTurns(ctx) {

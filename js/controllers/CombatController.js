@@ -119,7 +119,7 @@ export function fightAction(ctx, tile) {
   if (session.run.player.beastBonus  && isBeast)  playerDmg = Math.round(playerDmg * 2)
 
   if (session.run.player.inventory.some(e => e?.id === 'duelists-glove') && !tile.enemyData._duelistFirstMeleeDone) {
-    playerDmg += 1
+    playerDmg = Math.max(1, Math.round(playerDmg * 1.20))
     tile.enemyData._duelistFirstMeleeDone = true
   }
   // Predator's Edge: first hit on each enemy deals double damage
@@ -498,7 +498,9 @@ export function fightAction(ctx, tile) {
         } else if (autoBlockResult === 'parry') {
           tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Auto-parry — you deflect the blow entirely!`
         } else if (autoBlockResult === 'block') {
-          tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Auto-block — you absorb half the damage.`
+          const blocked = Math.ceil(result.enemyDmg / 2)
+          const taken   = Math.floor(result.enemyDmg / 2)
+          tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! Auto-block — enemy hit for ${result.enemyDmg}, you absorb ${blocked} and take ${taken}.`
         } else {
           tradeMsg = `You strike for ${playerDmg}${bonusSuffix}! ${ctx.getLastEnemyHitNarrative()}`
         }
@@ -734,16 +736,16 @@ export function endCombatVictory(ctx, tile) {
   if (wasBoss) {
     ctx.tryGearDrop(session.run.floor, 1.0)
   } else {
-    const gearChance = CONFIG.gear.enemyDropChance
-    const roll = Math.random()
-    if (roll < gearChance) {
+    // Each drop is an independent roll — add more rolls here as needed
+    if (Math.random() < CONFIG.gear.enemyDropChance) {
       const floor = session.run.floor
       const tier  = pickDropTier(floor)
       const slot  = pickDropSlot()
       const piece = generateGear(slot, tier, floor)
       handleGearPickup(null, piece)
       UI.spawnFloat(tile.element, '⚙️ Gear drop!', 'xp')
-    } else if (roll < gearChance + 0.05) {
+    }
+    if (Math.random() < CONFIG.gear.enemyPotionDropChance) {
       const potions = ['potion-red', 'potion-blue', 'potion-mystery']
       const id = potions[Math.floor(Math.random() * potions.length)]
       void ctx.addToBackpack(id)

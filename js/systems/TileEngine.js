@@ -60,6 +60,24 @@ function refreshEnemyDamageOnTile(tile) {
   el.textContent = `⚔️ ${str}`
 }
 
+/** Re-roll HP and damage for a living revealed enemy tile with random variance. Returns new currentHP. */
+function rerollEnemyOnTile(tile, floor) {
+  if (!tile?.enemyData || tile.enemyData._slain) return null
+  const def = ENEMY_DEFS[tile.enemyData.enemyId]
+  if (!def) return null
+  const scaled = scaleEnemyDef(def, floor)
+  // Random multiplier 0.6–1.5 so each roll is visibly different
+  const hpMult  = 0.6 + Math.random() * 0.9
+  const dmgMult = 0.6 + Math.random() * 0.9
+  const newHp = Math.max(1, Math.round(scaled.hp * hpMult))
+  tile.enemyData.hp        = newHp
+  tile.enemyData.dmg       = scaled.dmg.map(v => Math.max(1, Math.round(v * dmgMult)))
+  tile.enemyData.currentHP = newHp
+  delete tile.enemyData.hitDamage  // re-rolled fresh on next combat tap
+  refreshEnemyDamageOnTile(tile)
+  return newHp
+}
+
 function createEnemy(type, floor = 1) {
   const def = ENEMY_DEFS[type]
   if (!def) { Logger.error(`[TileEngine] Unknown enemy type: ${type}`); return null }
@@ -1403,6 +1421,7 @@ function lockAdjacent(row, col, uiLock) {
 function unlockAdjacent(row, col, uiUnlock) {
   for (const adj of getAdjacentTiles(row, col)) {
     adj.locked = false
+    delete adj._seismicPeeked
     if (adj.element) uiUnlock(adj.element)
   }
   Logger.debug(`[TileEngine] Unlocked adjacent to [${row},${col}]`)
@@ -1419,6 +1438,9 @@ function recomputeAllEnemyLocks(uiLock, uiUnlock) {
       if (!t.revealed && t.locked) {
         t.locked = false
         if (t.element) uiUnlock(t.element)
+      } else if (t._seismicPeeked && t.locked) {
+        // Seismic-peeked tiles stay locked until naturally unlocked via unlockAdjacent
+        if (t.element) t.element.classList.add('locked')
       }
     }
   }
@@ -1513,6 +1535,7 @@ export default {
   formatEnemyDamageDisplay,
   rollEnemyHitDamage,
   refreshEnemyDamageOnTile,
+  rerollEnemyOnTile,
   getOrthogonalTiles,
   getAdjacentTiles,
   setDiagonalMovement,

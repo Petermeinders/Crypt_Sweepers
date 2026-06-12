@@ -7480,7 +7480,8 @@ body.bestiary-detail-open #app {
   font-family: var(--cmp-font-body);
   font-size: 0.78rem;
   font-weight: 700;
-  color: #3d2c1c;
+  color: #f0e4c8;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
 }
 .cmp-trinket-blurb { margin: 0 0 8px; line-height: 1.35; }
 .cmp-trinket-effects { display: flex; flex-direction: column; gap: 4px; }
@@ -7752,7 +7753,7 @@ body.bestiary-detail-open #app {
 .cmp-panel {
   position: relative;
   border: 14px solid transparent;
-  border-image: url('../assets/ui/cmp-panel-bg.png') 20 fill / 9px / 0 round;
+  border-image: url('../assets/ui/cmp-panel-bg.png') 20 fill / 9px / 0 stretch;
   background: none;
   padding: 17px 12px 19px;
   max-width: 400px;
@@ -7892,6 +7893,9 @@ body.bestiary-detail-open #app {
 }
 
 /* Chiseled stone stat block */
+.cmp-stat-panel.hidden { display: none; }
+.cmp-trash-row.hidden  { display: none; }
+
 .cmp-stat-panel {
   border: 16px solid transparent;
   border-image: url('../assets/ui/cmp-btn-stone.png') 20 fill / 4px / 0 round;
@@ -9787,6 +9791,7 @@ body.bestiary-detail-open #app {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #a08060;
+  color: #c9a96e;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.7);
   margin-bottom: 6px;
 }

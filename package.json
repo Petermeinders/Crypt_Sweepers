@@ -18,7 +18,8 @@
     "balance-bot:beginner": "node scripts/balance-bot-batch.mjs 20 beginner",
     "balance-bot:end": "node scripts/balance-bot-batch.mjs 20 end",
     "balance-bot:maxed": "node scripts/balance-bot-batch.mjs 10 maxed",
-    "test-bot-ongoing": "node -r ./scripts/set-ongoing-env.cjs scripts/balance-bot-batch.mjs"
+    "test-bot-ongoing": "node -r ./scripts/set-ongoing-env.cjs scripts/balance-bot-batch.mjs",
+    "bot-campaign": "node scripts/run-bot-campaign.mjs"
   },
   "keywords": [],
   "author": "",
