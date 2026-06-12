@@ -9,22 +9,31 @@ export function cacheCombatElements() {
     el.parryEnemyDisplay    = document.getElementById('parry-enemy-display')
     el.parryEnemyIcon       = document.getElementById('parry-enemy-icon')
     el.parryEnemyName       = document.getElementById('parry-enemy-name')
+    el.parryEnemyState      = document.getElementById('parry-enemy-state')
     el.parryPracticeLabel   = document.getElementById('parry-practice-label')
     el.parryTutorialOverlay = document.getElementById('parry-tutorial-overlay')
     el.parryTutorialBody    = document.getElementById('parry-tutorial-body')
     el.parryTutorialPips    = document.getElementById('parry-tutorial-pips')
     el.parryTutorialNext    = document.getElementById('parry-tutorial-next')
     el.parryTutorialSkip    = document.getElementById('parry-tutorial-skip')
-    el.parryRingArena  = document.getElementById('parry-ring-arena')
-    el.parryHeroCanvas = document.getElementById('parry-hero-canvas')
-    el.parryRingOuter  = document.getElementById('parry-ring-outer')
-    el.parryRingTarget = document.getElementById('parry-ring-target')
-    el.parryCompassN   = document.getElementById('parry-compass-n')
-    el.parryCompassE   = document.getElementById('parry-compass-e')
-    el.parryCompassS   = document.getElementById('parry-compass-s')
-    el.parryCompassW     = document.getElementById('parry-compass-w')
-    el.parryArcCanvas    = document.getElementById('parry-arc-canvas')
-    el.parryFlashOverlay = document.getElementById('parry-flash-overlay')
+    el.parryRingArena      = document.getElementById('parry-ring-arena')
+    el.parryHeroCanvas     = document.getElementById('parry-hero-canvas')
+    el.parryRingOuter      = document.getElementById('parry-ring-outer')
+    el.parryRingTarget     = document.getElementById('parry-ring-target')
+    el.parryCompassN       = document.getElementById('parry-compass-n')
+    el.parryCompassE       = document.getElementById('parry-compass-e')
+    el.parryCompassS       = document.getElementById('parry-compass-s')
+    el.parryCompassW       = document.getElementById('parry-compass-w')
+    el.parryArcCanvas      = document.getElementById('parry-arc-canvas')
+    el.parryFlashOverlay   = document.getElementById('parry-flash-overlay')
+    el.parryResultDisplay  = document.getElementById('parry-result-display')
+    el.parryResultLabel    = document.getElementById('parry-result-label')
+    el.parryResultSublabel = document.getElementById('parry-result-sublabel')
+    el.parryNowText        = document.getElementById('parry-now-text')
+    el.parryActionHints    = document.getElementById('parry-action-hints')
+    el.parryHintDirIcon    = document.getElementById('parry-hint-dir-icon')
+    el.parryHintDirText    = document.getElementById('parry-hint-dir-text')
+    el.parryBottomText     = document.getElementById('parry-bottom-text')
 }
 
 export const CombatUiMethods = {
@@ -465,6 +474,28 @@ export const CombatUiMethods = {
     const activeArrow = { n: el.parryCompassN, e: el.parryCompassE, s: el.parryCompassS, w: el.parryCompassW }[requiredDir.id]
     activeArrow?.classList.add('active')
 
+    // Direction hint pills
+    const _dirLabels = { e: { icon: '→', text: 'PARRY RIGHT' }, w: { icon: '←', text: 'PARRY LEFT' }, n: { icon: '↑', text: 'PARRY UP' }, s: { icon: '↓', text: 'PARRY DOWN' } }
+    const _dl = _dirLabels[requiredDir.id]
+    if (el.parryHintDirIcon) el.parryHintDirIcon.textContent = _dl.icon
+    if (el.parryHintDirText) el.parryHintDirText.textContent = _dl.text
+    if (el.parryActionHints) el.parryActionHints.classList.remove('hidden')
+
+    // Enemy state text
+    if (el.parryEnemyState) {
+      if (!opts.practiceMode && enemyData.enemyId) {
+        el.parryEnemyState.textContent = 'WINDING UP...'
+        el.parryEnemyState.classList.remove('hidden', 'striking')
+      } else {
+        el.parryEnemyState.classList.add('hidden')
+      }
+    }
+
+    // Reset new UI elements
+    if (el.parryNowText)  el.parryNowText.classList.add('hidden')
+    if (el.parryBottomText) { el.parryBottomText.textContent = ''; el.parryBottomText.className = 'parry-bottom-text' }
+    if (el.parryResultDisplay) el.parryResultDisplay.className = 'parry-result-display hidden'
+
     el.parryRingOuter.classList.remove('parry-result-block', 'parry-result-counter', 'parry-result-miss', 'in-zone')
     el.parryRingOuter.style.transform = 'scale(1) rotate(0deg)'
     el.parryRingOuter.style.opacity   = '1'
@@ -562,7 +593,22 @@ export const CombatUiMethods = {
       ringScale = Math.max(0, 1 - elapsed / windowDur)
       const spinDeg = (elapsed / 14000) * 360
       el.parryRingOuter.style.transform = `scale(${ringScale.toFixed(4)}) rotate(${spinDeg.toFixed(1)}deg)`
-      el.parryRingOuter.classList.toggle('in-zone', ringScale >= zoneMin && ringScale <= zoneMax)
+      const _inZoneNow = ringScale >= zoneMin && ringScale <= zoneMax
+      el.parryRingOuter.classList.toggle('in-zone', _inZoneNow)
+      // Toggle NOW prompt vs action hints
+      if (el.parryNowText)     el.parryNowText.classList.toggle('hidden', !_inZoneNow)
+      if (el.parryActionHints) el.parryActionHints.classList.toggle('hidden', _inZoneNow)
+      // Update enemy state label
+      if (el.parryEnemyState && !opts.practiceMode && enemyData.enemyId) {
+        if (_inZoneNow) {
+          el.parryEnemyState.textContent = 'STRIKING!'
+          el.parryEnemyState.classList.add('striking')
+          el.parryEnemyState.classList.remove('hidden')
+        } else {
+          el.parryEnemyState.textContent = 'WINDING UP...'
+          el.parryEnemyState.classList.remove('striking', 'hidden')
+        }
+      }
       // Scale canvas with ring so arc tracks it exactly
       if (el.parryArcCanvas) el.parryArcCanvas.style.transform = `scale(${ringScale.toFixed(4)})`
       drawArc()
@@ -628,6 +674,11 @@ export const CombatUiMethods = {
         document.body.addEventListener('animationend', () => document.body.classList.remove('screen-shake'), { once: true })
       }
 
+      // Hide approach-phase UI
+      if (el.parryActionHints) el.parryActionHints.classList.add('hidden')
+      if (el.parryNowText)     el.parryNowText.classList.add('hidden')
+      if (el.parryEnemyState)  el.parryEnemyState.classList.add('hidden')
+
       el.parryRingOuter.style.animation = ''
       el.parryRingOuter.classList.remove('in-zone')
       ;[el.parryCompassN, el.parryCompassE, el.parryCompassS, el.parryCompassW].forEach(a => a?.classList.remove('active'))
@@ -635,11 +686,22 @@ export const CombatUiMethods = {
       if (visualResult) el.parryRingOuter.classList.add(`parry-result-${visualResult}`)
 
       if (visualResult) {
-        const resultWords = { block: 'Blocked', counter: 'Countered', miss: 'Missed' }
-        const word = document.createElement('div')
-        word.className = `parry-feedback-icon parry-text-${visualResult}`
-        word.textContent = resultWords[visualResult]
-        el.parryRingArena?.appendChild(word)
+        const _isMissParry = result === 'miss-parry'
+        const _resultData = {
+          block:   { label: 'BLOCK',  sub: 'DAMAGE HALVED',  bottom: 'DAMAGE ABSORBED',    bottomCls: 'parry-bottom-block'   },
+          counter: { label: 'PARRY!', sub: 'COUNTER BONUS',  bottom: 'COUNTER STRIKE',      bottomCls: 'parry-bottom-counter' },
+          miss:    { label: 'MISS',   sub: _isMissParry ? 'WRONG WAY' : 'FULL DAMAGE', bottom: _isMissParry ? 'WRONG DIRECTION' : 'MISSED THE WINDOW', bottomCls: 'parry-bottom-miss' },
+        }
+        const _rd = _resultData[visualResult]
+        if (_rd) {
+          if (el.parryResultLabel)    el.parryResultLabel.textContent = _rd.label
+          if (el.parryResultSublabel) el.parryResultSublabel.textContent = _rd.sub
+          if (el.parryResultDisplay)  el.parryResultDisplay.className = `parry-result-display parry-result-${visualResult}`
+          if (el.parryBottomText) {
+            el.parryBottomText.textContent = _rd.bottom
+            el.parryBottomText.className = `parry-bottom-text ${_rd.bottomCls}`
+          }
+        }
       }
 
       setTimeout(() => {
@@ -647,6 +709,9 @@ export const CombatUiMethods = {
         el.parryOverlay.setAttribute('aria-hidden', 'true')
         if (visualResult) el.parryRingOuter.classList.remove(`parry-result-${visualResult}`)
         el.parryRingArena?.querySelectorAll('.parry-feedback-icon').forEach(n => n.remove())
+        if (el.parryResultDisplay) el.parryResultDisplay.className = 'parry-result-display hidden'
+        if (el.parryBottomText)    { el.parryBottomText.textContent = ''; el.parryBottomText.className = 'parry-bottom-text' }
+        if (el.parryActionHints)   el.parryActionHints.classList.remove('hidden')
         if (heroCtx) heroCtx.clearRect(0, 0, 320, 320)
         onResolve(result)
       }, visualResult ? 350 : 0)

@@ -198,7 +198,8 @@ async function doReplaceAtIndex(ctx, index) {
   const newId = _pendingPickupId
   if (!newId) return
   const existing = GameController.getInventory()[index]
-  const existingDef = existing?.id ? ITEMS[existing.id] : null
+  // Gear items have .slot but no .id in ITEMS; use the object directly
+  const existingDef = existing?.slot ? existing : (existing?.id ? ITEMS[existing.id] : null)
   const incomingDef = ITEMS[newId]
   // Show compare before committing replacement
   UI.renderBackpackReplaceModal(

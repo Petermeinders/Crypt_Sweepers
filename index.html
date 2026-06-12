@@ -717,6 +717,7 @@
       <div id="parry-enemy-display" class="parry-enemy-display">
         <img id="parry-enemy-icon" class="parry-enemy-icon" src="" alt="" aria-hidden="true">
         <div id="parry-enemy-name" class="parry-enemy-name"></div>
+        <div id="parry-enemy-state" class="parry-enemy-state hidden"></div>
       </div>
       <div class="parry-ring-arena" id="parry-ring-arena">
         <canvas class="parry-hero-canvas" id="parry-hero-canvas" width="320" height="320" aria-hidden="true"></canvas>
@@ -729,7 +730,34 @@
           <div class="parry-compass-arrow parry-compass-s" id="parry-compass-s">↓</div>
           <div class="parry-compass-arrow parry-compass-w" id="parry-compass-w">←</div>
         </div>
+        <div id="parry-result-display" class="parry-result-display hidden" aria-live="assertive">
+          <div id="parry-result-label" class="parry-result-label"></div>
+          <div id="parry-result-sublabel" class="parry-result-sublabel"></div>
+        </div>
       </div>
+      <div class="parry-cta-zone">
+        <div id="parry-now-text" class="parry-now-text hidden" aria-live="assertive">
+          <span class="parry-now-word">NOW</span>
+          <span class="parry-now-sub">RINGS ALIGNED — ACT!</span>
+        </div>
+        <div id="parry-action-hints" class="parry-action-hints" aria-hidden="true">
+          <div class="parry-hint-btn parry-hint-tap">
+            <span class="parry-hint-icon">◎</span>
+            <div class="parry-hint-labels">
+              <span class="parry-hint-action">TAP</span>
+              <span class="parry-hint-effect">BLOCK</span>
+            </div>
+          </div>
+          <div class="parry-hint-btn parry-hint-swipe">
+            <span class="parry-hint-icon" id="parry-hint-dir-icon">←</span>
+            <div class="parry-hint-labels">
+              <span class="parry-hint-action">SWIPE</span>
+              <span class="parry-hint-effect" id="parry-hint-dir-text">PARRY LEFT</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="parry-bottom-text" class="parry-bottom-text" aria-live="polite"></div>
     </div>
   </div>
 
