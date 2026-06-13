@@ -2084,7 +2084,7 @@ function _gainGold(amount, tileEl, fromEnemy = false, fromChest = false) {
     }
   }
   // Philosopher's Coin: all gold × 5
-  if (session.run.player.inventory.some(e => e?.id === 'philosophers-coin')) actual *= 5
+  if (hasItem('philosophers-coin')) actual *= 5
   if (session.run.isVoidTrial) {
     actual = Math.max(0, Math.round(actual * voidLootMult(session.run.voidTier) * voidLootChanceMult(session.run)))
   }
@@ -2511,20 +2511,19 @@ function _openMagicChest(tile) {
     UI.setMessage(`The Magic Chest grants ${def.name}! +${amt} attack damage. (${session.run.player.goldenKeys} keys left)`)
     return
   }
-  if (!_canAddToBackpack(loot.type)) {
-    tile.pendingLoot = loot
-    UI.setMessage(`Your backpack is full! Drop an item, then tap the Magic Chest again to claim your ${item?.name ?? loot.type}.`)
-    return
-  }
   session.run.player.goldenKeys--
   UI.updateGoldenKeys(session.run.player.goldenKeys)
   _syncMagicChestKeyGlow()
   tile.pendingLoot = null
-  _addToBackpack(loot.type)
-  EventBus.emit('inventory:changed')
   const floatLabel = item ? `${item.icon} ${item.name}` : `✨ ${loot.type}`
   EventBus.emit('audio:play', { sfx: 'chest' })
   _animateMagicChestOpenClose(tile, floatLabel)
+  if (!_canAddToBackpack(loot.type)) {
+    EventBus.emit('backpack:full', { id: loot.type })
+    return
+  }
+  _addToBackpack(loot.type)
+  EventBus.emit('inventory:changed')
   UI.setMessage(`✨ The Magic Chest bestows: ${item?.name ?? loot.type}! (${session.run.player.goldenKeys} keys left)`)
 }
 

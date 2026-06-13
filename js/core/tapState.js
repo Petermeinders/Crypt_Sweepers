@@ -4,6 +4,7 @@ export function createTapState() {
     spellTargeting: false,
     combatBusy: false,
     combatBusySetAt: 0,
+    enemyRevealInProgress: false,
     lanternTargeting: false,
     mistFormFlipsRemaining: 0,
     spyglassTargeting: false,

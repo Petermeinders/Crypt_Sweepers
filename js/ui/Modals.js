@@ -19,6 +19,18 @@ import ManuscriptCodex from '../systems/ManuscriptCodex.js'
 
 let _merchantToastTimer = null
 
+const STAT_TIPS = {
+  damageBonus:     'Adds flat bonus damage to every attack.',
+  maxHpPct:        'Increases your maximum HP by a % of your base HP.',
+  maxManaPct:      'Increases your maximum Mana by a % of your base Mana.',
+  negation:        'Chance to fully block an incoming attack.',
+  damageReduction: 'Reduces all incoming damage by this flat amount.',
+  abilityPower:    'Boosts the effectiveness of your active abilities.',
+  brittleArmor:    'Detriment: lowers your block chance by this %.',
+  barbedGear:      'Detriment: reduces your maximum HP.',
+  manaDrain:       'Detriment: reduces your maximum Mana.',
+}
+
 const CMP_GEAR_IMGS = {
   weapon:     { default: 'assets/sprites/Items/sword.png', common: 'assets/sprites/gear/weapon/common.webp', rare: 'assets/sprites/gear/weapon/rare.webp', epic: 'assets/sprites/gear/weapon/epic.webp', legendary: 'assets/sprites/gear/weapon/legendary.webp' },
   breastplate:{ default: 'assets/sprites/Items/armor.png', common: 'assets/sprites/gear/breastplate/common.webp', rare: 'assets/sprites/gear/breastplate/rare.webp', epic: 'assets/sprites/gear/breastplate/epic.webp', legendary: 'assets/sprites/gear/breastplate/legendary.webp' },
@@ -221,6 +233,49 @@ export function cacheModalElements() {
     el.manuscriptDetailTime        = document.getElementById('manuscript-detail-time')
     el.manuscriptDetailText        = document.getElementById('manuscript-detail-text')
     el.manuscriptDetailBack        = document.getElementById('manuscript-detail-back')
+    el.cmpStatTooltip              = document.getElementById('cmp-stat-tooltip')
+    _wireStatTooltips()
+}
+
+function _wireStatTooltips() {
+  const modal = el.gearCompareModal
+  const tip   = el.cmpStatTooltip
+  if (!modal || !tip) return
+
+  function showTip(labelEl) {
+    const text = STAT_TIPS[labelEl.dataset.tip]
+    if (!text) return
+    tip.textContent = text
+    tip.classList.remove('hidden')
+    const rect = labelEl.getBoundingClientRect()
+    tip.style.left = rect.left + 'px'
+    tip.style.top  = (rect.bottom + 6) + 'px'
+    requestAnimationFrame(() => {
+      const w = tip.offsetWidth
+      if (rect.left + w > window.innerWidth - 8) {
+        tip.style.left = Math.max(8, window.innerWidth - w - 8) + 'px'
+      }
+    })
+  }
+
+  function hideTip() { tip.classList.add('hidden') }
+
+  modal.addEventListener('mouseover', (e) => {
+    const label = e.target.closest('[data-tip]')
+    if (label) showTip(label)
+    else if (!tip.contains(e.target)) hideTip()
+  })
+  modal.addEventListener('mouseleave', hideTip)
+
+  modal.addEventListener('touchstart', (e) => {
+    const label = e.target.closest('[data-tip]')
+    if (label) { showTip(label); return }
+    hideTip()
+  }, { passive: true })
+
+  document.addEventListener('touchstart', (e) => {
+    if (!e.target.closest('#gear-compare-modal')) hideTip()
+  }, { passive: true })
 }
 
 let _voidCorruptionDropdownOpen = false
@@ -913,7 +968,6 @@ export const ModalsMethods = {
       ...Object.keys(equipped?.stats ?? {}),
     ])
 
-    const _valCls = v => (v > 0 ? 'cmp-val-pos' : v < 0 ? 'cmp-val-neg' : '')
     const rows = [...allStats].map(stat => {
       const newVal = candidate.stats?.[stat] ?? 0
       const oldVal = equipped?.stats?.[stat]  ?? 0
@@ -922,10 +976,16 @@ export const ModalsMethods = {
       const dCls   = delta > 0 ? 'delta-pos' : delta < 0 ? 'delta-neg' : ''
       const label  = STAT_LABELS[stat] ?? stat
       const fmtVal = v => stat === 'negation' ? `${Math.round(v * 100)}%` : stat === 'barbedGear' ? `${v}HP` : stat === 'brittleArmor' ? `${v}%` : v
+      const newCls = equipped
+        ? (newVal > oldVal ? 'cmp-val-pos' : newVal < oldVal ? 'cmp-val-dim' : '')
+        : (newVal > 0 ? 'cmp-val-pos' : newVal < 0 ? 'cmp-val-neg' : '')
+      const oldCls = equipped
+        ? (oldVal > newVal ? 'cmp-val-pos' : oldVal < newVal ? 'cmp-val-dim' : '')
+        : ''
       return `<tr>
-        <td class="cmp-stat-label">${label}</td>
-        <td class="cmp-new-val ${_valCls(newVal)}">${fmtVal(newVal)}</td>
-        <td class="cmp-old-val ${equipped ? _valCls(oldVal) : ''}">${equipped ? fmtVal(oldVal) : '—'}</td>
+        <td class="cmp-stat-label" data-tip="${stat}">${label}</td>
+        <td class="cmp-new-val ${newCls}">${fmtVal(newVal)}</td>
+        <td class="cmp-old-val ${oldCls}">${equipped ? fmtVal(oldVal) : '—'}</td>
         <td class="cmp-delta ${dCls}">${delta !== 0 ? sign + fmtVal(delta) : '—'}</td>
       </tr>`
     }).join('')
@@ -2815,7 +2875,7 @@ export const ModalsMethods = {
     }, 2400)
   },
 
-  showMerchantShop(playerGold, items, onBuy, onLeave, { canBuy } = {}) {
+  showMerchantShop(playerGold, items, onBuy, onLeave, { canBuy, onInfo } = {}) {
     const ov = el.merchantShopOverlay
     if (!ov) return
     this.hideMerchantPurchaseToast()
@@ -2829,9 +2889,12 @@ export const ModalsMethods = {
         const noRoomHtml = goldOk && !buyOk
           ? `<div class="merchant-no-room">🎒 No room in backpack!</div>`
           : ''
+        const infoBtn = onInfo && item.hasInfo
+          ? `<button class="merchant-info-btn" data-id="${item.id}" aria-label="View item details" type="button">ℹ️</button>`
+          : ''
         return `
           <div class="merchant-shop-item" data-id="${item.id}">
-            <div class="merchant-shop-item-name">${item.label}</div>
+            <div class="merchant-shop-item-name">${item.label}${infoBtn}</div>
             ${noRoomHtml}
             <button class="menu-btn secondary merchant-buy-btn" data-id="${item.id}" ${!buyOk ? 'disabled' : ''}>
               Buy — ${item.price}🪙
@@ -2842,6 +2905,14 @@ export const ModalsMethods = {
       list.querySelectorAll('.merchant-buy-btn').forEach(btn => {
         btn.onclick = () => onBuy(btn.dataset.id)
       })
+      if (onInfo) {
+        list.querySelectorAll('.merchant-info-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation()
+            onInfo(btn.dataset.id)
+          })
+        })
+      }
     }
     const leaveBtn = ov.querySelector('#merchant-shop-leave')
     if (leaveBtn) leaveBtn.onclick = onLeave

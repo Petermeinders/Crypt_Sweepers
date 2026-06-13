@@ -124,7 +124,8 @@ export function buildRunState(ctx) {
   p.baseMaxHp   = p.maxHp    // pre-gear base — used for maxHpPct calculations
   p.baseMaxMana = p.maxMana  // pre-gear base — used for maxManaPct calculations
   ctx.applyEquippedGear(p)
-  ctx.applySafePocket(p)
+  // applySafePocket is called in newGame() after session.run is assigned,
+  // because applyTrinketEquipEffects requires session.run to be non-null.
 
   return {
     player:           p,
@@ -194,6 +195,7 @@ export function newGame(ctx, opts = {}) {
   UI.hideRunSummary()
   clearActiveRun(ctx)
   session.run = buildRunState(ctx)
+  ctx.applySafePocket(session.run.player)
   if (opts.voidTier >= 1 && opts.voidTier <= 3) {
     applyVoidTrialToRun(session.run, opts.voidTier)
   }

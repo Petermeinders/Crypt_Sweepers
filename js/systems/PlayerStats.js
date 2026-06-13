@@ -3,6 +3,10 @@ import { RANGER_BASE } from '../data/ranger.js'
 import { VAMPIRE_BASE } from '../data/vampire.js'
 import { session } from '../core/RunContext.js'
 
+function _hasItem(player, id) {
+  return player?.safePocketTrinket?.id === id || player?.inventory?.some(e => e?.id === id)
+}
+
 export function playerOutgoingDamageMult(ctx) {
   let mult = 1
   // Glass Cannon Shard
@@ -38,8 +42,8 @@ export function xpNeeded() {
 export function computeEffectiveDamageTaken(rawAmount) {
   if (!session.run) return rawAmount
   const scaled = Math.round(rawAmount * (session.run.player.damageTakenMult ?? 1))
-  const maskReduction   = session.run.player.inventory.some(e => e?.id === 'plague-mask')    ? 1 : 0
-  const bladeReduction  = session.run.player.inventory.some(e => e?.id === 'infected-blade') ? 1 : 0
+  const maskReduction   = _hasItem(session.run.player, 'plague-mask')    ? 1 : 0
+  const bladeReduction  = _hasItem(session.run.player, 'infected-blade') ? 1 : 0
   return Math.max(1, scaled - (session.run.player.damageReduction ?? 0) - maskReduction - bladeReduction)
 }
 
@@ -79,8 +83,8 @@ export function buildEnemyHitNarrative(opts) {
   const totalDef = p.damageReduction ?? 0
   const passiveDef = Math.max(0, totalDef - gearDef)
 
-  const maskReduction  = p.inventory.some(e => e?.id === 'plague-mask')    ? 1 : 0
-  const bladeReduction = p.inventory.some(e => e?.id === 'infected-blade') ? 1 : 0
+  const maskReduction  = _hasItem(p, 'plague-mask')    ? 1 : 0
+  const bladeReduction = _hasItem(p, 'infected-blade') ? 1 : 0
   const totalReduction = totalDef + maskReduction + bladeReduction
   const effectiveBeforeArmor = Math.max(1, scaled - totalReduction)
 
@@ -150,10 +154,10 @@ export function buildEnemyHitNarrative(opts) {
 
 export function playerDamageRange(player) {
   const bonus       = player.damageBonus ?? 0
-  const maskPenalty = player.inventory?.some(e => e?.id === 'plague-mask')    ? 1 : 0
-  const collarBonus = player.inventory?.some(e => e?.id === 'spiked-collar')  ? 3 : 0
+  const maskPenalty = _hasItem(player, 'plague-mask')   ? 1 : 0
+  const collarBonus = _hasItem(player, 'spiked-collar') ? 3 : 0
   const soulBonus   = Math.floor(player.soulboundBonus ?? 0)
-  const hasRazor    = player.inventory?.some(e => e?.id === 'razors-edge')
+  const hasRazor    = _hasItem(player, 'razors-edge')
   if (player.isRanger) {
     const [lo, hi] = RANGER_BASE.damage
     const max = Math.max(1, hi + bonus + collarBonus + soulBonus - maskPenalty)

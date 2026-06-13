@@ -70,7 +70,10 @@ function ensureMerchantStock(ctx, tile) {
 
 function buildMerchantOffer(tile) {
   const sold = new Set(tile._merchantSoldIds ?? [])
-  const items = (tile._merchantStock ?? []).filter(i => !sold.has(i.id))
+  const items = (tile._merchantStock ?? []).filter(i => !sold.has(i.id)).map(i => ({
+    ...i,
+    hasInfo: !!ITEMS[i.id],
+  }))
   if (tile._merchantScrapStock > 0) {
     items.push({
       id: '__scrap__',
@@ -94,7 +97,7 @@ function openMerchantShop(ctx, tile) {
 
   const _canBuy = (itemId) => {
     if (itemId === '__void_pearl__' || itemId === '__scrap__') return true
-    const hasCoin = p.inventory.some(e => e?.id === 'philosophers-coin')
+    const hasCoin = p.safePocketTrinket?.id === 'philosophers-coin' || p.inventory.some(e => e?.id === 'philosophers-coin')
     const isCoinConvert = hasCoin && (itemId === 'potion-red' || itemId === 'potion-blue' || itemId === 'potion-mystery')
     return isCoinConvert || ctx.canAddToBackpack(itemId)
   }
@@ -105,9 +108,14 @@ function openMerchantShop(ctx, tile) {
     if (!GameState.is(States.DEATH)) UI.setMessage('The merchant waves farewell.')
   }
 
+  const onInfo = (id) => {
+    const itemData = ITEMS[id]
+    if (itemData) UI.showInfoCard({ ...itemData, id })
+  }
+
   const refreshShop = () => {
     const freshItems = buildMerchantOffer(tile)
-    UI.showMerchantShop(p.gold, freshItems, (itemId) => doMerchantBuy(ctx, tile, itemId, freshItems, refreshShop), onLeave, { canBuy: _canBuy })
+    UI.showMerchantShop(p.gold, freshItems, (itemId) => doMerchantBuy(ctx, tile, itemId, freshItems, refreshShop), onLeave, { canBuy: _canBuy, onInfo })
   }
   refreshShop()
 }

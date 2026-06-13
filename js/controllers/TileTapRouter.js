@@ -532,12 +532,12 @@ export function onTileTap(ctx, row, col) {
     }
 
     // Eagle Eye: one free flip to any unrevealed unlocked tile after a kill
-    if (!session.tap.combatBusy && !tile.revealed && !tile.locked && session.run.player.eagleEyeFreeFlip) {
+    if (!session.tap.combatBusy && !session.tap.enemyRevealInProgress && !tile.revealed && !tile.locked && session.run.player.eagleEyeFreeFlip) {
       session.run.player.eagleEyeFreeFlip = false
       ctx.revealTile(tile)
       return
     }
-    if (!session.tap.combatBusy && !tile.revealed && !tile.locked && tile.reachable) {
+    if (!session.tap.combatBusy && !session.tap.enemyRevealInProgress && !tile.revealed && !tile.locked && tile.reachable) {
       ctx.hapticFromUserGesture(15)
       ctx.revealTile(tile)
     } else if (tile.revealed && tile.type === 'chest' && tile.chestReady && !tile.chestLooted) {

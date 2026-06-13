@@ -1,5 +1,5 @@
 import { ITEMS } from '../../data/items.js'
-import { adjustScrap, trinketTrashScrapYield, trinketTrashDropSuffix } from '../../controllers/GearController.js'
+import { adjustScrap, gearTrashScrapYield, trinketTrashScrapYield, trinketTrashDropSuffix } from '../../controllers/GearController.js'
 import { isPassiveTrinketId } from '../../controllers/SafePocketController.js'
 
 let _pendingPickupId = null
@@ -124,11 +124,15 @@ export function openBackpackFullGear(ctx, piece) {
   _pendingPickupId = null
   _pendingGearPiece = piece
   const slotImg = _gImg(piece.slot, piece.tier)
+  const scrapGain = gearTrashScrapYield(piece)
   _showPendingBar({
     artHtml: slotImg ? `<img src="${slotImg}" alt="${piece.name ?? ''}">` : `<span>🎁</span>`,
     name: piece.name ?? 'Gear',
-    trashLabel: '🗑️ Trash',
-    onTrash: () => clearPendingGear(ctx),
+    trashLabel: `🗑️ Trash (+${scrapGain} ⚙️ scrap)`,
+    onTrash: () => {
+      adjustScrap(scrapGain)
+      clearPendingGear(ctx)
+    },
   })
 
   renderBackpack(ctx)

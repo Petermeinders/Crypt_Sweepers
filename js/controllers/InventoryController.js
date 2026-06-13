@@ -126,7 +126,7 @@ export async function addToBackpack(ctx, id) {
   const item  = ITEMS[id]
   if (!item) return
   // Philosopher's Coin: potions become gold instead
-  if ((id === 'potion-red' || id === 'potion-blue') && inv.some(e => e?.id === 'philosophers-coin')) {
+  if ((id === 'potion-red' || id === 'potion-blue') && (session.run.player.safePocketTrinket?.id === 'philosophers-coin' || inv.some(e => e?.id === 'philosophers-coin'))) {
     const goldAmt = id === 'potion-red' ? 3 : 5
     session.run.player.gold += goldAmt
     UI.updateGold(session.run.player.gold)

@@ -12,21 +12,26 @@ import { voidLootChanceMult } from '../systems/VoidCorruption.js'
 export function adjustPlayerStat(stat, delta) {
   const p = session.run.player
   if (stat === 'maxHpPct') {
-    const flatDelta = Math.round((p.baseMaxHp ?? p.maxHp) * delta / 100)
+    // Round the absolute value first to keep apply/remove symmetric (Math.round asymmetry at ±0.5)
+    const absFlat = Math.round((p.baseMaxHp ?? p.maxHp) * Math.abs(delta) / 100)
+    const flatDelta = delta < 0 ? -absFlat : absFlat
     p.maxHp = Math.max(1, p.maxHp + flatDelta)
     p.hp    = Math.max(1, Math.min(p.hp + flatDelta, p.maxHp))
   } else if (stat === 'maxManaPct') {
-    const flatDelta = Math.round((p.baseMaxMana ?? p.maxMana) * delta / 100)
+    const absFlat = Math.round((p.baseMaxMana ?? p.maxMana) * Math.abs(delta) / 100)
+    const flatDelta = delta < 0 ? -absFlat : absFlat
     p.maxMana = Math.max(0, p.maxMana + flatDelta)
     p.mana    = Math.max(0, Math.min(p.mana + flatDelta, p.maxMana))
   } else if (stat === 'barbedGear') {
     // Detriment: reduces maxHp by N% of base max HP (delta is negative e.g. -5)
-    const flatDelta = Math.round((p.baseMaxHp ?? p.maxHp) * delta / 100)
+    const absFlat = Math.round((p.baseMaxHp ?? p.maxHp) * Math.abs(delta) / 100)
+    const flatDelta = delta < 0 ? -absFlat : absFlat
     p.maxHp = Math.max(1, p.maxHp + flatDelta)
     p.hp    = Math.min(p.hp, p.maxHp)
   } else if (stat === 'manaDrain') {
     // Detriment: reduces maxMana by N% of base max mana (delta is negative)
-    const flatDelta = Math.round((p.baseMaxMana ?? p.maxMana) * delta / 100)
+    const absFlat = Math.round((p.baseMaxMana ?? p.maxMana) * Math.abs(delta) / 100)
+    const flatDelta = delta < 0 ? -absFlat : absFlat
     p.maxMana = Math.max(0, p.maxMana + flatDelta)
     p.mana    = Math.min(p.mana, p.maxMana)
   } else if (stat === 'damageBonus') {
@@ -238,6 +243,10 @@ export function equipCompletionRewardToSave(ctx, piece) {
     adjustScrap(CONFIG.blacksmith.trashScrapYield[prev.tier] ?? 1)
   }
   SaveManager.save(session.save).catch(() => {})
+}
+
+export function gearTrashScrapYield(piece) {
+  return CONFIG.blacksmith.trashScrapYield[piece?.tier] ?? 1
 }
 
 export function trashCompletionReward(piece) {

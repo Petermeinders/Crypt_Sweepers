@@ -393,6 +393,7 @@ export function applyRevealOutcome(ctx, tile) {
     }
   }
   resolveEffect(ctx, tile)
+  session.tap.enemyRevealInProgress = false
 }
 
 export async function revealTile(ctx, tile) {
@@ -412,6 +413,9 @@ export async function revealTile(ctx, tile) {
   ctx.firefoxPreFlipHapticsIfNeeded(tile)
   UI.setPortraitAnim('run')
   EventBus.emit('audio:play', { sfx: 'flip' })
+  if (!tile._lensReveal && (tile.type === 'enemy' || tile.type === 'enemy_fast' || tile.type === 'boss')) {
+    session.tap.enemyRevealInProgress = true
+  }
   await TileEngine.flipTile(tile)
   if (!session.run) return  // session.run ended (retreat/death) during the flip animation
   UI.setPortraitAnim('idle')
