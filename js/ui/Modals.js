@@ -234,7 +234,9 @@ export function cacheModalElements() {
     el.manuscriptDetailText        = document.getElementById('manuscript-detail-text')
     el.manuscriptDetailBack        = document.getElementById('manuscript-detail-back')
     el.cmpStatTooltip              = document.getElementById('cmp-stat-tooltip')
+    el.statTooltip                 = document.getElementById('stat-tooltip')
     _wireStatTooltips()
+    _wireEquipmentStatTooltips()
 }
 
 function _wireStatTooltips() {
@@ -275,6 +277,47 @@ function _wireStatTooltips() {
 
   document.addEventListener('touchstart', (e) => {
     if (!e.target.closest('#gear-compare-modal')) hideTip()
+  }, { passive: true })
+}
+
+function _wireEquipmentStatTooltips() {
+  const overlay = document.getElementById('equipment-overlay')
+  const tip = el.statTooltip
+  if (!overlay || !tip) return
+
+  function showTip(triggerEl) {
+    const text = STAT_TIPS[triggerEl.dataset.tip]
+    if (!text) return
+    tip.textContent = text
+    tip.classList.remove('hidden')
+    const rect = triggerEl.getBoundingClientRect()
+    tip.style.left = rect.left + 'px'
+    tip.style.top  = (rect.bottom + 6) + 'px'
+    requestAnimationFrame(() => {
+      const w = tip.offsetWidth
+      if (rect.left + w > window.innerWidth - 8) {
+        tip.style.left = Math.max(8, window.innerWidth - w - 8) + 'px'
+      }
+    })
+  }
+
+  function hideTip() { tip.classList.add('hidden') }
+
+  overlay.addEventListener('mouseover', (e) => {
+    const trigger = e.target.closest('[data-tip]')
+    if (trigger) showTip(trigger)
+    else hideTip()
+  })
+  overlay.addEventListener('mouseleave', hideTip)
+
+  overlay.addEventListener('touchstart', (e) => {
+    const trigger = e.target.closest('[data-tip]')
+    if (trigger) { showTip(trigger); return }
+    hideTip()
+  }, { passive: true })
+
+  document.addEventListener('touchstart', (e) => {
+    if (!e.target.closest('#equipment-overlay')) hideTip()
   }, { passive: true })
 }
 
@@ -842,7 +885,7 @@ export const ModalsMethods = {
                       : (val > 0 ? `+${val}` : `${val}`)
       return `<div class="eq-stat-row">
         <span class="eq-stat-dot" style="background:${def.dot}"></span>
-        <span class="eq-stat-label">${def.label}</span>
+        <span class="eq-stat-label" data-tip="${stat}">${def.label}</span>
         <span class="eq-stat-value${isBad ? ' bad' : ''}">${display}</span>
       </div>`
     }
@@ -887,23 +930,23 @@ export const ModalsMethods = {
           totals[stat] = (totals[stat] ?? 0) + val
         }
       }
-      const _chip = (label, dot, display, bad) =>
-        `<span class="equip-sum-stat"><span class="equip-sum-dot" style="background:${dot}"></span><span class="equip-sum-label">${label}</span><span class="equip-sum-val${bad ? ' bad' : ''}">${display}</span></span>`
+      const _chip = (key, label, dot, display, bad) =>
+        `<span class="equip-sum-stat" data-tip="${key}"><span class="equip-sum-dot" style="background:${dot}"></span><span class="equip-sum-label">${label}</span><span class="equip-sum-val${bad ? ' bad' : ''}">${display}</span></span>`
       const parts = []
       const atk = totals.damageBonus ?? 0
-      if (atk !== 0) parts.push(_chip('Attack', '#ff6633', atk > 0 ? `+${atk}` : `${atk}`, atk < 0))
+      if (atk !== 0) parts.push(_chip('damageBonus', 'Attack', '#ff6633', atk > 0 ? `+${atk}` : `${atk}`, atk < 0))
       const hp = (totals.maxHpPct ?? 0) + (totals.barbedGear ?? 0)
-      if (hp !== 0) parts.push(_chip('Health', '#e74c3c', `${hp > 0 ? '+' : ''}${hp}%`, hp < 0))
+      if (hp !== 0) parts.push(_chip('maxHpPct', 'Health', '#e74c3c', `${hp > 0 ? '+' : ''}${hp}%`, hp < 0))
       const neg = Math.round((totals.negation ?? 0) * 100) + (totals.brittleArmor ?? 0)
-      if (neg !== 0) parts.push(_chip('Block', '#44aaff', `${neg > 0 ? '+' : ''}${neg}%`, neg < 0))
+      if (neg !== 0) parts.push(_chip('negation', 'Block', '#44aaff', `${neg > 0 ? '+' : ''}${neg}%`, neg < 0))
       const mana = totals.maxManaPct ?? 0
-      if (mana !== 0) parts.push(_chip('Mana', '#7766ff', mana > 0 ? `+${mana}%` : `${mana}%`, mana < 0))
+      if (mana !== 0) parts.push(_chip('maxManaPct', 'Mana', '#7766ff', mana > 0 ? `+${mana}%` : `${mana}%`, mana < 0))
       const def = totals.damageReduction ?? 0
-      if (def !== 0) parts.push(_chip('Def', '#44cc88', def > 0 ? `+${def}` : `${def}`, def < 0))
+      if (def !== 0) parts.push(_chip('damageReduction', 'Def', '#44cc88', def > 0 ? `+${def}` : `${def}`, def < 0))
       const power = totals.abilityPower ?? 0
-      if (power !== 0) parts.push(_chip('Power', '#cc88ff', power > 0 ? `+${power}%` : `${power}%`, power < 0))
+      if (power !== 0) parts.push(_chip('abilityPower', 'Power', '#cc88ff', power > 0 ? `+${power}%` : `${power}%`, power < 0))
       const drain = totals.manaDrain ?? 0
-      if (drain !== 0) parts.push(_chip('Drain', '#aa44cc', `${drain}`, true))
+      if (drain !== 0) parts.push(_chip('manaDrain', 'Drain', '#aa44cc', `${drain}`, true))
       summaryEl.innerHTML = parts.join('')
     }
 

@@ -2,6 +2,8 @@ import { ITEMS } from '../../data/items.js'
 import { adjustScrap, gearTrashScrapYield, trinketTrashScrapYield, trinketTrashDropSuffix } from '../../controllers/GearController.js'
 import { isPassiveTrinketId } from '../../controllers/SafePocketController.js'
 
+const HOLD_HINT_KEY = 'cs_hint_hold_inspect'
+
 let _pendingPickupId = null
 let _pendingGearPiece = null
 
@@ -231,6 +233,10 @@ export function setBackpackOpen(ctx, open) {
   btn?.setAttribute('aria-expanded', open ? 'true' : 'false')
   if (open) UI.hideEquipmentOverlay()
   if (open) clearBackpackBadge()
+  if (open) {
+    const banner = document.getElementById('backpack-hint-banner')
+    if (banner && !localStorage.getItem(HOLD_HINT_KEY)) banner.classList.remove('hidden')
+  }
   if (!open) {
     ctx.GameController.consolidateStackables()
     if (_pendingPickupId || _pendingGearPiece) {
@@ -271,6 +277,11 @@ export function wireBackpackPanel(ctx) {
 
   document.getElementById('hud-backpack-btn').addEventListener('click', () => toggleBackpack(ctx))
   document.getElementById('backpack-close-btn')?.addEventListener('click', () => setBackpackOpen(ctx, false))
+  document.getElementById('backpack-hint-banner')?.querySelector('.eq-hint-close')?.addEventListener('click', () => {
+    localStorage.setItem(HOLD_HINT_KEY, '1')
+    document.getElementById('backpack-hint-banner')?.classList.add('hidden')
+    document.getElementById('equipment-hint-banner')?.classList.add('hidden')
+  })
   document.getElementById('backpack-levelup-toggle')?.addEventListener('click', () => {
     const acc = document.getElementById('backpack-levelup-accordion')
     const btn = document.getElementById('backpack-levelup-toggle')

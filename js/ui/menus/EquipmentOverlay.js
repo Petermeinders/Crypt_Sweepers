@@ -2,6 +2,8 @@ import { ITEMS } from '../../data/items.js'
 
 let _comparePendingIndex = null
 
+const HOLD_HINT_KEY = 'cs_hint_hold_inspect'
+
 export function openEquipment(ctx) {
   const { GameController, UI } = ctx
   ctx.setBackpackOpen(false)
@@ -10,6 +12,10 @@ export function openEquipment(ctx) {
     UI.getHudCharacterId(),
     GameController.getSafePocketTrinket(),
   )
+  const banner = document.getElementById('equipment-hint-banner')
+  if (banner && !localStorage.getItem(HOLD_HINT_KEY)) {
+    banner.classList.remove('hidden')
+  }
 }
 
 export function closeEquipment(_ctx) {
@@ -169,4 +175,10 @@ export function wireEquipmentOverlay(ctx) {
     if (e.target.id === 'equipment-overlay') closeEquipment(ctx)
   })
   document.getElementById('equipment-close-btn')?.addEventListener('click', () => closeEquipment(ctx))
+
+  document.getElementById('equipment-hint-banner')?.querySelector('.eq-hint-close')?.addEventListener('click', () => {
+    localStorage.setItem(HOLD_HINT_KEY, '1')
+    document.getElementById('equipment-hint-banner')?.classList.add('hidden')
+    document.getElementById('backpack-hint-banner')?.classList.add('hidden')
+  })
 }

@@ -7847,6 +7847,11 @@ body.bestiary-detail-open #app {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.eq-stat-label[data-tip] {
+  border-bottom: 1px dotted rgba(255,255,255,0.28);
+  padding-bottom: 1px;
+  cursor: help;
+}
 
 .eq-stat-value {
   font-size: 0.64rem;
@@ -7902,6 +7907,11 @@ body.bestiary-detail-open #app {
   letter-spacing: 0.05em;
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
+.equip-sum-stat[data-tip] { cursor: help; }
+.equip-sum-stat[data-tip] .equip-sum-label {
+  border-bottom: 1px dotted rgba(255,255,255,0.28);
+  padding-bottom: 1px;
+}
 .equip-sum-val {
   font-size: 0.58rem;
   font-weight: 700;
@@ -7920,6 +7930,34 @@ body.bestiary-detail-open #app {
   font-style: italic;
   flex-shrink: 0;
 }
+
+/* Hold-to-inspect hint banner */
+.eq-hint-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(255, 200, 80, 0.10);
+  border-bottom: 1px solid rgba(255, 200, 80, 0.22);
+  font-size: 0.67rem;
+  color: rgba(255, 215, 110, 0.85);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  flex-shrink: 0;
+}
+.eq-hint-banner.hidden { display: none; }
+.eq-hint-close {
+  background: none;
+  border: none;
+  color: rgba(255, 215, 110, 0.55);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0 2px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+.eq-hint-close:hover { color: rgba(255, 215, 110, 1); }
 
 /* ── Gear compare modal ────────────────────────────────────── */
 

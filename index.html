@@ -239,6 +239,11 @@
       <span class="backpack-drawer-title">Backpack</span>
       <button type="button" id="backpack-close-btn" class="backpack-close-btn" aria-label="Close">✕</button>
     </div>
+    <!-- Hold-to-inspect hint banner (shown first time, dismissible) -->
+    <div id="backpack-hint-banner" class="eq-hint-banner hidden" role="alert">
+      <span>Hold on a gear card to view full details!</span>
+      <button type="button" class="eq-hint-close" aria-label="Dismiss hint">✕</button>
+    </div>
     <!-- Shown only when backpack is full and a new item is pending -->
     <div id="backpack-pending-bar" class="backpack-pending-bar hidden">
       <div class="backpack-pending-item">
@@ -290,6 +295,11 @@
     </div>
     <!-- Gear stat totals summary — filled by JS -->
     <div id="equipment-stats-summary" class="equipment-stats-summary"></div>
+    <!-- Hold-to-inspect hint banner (shown first time, dismissible) -->
+    <div id="equipment-hint-banner" class="eq-hint-banner hidden" role="alert">
+      <span>Hold on a gear card to view full details!</span>
+      <button type="button" class="eq-hint-close" aria-label="Dismiss hint">✕</button>
+    </div>
     <!-- Gear cards — filled by JS -->
     <div class="equipment-gear-row" id="equipment-gear-row"></div>
     <p class="equipment-hint">Tap a card to swap gear from your backpack</p>
@@ -1857,5 +1867,7 @@
         .catch(function () { loadMain(null) })
     })()
   </script>
+  <!-- Global stat tooltip — used by equipment overlay (compare modal has its own) -->
+  <div id="stat-tooltip" class="cmp-stat-tooltip hidden" role="tooltip"></div>
 </body>
 </html>
