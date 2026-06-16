@@ -86,6 +86,8 @@ export function buildRunState(ctx) {
     /** Mage: Life Tap toggle state. */
     lifeTapActive: false,
     retreatPercent:     CONFIG.retreat.goldKeepPercent,
+    hpPotions:          0,
+    manaPotions:        0,
     extraAbilityChoice: false,
     damageTakenMult:    1,
     isRanger,

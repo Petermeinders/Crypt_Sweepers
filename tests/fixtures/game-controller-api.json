@@ -112,5 +112,6 @@
   "unequipGear",
   "upgradeGear",
   "useItem",
-  "useItemAtIndex"
+  "useItemAtIndex",
+  "useOrbPotion"
 ]

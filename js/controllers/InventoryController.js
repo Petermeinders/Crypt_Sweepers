@@ -133,6 +133,24 @@ export async function addToBackpack(ctx, id) {
     UI.spawnFloat(document.getElementById('hud-portrait'), `🥇 +${goldAmt}🪙`, 'gold')
     return
   }
+  // Potion Flask: route HP/mana potions to the orb instead of backpack
+  if (id === 'potion-red' || id === 'potion-blue') {
+    const p = session.run.player
+    const isHp = id === 'potion-red'
+    const field = isHp ? 'hpPotions' : 'manaPotions'
+    const MAX_FLASK = 5
+    if ((p[field] ?? 0) >= MAX_FLASK) {
+      p.gold = (p.gold ?? 0) + 1
+      UI.updateGold(p.gold)
+      UI.setMessage(`${isHp ? '❤️' : '🔵'} Flask full — potion auto-trashed for +1🪙.`)
+      UI.spawnFloat(document.getElementById('hud-portrait'), '+1🪙', 'gold')
+      return
+    }
+    p[field] = (p[field] ?? 0) + 1
+    UI.updateOrbPotions(p.hpPotions ?? 0, p.manaPotions ?? 0)
+    UI.setMessage(`${isHp ? '❤️' : '🔵'} ${isHp ? 'HP' : 'Mana'} Potion stored in flask (${p[field]}/5).`)
+    return
+  }
   if (item.stackable) {
     const maxS = item.maxStack ?? Number.POSITIVE_INFINITY
     const existing = inv.find(e => e?.id === id && e.qty < maxS)
@@ -678,5 +696,39 @@ export async function forceReplaceItem(ctx, oldId, newId) {
   const idx = session.run.player.inventory.findIndex(e => e?.id === oldId)
   if (idx < 0) return
   await forceReplaceItemAtIndex(ctx, idx, newId)
+}
+
+export function useOrbPotion(ctx, type) {
+  if (!session.run) return
+  const p = session.run.player
+  if (type === 'hp') {
+    if ((p.hpPotions ?? 0) <= 0) { UI.setMessage('No HP potions in flask.', true); return }
+    const missing = p.maxHp - p.hp
+    if (missing <= 0) { UI.setMessage("Already at full health.", true); return }
+    const healed = Math.min(5, missing)
+    p.hp += healed
+    p.hpPotions--
+    if (session.run?.telemetry) session.run.telemetry.potionsUsed = (session.run.telemetry.potionsUsed ?? 0) + 1
+    UI.updateHP(p.hp, p.maxHp)
+    UI.updateOrbPotions(p.hpPotions, p.manaPotions ?? 0)
+    UI.spawnFloat(document.getElementById('hud-portrait'), `+${healed} HP`, 'heal')
+    UI.setMessage(`❤️ HP Potion — +${healed} HP.`)
+    EventBus.emit('audio:play', { sfx: 'heal' })
+  } else if (type === 'mana') {
+    if ((p.manaPotions ?? 0) <= 0) { UI.setMessage('No mana potions in flask.', true); return }
+    const missing = p.maxMana - p.mana
+    if (missing <= 0) { UI.setMessage("Already at full mana.", true); return }
+    const hasAcorn = p.inventory.some(e => e?.id === 'hollowed-acorn')
+    const baseAmt  = hasAcorn ? Math.max(1, Math.floor(20 / 2)) : 20
+    const restored = Math.min(baseAmt, missing)
+    p.mana += restored
+    p.manaPotions--
+    if (session.run?.telemetry) session.run.telemetry.potionsUsed = (session.run.telemetry.potionsUsed ?? 0) + 1
+    UI.updateMana(p.mana, p.maxMana)
+    UI.updateOrbPotions(p.hpPotions ?? 0, p.manaPotions)
+    UI.spawnFloat(document.getElementById('hud-portrait'), `+${restored} MP`, 'mana')
+    UI.setMessage(`🔵 Mana Potion — +${restored} mana.${hasAcorn ? ' (Hollowed Acorn halved)' : ''}`)
+    EventBus.emit('audio:play', { sfx: 'heal' })
+  }
 }
 

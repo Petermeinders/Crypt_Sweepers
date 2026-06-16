@@ -1,5 +1,11 @@
 import { CONFIG } from '../config.js'
 import { el, logHistory, PORTRAIT_ANIM } from './uiShared.js'
+import {
+  initPotionOrb,
+  updateOrbHpFill,
+  updateOrbManaFill,
+  updateOrbPotions as _updateOrbPotions,
+} from './PotionOrb.js'
 
 export function cacheHudElements() {
     el.hpBar       = document.getElementById('hp-bar')
@@ -9,6 +15,8 @@ export function cacheHudElements() {
     el.dmgValue    = document.getElementById('dmg-value')
     el.goldValue   = document.getElementById('gold-value')
     el.scrapValue  = document.getElementById('scrap-value')
+    el.goldValue2  = document.getElementById('gold-value-2')
+    el.scrapValue2 = document.getElementById('scrap-value-2')  // backpack overlay header
     el.keyDisplay        = document.getElementById('hud-key-display')
     el.keyValue          = document.getElementById('key-value')
     el.keySlotPlaceholder = document.getElementById('hud-key-slot-placeholder')
@@ -39,6 +47,31 @@ export function cacheHudElements() {
     el.msgLogExpanded     = document.getElementById('message-log-expanded')
     el.msgLogScroll       = document.getElementById('message-log-scroll')
     el.hudCharacterId     = 'warrior'
+    initPotionOrb()
+
+    if (el.floorModifierBadge) {
+      el.floorModifierBadge.addEventListener('click', () => {
+        const mod = el.floorModifierBadge._mod
+        if (!mod) return
+        document.getElementById('floor-modifier-modal-icon').textContent = mod.icon
+        document.getElementById('floor-modifier-title').textContent      = mod.name
+        document.getElementById('floor-modifier-modal-desc').textContent = mod.description
+        const ov       = document.getElementById('floor-modifier-overlay')
+        const okBtn    = document.getElementById('floor-modifier-ok')
+        const backdrop = document.getElementById('floor-modifier-backdrop')
+        if (!ov) return
+        const close = () => {
+          ov.classList.add('hidden')
+          ov.setAttribute('aria-hidden', 'true')
+          okBtn.removeEventListener('click', close)
+          backdrop.removeEventListener('click', close)
+        }
+        ov.classList.remove('hidden')
+        ov.setAttribute('aria-hidden', 'false')
+        okBtn.addEventListener('click', close)
+        backdrop.addEventListener('click', close)
+      })
+    }
 }
 
 export function wireHudListeners() {
@@ -67,16 +100,24 @@ export function wireHudListeners() {
 export const HudMethods = {
   updateHP(current, max) {
     const pct = Math.max(0, (current / max) * 100)
-    el.hpBar.style.width = pct + '%'
-    el.hpBar.classList.toggle('critical', pct < 25)
-    el.hpValue.textContent = `${current}/${max}`
+    if (el.hpBar) {
+      el.hpBar.style.width = pct + '%'
+      el.hpBar.classList.toggle('critical', pct < 25)
+    }
+    if (el.hpValue) el.hpValue.textContent = `${current}/${max}`
     this.setBloodOverlay(pct < 10)
+    updateOrbHpFill(current, max)
   },
 
   updateMana(current, max) {
     const pct = Math.max(0, (current / max) * 100)
-    el.manaBar.style.width = pct + '%'
-    el.manaValue.textContent = `${current}/${max}`
+    if (el.manaBar) el.manaBar.style.width = pct + '%'
+    if (el.manaValue) el.manaValue.textContent = `${current}/${max}`
+    updateOrbManaFill(current, max)
+  },
+
+  updateOrbPotions(hpCount, manaCount) {
+    _updateOrbPotions(hpCount, manaCount)
   },
 
   updateDamageRange(low, high) {
@@ -753,10 +794,12 @@ export const HudMethods = {
 
   updateGold(amount) {
     el.goldValue.textContent = amount
+    if (el.goldValue2) el.goldValue2.textContent = amount
   },
 
   updateScrap(amount) {
     if (el.scrapValue) el.scrapValue.textContent = amount
+    if (el.scrapValue2) el.scrapValue2.textContent = amount
   },
 
   updateGoldenKeys(count) {
@@ -806,6 +849,8 @@ export const HudMethods = {
     if (!el.floorModifierBadge) return
     el.floorModifierBadge.textContent = `${modifier.icon} ${modifier.name}`
     el.floorModifierBadge.title       = modifier.description
+    el.floorModifierBadge._mod        = modifier
+    el.floorModifierBadge.setAttribute('aria-label', `Floor effect: ${modifier.name} — tap for details`)
     el.floorModifierBadge.classList.remove('hidden')
   },
 
@@ -813,6 +858,7 @@ export const HudMethods = {
     if (!el.floorModifierBadge) return
     el.floorModifierBadge.classList.add('hidden')
     el.floorModifierBadge.textContent = ''
+    el.floorModifierBadge._mod        = null
   },
 
   updateFloor(floor, opts = {}) {

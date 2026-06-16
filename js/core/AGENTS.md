@@ -47,6 +47,12 @@ The core directory contains the game's runtime backbone: the master orchestrator
 - **Called by:** `js/main.js` (wires events and boots the game); `js/dev/balanceBotAutopilot.js` (calls public GameController methods to simulate play)
 - **EventBus subscribers:** `AudioManager` (audio events), `UI` (some discovery/notification events)
 
+## Scaled mana costs
+
+`_scaledManaCost(baseCost, abilityId)` — returns `baseCost + 2 * upgradeCount` for the given ability. Upgrade count is read from the active run's player upgrade list. Exposed on both `_floorCtx()` and `_heroAbilityBaseCtx()` as `ctx.scaledManaCost` so hero modules and `FloorController` can display the correct mana cost at every upgrade tier. This is used for every active ability across all heroes; the static `manaCost` values in hero data files are the **base** (tier-0) costs only.
+
+`useOrbPotion` is re-exported on `GameController.default` and delegates to `InventoryController.useOrbPotion`. It is the action fired when the player taps the HP or mana orb in the HUD.
+
 ## Block & Parry integration
 
 `_shouldShowParryWindow(tile)` — returns `true` when the enemy has the `telegraphs` attribute AND does not have `fast` behaviour AND `save.settings.parryEnabled` is `true` (defaults `true`) AND god-mode cheat is off. Called in the combat handler before `UI.showParryWindow`.

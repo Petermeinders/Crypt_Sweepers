@@ -35,6 +35,7 @@ Defined in `GameController.js` immediately before `_combatCtx()`.
 - **Combat math:** stays in `CombatResolver.js` — hero modules orchestrate UI/tiles/mana only.
 - **Cross-hero deps:** e.g. `avgMeleeDamage` lives in `warrior.js`, exposed on `_heroAbilityBaseCtx()` for ranger/mage formulas.
 - **Cancel-mode helpers** remain in `GameController.js` and are passed via ctx (`cancelRicochetMode`, etc.).
+- **Scaled mana costs:** All ability modules use `ctx.scaledManaCost(baseCost, abilityId)` for the current mana cost of an ability rather than reading the static value from the data file. The static data value is the base (tier-0) cost; the ctx helper adds `+2 per upgrade tier` at runtime. Do not pass hardcoded `manaCost` constants from data files to UI ability buttons.
 
 ## External dependencies
 

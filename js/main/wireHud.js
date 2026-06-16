@@ -415,6 +415,13 @@ export function wireHud(ctx) {
   document.getElementById('hud-portrait-wrap').addEventListener('click', () => {
     ctx.GameController.divineLightHealAction()
   })
+
+  document.getElementById('pc-tap-hp')?.addEventListener('click', () => {
+    ctx.GameController.useOrbPotion('hp')
+  })
+  document.getElementById('pc-tap-mana')?.addEventListener('click', () => {
+    ctx.GameController.useOrbPotion('mana')
+  })
 }
 
 function wireAbilityHold(btn, onTap, onHold) {

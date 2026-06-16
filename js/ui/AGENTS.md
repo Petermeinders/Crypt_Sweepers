@@ -37,6 +37,21 @@ The UI directory contains all DOM interaction code. Game logic never lives here 
 **`el` cache entries for parry**:
 `parryOverlay`, `parryEnemyDisplay`, `parryEnemyIcon`, `parryEnemyName`, `parryPracticeLabel`, `parryRingArena`, `parryHeroCanvas`, `parryRingOuter`, `parryCompassN/E/S/W`, `parryArcCanvas`, `parryFlashOverlay`, `parryTutorialOverlay`, `parryTutorialBody`, `parryTutorialPips`, `parryTutorialNext`, `parryTutorialSkip`
 
+## Potion Orbs & HUD layout
+
+`PotionOrb.js` builds the HP and mana orb HTML dynamically. Orb fill images are animated GIFs (`orb-hp.gif`, `orb-mana.gif`). Each orb also renders a `.orb-val` container with two spans — `.orb-val-cur` (current value) and `.orb-val-max` (max value) — updated alongside the clip-path fill animation in `updateOrbHpFill()` / `updateOrbManaFill()`. Element references `_hpCur`, `_hpMax`, `_manaCur`, `_manaMax` are module-level in `PotionOrb.js`.
+
+`Hud.js` caches `el.goldValue2` and `el.scrapValue2` (the backpack-header copies of the gold/scrap counters). `updateGold()` and `updateScrap()` sync both the in-HUD display and the backpack-header display in a single call.
+
+**HUD DOM structure changes (2025 polish pass):**
+- XP bar and main HUD bar are wrapped together in `<div id="hud-wrap">` (`margin-top: -20px`).
+- The XP bar uses `<svg><clipPath id="xp-bar-clip">` for a curved-edge mask and a `@keyframes xp-shimmer` animation.
+- Gold/scrap counters moved from the backpack header into `<div class="hud-gold-scrap-stack">` inside the hero portrait area.
+- Backpack icon changed from `backpack.png` to `satchel.png`.
+- Backpack header restructured: `.backpack-header-left` wraps the key badge; `.backpack-gold-scrap-row` holds the gold/scrap values there.
+
+**Floor modifier badge** is a `<button type="button">` element (previously a `<div>`). `Hud.js` wires a click listener that reads `el.floorModifierBadge._mod` and calls `UI.showModal(...)` with the modifier's icon, name, and description. The `aria-label` is set to the modifier name. `showFloorModifier()` stamps `_mod` on the element; `hideFloorModifier()` clears it.
+
 ## Patterns
 
 - **`el` cache is initialized once at `UI.init()`.** Submodule `cacheHudElements()`, `cacheGridElements()`, etc. populate the shared `el` from `uiShared.js`. Never call `document.getElementById` from inside an update function — add the reference to the appropriate submodule cache first.

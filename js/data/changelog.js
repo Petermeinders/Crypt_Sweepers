@@ -5,6 +5,28 @@
 export const CHANGELOG = [
   {
     dateLabel: 'Jun 2026',
+    dateIso:   '2026-06-16',
+    version:   'v501',
+    title:     'HUD refresh & smarter potions',
+    summary:
+      'The HUD gets a visual overhaul — a combined XP + stats panel, animated potion orbs that show your current HP/mana at a glance, and tapping an orb now uses your potion directly from the HUD. A few lingering bugs were also fixed.',
+    items: [
+      {
+        tag:  'UI',
+        text: 'New HUD structure — XP bar and main stat panel are combined into a single cohesive block with improved visual organisation.',
+      },
+      {
+        tag:  'UI',
+        text: 'Potion orbs — HP and mana orbs now display your current / max values and fill with animated art. Tapping an orb uses the matching potion directly without opening the backpack.',
+      },
+      {
+        tag:  'Fix',
+        text: 'Several minor layout and styling bugs fixed alongside the HUD refresh.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Jun 2026',
     dateIso:   '2026-06-08',
     version:   'v500',
     title:     'Ninja hero, bug fixes & polish',

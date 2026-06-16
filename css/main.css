@@ -57,8 +57,7 @@
 html, body {
   width: 100%;
   height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
   background-color: var(--bg-dark);
   background-image: var(--floor-bg-image);
   background-size: cover;
@@ -72,10 +71,11 @@ html, body {
 #app {
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  height: 100dvh;
   max-width: 480px;
   margin: 0 auto;
-  position: relative;
+  position: static;
+  overflow: hidden;
 }
 
 /* Cheat: in-run debug buttons (testing) */
@@ -179,7 +179,12 @@ html, body {
   margin-top: 2px;
   letter-spacing: 0.5px;
   font-style: italic;
-  cursor: default;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  text-decoration: underline dotted rgba(232,184,75,0.5);
+  text-underline-offset: 2px;
 }
 #floor-modifier-badge.hidden { display: none; }
 

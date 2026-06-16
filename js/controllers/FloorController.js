@@ -334,6 +334,7 @@ export function startFloor(ctx) {
   UI.updateScrap(session.save?.scrap ?? 0)
   UI.updateArmor(session.run.player.armor ?? 0)
   UI.updateGoldenKeys(session.run.player.goldenKeys ?? 0)
+  UI.updateOrbPotions(session.run.player.hpPotions ?? 0, session.run.player.manaPotions ?? 0)
   ctx.syncMagicChestKeyGlow()
   UI.setFreezingHit(session.run.player.freezingHitStacks ?? 0)
   UI.setBurnOverlay(session.run.player.burnStacks ?? 0)
@@ -361,14 +362,14 @@ export function startFloor(ctx) {
   } else if (ctx.charKey() === 'necromancer') {
     ctx.refreshNecroActiveHud()
   } else {
-    UI.setSlamBtn(ctx.isActiveUnlocked('slam', 'warrior'), WARRIOR_UPGRADES.slam.manaCost)
+    UI.setSlamBtn(ctx.isActiveUnlocked('slam', 'warrior'), ctx.scaledManaCost(WARRIOR_UPGRADES.slam.manaCost, 'slam'))
     UI.setArrowBarrageBtn(false)
     UI.setPoisonArrowShotBtn(false)
-    UI.setDivineLightBtn(ctx.isActiveUnlocked('divine-light', 'warrior'), WARRIOR_UPGRADES['divine-light'].manaCost, divineLightHealRate())
+    UI.setDivineLightBtn(ctx.isActiveUnlocked('divine-light', 'warrior'), ctx.scaledManaCost(WARRIOR_UPGRADES['divine-light'].manaCost, 'divine-light'), divineLightHealRate())
   }
   // Blinding Light — warrior only, slot B (ranger uses B for Poison Arrow, C for Triple Volley)
   if (ctx.charKey() === 'warrior') {
-    UI.setBlindingLightBtn(ctx.isActiveUnlocked('blinding-light', 'warrior'), WARRIOR_UPGRADES['blinding-light'].manaCost)
+    UI.setBlindingLightBtn(ctx.isActiveUnlocked('blinding-light', 'warrior'), ctx.scaledManaCost(WARRIOR_UPGRADES['blinding-light'].manaCost, 'blinding-light'))
   }
   // Show spell button always — player can target any enemy at any time
   const effectiveCost = ctx.previewSpellManaCostForUi()

@@ -63,7 +63,7 @@ export function necroClearAshAfterMinionDeath(ctx, row, col) {
   TileEngine.replaceTileWithEmptyPreserveState(row, col)
   const fresh = TileEngine.getTile(row, col)
   fresh.revealed = true
-  const patched = TileEngine.patchMainGridTileAt(row, col, UI.getGridEl(), onTileTap, onTileHold)
+  const patched = TileEngine.patchMainGridTileAt(row, col, UI.getGridEl(), ctx.onTileTap, ctx.onTileHold)
   if (!patched) ctx.refreshMainGridDomFromModel()
   else {
     TileEngine.refreshAllThreatClueDisplays()

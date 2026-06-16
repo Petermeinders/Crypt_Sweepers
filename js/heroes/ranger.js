@@ -17,7 +17,7 @@ export function ricochetAction(ctx) {
   if (ctx.isSilenced()) return
   if (!isRangerActiveUnlocked(ctx, 'ricochet')) return
   if (session.tap.combatBusy) return
-  const cost = ctx.stillWaterManaCost(RANGER_UPGRADES.ricochet.manaCost + ctx.tearyExtraCost())
+  const cost = ctx.stillWaterManaCost(ctx.scaledManaCost(RANGER_UPGRADES.ricochet.manaCost, 'ricochet') + ctx.tearyExtraCost())
 
   if (!session.tap.ricochetSelecting) {
     if (session.run.player.mana < cost) {
@@ -51,7 +51,7 @@ export function ricochetAction(ctx) {
 }
 
 export function executeRicochet(ctx) {
-  const cost    = ctx.stillWaterManaCost(RANGER_UPGRADES.ricochet.manaCost + ctx.tearyExtraCost())
+  const cost    = ctx.stillWaterManaCost(ctx.scaledManaCost(RANGER_UPGRADES.ricochet.manaCost, 'ricochet') + ctx.tearyExtraCost())
   const ordered = session.tap.ricochetTiles.slice()
 
   const targets = ordered.filter(t => t.enemyData && !t.enemyData._slain && !t.enemyData.spellImmune)
@@ -115,7 +115,7 @@ export function executeRicochet(ctx) {
 export function arrowBarrageAction(ctx) {
   if (!isRangerActiveUnlocked(ctx, 'arrow-barrage')) return
   if (session.tap.combatBusy) return
-  const cost = ctx.stillWaterManaCost(RANGER_UPGRADES['arrow-barrage'].manaCost + ctx.tearyExtraCost())
+  const cost = ctx.stillWaterManaCost(ctx.scaledManaCost(RANGER_UPGRADES['arrow-barrage'].manaCost, 'arrow-barrage') + ctx.tearyExtraCost())
 
   if (!session.tap.arrowBarrageSelecting) {
     if (session.run.player.mana < cost) {
@@ -165,7 +165,7 @@ export function tilesIn3x3(ctx, centerRow, centerCol) {
 }
 
 export function executeTripleVolley(ctx, center) {
-  const cost = ctx.stillWaterManaCost(RANGER_UPGRADES['arrow-barrage'].manaCost + ctx.tearyExtraCost())
+  const cost = ctx.stillWaterManaCost(ctx.scaledManaCost(RANGER_UPGRADES['arrow-barrage'].manaCost, 'arrow-barrage') + ctx.tearyExtraCost())
   const tiles = tilesIn3x3(ctx, center.row, center.col)
   const targets = tiles.filter(t => t.revealed && t.enemyData && !t.enemyData._slain && !t.enemyData.spellImmune)
 
@@ -238,7 +238,7 @@ export function executeTripleVolley(ctx, center) {
 export function poisonArrowShotAction(ctx) {
   if (!isRangerActiveUnlocked(ctx, 'poison-arrow-shot')) return
   if (session.tap.combatBusy) return
-  const cost = ctx.stillWaterManaCost(RANGER_UPGRADES['poison-arrow-shot'].manaCost + ctx.tearyExtraCost())
+  const cost = ctx.stillWaterManaCost(ctx.scaledManaCost(RANGER_UPGRADES['poison-arrow-shot'].manaCost, 'poison-arrow-shot') + ctx.tearyExtraCost())
 
   if (!session.tap.poisonArrowShotSelecting) {
     if (session.run.player.mana < cost) {
@@ -260,7 +260,7 @@ export function poisonArrowShotAction(ctx) {
 }
 
 export function executePoisonArrowShot(ctx, tile) {
-  const cost = ctx.stillWaterManaCost(RANGER_UPGRADES['poison-arrow-shot'].manaCost + ctx.tearyExtraCost())
+  const cost = ctx.stillWaterManaCost(ctx.scaledManaCost(RANGER_UPGRADES['poison-arrow-shot'].manaCost, 'poison-arrow-shot') + ctx.tearyExtraCost())
   if (!tile?.enemyData || tile.enemyData._slain) {
     ctx.cancelPoisonArrowShotMode()
     return
@@ -350,14 +350,14 @@ export function refreshRangerActiveHud(ctx) {
   UI.setEngineerManaGeneratorBtn(false)
   UI.setEngineerTeslaBtn(false, 10, false)
   UI.setLifeTapBtn(false)
-  UI.setRicochetBtn(isRangerActiveUnlocked(ctx, 'ricochet'), RANGER_UPGRADES.ricochet.manaCost)
+  UI.setRicochetBtn(isRangerActiveUnlocked(ctx, 'ricochet'), ctx.scaledManaCost(RANGER_UPGRADES.ricochet.manaCost, 'ricochet'))
   UI.setArrowBarrageBtn(
     isRangerActiveUnlocked(ctx, 'arrow-barrage'),
-    RANGER_UPGRADES['arrow-barrage'].manaCost,
+    ctx.scaledManaCost(RANGER_UPGRADES['arrow-barrage'].manaCost, 'arrow-barrage'),
   )
   UI.setPoisonArrowShotBtn(
     isRangerActiveUnlocked(ctx, 'poison-arrow-shot'),
-    RANGER_UPGRADES['poison-arrow-shot'].manaCost,
+    ctx.scaledManaCost(RANGER_UPGRADES['poison-arrow-shot'].manaCost, 'poison-arrow-shot'),
   )
 }
 

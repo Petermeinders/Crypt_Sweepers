@@ -315,7 +315,7 @@ export function mistFormAction(ctx) {
     UI.setMessage('Mist Form is already active!', true)
     return
   }
-  const cost = ctx.stillWaterManaCost(VAMPIRE_UPGRADES['mist-form'].manaCost)
+  const cost = ctx.stillWaterManaCost(ctx.scaledManaCost(VAMPIRE_UPGRADES['mist-form'].manaCost, 'mist-form'))
   if (session.run.player.mana < cost) {
     UI.setMessage('Not enough mana for Mist Form!', true)
     return

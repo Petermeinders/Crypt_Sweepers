@@ -152,7 +152,7 @@ export function castSpell(ctx, tile) {
 export function chainLightningAction(ctx) {
   if (!isMageActiveUnlocked(ctx, 'chain-lightning')) return
   if (session.tap.combatBusy) return
-  const cost = ctx.stillWaterManaCost(MAGE_UPGRADES['chain-lightning'].manaCost + ctx.tearyExtraCost())
+  const cost = ctx.stillWaterManaCost(ctx.scaledManaCost(MAGE_UPGRADES['chain-lightning'].manaCost, 'chain-lightning') + ctx.tearyExtraCost())
 
   if (!session.tap.chainLightningSelecting) {
     if (session.run.player.mana < cost) {
@@ -199,7 +199,7 @@ export function executeChainLightning(ctx, primary) {
     UI.setMessage('🛡️ That enemy is immune to Chain Lightning!', true)
     return
   }
-  const cost = ctx.stillWaterManaCost(MAGE_UPGRADES['chain-lightning'].manaCost + ctx.tearyExtraCost())
+  const cost = ctx.stillWaterManaCost(ctx.scaledManaCost(MAGE_UPGRADES['chain-lightning'].manaCost, 'chain-lightning') + ctx.tearyExtraCost())
   if (session.run.player.mana < cost) {
     UI.setMessage('Not enough mana for Chain Lightning!', true)
     return
@@ -296,7 +296,7 @@ export function pickRandomDistinct(pool, count) {
 export function telekineticThrowAction(ctx) {
   if (!isMageActiveUnlocked(ctx, 'telekinetic-throw')) return
   if (session.tap.combatBusy) return
-  const cost = ctx.stillWaterManaCost(MAGE_UPGRADES['telekinetic-throw'].manaCost + ctx.tearyExtraCost())
+  const cost = ctx.stillWaterManaCost(ctx.scaledManaCost(MAGE_UPGRADES['telekinetic-throw'].manaCost, 'telekinetic-throw') + ctx.tearyExtraCost())
 
   if (session.tap.telekineticThrowStep === 0) {
     if (session.run.player.mana < cost) {
@@ -372,7 +372,7 @@ export function executeTelekineticThrow(ctx, originTile, destTile) {
     return
   }
 
-  const cost = ctx.stillWaterManaCost(MAGE_UPGRADES['telekinetic-throw'].manaCost + ctx.tearyExtraCost())
+  const cost = ctx.stillWaterManaCost(ctx.scaledManaCost(MAGE_UPGRADES['telekinetic-throw'].manaCost, 'telekinetic-throw') + ctx.tearyExtraCost())
   if (session.run.player.mana < cost) {
     UI.setMessage('Not enough mana for Telekinetic Throw!', true)
     return
@@ -589,15 +589,15 @@ export function refreshMageHud(ctx) {
   UI.setEngineerTeslaBtn(false, 10, false)
   UI.setChainLightningBtn(
     isMageActiveUnlocked(ctx, 'chain-lightning'),
-    MAGE_UPGRADES['chain-lightning'].manaCost,
+    ctx.scaledManaCost(MAGE_UPGRADES['chain-lightning'].manaCost, 'chain-lightning'),
   )
   UI.setTelekineticThrowBtn(
     isMageActiveUnlocked(ctx, 'telekinetic-throw'),
-    MAGE_UPGRADES['telekinetic-throw'].manaCost,
+    ctx.scaledManaCost(MAGE_UPGRADES['telekinetic-throw'].manaCost, 'telekinetic-throw'),
   )
   UI.setManaShieldBtn(
     isMageActiveUnlocked(ctx, 'mana-shield'),
-    MAGE_UPGRADES['mana-shield'].manaCost,
+    ctx.scaledManaCost(MAGE_UPGRADES['mana-shield'].manaCost, 'mana-shield'),
     session.run?.player?.manaShieldActive ?? false,
   )
   UI.setLifeTapBtn(

@@ -224,6 +224,13 @@ function _stillWaterManaCost(baseCost) {
   return Math.max(1, Math.round(baseCost * 0.65))
 }
 
+function _scaledManaCost(baseCost, abilityId) {
+  const player = session.run?.player
+  if (!player) return baseCost
+  const upgrades = (player.abilities ?? []).filter(id => id.startsWith(abilityId + '-')).length
+  return baseCost + upgrades * 2
+}
+
 function _markStillWaterAbilityUsed() {
   if (session.run?.player) session.run.player.turnsWithoutSpell = 0
 }
@@ -701,6 +708,7 @@ function _floorCtx() {
     refreshVampireHud: _refreshVampireHud,
     refreshNecroActiveHud: _refreshNecroActiveHud,
     isActiveUnlocked: _isActiveUnlocked,
+    scaledManaCost: _scaledManaCost,
     previewSpellManaCostForUi: _previewSpellManaCostForUi,
     appendLevelSnapshot: _appendLevelSnapshot,
     appendFloorSnapshot: _appendFloorSnapshot,
@@ -740,6 +748,7 @@ function _heroAbilityBaseCtx() {
     saveActiveRun: _saveActiveRun,
     isSilenced: _isSilenced,
     stillWaterManaCost: _stillWaterManaCost,
+    scaledManaCost: _scaledManaCost,
     markStillWaterAbilityUsed: _markStillWaterAbilityUsed,
     tearyExtraCost: _tearyExtraCost,
     isActiveUnlocked: _isActiveUnlocked,
@@ -2272,9 +2281,9 @@ function _triggerLevelUp() {
     else if (char === 'necromancer') _refreshNecroActiveHud()
     else if (char === 'vampire')   _refreshVampireHud()
     else if (char === 'warrior')   {
-      UI.setSlamBtn(_isActiveUnlocked('slam', 'warrior'), WARRIOR_UPGRADES.slam.manaCost)
-      UI.setBlindingLightBtn(_isActiveUnlocked('blinding-light', 'warrior'), WARRIOR_UPGRADES['blinding-light'].manaCost)
-      UI.setDivineLightBtn(_isActiveUnlocked('divine-light', 'warrior'), WARRIOR_UPGRADES['divine-light'].manaCost, Warrior.divineLightHealRate())
+      UI.setSlamBtn(_isActiveUnlocked('slam', 'warrior'), _scaledManaCost(WARRIOR_UPGRADES.slam.manaCost, 'slam'))
+      UI.setBlindingLightBtn(_isActiveUnlocked('blinding-light', 'warrior'), _scaledManaCost(WARRIOR_UPGRADES['blinding-light'].manaCost, 'blinding-light'))
+      UI.setDivineLightBtn(_isActiveUnlocked('divine-light', 'warrior'), _scaledManaCost(WARRIOR_UPGRADES['divine-light'].manaCost, 'divine-light'), Warrior.divineLightHealRate())
     }
     GameState.transition(States.FLOOR_EXPLORE)
     _flushDeferredLevelUpXp()
@@ -2426,6 +2435,7 @@ function _inventoryCtx() {
 }
 
 async function _addToBackpack(id) { return InventoryController.addToBackpack(_inventoryCtx(), id) }
+function _useOrbPotion(type) { InventoryController.useOrbPotion(_inventoryCtx(), type) }
 function _canAddToBackpack(id) { return InventoryController.canAddToBackpack(_inventoryCtx(), id) }
 function useItem(id, inventoryIndex = null) { InventoryController.useItem(_inventoryCtx(), id, inventoryIndex) }
 function useItemAtIndex(index) { InventoryController.useItemAtIndex(_inventoryCtx(), index) }
@@ -3005,6 +3015,7 @@ export default {
   cheatSkipFloor,
   cheatGenerateGear,
   cheatHudStatBoost,
+  useOrbPotion: _useOrbPotion,
   useItem,
   useItemAtIndex,
   dropItem,

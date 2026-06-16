@@ -117,7 +117,7 @@ export function slamAction(ctx) {
   // Reverberation III: consume free-cast flag before mana check
   const isFree = session.run.player.slamFreeNextCast === true
   if (isFree) session.run.player.slamFreeNextCast = false
-  const cost = isFree ? 0 : ctx.stillWaterManaCost(WARRIOR_UPGRADES.slam.manaCost)
+  const cost = isFree ? 0 : ctx.stillWaterManaCost(ctx.scaledManaCost(WARRIOR_UPGRADES.slam.manaCost, 'slam'))
   if (session.run.player.mana < cost) {
     UI.setMessage('Not enough mana for Slam!', true)
     return
@@ -313,7 +313,7 @@ export function blindingLightAction(ctx) {
   if (ctx.isSilenced()) return
   if (!(session.save.warrior?.upgrades ?? []).includes('blinding-light')) return
   if (session.tap.combatBusy) return
-  const cost = ctx.stillWaterManaCost(WARRIOR_UPGRADES['blinding-light'].manaCost + ctx.tearyExtraCost())
+  const cost = ctx.stillWaterManaCost(ctx.scaledManaCost(WARRIOR_UPGRADES['blinding-light'].manaCost, 'blinding-light') + ctx.tearyExtraCost())
   if (session.run.player.mana < cost) {
     UI.setMessage('Not enough mana for Blinding Light!', true)
     return
@@ -338,7 +338,7 @@ export function castBlindingLight(ctx, tile) {
   session.tap.blindingLightTargeting = false
   UI.setBlindingLightActive(false)
 
-  const cost = ctx.stillWaterManaCost(WARRIOR_UPGRADES['blinding-light'].manaCost + ctx.tearyExtraCost())
+  const cost = ctx.stillWaterManaCost(ctx.scaledManaCost(WARRIOR_UPGRADES['blinding-light'].manaCost, 'blinding-light') + ctx.tearyExtraCost())
   if (session.run.player.mana < cost) {
     UI.setMessage('Not enough mana!', true)
     return
@@ -460,7 +460,7 @@ export function divineLightAction(ctx) {
   if (!warriorUpgrades.includes('divine-light')) return
   if (session.tap.combatBusy) return
 
-  const cost = ctx.stillWaterManaCost(WARRIOR_UPGRADES['divine-light'].manaCost + ctx.tearyExtraCost())
+  const cost = ctx.stillWaterManaCost(ctx.scaledManaCost(WARRIOR_UPGRADES['divine-light'].manaCost, 'divine-light') + ctx.tearyExtraCost())
   if (!session.tap.divineLightSelecting) {
     if (session.run.player.mana < cost) {
       UI.setMessage('Not enough mana for Divine Light!', true)
@@ -485,7 +485,7 @@ export function divineLightAction(ctx) {
 
 export function divineLightHealAction(ctx) {
   if (!session.tap.divineLightSelecting) return
-  const cost = ctx.stillWaterManaCost(WARRIOR_UPGRADES['divine-light'].manaCost + ctx.tearyExtraCost())
+  const cost = ctx.stillWaterManaCost(ctx.scaledManaCost(WARRIOR_UPGRADES['divine-light'].manaCost, 'divine-light') + ctx.tearyExtraCost())
   if (session.run.player.mana < cost) {
     UI.setMessage('Not enough mana!', true)
     return
@@ -511,7 +511,7 @@ export function castDivineLightSmite(ctx, tile) {
   session.tap.divineLightSelecting = false
   UI.setDivineLightActive(false)
 
-  const cost = ctx.stillWaterManaCost(WARRIOR_UPGRADES['divine-light'].manaCost + ctx.tearyExtraCost())
+  const cost = ctx.stillWaterManaCost(ctx.scaledManaCost(WARRIOR_UPGRADES['divine-light'].manaCost, 'divine-light') + ctx.tearyExtraCost())
   if (session.run.player.mana < cost) {
     UI.setMessage('Not enough mana!', true)
     return

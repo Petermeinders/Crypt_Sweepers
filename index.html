@@ -46,7 +46,7 @@
         <div id="header-title-block">
           <div id="title">Crypt Sweepers</div>
           <div id="floor-info">Floor 1 — The Shallow Dark</div>
-          <div id="floor-modifier-badge" class="hidden"></div>
+          <button type="button" id="floor-modifier-badge" class="hidden" aria-label="Floor effect info"></button>
         </div>
         <div class="header-actions">
           <button type="button" id="retreat-btn" class="hidden" title="Flee the dungeon" aria-label="Flee the dungeon">🚪</button>
@@ -163,16 +163,37 @@
       <div id="action-buttons" class="hidden"></div>
     </div>
 
-    <div id="xp-bar-container" data-hud-cheat-target="xp">
-      <div id="xp-bar"></div>
-    </div>
+    <!-- Bottom HUD group: XP bar + main HUD panel -->
+    <div id="hud-wrap">
+      <svg width="0" height="0" style="position:absolute">
+        <defs>
+          <clipPath id="xp-bar-clip" clipPathUnits="objectBoundingBox">
+            <path d="M 0.04,0.25
+                     Q 0.5,0.08 0.96,0.25
+                     L 0.96,0.75
+                     Q 0.5,0.92 0.04,0.75
+                     Z"/>
+          </clipPath>
+        </defs>
+      </svg>
+      <div id="xp-bar-container" data-hud-cheat-target="xp">
+        <div id="xp-bar"></div>
+      </div>
 
-    <!-- Bottom HUD: portrait | stats | key items (backpack, keys) | 6 ability slots -->
-    <div id="hud-bar">
+      <!-- Bottom HUD: stats | portrait | key items (backpack, keys) | 6 ability slots -->
+      <div id="hud-bar">
+      <div id="hud-stats">
+        <div id="hud-orb-wrap"></div>
+      </div>
+
       <div id="hud-portrait-wrap" role="button" tabindex="0" aria-label="Equipment" title="Tap to manage equipment">
         <div id="hud-portrait" class="hud-portrait" aria-hidden="true">
           <div class="hud-portrait-gear-tab">⚔ GEAR</div>
           <img id="hud-portrait-img" src="assets/sprites/Heroes/Warrior/__Idle.gif" alt="Paladin">
+          <div class="hud-gold-scrap-stack" data-hud-cheat-target="gold">
+            <span class="hud-gold-inline"><span class="gold-icon">🪙</span> <span id="gold-value">0</span></span>
+            <span class="hud-scrap-inline"><span class="scrap-icon">⚙️</span> <span id="scrap-value">0</span></span>
+          </div>
         </div>
         <button id="hud-teary-eyes" class="hud-debuff-btn hidden" title="Teary Eyes debuff">💧</button>
         <button id="hud-freezing-hit" class="hud-debuff-btn hidden" title="Freezing Hit — reduces your damage by 20% per stack">🧊</button>
@@ -181,14 +202,7 @@
         <button id="hud-player-poison" class="hud-debuff-btn hidden" title="Poisoned — takes 1 HP damage per stack each turn">☠️</button>
       </div>
 
-      <div id="hud-stats">
-        <div class="hud-stat-row" data-hud-cheat-target="hp">
-          <span class="hud-stat-ic" title="Health">❤️</span>
-          <div class="stat-bar hud-micro-bar">
-            <div class="stat-fill hp-fill" id="hp-bar"></div>
-          </div>
-          <span class="hud-stat-num" id="hp-value">100/100</span>
-        </div>
+      <div id="hud-keys" class="hud-keys" aria-label="Key items">
         <div class="hud-stat-dmg-pair">
           <div class="hud-stat-row hud-stat-dmg" data-hud-cheat-target="dmg">
             <span class="hud-stat-ic" title="Attack">⚔️</span>
@@ -199,25 +213,7 @@
             <span class="hud-armor-num" id="armor-value">0</span>
           </div>
         </div>
-        <div class="hud-stat-row" data-hud-cheat-target="mana">
-          <span class="hud-stat-ic" title="Mana">🔵</span>
-          <div class="stat-bar hud-micro-bar">
-            <div class="stat-fill mana-fill" id="mana-bar"></div>
-          </div>
-          <span class="hud-stat-num" id="mana-value">60/60</span>
-        </div>
-        <div class="hud-meta" data-hud-cheat-target="gold">
-          <span class="hud-gold-inline"><span class="gold-icon">🪙</span> <span id="gold-value">0</span></span>
-          <span class="hud-scrap-inline"><span class="scrap-icon">⚙️</span> <span id="scrap-value">0</span></span>
-        </div>
-      </div>
-
-      <div id="hud-keys" class="hud-keys" aria-label="Key items">
-        <button type="button" class="hud-key-slot hud-key-backpack" id="hud-backpack-btn" title="Backpack" aria-label="Backpack" aria-expanded="false" aria-controls="backpack-overlay"><img src="assets/sprites/Items/backpack.png" alt="" class="hud-key-slot-img"><span id="backpack-new-badge" class="backpack-new-badge hidden" aria-label="New item">!</span></button>
-        <div class="hud-key-slot hud-key-golden-slot" id="hud-golden-key-slot" data-hud-cheat-target="goldenkey" title="Golden Keys — spend at the Magic Chest in sanctuary">
-          <span class="hud-key-ghost" id="hud-key-slot-placeholder">🔑</span>
-          <span class="hud-key-display hud-key-display--slot hidden" id="hud-key-display"><span class="key-icon">🗝️</span><span id="key-value">0</span></span>
-        </div>
+        <button type="button" class="hud-key-slot hud-key-backpack" id="hud-backpack-btn" title="Backpack" aria-label="Backpack" aria-expanded="false" aria-controls="backpack-overlay"><img src="assets/sprites/hud/satchel.png" alt="" class="hud-key-slot-img"><span id="backpack-new-badge" class="backpack-new-badge hidden" aria-label="New item">!</span></button>
       </div>
 
       <div id="hud-actions" class="hud-actions" aria-label="Quick actions">
@@ -229,6 +225,7 @@
         <button type="button" class="hud-action-slot is-placeholder" id="hud-btn-slot-f" title="Reserved" disabled>···</button>
       </div>
     </div>
+    </div><!-- /#hud-wrap -->
 
   </div>
 
@@ -236,6 +233,16 @@
   <div id="backpack-overlay" class="backpack-drawer" aria-hidden="true">
     <div class="backpack-drawer-handle" aria-hidden="true"></div>
     <div class="backpack-drawer-header">
+      <div class="backpack-header-left">
+        <div class="backpack-key-badge" id="hud-golden-key-slot" data-hud-cheat-target="goldenkey" title="Golden Keys — spend at the Magic Chest in sanctuary">
+          <span class="hud-key-ghost" id="hud-key-slot-placeholder">🔑</span>
+          <span class="hud-key-display hidden" id="hud-key-display"><span class="key-icon">🗝️</span><span id="key-value">0</span></span>
+        </div>
+        <div class="backpack-gold-scrap-row">
+          <span class="hud-gold-inline"><span class="gold-icon">🪙</span> <span id="gold-value-2">0</span></span>
+          <span class="hud-scrap-inline"><span class="scrap-icon">⚙️</span> <span id="scrap-value-2">0</span></span>
+        </div>
+      </div>
       <span class="backpack-drawer-title">Backpack</span>
       <button type="button" id="backpack-close-btn" class="backpack-close-btn" aria-label="Close">✕</button>
     </div>

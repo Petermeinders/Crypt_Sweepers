@@ -31,6 +31,17 @@ The CSS directory contains all visual styling for the game. No CSS modules or pr
 - **Screen-shake is a body class.** `body.screen-shake` triggers the `@keyframes screen-shake` translateX wobble. `UI.js` adds it on miss and removes it via `animationend`.
 - **Parry flash overlay** (`#parry-flash-overlay`) is a fixed full-screen div at `z-index: 9990`. Result classes (`flash-block`, `flash-counter`, `flash-miss`) are added/removed by `UI.js` to produce full-screen colour flashes.
 
+## HUD layout conventions (2025 polish pass)
+
+- **`#hud-wrap`** wraps the XP bar and main HUD bar together with `margin-top: -20px`. Do not place HUD elements inside `#hud-wrap` unless they belong to this pair.
+- **XP bar** is 36 px tall, sprite-backed, and clipped by `<clipPath id="xp-bar-clip">` (defined inline in `index.html` as an `<svg>` element). The `@keyframes xp-shimmer` animation in `hud.css` cycles a cyan/teal gradient shimmer. Do not revert the XP bar to a plain `<div>` bar — the SVG clip path is required for the curved-edge shape.
+- **Orb fill images are animated GIFs.** `.orb-tap` uses `orb-hp.gif` / `orb-mana.gif` (not static PNGs) for the fill layer. `.orb-tap.orb-empty` has `opacity: 1` (previously `0.45`) so the empty state still shows the orb frame. Orb button width is `76%`.
+- **`.orb-val`** is a block container holding `.orb-val-cur` and `.orb-val-max` spans — current/max HP or mana displayed as text over the orb. Styled in `hud.css`.
+- **Gold/scrap in portrait** — `.hud-gold-scrap-stack` inside the hero portrait area replaces the old backpack-header position. `overlays.css` adds `.backpack-gold-scrap-row` in the backpack header for a secondary display that stays in sync.
+- **`overflow: hidden` on the app shell** — `main.css` sets `overflow: hidden; height: 100dvh` (previously `overflow: auto; min-height: 100dvh`). Sub-scroll areas must manage their own overflow.
+- **Floor banner** uses `position: fixed; z-index: 200` (previously `position: absolute; z-index: 40`). Keep `z-index` above grid overlays but below modal overlays (`z-index: 300+`).
+- **Tile grid flex fix** — `#grid-container` uses `flex: 1 1 0; min-height: 0` (previously `flex: 1`) to correctly shrink inside a fixed-height flex parent. Always include `min-height: 0` on flex children that contain scrollable or overflow content.
+
 ## External Dependencies
 
 - **Loaded by:** `index.html` (all 5 files, in order: main → tiles → hud → overlays → animations)
