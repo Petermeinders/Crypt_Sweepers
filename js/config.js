@@ -176,10 +176,12 @@ export const CONFIG = {
     spawnChance: 0.15,
   },
 
-  /** Treasure Goblin — rare pre-revealed 1 HP foe; drops a rare trinket if slain before its timer expires */
+  /** Treasure Goblin — rare pre-revealed 1 HP foe; drops a rare trinket if slain before escape timer */
   treasureGoblin: {
     /** Per non-boss dungeon floor (excluding boss floors) */
     spawnChance: 0.05,
+    /** Global turns before he escapes if not slain (player must path adjacent to engage). */
+    escapeTurns: 5,
   },
 
   /** Pre-revealed archer; harasses each global turn until killed (see FloorController) */

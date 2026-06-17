@@ -266,7 +266,7 @@ export function getBalanceBotTapCandidates(deps) {
       if (t.revealed && t.enemyData && !t.enemyData._slain) {
         // Archer / mouse enemies require a revealed neighbour — skip if none (game would reject the tap)
         const behaviour = t.enemyData.behaviour
-        if (behaviour === 'archer' || behaviour === 'mouse') {
+        if (behaviour === 'archer' || behaviour === 'mouse' || behaviour === 'treasure_goblin') {
           const nbrs = TileEngine.getOrthogonalTiles(t.row, t.col)
           if (!nbrs.some(n => n.revealed)) continue
         }

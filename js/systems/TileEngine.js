@@ -1400,9 +1400,9 @@ function recomputeReachabilityFromRevealed(uiMark) {
     for (const t of row) {
       if (!t.revealed) continue
       // Mirror the rules from revealTile: holes/blockages don't spread reachability,
-      // and archer/mouse only become reachable once the player paths adjacent.
+      // and archer/mouse/treasure goblin only become reachable once the player paths adjacent.
       if (t.type === 'hole' || t.type === 'blockage') continue
-      if ((t.enemyData?.behaviour === 'archer' || t.enemyData?.behaviour === 'mouse') && !t.enemyData._slain) continue
+      if ((t.enemyData?.behaviour === 'archer' || t.enemyData?.behaviour === 'mouse' || t.enemyData?.behaviour === 'treasure_goblin') && !t.enemyData._slain) continue
       markReachable(t.row, t.col, uiMark)
     }
   }
@@ -1447,7 +1447,7 @@ function recomputeAllEnemyLocks(uiLock, uiUnlock) {
   for (const row of _grid) {
     for (const t of row) {
       // Ranger passive can skip locking on reveal — must not re-lock here or X's come back wrong.
-      if (t.revealed && t.enemyData && !t.enemyData._slain && !t.enemyData.rangerSkipAdjacentLock && t.enemyData.behaviour !== 'archer' && t.enemyData.behaviour !== 'mouse') {
+      if (t.revealed && t.enemyData && !t.enemyData._slain && !t.enemyData.rangerSkipAdjacentLock && t.enemyData.behaviour !== 'archer' && t.enemyData.behaviour !== 'mouse' && t.enemyData.behaviour !== 'treasure_goblin') {
         lockAdjacent(t.row, t.col, uiLock)
       }
     }

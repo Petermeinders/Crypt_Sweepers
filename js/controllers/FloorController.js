@@ -226,7 +226,7 @@ export function startFloor(ctx) {
   }
 
   const specialSpawnUsed = new Set()
-  // Treasure Goblin — 5% per non-boss dungeon floor; pre-revealed with escape timer (path from entry + 2)
+  // Treasure Goblin — 5% per non-boss dungeon floor; pre-revealed with fixed escape timer
   if (!gridRestored && !session.run.atRest && !isBossFloorForRun(session.run, session.run.floor)
       && Math.random() < (CONFIG.treasureGoblin?.spawnChance ?? 0.05)) {
     ctx.spawnTreasureGoblin(specialSpawnUsed)

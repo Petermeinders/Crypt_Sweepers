@@ -543,7 +543,7 @@ export const ITEMS = {
     name:      'Hunger Stone',
     rarity:    'epic',
     icon:      '🪨',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/hunger-stone.png',
     stackable: false,
     blurb:     'Heavy, cold, and relentless. It feeds on your vitality — and sharpens your edge.',
     details: [
@@ -677,7 +677,7 @@ export const ITEMS = {
     name:      "Scavenger's Bag",
     rarity:    'common',
     icon:      '🎒',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/scavengers-bag.png',
     stackable: false,
     blurb:     'A well-worn satchel with many pockets. The dungeon gives up more than it seems.',
     details: [
@@ -693,7 +693,7 @@ export const ITEMS = {
     name:      'Spiked Collar',
     rarity:    'epic',
     icon:      '⛓️',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/spiked-collar.png',
     stackable: false,
     blurb:     'Forged for something bigger than you. It bites back — but so do you.',
     details: [
@@ -708,7 +708,7 @@ export const ITEMS = {
     name:      'Eagle Eye',
     rarity:    'epic',
     icon:      '🦅',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/eagle-eye.png',
     stackable: false,
     blurb:     'After a kill, you spot a gap in the dungeon\'s pattern. One free move, anywhere.',
     details: [
@@ -722,7 +722,7 @@ export const ITEMS = {
     name:      'Mending Moss',
     rarity:    'rare',
     icon:      '🌿',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/mending-moss.png',
     stackable: false,
     blurb:     'Damp and faintly warm. Press it to a wound between floors and let nature work.',
     details: [
@@ -736,7 +736,7 @@ export const ITEMS = {
     name:      'Hollowed Acorn',
     rarity:    'rare',
     icon:      '🌰',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/hollowed-acorn.png',
     stackable: false,
     blurb:     'Carved into a vessel for arcane energy. Holds more — but the flow is sluggish.',
     details: [
@@ -751,7 +751,7 @@ export const ITEMS = {
     name:      'Plague Rat Skull',
     rarity:    'rare',
     icon:      '🐀',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/plague-rat-skull.png',
     stackable: false,
     blurb:     'Still festers with something ancient. Your afflictions spread faster and bite harder.',
     details: [
@@ -767,7 +767,7 @@ export const ITEMS = {
     name:      "Pauper's Crown",
     rarity:    'legendary',
     icon:      '👑',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/paupers-crown.png',
     stackable: false,
     blurb:     'A crown of thorns and tin. Your gold is your life — literally.',
     details: [
@@ -782,7 +782,7 @@ export const ITEMS = {
     name:      'Soulbound Blade',
     rarity:    'legendary',
     icon:      '⚔️',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/soulbound-blade.png',
     stackable: false,
     blurb:     'It grows with each life it takes. The dungeon is its whetstone.',
     details: [
@@ -796,7 +796,7 @@ export const ITEMS = {
     name:      'Twin Fates',
     rarity:    'legendary',
     icon:      '🎴',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/twin-fates.png',
     stackable: false,
     blurb:     'Fortune and ruin walk side by side. Each floor is a coin flip.',
     details: [
@@ -810,7 +810,7 @@ export const ITEMS = {
     name:      'Abyssal Lens',
     rarity:    'legendary',
     icon:      '🔍',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/abyssal-lens.png',
     stackable: false,
     blurb:     'It sees everything. The dungeon notices.',
     details: [
@@ -825,7 +825,7 @@ export const ITEMS = {
     name:      'Resurrection Stone',
     rarity:    'legendary',
     icon:      '💎',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/resurrection-stone.png',
     stackable: false,
     blurb:     'It pulses faintly in your palm. Once. Then never again.',
     details: [
@@ -839,7 +839,7 @@ export const ITEMS = {
     name:      "Warden's Brand",
     rarity:    'legendary',
     icon:      '🛡️',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/wardens-brand.png',
     stackable: false,
     blurb:     'Burned into the skin of dungeon wardens. Nothing catches you off guard.',
     details: [
@@ -851,13 +851,12 @@ export const ITEMS = {
 
   // ── Forged (Merged) Trinkets ─────────────────────────────────
   // Created at the Sanctuary Forge by combining two ingredients.
-  // spriteSrc is null until art is provided.
 
   'sanguine-covenant': {
     name:      'Sanguine Covenant',
     rarity:    'merged',
     icon:      '⚗️',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/sanguine-covenant.png',
     stackable: false,
     blurb:     'Blood and steel, bound by an oath neither party survives alone. The sacrifice is permanent. The power is not.',
     details: [
@@ -872,7 +871,7 @@ export const ITEMS = {
     name:      'Inferno Barbs',
     rarity:    'merged',
     icon:      '🌋',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/inferno-barbs.png',
     stackable: false,
     blurb:     'Thorns wreathed in living flame. Strike the hand that reaches for you — and leave it burning.',
     details: [
@@ -887,7 +886,7 @@ export const ITEMS = {
     name:      'Resonance Core',
     rarity:    'merged',
     icon:      '🔮',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/resonance-core.png',
     stackable: false,
     blurb:     'A pearl threaded through a bell that rings twice. The magic remembers — and answers.',
     details: [
@@ -902,7 +901,7 @@ export const ITEMS = {
     name:      "Devil's Gambit",
     rarity:    'merged',
     icon:      '🃏',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/devils-gambit.png',
     stackable: false,
     blurb:     'Every step is a wager. Most days the house loses.',
     details: [
@@ -917,7 +916,7 @@ export const ITEMS = {
     name:      "Navigator's Chart",
     rarity:    'merged',
     icon:      '🗺️',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/navigators-chart.png',
     stackable: false,
     blurb:     'A map stitched from broken instruments. It can only be right once per floor — but once is enough.',
     details: [
@@ -932,7 +931,7 @@ export const ITEMS = {
     name:      'Temporal Wick',
     rarity:    'merged',
     icon:      '🕯️',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/temporal-wick.png',
     stackable: false,
     blurb:     'The flame burns backward when you need it to. Life and time, spent carefully.',
     details: [
@@ -947,7 +946,7 @@ export const ITEMS = {
     name:      'Infected Blade',
     rarity:    'merged',
     icon:      '🗡️',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/infected-blade.png',
     stackable: false,
     blurb:     'The mask filters what it catches; the blade spreads what it finds. A walking pestilence.',
     details: [
@@ -962,7 +961,7 @@ export const ITEMS = {
     name:      'Vault Key',
     rarity:    'merged',
     icon:      '🗝️',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/vault-key.png',
     stackable: false,
     blurb:     'Opens every door — including the one to the surface. Some of what you carry always finds its way home.',
     details: [
@@ -977,7 +976,7 @@ export const ITEMS = {
     name:      "Razor's Edge",
     rarity:    'merged',
     icon:      '💠',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/razors-edge.png',
     stackable: false,
     blurb:     'Sharpened past the point of reason. Every swing lands exactly where the math says it should.',
     details: [
@@ -992,7 +991,7 @@ export const ITEMS = {
     name:      'Field Kit',
     rarity:    'merged',
     icon:      '🧰',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/field-kit.png',
     stackable: false,
     blurb:     'Everything a soldier needs to keep moving: a bandage and a sharp snap of something acrid.',
     details: [
@@ -1008,7 +1007,7 @@ export const ITEMS = {
     name:      'Honed Edge',
     rarity:    'merged',
     icon:      '⚔️',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/honed-edge.png',
     stackable: false,
     blurb:     'Two stones, one edge. It will not dull.',
     details: [
@@ -1022,7 +1021,7 @@ export const ITEMS = {
     name:      'Twin Blades',
     rarity:    'merged',
     icon:      '⚔️',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/twin-blades.png',
     stackable: false,
     blurb:     'One knife is a warning. Two is a promise.',
     details: [
@@ -1038,7 +1037,7 @@ export const ITEMS = {
     name:      'Smoke Bomb',
     rarity:    'merged',
     icon:      '💨',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/smoke-bomb.png',
     stackable: false,
     blurb:     'Double the powder, double the cloud. Three turns of silence.',
     details: [
@@ -1054,7 +1053,7 @@ export const ITEMS = {
     name:      'Barbed Mantle',
     rarity:    'merged',
     icon:      '🦔',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/barbed-mantle.png',
     stackable: false,
     blurb:     'Every wound you take becomes a wound they share. The thorns grew inward so the steel could grow outward.',
     details: [
@@ -1068,7 +1067,7 @@ export const ITEMS = {
     name:      'Festering Wound',
     rarity:    'merged',
     icon:      '🧫',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/festering-wound.png',
     stackable: false,
     blurb:     'The plague feeds the poison. Eight turns of rot — and each tick bites harder.',
     details: [
@@ -1083,7 +1082,7 @@ export const ITEMS = {
     name:      "Predator's Edge",
     rarity:    'merged',
     icon:      '🐆',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/predators-edge.png',
     stackable: false,
     blurb:     'Hunger sharpens the blade. Each floor you go deeper, and every first strike goes twice as deep.',
     details: [
@@ -1098,7 +1097,7 @@ export const ITEMS = {
     name:      'Tomb Tithe',
     rarity:    'merged',
     icon:      '🪦',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/tomb-tithe.png',
     stackable: false,
     blurb:     'The dead pay their dues. Every tile you turn, every enemy you slay — the tomb takes its cut and so do you.',
     details: [
@@ -1113,7 +1112,7 @@ export const ITEMS = {
     name:      "Fortune's Fool",
     rarity:    'merged',
     icon:      '🤡',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/fortunes-fool.png',
     stackable: false,
     blurb:     'The dice always land in your favor — and the enemies never know what they are until it is too late.',
     details: [
@@ -1128,7 +1127,7 @@ export const ITEMS = {
     name:      'Spell Siphon',
     rarity:    'merged',
     icon:      '🩸',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/spell-siphon.png',
     stackable: false,
     blurb:     'The stone drinks mana. The pearl drinks blood. Together they make a loop no mortal should survive.',
     details: [
@@ -1143,7 +1142,7 @@ export const ITEMS = {
     name:      'Mana Crucible',
     rarity:    'merged',
     icon:      '🫙',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/mana-crucible.png',
     stackable: false,
     blurb:     'More mana than you started with. Every swing fills the vessel a little more.',
     details: [
@@ -1158,7 +1157,7 @@ export const ITEMS = {
     name:      "Hunter's Instinct",
     rarity:    'merged',
     icon:      '🐾',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/hunters-instinct.png',
     stackable: false,
     blurb:     'A kill echoes forward. The instinct reads the trail before the eyes do.',
     details: [
@@ -1173,7 +1172,7 @@ export const ITEMS = {
     name:      "Delver's Kit",
     rarity:    'merged',
     icon:      '⛏️',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/delvers-kit.png',
     stackable: false,
     blurb:     'The right tools for the job. Every door opens; every crack has something behind it.',
     details: [
@@ -1188,7 +1187,7 @@ export const ITEMS = {
     name:      'Living Bramble',
     rarity:    'merged',
     icon:      '🌿',
-    spriteSrc: null,
+    spriteSrc: 'assets/sprites/Items/living-bramble.png',
     stackable: false,
     blurb:     'The moss softens; the thorns answer. A patient armor that heals between the hits.',
     details: [

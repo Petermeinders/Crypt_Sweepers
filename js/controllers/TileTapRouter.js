@@ -574,11 +574,15 @@ export function onTileTap(ctx, row, col) {
       // Necromancer: tap ash pile to raise a minion
       ctx.necroRaiseMinion(tile)
     } else if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
-      // Archer / Mouse: only fightable once the player has revealed an adjacent tile
-      if (tile.enemyData?.behaviour === 'archer' || tile.enemyData?.behaviour === 'mouse') {
+      // Archer / Mouse / Treasure Goblin: only fightable once the player has revealed an adjacent tile
+      if (tile.enemyData?.behaviour === 'archer' || tile.enemyData?.behaviour === 'mouse' || tile.enemyData?.behaviour === 'treasure_goblin') {
         const neighbors = TileEngine.getOrthogonalTiles(tile.row, tile.col)
         if (!neighbors.some(n => n.revealed)) {
-          const label = tile.enemyData.behaviour === 'mouse' ? 'The mouse scurries away — advance to engage.' : 'The archer is too far away — advance to engage.'
+          const label = tile.enemyData.behaviour === 'mouse'
+            ? 'The mouse scurries away — advance to engage.'
+            : tile.enemyData.behaviour === 'treasure_goblin'
+              ? 'The Treasure Goblin is too far — path adjacent to engage.'
+              : 'The archer is too far away — advance to engage.'
           UI.setMessage(label, true)
           return
         }

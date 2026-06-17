@@ -3,6 +3,7 @@ import { isHiddenEnemyTileType } from '../data/tiles.js'
 import UI from '../ui/UI.js'
 import { ITEMS } from '../data/items.js'
 import { RARE_TRINKET_IDS } from '../systems/LootTables.js'
+import { CONFIG } from '../config.js'
 import { session } from '../core/RunContext.js'
 
 function pickSpecialSpawnEnemyTile(usedCoords) {
@@ -21,31 +22,29 @@ function pickSpecialSpawnEnemyTile(usedCoords) {
   return candidates[Math.floor(Math.random() * candidates.length)]
 }
 
-/** BFS shortest-path length (orthogonal steps) between two passable cells; null if unreachable. */
-function shortestPathStepsMainGrid(sr, sc, tr, tc) {
-  const grid = TileEngine.getGrid()
-  if (!grid?.length) return null
-  const passable = t => t && t.type !== 'hole' && t.type !== 'blockage'
-  const rows = grid.length
-  const cols = grid[0].length
-  const q = [[sr, sc, 0]]
-  const seen = new Set([`${sr},${sc}`])
-  while (q.length) {
-    const [r, c, d] = q.shift()
-    if (r === tr && c === tc) return d
-    for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-      const nr = r + dr
-      const nc = c + dc
-      if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue
-      const k = `${nr},${nc}`
-      if (seen.has(k)) continue
-      const t = grid[nr][nc]
-      if (!passable(t)) continue
-      seen.add(k)
-      q.push([nr, nc, d + 1])
-    }
+export function spawnTreasureGoblin(ctx, usedCoords) {
+  const target = pickSpecialSpawnEnemyTile(usedCoords)
+  if (!target) return
+  const turnsLeft = CONFIG.treasureGoblin?.escapeTurns ?? 5
+  const ed = TileEngine.createEnemy('treasure_goblin', session.run.floor)
+  ed.hp = 1
+  ed.currentHP = 1
+  ed.dmg = [0, 0]
+  ed.hitDamage = 0
+  target.enemyData = ed
+  target.type = 'enemy'
+  target.revealed = true
+  session.run.tilesRevealed++
+  usedCoords.add(`${target.row},${target.col}`)
+  session.run.treasureGoblin = { row: target.row, col: target.col, turnsLeft }
+  const patched = TileEngine.patchMainGridTileAt(target.row, target.col, UI.getGridEl(), ctx.onTileTap, ctx.onTileHold)
+  if (!patched) ctx.refreshMainGridDomFromModel()
+  else {
+    TileEngine.refreshAllThreatClueDisplays()
+    ctx.syncGridDomClassesFromModel()
   }
-  return null
+  attachTreasureGoblinTimerUi(target)
+  UI.setMessage(`💰 A Treasure Goblin appears! Path to him within ${turnsLeft} turns — he won't wait forever.`)
 }
 
 function attachTreasureGoblinTimerUi(tile) {
@@ -136,36 +135,6 @@ export async function finishTreasureGoblinReward(ctx, tile) {
   if (def && tile.element) UI.spawnFloat(tile.element, `${def.icon ?? '✨'} ${def.name}`, 'xp')
   UI.setMessage(`You bag the Treasure Goblin — ${def?.name ?? 'a rare trinket'}!`)
   ctx.saveActiveRun()
-}
-
-export function spawnTreasureGoblin(ctx, usedCoords) {
-  const sr = session.run.floorStartRow
-  const sc = session.run.floorStartCol
-  if (typeof sr !== 'number' || typeof sc !== 'number') return
-  const target = pickSpecialSpawnEnemyTile(usedCoords)
-  if (!target) return
-  const steps = shortestPathStepsMainGrid(sr, sc, target.row, target.col)
-  if (steps === null) return
-  const turnsLeft = steps + 2
-  const ed = TileEngine.createEnemy('treasure_goblin', session.run.floor)
-  ed.hp = 1
-  ed.currentHP = 1
-  ed.dmg = [0, 0]
-  ed.hitDamage = 0
-  target.enemyData = ed
-  target.type = 'enemy'
-  target.revealed = true
-  session.run.tilesRevealed++
-  usedCoords.add(`${target.row},${target.col}`)
-  session.run.treasureGoblin = { row: target.row, col: target.col, turnsLeft }
-  const patched = TileEngine.patchMainGridTileAt(target.row, target.col, UI.getGridEl(), ctx.onTileTap, ctx.onTileHold)
-  if (!patched) ctx.refreshMainGridDomFromModel()
-  else {
-    TileEngine.refreshAllThreatClueDisplays()
-    ctx.syncGridDomClassesFromModel()
-  }
-  attachTreasureGoblinTimerUi(target)
-  UI.setMessage('💰 A Treasure Goblin appears! Reach him before the timer hits zero.')
 }
 
 export function spawnArcherGoblin(ctx, usedCoords) {

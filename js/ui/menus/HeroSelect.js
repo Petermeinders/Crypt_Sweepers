@@ -291,15 +291,20 @@ function syncHeroUpgradeDetail(ctx, char, ownedList, xp, isLocked) {
     renderUpgradeDetail(ctx, null)
     return
   }
-  const isOwned = ownedList.includes(selectedUpgradeId)
-  const prereqOk = !def.requires || ownedList.includes(def.requires)
+  const isOwned = isHeroUpgradeOwned(selectedUpgradeId, char.upgrades, ownedList)
+  const prereqOk = !def.requires || isHeroUpgradeOwned(def.requires, char.upgrades, ownedList)
   const canAfford = !isOwned && xp >= def.xpCost && !isLocked && prereqOk
   renderUpgradeDetail(ctx, selectedUpgradeId, def, isOwned, canAfford)
 }
 
+function isHeroUpgradeOwned(id, upgradeMap, ownedList) {
+  const udef = upgradeMap[id]
+  return (udef?.innate) || ownedList.includes(id)
+}
+
 function renderHeroUpgradeSimpleSlot(ctx, grid, char, id, def, ownedList, xp, isLocked) {
-  const isOwned    = ownedList.includes(id)
-  const prereqOk   = !def.requires || ownedList.includes(def.requires)
+  const isOwned    = isHeroUpgradeOwned(id, char.upgrades, ownedList)
+  const prereqOk   = !def.requires || isHeroUpgradeOwned(def.requires, char.upgrades, ownedList)
   const isSelected = id === selectedUpgradeId
 
   // Glow while the ability or any of its mastery upgrades can still be purchased
@@ -450,16 +455,6 @@ function renderHeroUpgradeGrid(ctx, grid, char, ownedList, xp, isLocked) {
         passiveGrid.appendChild(deSlot)
       }
       if (char.id === 'necromancer') {
-        const rmSlot = document.createElement('div')
-        rmSlot.className = 'hero-passive-builtin'
-        rmSlot.innerHTML = `
-          <span class="hero-passive-builtin-icon">🧟</span>
-          <div class="hero-passive-builtin-info">
-            <div class="hero-passive-builtin-name">Raise Minion <span class="hero-passive-builtin-badge">✓ Applied</span></div>
-            <div class="hero-passive-builtin-desc">Tap an ash pile (slain enemy) to spend 10 mana and raise one 🧟 minion on that tile — only one per corpse. Minions strike alongside you in combat and absorb the next enemy hit (closest minion takes damage instead of you); when a minion dies, the ash scatters and cannot be raised again. Level-up Minion Mastery picks upgrade their stats.</div>
-          </div>`
-        passiveGrid.appendChild(rmSlot)
-
         const msSlot = document.createElement('div')
         msSlot.className = 'hero-passive-builtin'
         msSlot.innerHTML = `
@@ -516,7 +511,11 @@ function renderUpgradeDetail(ctx, id, def, isOwned, canAfford) {
     return
   }
   backdrop.classList.remove('hidden')
-  document.getElementById('hero-upgrade-detail-name').textContent = def.name
+  const kindBadge = def.isPassive
+    ? '<span class="hero-upgrade-kind-badge passive">Passive</span>'
+    : (def.effect?.type === 'active-ability' ? '<span class="hero-upgrade-kind-badge active">Active</span>' : '')
+  document.getElementById('hero-upgrade-detail-name').innerHTML =
+    `${def.name}${kindBadge ? ` ${kindBadge}` : ''}`
   document.getElementById('hero-upgrade-detail-desc').textContent = def.desc
 
   const char     = CHARACTERS[heroIdx]
@@ -546,7 +545,7 @@ function renderUpgradeDetail(ctx, id, def, isOwned, canAfford) {
   }
 
   // Prereq hint
-  const missingPrereq = def.requires && !owned.includes(def.requires)
+  const missingPrereq = def.requires && !isHeroUpgradeOwned(def.requires, map, owned)
   if (hintEl) {
     if (missingPrereq && !isOwned) {
       hintEl.textContent = `Requires ${map[def.requires]?.name ?? def.requires} first.`
@@ -600,7 +599,7 @@ function renderUpgradeDetail(ctx, id, def, isOwned, canAfford) {
 
       tab.tiers.forEach(([tierId, tierDef], idx) => {
         const tierOwned  = owned.includes(tierId)
-        const prereqMet  = !tierDef.requires || owned.includes(tierDef.requires)
+        const prereqMet  = !tierDef.requires || isHeroUpgradeOwned(tierDef.requires, map, owned)
         const tierAfford = !tierOwned && prereqMet && xp >= tierDef.xpCost
         const isLast     = idx === tab.tiers.length - 1
 
@@ -678,7 +677,7 @@ function renderUpgradeDetail(ctx, id, def, isOwned, canAfford) {
   // Base buy button
   const buyBtn = document.getElementById('hero-upgrade-buy-btn')
   if (isOwned) {
-    buyBtn.textContent = '✓ Owned'
+    buyBtn.textContent = def.innate ? '✓ Innate passive' : '✓ Owned'
     buyBtn.disabled    = true
     buyBtn.onclick     = null
   } else {

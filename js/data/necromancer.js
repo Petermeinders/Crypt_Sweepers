@@ -101,6 +101,15 @@ export const NECROMANCER_ABILITIES = {
 
 /** Meta-shop tree. Base actives unlock into the level-up pool; mastery tiers require the base active. */
 export const NECROMANCER_UPGRADES = {
+  'raise-minion': {
+    name:       'Raise Minion',
+    desc:       'Passive ability (innate): tap an ash pile (slain enemy) to spend 10 mana and raise one 🧟 minion on that tile — only one minion per corpse. Minions strike alongside you in combat and absorb enemy hits (closest minion takes damage instead of you). When a minion dies, the ash scatters and cannot be raised again. Meta Minion Mastery tiers unlock stronger minion stats in your level-up choice pool.',
+    icon:       '🧟',
+    innate:     true,
+    isPassive:  true,
+    manaCost:   RAISE_MINION_COST,
+    effect:     { type: 'passive-ability', ability: 'raise-minion' },
+  },
   'strengthen-minion': {
     name:     'Strengthen Minion',
     desc:     'Active ability: tap a raised minion to reinforce it with +5 max HP (heals to new max). Unlocks Strengthen Minion in your level-up choice pool.',
@@ -172,26 +181,30 @@ export const NECROMANCER_UPGRADES = {
     effect:   { type: 'detonation-chain' },
   },
   'raise-minion-mastery-1': {
-    name:     'Raise Minion Mastery I',
+    name:     'Minion Mastery I',
     desc:     'Unlocks Minion Mastery I in level-up picks (3 HP, 1 damage).',
     icon:     '🦴',
     xpCost:   300,
+    requires: 'raise-minion',
+    masteryOf:'raise-minion',
     effect:   { type: 'mastery-tier-unlock' },
   },
   'raise-minion-mastery-2': {
-    name:     'Raise Minion Mastery II',
+    name:     'Minion Mastery II',
     desc:     'Unlocks Minion Mastery II in level-up picks (4 HP, 2 damage).',
     icon:     '💀',
     xpCost:   450,
     requires: 'raise-minion-mastery-1',
+    masteryOf:'raise-minion',
     effect:   { type: 'mastery-tier-unlock' },
   },
   'raise-minion-mastery-3': {
-    name:     'Raise Minion Mastery III',
+    name:     'Minion Mastery III',
     desc:     'Unlocks Minion Mastery III in level-up picks (5 HP, 2 damage).',
     icon:     '👑',
     xpCost:   600,
     requires: 'raise-minion-mastery-2',
+    masteryOf:'raise-minion',
     effect:   { type: 'mastery-tier-unlock' },
   },
   // ── Raise Minion branch: Undying Legion ───────────────────────────
