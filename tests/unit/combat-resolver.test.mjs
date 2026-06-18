@@ -110,3 +110,21 @@ describe('CombatResolver.resolveArmorHit', () => {
     assert.equal(hit.hpDamage, 2)
   })
 })
+
+describe('CombatResolver.resolveFlee', () => {
+  test('costs 10% max HP rounded up (min 1)', () => {
+    assert.equal(CombatResolver.computeFleeHpCost({ maxHp: 50 }), 5)
+    assert.equal(CombatResolver.computeFleeHpCost({ maxHp: 35 }), 4)
+    assert.equal(CombatResolver.computeFleeHpCost({ maxHp: 5 }), 1)
+  })
+
+  test('respects fleeMaxCost cap', () => {
+    assert.equal(CombatResolver.computeFleeHpCost({ maxHp: 100, fleeMaxCost: 3 }), 3)
+  })
+
+  test('resolveFlee returns message with damage', () => {
+    const r = CombatResolver.resolveFlee({ maxHp: 40 })
+    assert.equal(r.fleeDmg, 4)
+    assert.match(r.message, /4 damage/)
+  })
+})

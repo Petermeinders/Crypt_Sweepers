@@ -3,7 +3,7 @@
 // Version bump CACHE_NAME to force cache refresh on deploy.
 // Keep in sync with APP_VERSION in js/appVersion.js and version.json.
 
-const CACHE_NAME = 'crypt-sweepers-v517'
+const CACHE_NAME = 'crypt-sweepers-v527'
 
 const PRECACHE_ASSETS = [
   './',
@@ -121,6 +121,10 @@ const PRECACHE_ASSETS = [
   './assets/sprites/abilities/arrow-barrage-badge.png',
   './assets/sprites/abilities/poison-arrow-bg.png',
   './assets/sprites/abilities/poison-arrow-badge.png',
+  './assets/sprites/abilities/raise-minion.png',
+  './assets/sprites/abilities/strengthen-minion.png',
+  './assets/sprites/abilities/corpse-explosion.png',
+  './assets/sprites/abilities/bone-armor.png',
   './assets/DungeonBackground.png',
   './assets/DungeonBackgroundJungle.png',
   './assets/DungeonBackgroundFrozen.png',
@@ -150,6 +154,9 @@ const PRECACHE_ASSETS = [
   './assets/ui/rare-tile.png',
   './assets/ui/legendary-tile.png',
   './assets/ui/play-qr.png',
+  './assets/ui/htp-hud.png',
+  './assets/ui/htp-equipment.png',
+  './assets/ui/htp-backpack.png',
   './assets/ui/menu-panel-wood-frame.png',
   './assets/ui/menu-btn-wood-bars.png',
   './assets/ui/btn-new-run.png',

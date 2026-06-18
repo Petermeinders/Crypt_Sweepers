@@ -30,6 +30,7 @@ export const HERO_ABILITY_SLOTS = {
   necromancer: {
     slotA: 'strengthenMinionAction',
     slotB: 'corpseExplosionAction',
+    slotC: 'boneArmorAction',
   },
   vampire: {
     slotA: 'bloodTitheAction',

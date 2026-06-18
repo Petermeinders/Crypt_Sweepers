@@ -141,6 +141,12 @@ export const CONFIG = {
     goldKeepPercent: 0.20,
   },
 
+  /** Per-encounter Flee (combat disengage) — flat % of max HP; bypasses armor. */
+  flee: {
+    hpPercent: 0.10,
+    minDamage: 1,
+  },
+
   checkpoint: {
     healPercent:  0.30,
     manaRestore:  5,

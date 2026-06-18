@@ -27,10 +27,7 @@ import {
   NECROMANCER_MINION,
   RAISE_MINION_COST,
   STRENGTHEN_MINION_COST,
-  STRENGTHEN_MINION_HP_GAIN,
   CORPSE_EXPLOSION_COST,
-  CORPSE_EXPLOSION_DAMAGE,
-  DETONATION_CHAIN_EXTRA_COST,
   NECROMANCER_UPGRADES,
 } from '../data/necromancer.js'
 import { WARRIOR_UPGRADES }  from '../data/upgrades.js'
@@ -635,6 +632,8 @@ const _cancelChainLightningMode = TargetingController.cancelChainLightningMode
 const _cancelTelekineticThrowMode = TargetingController.cancelTelekineticThrowMode
 const _cancelStrengthenMinionMode = TargetingController.cancelStrengthenMinionMode
 const _cancelCorpseExplosionMode = TargetingController.cancelCorpseExplosionMode
+const _cancelBoneArmorMode = TargetingController.cancelBoneArmorMode
+const _cancelGargantuanMergeMode = TargetingController.cancelGargantuanMergeMode
 
 function _targetingUiCtx() {
   return { previewSpellManaCostForUi: _previewSpellManaCostForUi }
@@ -688,6 +687,8 @@ function _floorCtx() {
     cancelTelekineticThrowMode: _cancelTelekineticThrowMode,
     cancelStrengthenMinionMode: _cancelStrengthenMinionMode,
     cancelCorpseExplosionMode: _cancelCorpseExplosionMode,
+    cancelBoneArmorMode: _cancelBoneArmorMode,
+    cancelGargantuanMergeMode: _cancelGargantuanMergeMode,
     syncWarBannerCoordsFromGrid: _syncWarBannerCoordsFromGrid,
     syncTurretVisual: _syncTurretVisual,
     revealStartTile: _revealStartTile,
@@ -760,6 +761,8 @@ function _heroAbilityBaseCtx() {
     cancelTelekineticThrowMode: _cancelTelekineticThrowMode,
     cancelStrengthenMinionMode: _cancelStrengthenMinionMode,
     cancelCorpseExplosionMode: _cancelCorpseExplosionMode,
+    cancelBoneArmorMode: _cancelBoneArmorMode,
+    cancelGargantuanMergeMode: _cancelGargantuanMergeMode,
     cancelEngineerConstructMode: _cancelEngineerConstructMode,
     cancelSpellLanternBlindingForRicochet: _cancelSpellLanternBlindingForRicochet,
     resolveTauntTarget: (tile) => CombatController.resolveTauntTarget(_combatCtx(), tile),
@@ -941,11 +944,16 @@ const _damageTurretFromEnemyHit = (a, b) => Engineer.damageTurretFromEnemyHit(_e
 
 function strengthenMinionAction() { Necromancer.strengthenMinionAction(_necroCtx()) }
 function corpseExplosionAction() { Necromancer.corpseExplosionAction(_necroCtx()) }
+function boneArmorAction() { Necromancer.boneArmorAction(_necroCtx()) }
 const _necroRaiseMinion = (t) => Necromancer.necroRaiseMinion(_necroCtx(), t)
-const _necroMinionTotalDmg = () => Necromancer.necroMinionTotalDmg()
+const _necroMinionMeleeBonus = () => Necromancer.necroMinionMeleeBonus()
+const _necroLegionMeleeBonus = (heroMelee) => Necromancer.necroLegionMeleeBonus(heroMelee)
+const _necroTitansReachCleave = (t) => Necromancer.necroTitansReachCleave(_combatCtx(), t)
+const _tryGargantuanMergeTap = (t) => Necromancer.tryGargantuanMergeTap(_necroCtx(), t)
 const _necroMinionAbsorbDamage = (a, b, c) => Necromancer.necroMinionAbsorbDamage(_necroCtx(), a, b, c)
 const _refreshNecroActiveHud = () => Necromancer.refreshNecroActiveHud(_necroCtx())
 const _executeCorpseExplosion = (t) => Necromancer.executeCorpseExplosion(_necroCtx(), t)
+const _executeBoneArmor = (t) => Necromancer.executeBoneArmor(_necroCtx(), t)
 const _hasNecroMetaUpgrade = Necromancer.hasNecroMetaUpgrade
 const _syncMinionVisual = Necromancer.syncMinionVisual
 const _syncAllMinionVisuals = () => Necromancer.syncAllMinionVisuals()
@@ -965,7 +973,9 @@ function _combatCtx() {
     canAttackEnemy: _canAttackEnemy,
     tickPoisonArrowDotOnGlobalTurn: _tickPoisonArrowDotOnGlobalTurn,
     engineerTurretDamage: _engineerTurretDamage,
-    necroMinionTotalDmg: _necroMinionTotalDmg,
+    necroMinionMeleeBonus: _necroMinionMeleeBonus,
+    necroLegionMeleeBonus: _necroLegionMeleeBonus,
+    necroTitansReachCleave: _necroTitansReachCleave,
     scaleOutgoingDamageToEnemy: _scaleOutgoingDamageToEnemy,
     gainManaFromMeleeHit: _gainManaFromMeleeHit,
     applyTearyEyes: _applyTearyEyes,
@@ -998,6 +1008,7 @@ function _combatCtx() {
 }
 
 function fightAction(tile) { CombatController.fightAction(_combatCtx(), tile) }
+function fleeCombatAction() { CombatController.fleeCombatAction(_combatCtx()) }
 function _endCombatVictory(tile) { CombatController.endCombatVictory(_combatCtx(), tile) }
 
 function _revealCtx() {
@@ -1063,6 +1074,7 @@ function _tapCtx() {
     syncMinionVisual: _syncMinionVisual,
     saveActiveRun: _saveActiveRun,
     executeCorpseExplosion: _executeCorpseExplosion,
+    executeBoneArmor: _executeBoneArmor,
     castSpell: _castSpell,
     rand: _rand,
     gainGold: _gainGold,
@@ -1097,6 +1109,7 @@ function _tapCtx() {
     collectManuscript: _collectManuscript,
     climbThroughHazard: _climbThroughHazard,
     necroRaiseMinion: _necroRaiseMinion,
+    tryGargantuanMergeTap: _tryGargantuanMergeTap,
     fightAction,
     hapticFromUserGesture: _hapticFromUserGesture,
     hasNecroMetaUpgrade: _hasNecroMetaUpgrade,
@@ -2998,6 +3011,7 @@ export default {
   getLifeTapStacks: Mage.getLifeTapStacks,
   strengthenMinionAction,
   corpseExplosionAction,
+  boneArmorAction,
   bloodTitheAction,
   mistFormAction,
   bloodPactAction,
@@ -3009,6 +3023,7 @@ export default {
   dowsingRodAction,
   spyglassAction,
   hourglassAction,
+  fleeCombatAction,
   doRetreat,
   applyCheat,
   cheatAddVoidPearl,

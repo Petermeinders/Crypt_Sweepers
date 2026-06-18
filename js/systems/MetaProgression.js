@@ -407,6 +407,7 @@ function canBuyNecromancerUpgrade(save, id) {
   if (!save.necromancer) return false
   if (save.necromancer.upgrades.includes(id)) return false
   if (def.requires && !save.necromancer.upgrades.includes(def.requires)) return false
+  if (def.conflictsWith?.some(c => save.necromancer.upgrades.includes(c))) return false
   return save.necromancer.totalXP >= def.xpCost
 }
 

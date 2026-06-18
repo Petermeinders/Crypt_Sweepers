@@ -5,6 +5,156 @@
 export const CHANGELOG = [
   {
     dateLabel: 'Jun 2026',
+    dateIso:   '2026-06-17',
+    version:   'v527',
+    title:     'Combat Flee',
+    summary:
+      'Disengage from a focused enemy for 10% max HP — they stay alive and adjacent tiles remain locked.',
+    items: [
+      {
+        tag:  'New',
+        text: 'Flee — during an active fight, tap 🏃 Flee in the action panel. Costs 10% max HP (min 1). Enemy survives; adjacent tiles stay locked until it is slain.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Jun 2026',
+    dateIso:   '2026-06-17',
+    version:   'v526',
+    title:     'Engineer: Turret Mastery passive',
+    summary:
+      'Turret Mastery I–III merged into one innate passive with three Expertise tiers in the hero shop.',
+    items: [
+      {
+        tag:  'Change',
+        text: 'Turret Mastery — one passive slot (innate with Construct Turret). Buy Expertise I–III under it for Level 2/3 upgrades and kill-heal. Existing purchases migrate automatically.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Jun 2026',
+    dateIso:   '2026-06-17',
+    version:   'v525',
+    title:     'Necromancer: Bone Armor',
+    summary:
+      'New active ability — consume enemy corpses for armor, with three expertise tiers for heal and mana recovery.',
+    items: [
+      {
+        tag:  'New',
+        text: 'Bone Armor — tap the HUD button, then an enemy ash pile. Expertise I: +10% max HP armor (10 mana). II: also heal 10% HP (15 mana). III: recover 10% max mana after paying cost (20 mana). Corpse is consumed.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Jun 2026',
+    dateIso:   '2026-06-17',
+    version:   'v524',
+    title:     'Strengthen Minion mastery rework',
+    summary:
+      'Mastery tiers set mana cost (15 / 20 / 30) and HP gain from your horde\'s total damage on the floor.',
+    items: [
+      {
+        tag:  'Change',
+        text: 'Base: 10 mana, +20% max HP. Mastery I: 15 mana, 40% HP. Mastery II: 20 mana, +10% melee to minion. Mastery III: 30 mana, also add total living minion damage to HP (all prior tiers stack).',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Jun 2026',
+    dateIso:   '2026-06-17',
+    version:   'v523',
+    title:     'Strengthen Minion scales with hero',
+    summary:
+      'Strengthen Minion HP and Mastery II damage are now percentages of your max HP and melee.',
+    items: [
+      {
+        tag:  'Change',
+        text: 'Strengthen — +20% max HP per cast (40% with Mastery I). Mastery II adds +10% melee to the minion.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Jun 2026',
+    dateIso:   '2026-06-17',
+    version:   'v522',
+    title:     'Corpse Explosion mastery rework',
+    summary:
+      'Blast damage scales with melee; three exclusive mastery paths (Abyssal Reach, Detonation Chain, Essence Drain) with tiered in-run picks.',
+    items: [
+      {
+        tag:  'Change',
+        text: 'Base blast — 35% of melee, 10 mana. Outer rings use 75% / 50% falloff.',
+      },
+      {
+        tag:  'New',
+        text: 'Pick one mastery branch per run: Reach (wider rings), Chain (corpse detonations + overkill ripples from initial blast), or Drain (mana/HP from enemies hit).',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Jun 2026',
+    dateIso:   '2026-06-17',
+    version:   'v521',
+    title:     'Minion Mastery scales with hero',
+    summary:
+      'Raised minion HP and damage are now a % of your max HP and melee instead of flat numbers, so the army grows with your build.',
+    items: [
+      {
+        tag:  'Change',
+        text: 'Base raise — 10% max HP, 10% melee on strikes. Minion Mastery I/II/III — 15/25/35% HP and 15/22/30% melee. Damage % is a slice added each swing, not a full duplicate of your attack.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Jun 2026',
+    dateIso:   '2026-06-17',
+    version:   'v520',
+    title:     'Gargantuan raise branch',
+    summary:
+      'New Raise Minion fork opposite Undying Legion — fuse floor corpses into one colossus, then grow it with Mass Ascension and Titan\'s Reach cleaves.',
+    items: [
+      {
+        tag:  'New',
+        text: 'Gargantuan I — 2+ corpses on the floor fuse on the clicked tile into one Gargantuan (Rule A). Single corpse raises stay normal.',
+      },
+      {
+        tag:  'New',
+        text: 'Gargantuan II (Monolith) — your only living minion takes 25% less damage when absorbing hits.',
+      },
+      {
+        tag:  'New',
+        text: 'Gargantuan III — Mass Ascension (tap minion → Gargantuan for +25% HP / +10% dmg) and Titan\'s Reach cleave on your melee.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Jun 2026',
+    dateIso:   '2026-06-17',
+    version:   'v519',
+    title:     'Necromancer mid-game scaling',
+    summary:
+      'Minions, Strengthen Minion, and Corpse Explosion now scale with floor depth and your attack power so the army stays relevant in deeper runs.',
+    items: [
+      {
+        tag:  'Balance',
+        text: 'Raise Minion — higher mastery tiers plus floor/melee scaling. Default melee adds only your strongest minion; Undying Legion III replaces that with half of combined army damage (rounded up).',
+      },
+      {
+        tag:  'Balance',
+        text: 'Strengthen Minion — +8 / +16 HP base (was +5 / +10), gains extra HP from floor depth; Mastery II +1 damage fix.',
+      },
+      {
+        tag:  'Balance',
+        text: 'Corpse Explosion — base 5 damage (+2 mastery), scales with floor depth and attack like other actives.',
+      },
+      {
+        tag:  'Fix',
+        text: 'Undying Legion reshuffled — II grants +20% hero melee with 3+ minions; III combines minion damage at half (rounded up). Revive tier removed for now.',
+      },
+    ],
+  },
+  {
+    dateLabel: 'Jun 2026',
     dateIso:   '2026-06-16',
     version:   'v501',
     title:     'HUD refresh & smarter potions',

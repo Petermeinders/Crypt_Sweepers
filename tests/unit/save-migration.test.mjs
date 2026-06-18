@@ -139,4 +139,20 @@ describe('migrateSave', () => {
     const { changed } = migrateSave(save)
     assert.equal(changed, false)
   })
+
+  test('renames legacy engineer turret mastery upgrade ids', () => {
+    const save = MetaProgression.defaultSave()
+    save.engineer.upgrades = [
+      'construct-turret-mastery-1',
+      'construct-turret-mastery-2',
+      'construct-turret-mastery-3',
+    ]
+    const { save: out, changed } = migrateSave(save)
+    assert.deepEqual(out.engineer.upgrades, [
+      'turret-mastery-mastery-1',
+      'turret-mastery-mastery-2',
+      'turret-mastery-mastery-3',
+    ])
+    assert.equal(changed, true)
+  })
 })

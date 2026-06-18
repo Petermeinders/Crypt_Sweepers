@@ -1,10 +1,11 @@
 import GameState, { States } from '../core/GameState.js'
 import EventBus from '../core/EventBus.js'
 import TileEngine from '../systems/TileEngine.js'
+import CombatResolver from '../systems/CombatResolver.js'
 import UI from '../ui/UI.js'
 import { session } from '../core/RunContext.js'
 import { RANGER_UPGRADES } from '../data/ranger.js'
-import { STRENGTHEN_MINION_COST } from '../data/necromancer.js'
+import { computeStrengthenHpGain, computeStrengthenDmgGain, computeStrengthenManaCost } from '../heroes/necromancer.js'
 
 const MSG_COMBAT_ACTION_BLOCKED = 'Cannot perform action when in combat with enemy'
 
@@ -84,6 +85,13 @@ export function syncCombatEngagementDom() {
         UI.setTileCombatBlocked(t.element, hasEngagement && !engaged)
       }
     }
+  }
+  if (session.run?.player) {
+    const showFlee = isCombatCommitmentLocked() && !isInSubFloor()
+    const cost = showFlee ? CombatResolver.computeFleeHpCost(session.run.player) : 0
+    UI.updateFleeBtn(showFlee, cost)
+  } else {
+    UI.updateFleeBtn(false, 0)
   }
 }
 
@@ -199,6 +207,9 @@ export function onTileTap(ctx, row, col) {
     }
   }
 
+  // Necromancer: Gargantuan III — Mass Ascension (tap minion → tap Gargantuan)
+  if (ctx.tryGargantuanMergeTap?.(tile)) return
+
   // Necromancer: Strengthen Minion — tap a minion tile to reinforce it
   if (session.tap.strengthenMinionSelecting) {
     const minion = (session.run.minions ?? []).find(m => m.row === tile.row && m.col === tile.col && m.hp > 0)
@@ -206,20 +217,20 @@ export function onTileTap(ctx, row, col) {
       UI.setMessage('Tap one of your minions to strengthen it.', true)
       return
     }
-    if (session.run.player.mana < STRENGTHEN_MINION_COST) {
+    const smManaCost = computeStrengthenManaCost()
+    if (session.run.player.mana < smManaCost) {
       UI.setMessage('Not enough mana for Strengthen Minion!', true)
       ctx.cancelStrengthenMinionMode()
       return
     }
-    const smStacks = session.run.player.strengthenMinionStacks ?? 0
-    const smHpGain = smStacks >= 1 ? 10 : 5
-    const smManaCost = ctx.hasNecroMetaUpgrade('strengthen-minion-mastery-3') ? 6 : STRENGTHEN_MINION_COST
+    const smHpGain = computeStrengthenHpGain()
+    const smDmgGain = computeStrengthenDmgGain(ctx)
     session.run.player.mana -= smManaCost
     UI.updateMana(session.run.player.mana, session.run.player.maxMana)
     minion.maxHp += smHpGain
     minion.hp    += smHpGain
-    if (smStacks >= 2) {
-      minion.damage = (minion.damage ?? 1) + 1
+    if (smDmgGain > 0) {
+      minion.dmg = (minion.dmg ?? 1) + smDmgGain
     }
     ctx.syncMinionVisual(minion)
     UI.spawnFloat(tile.element, `❤️ +${smHpGain}`, 'xp')
@@ -238,6 +249,18 @@ export function onTileTap(ctx, row, col) {
       return
     }
     ctx.executeCorpseExplosion(tile)
+    return
+  }
+
+  // Necromancer: Bone Armor — tap an enemy corpse pile to consume it
+  if (session.tap.boneArmorSelecting) {
+    const isCorpse = tile.revealed && tile.enemyData && tile.enemyData._slain && !tile.corpseExploded
+    const minionOnTile = (session.run.minions ?? []).find(m => m.row === tile.row && m.col === tile.col && m.hp > 0)
+    if (!isCorpse || minionOnTile) {
+      UI.setMessage('Tap an enemy corpse pile (ash) to bind bone armor.', true)
+      return
+    }
+    ctx.executeBoneArmor(tile)
     return
   }
 
@@ -571,6 +594,7 @@ export function onTileTap(ctx, row, col) {
     } else if (tile.revealed && tile.type === 'anvil') {
       UI.setMessage('You have already upgraded your damage at this anvil.', true)
     } else if (tile.revealed && tile.enemyData && tile.enemyData._slain && ctx.charKey() === 'necromancer') {
+      if (session.tap.boneArmorSelecting) return
       // Necromancer: tap ash pile to raise a minion
       ctx.necroRaiseMinion(tile)
     } else if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {

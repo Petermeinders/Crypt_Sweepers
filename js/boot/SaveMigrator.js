@@ -114,6 +114,41 @@ export function migrateSave(save) {
 
   MetaProgression.normalizeUnlockedHeroes(save)
   {
+    const necroRenames = {
+      'abyssal-reach':      'corpse-explosion-abyssal-1',
+      'detonation-chain':   'corpse-explosion-detonation-1',
+    }
+    const ups = save.necromancer?.upgrades
+    if (Array.isArray(ups)) {
+      for (let i = 0; i < ups.length; i++) {
+        if (ups[i] === 'corpse-explosion-mastery-1') {
+          ups.splice(i, 1)
+          i--
+          changed = true
+        } else if (necroRenames[ups[i]]) {
+          ups[i] = necroRenames[ups[i]]
+          changed = true
+        }
+      }
+    }
+  }
+  {
+    const engineerRenames = {
+      'construct-turret-mastery-1': 'turret-mastery-mastery-1',
+      'construct-turret-mastery-2': 'turret-mastery-mastery-2',
+      'construct-turret-mastery-3': 'turret-mastery-mastery-3',
+    }
+    const ups = save.engineer?.upgrades
+    if (Array.isArray(ups)) {
+      for (let i = 0; i < ups.length; i++) {
+        if (engineerRenames[ups[i]]) {
+          ups[i] = engineerRenames[ups[i]]
+          changed = true
+        }
+      }
+    }
+  }
+  {
     const selId = save.selectedCharacter ?? 'warrior'
     const selCh = SELECTABLE_HEROES.find(c => c.id === selId)
     if (selCh && (selCh.comingSoon || (selCh.unlockCost != null && !MetaProgression.isHeroUnlocked(save, selId)))) {

@@ -1121,6 +1121,16 @@ body.tile-colors .tile-front.type-rope {
   margin-bottom: 2px;
 }
 
+.minion-overlay.gargantuan .minion-icon {
+  font-size: 2rem;
+  filter: drop-shadow(0 0 6px rgba(200, 80, 255, 0.85));
+}
+
+.minion-overlay.gargantuan .minion-stats {
+  background: rgba(40, 0, 50, 0.85);
+  border: 1px solid rgba(200, 120, 255, 0.45);
+}
+
 /* ── Sub-floor tile types ───────────────────────────────────── */
 .tile-type-sub_floor_entry .tile-front,
 .tile-type-sub_floor_entry .tile-face,

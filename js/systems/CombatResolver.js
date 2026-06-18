@@ -81,12 +81,23 @@ function resolveSpell(player, enemyData) {
 }
 
 // Returns { fleeDmg, message }
-function resolveFlee() {
-  const fleeDmg = rand(2, 8)
+function computeFleeHpCost(player) {
+  const maxHp = Math.max(1, player?.maxHp ?? 35)
+  const pct = CONFIG.flee?.hpPercent ?? 0.10
+  const min = CONFIG.flee?.minDamage ?? 1
+  let cost = Math.max(min, Math.ceil(maxHp * pct))
+  if (player?.fleeMaxCost != null && Number.isFinite(player.fleeMaxCost)) {
+    cost = Math.min(cost, Math.max(min, player.fleeMaxCost))
+  }
+  return cost
+}
+
+function resolveFlee(player) {
+  const fleeDmg = computeFleeHpCost(player)
   Logger.debug(`[CombatResolver] flee — dmg:${fleeDmg}`)
   return {
     fleeDmg,
-    message: `You back away, taking ${fleeDmg} damage. The enemy remains.`,
+    message: `You break away, taking ${fleeDmg} damage. The enemy remains — adjacent tiles stay locked.`,
   }
 }
 
@@ -156,4 +167,4 @@ function resolveArmorHit({ effective, armor, negation = 0, negationCap = 1, rng 
   return { negated: false, armorAbsorbed: absorbed, hpDamage: eff - absorbed }
 }
 
-export default { resolveFight, resolveSpell, resolveFlee, resolveFastReveal, rollMerchant, abilityDmgFloor, abilityPowerMult, resolveArmorHit }
+export default { resolveFight, resolveSpell, resolveFlee, computeFleeHpCost, resolveFastReveal, rollMerchant, abilityDmgFloor, abilityPowerMult, resolveArmorHit }

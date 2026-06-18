@@ -83,6 +83,7 @@ export const CHARACTERS = [
     baseMana:    30,
     baseDmg:     '1',
     comingSoon:  false,
+    experimental: true,
     complexity:  'Hard',
   },
   {
@@ -98,6 +99,7 @@ export const CHARACTERS = [
     baseHP:      35,
     baseMana:    55,
     baseDmg:     '1',
+    experimental: true,
     complexity:  'Hard',
   },
   {

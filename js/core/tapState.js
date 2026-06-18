@@ -24,6 +24,8 @@ export function createTapState() {
     telekineticEnemyTile: null,
     strengthenMinionSelecting: false,
     corpseExplosionSelecting: false,
+    boneArmorSelecting: false,
+    gargantuanMergeMinionId: null,
     combatEngagementTile: null,
   }
 }

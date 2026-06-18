@@ -6,6 +6,7 @@ import { MAGE_UPGRADES } from '../../data/mage.js'
 import { NECROMANCER_UPGRADES } from '../../data/necromancer.js'
 import { VAMPIRE_UPGRADES } from '../../data/vampire.js'
 import { NINJA_UPGRADES } from '../../data/ninja.js'
+import { resolveUpgradeUseCost, formatUseCostLabel, useCostHtml, parseTierIndexFromId } from '../../data/upgradeUseCost.js'
 import { metaCharSave, heroIsGoldLocked } from './shared.js'
 
 let heroIdx = 0
@@ -43,6 +44,7 @@ function ensureHeroSelectSlides(ctx) {
   if (!scroll) return
   const first = scroll.children[0]
   const structureOk = first?.querySelector('.hero-doorway')
+    && first?.querySelector('.hero-select-experimental-badge')
   if (scroll.children.length === CHARACTERS.length && structureOk) return
   scroll.innerHTML = ''
   CHARACTERS.forEach((char, i) => {
@@ -68,7 +70,10 @@ function ensureHeroSelectSlides(ctx) {
         </div>
       </div>
       <div class="hero-select-namewrap">
-        <div class="hero-select-name"></div>
+        <div class="hero-select-name-row">
+          <div class="hero-select-name"></div>
+          <span class="hero-select-experimental-badge hidden">Experimental</span>
+        </div>
         <div class="hero-select-tagline"></div>
         <div class="hero-select-xp-row">
           <span class="hero-stat-gold">💰 <span class="hero-stat-gold-val">0</span></span>
@@ -213,6 +218,7 @@ function renderHeroSelect(ctx, opts = {}) {
     const isCurrent = i === heroIdx
 
     slide.querySelector('.hero-select-name').textContent    = char.name
+    slide.querySelector('.hero-select-experimental-badge')?.classList.toggle('hidden', !char.experimental)
     slide.querySelector('.hero-select-tagline').textContent = char.tagline
     slide.querySelector('.hero-select-xp').textContent      = String(xp)
     const goldPill = slide.querySelector('.hero-stat-gold-val')
@@ -267,9 +273,9 @@ function renderHeroSelect(ctx, opts = {}) {
   } else if (isLocked) {
     setCTA('Unlock', `${char.unlockCost}💰`, 'unlock', !ctx.MetaProgression.canUnlockHero(s, char.id))
   } else if (isSelected) {
-    setCTA('Selected', '', 'select', true)
+    setCTA('Selected', char.experimental ? 'Experimental' : '', 'select', true)
   } else {
-    setCTA('Select', '', 'select', false)
+    setCTA('Select', char.experimental ? 'Experimental' : '', 'select', false)
   }
 
   if (!skipScrollSync && scroll && scroll.clientWidth > 0) {
@@ -313,18 +319,13 @@ function renderHeroUpgradeSimpleSlot(ctx, grid, char, id, def, ownedList, xp, is
   )
 
   const btn = document.createElement('button')
-  btn.className = 'hero-upgrade-slot'
+  btn.className = 'hero-upgrade-slot hero-upgrade-slot--' + id
     + (isOwned              ? ' owned'              : '')
     + (isSelected           ? ' selected'           : '')
     + (hasUpgradesAvailable ? ' has-upgrades-available' : '')
-  const iconHTML = def.iconBgSrc && def.iconSrc
-    ? `<span class="hero-upgrade-icon-stack">
-         <img class="hero-upgrade-icon-bg" src="${def.iconBgSrc}" alt="" draggable="false"/>
-         <img class="hero-upgrade-icon-fg" src="${def.iconSrc}" alt="${def.name}" draggable="false"/>
-       </span>`
-    : def.iconSrc
-      ? `<img class="hero-upgrade-icon-img" src="${def.iconSrc}" alt="${def.name}" draggable="false"/>`
-      : `<span class="hero-upgrade-icon">${def.icon}</span>`
+  const iconHTML = def.iconSrc
+    ? `<img class="hero-upgrade-icon-img" src="${def.iconSrc}" alt="${def.name}" draggable="false"/>`
+    : `<span class="hero-upgrade-icon">${def.icon}</span>`
   btn.innerHTML = iconHTML
   btn.addEventListener('click', () => {
     selectedUpgradeId = isSelected ? null : id
@@ -533,11 +534,9 @@ function renderUpgradeDetail(ctx, id, def, isOwned, canAfford) {
 
   // Cost line
   if (costEl) {
-    const parts = []
-    if (def.manaCost) parts.push(`${def.manaCost} mana`)
-    if (def.hpCost)   parts.push(`${def.hpCost} HP`)
-    if (parts.length) {
-      costEl.textContent = `Cost: ${parts.join(' / ')} per use`
+    const useCost = resolveUpgradeUseCost(def, def)
+    if (useCost) {
+      costEl.textContent = `Cost: ${formatUseCostLabel(useCost)} per use`
       costEl.classList.remove('hidden')
     } else {
       costEl.classList.add('hidden')
@@ -613,6 +612,11 @@ function renderUpgradeDetail(ctx, id, def, isOwned, canAfford) {
         // Label for the display name — strip branch prefix if present
         // e.g. "Hemorrhage I" → show as "Hemorrhage I" (keep full name)
         const displayName = tierDef.name
+        const costBadge   = useCostHtml(resolveUpgradeUseCost(
+          { ...tierDef, id: tierId },
+          def,
+          parseTierIndexFromId(tierId) ?? idx,
+        ))
 
         // Button state
         let btnClass, btnText
@@ -632,7 +636,7 @@ function renderUpgradeDetail(ctx, id, def, isOwned, canAfford) {
           </div>
           <div class="upgrade-tier-body">
             <div class="upgrade-tier-header">
-              <span class="upgrade-tier-name${tierOwned ? ' owned' : tierAfford || !prereqMet ? '' : ' locked'}">${displayName}</span>
+              <span class="upgrade-tier-name${tierOwned ? ' owned' : tierAfford || !prereqMet ? '' : ' locked'}">${displayName}${costBadge}</span>
               <button class="upgrade-tier-btn ${btnClass}" ${tierOwned || (!tierAfford && prereqMet) || !prereqMet ? 'disabled' : ''}>${btnText}</button>
             </div>
             ${tierDef.desc ? `<div class="upgrade-tier-desc${tierOwned ? ' owned' : ''}">${tierDef.desc}</div>` : ''}

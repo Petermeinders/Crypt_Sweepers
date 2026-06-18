@@ -4,6 +4,7 @@ import { RANGER_UPGRADES } from '../data/ranger.js'
 import { ENGINEER_UPGRADES } from '../data/engineer.js'
 import { MAGE_UPGRADES } from '../data/mage.js'
 import { VAMPIRE_UPGRADES } from '../data/vampire.js'
+import { NECROMANCER_UPGRADES } from '../data/necromancer.js'
 
 /** In-run HUD buttons: resume prompt, abilities (hold-to-inspect), retreat, cheats. */
 export function wireHud(ctx) {
@@ -284,6 +285,7 @@ export function wireHud(ctx) {
       if (ch3 === 'ranger') ctx.GameController.arrowBarrageAction()
       else if (ch3 === 'mage') ctx.GameController.manaShieldAction()
       else if (ch3 === 'vampire') ctx.GameController.bloodPactAction()
+      else if (ch3 === 'necromancer') ctx.GameController.boneArmorAction()
       else ctx.GameController.divineLightAction()
     },
     () => {
@@ -326,6 +328,22 @@ export function wireHud(ctx) {
             { icon: '⚖️', label: 'Equalize',   desc: 'All revealed non-boss enemies → rounded average HP' },
             { icon: '➕', label: '+1 First',    desc: 'Each enemy gains 1 HP before averaging (ensures no instant kills)' },
             { icon: '🔮', label: 'Preview',     desc: eqDesc },
+          ],
+        })
+        return
+      }
+      if (ch4 === 'necromancer') {
+        if (!(s.necromancer?.upgrades ?? []).includes('bone-armor')) return
+        const def = NECROMANCER_UPGRADES['bone-armor']
+        ctx.UI.showInfoCard({
+          spriteSrc: def.iconSrc,
+          name:   def.name,
+          type:   'Necromancer Ability',
+          blurb:  'Consume an enemy corpse pile to bind spectral bone plates. Tap the ability, then tap an ash pile — the corpse is consumed and cannot be raised again.',
+          details: [
+            { icon: '🛡️', label: 'Armor',  desc: 'Gain armor equal to 10% of your max HP' },
+            { icon: '❤️', label: 'Expertise II', desc: 'Also heal 10% max HP (15 mana)' },
+            { icon: '🔵', label: 'Expertise III', desc: 'After paying mana, recover 10% max mana (20 mana)' },
           ],
         })
         return
@@ -401,6 +419,9 @@ export function wireHud(ctx) {
 
   document.getElementById('retreat-btn').addEventListener('click', () => {
     document.getElementById('retreat-confirm').classList.remove('hidden')
+  })
+  document.getElementById('flee-btn')?.addEventListener('click', () => {
+    ctx.GameController.fleeCombatAction()
   })
   document.getElementById('retreat-confirm-yes').addEventListener('click', () => {
     document.getElementById('retreat-confirm').classList.add('hidden')

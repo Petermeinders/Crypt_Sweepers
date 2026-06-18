@@ -54,6 +54,15 @@ export function cancelCorpseExplosionMode() {
   UI.setGridCorpseExplosionMode?.(false)
 }
 
+export function cancelBoneArmorMode() {
+  session.tap.boneArmorSelecting = false
+  UI.setBoneArmorActive?.(false)
+}
+
+export function cancelGargantuanMergeMode() {
+  session.tap.gargantuanMergeMinionId = null
+}
+
 export function cancelSpellLanternBlindingForRicochet(ctx) {
   if (session.tap.spellTargeting) {
     session.tap.spellTargeting = false

@@ -160,7 +160,9 @@
         </div>
         <div id="message-box">Tap a tile to reveal what lurks beneath...</div>
       </div>
-      <div id="action-buttons" class="hidden"></div>
+      <div id="action-buttons" class="hidden">
+        <button type="button" id="flee-btn" class="action-btn flee-btn hidden" title="Instantly escape combat (10% max HP). Enemy stays; adjacent tiles stay locked.">🏃 Flee</button>
+      </div>
     </div>
 
     <!-- Bottom HUD group: XP bar + main HUD panel -->
@@ -1495,23 +1497,16 @@
         <div class="htp-tip">🛡️ <strong>Telegraphing enemies</strong> wind up before striking. A shrinking <strong>parry ring</strong> appears — tap in the zone to <strong>Block</strong> (half damage) or swipe the shown direction to <strong>Counter</strong> (no damage, +1 mana). Miss and take amplified damage. See Block &amp; Parry below to practice.</div>
       </section>
 
-      <!-- ESSENTIALS: HUD -->
+      <!-- ESSENTIALS: HUD, Equipment, Backpack -->
       <section class="htp-section">
         <h2 class="htp-heading">🖥️ Player HUD</h2>
-        <img src="assets/ui/hud-diagram.png" alt="Player HUD" class="htp-hud-img">
-        <div class="htp-resource-list">
-          <div class="htp-resource"><span class="htp-res-icon">⚔</span><div><strong>GEAR tab / Portrait</strong> — tap the hero portrait to open the Equipment screen and manage your Weapon, Breastplate, and Offhand slots.</div></div>
-          <div class="htp-resource"><span class="htp-res-icon">❤️</span><div><strong>HP bar</strong> — your current / maximum health. Reach 0 and the run ends. Restore with potions, hearts, camps, and spells.</div></div>
-          <div class="htp-resource"><span class="htp-res-icon">⚔️</span><div><strong>Attack</strong> — your damage per strike. Rises with level-ups, trinkets, gear, and shop upgrades.</div></div>
-          <div class="htp-resource"><span class="htp-res-icon">🛡️</span><div><strong>Armor</strong> — absorbs incoming damage before HP is reduced. Gained from gear and certain abilities.</div></div>
-          <div class="htp-resource"><span class="htp-res-icon">🔵</span><div><strong>Mana bar</strong> — powers spells and active abilities. Regenerates as you reveal tiles. Only appears once unlocked in your hero's upgrade tree.</div></div>
-          <div class="htp-resource"><span class="htp-res-icon">🪙</span><div><strong>Gold</strong> — earned from enemies and chests; spent at in-run events and the main-menu Gold Shop.</div></div>
-          <div class="htp-resource"><span class="htp-res-icon">⚙️</span><div><strong>Scrap</strong> — persistent currency used at the Forge between runs to upgrade or disassemble gear.</div></div>
-          <div class="htp-resource"><span class="htp-res-icon">🎒</span><div><strong>Backpack</strong> — holds up to 9 items. Tap to open and use consumables or manage gear mid-run.</div></div>
-          <div class="htp-resource"><span class="htp-res-icon">🗝️</span><div><strong>Golden Key</strong> — awarded for clearing every enemy on a floor. Spend it at a <strong>Magic Chest</strong> in a sanctuary sub-floor for powerful loot.</div></div>
-          <div class="htp-resource"><span class="htp-res-icon">⚡</span><div><strong>Ability slots</strong> — up to 6 active abilities appear to the right of the backpack. Abilities are unlocked through your hero's upgrade tree and cost Mana to use. Each has its own cooldown shown beneath the button.</div></div>
-          <div class="htp-resource"><span class="htp-res-icon">✨</span><div><strong>XP bar</strong> — fills from reveals and kills. Level up to gain a permanent stat boost for the current run.</div></div>
-        </div>
+        <img src="assets/ui/htp-hud.png" alt="Player HUD — experience bar, health and mana orb, potions, hero portrait, gold and scrap, damage and armor, backpack, and active abilities" class="htp-guide-img">
+
+        <h3 class="htp-subheading">⚔️ Equipment</h3>
+        <img src="assets/ui/htp-equipment.png" alt="Equipment — Safe Pocket, Weapon, Breastplate, and Offhand slots with total stat bar" class="htp-guide-img">
+
+        <h3 class="htp-subheading">🎒 Backpack</h3>
+        <img src="assets/ui/htp-backpack.png" alt="Backpack — keys, gold, scrap, inventory grid, tap and long-press interactions, and level-up log" class="htp-guide-img">
       </section>
 
       <!-- DEPTH: accordions -->

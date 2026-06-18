@@ -1517,7 +1517,7 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 76%;
+  width: 50%;
   background: none;
   border: none;
   padding: 0 0 5px;
@@ -1532,7 +1532,7 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
 }
 
 .orb-tap--hp   { left: 0;  }
-.orb-tap--mana { right: 0; }
+.orb-tap--mana { right: 0; left: auto; }
 
 /* Tap zones and badges must sit above the frame overlay */
 .orb-tap  { z-index: 3; }

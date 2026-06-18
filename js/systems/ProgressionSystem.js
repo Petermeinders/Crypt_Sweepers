@@ -259,6 +259,9 @@ function applyAbility(abilityId, player, charKey = 'warrior', ctx = {}) {
     case 'strengthen-minion-mastery':
       player.strengthenMinionStacks = (player.strengthenMinionStacks ?? 0) + 1
       break
+    case 'bone-armor-mastery':
+      player.boneArmorStacks = (player.boneArmorStacks ?? 0) + 1
+      break
     case 'turret-kill-heal':
       player.turretKillHeal = true
       break
@@ -288,6 +291,18 @@ function applyAbility(abilityId, player, charKey = 'warrior', ctx = {}) {
       break
     case 'raise-minion-legion':
       player.minionLegionTier = Math.max(player.minionLegionTier ?? 0, effect.tier)
+      break
+    case 'raise-minion-gargantuan':
+      player.minionGargantuanTier = Math.max(player.minionGargantuanTier ?? 0, effect.tier)
+      break
+    case 'corpse-explosion-abyssal':
+      player.corpseExplosionAbyssalTier = Math.max(player.corpseExplosionAbyssalTier ?? 0, effect.tier)
+      break
+    case 'corpse-explosion-detonation':
+      player.corpseExplosionDetonationTier = Math.max(player.corpseExplosionDetonationTier ?? 0, effect.tier)
+      break
+    case 'corpse-explosion-essence-drain':
+      player.corpseExplosionEssenceDrainTier = Math.max(player.corpseExplosionEssenceDrainTier ?? 0, effect.tier)
       break
   }
 

@@ -541,6 +541,32 @@ export const HudMethods = {
     el.hudSlotB?.classList.toggle('is-corpse-explosion-active', active)
   },
 
+  setBoneArmorBtn(visible, manaCost = 10) {
+    if (!el.hudSlotC) return
+    el.hudSlotC.classList.remove('is-arrow-barrage', 'is-arrow-barrage-active', 'is-blood-pact')
+    if (visible) {
+      el.hudSlotC.innerHTML = `
+        <span class="ability-btn-wrap ability-btn-wrap--mana-corner">
+          <img src="assets/sprites/abilities/bone-armor.png" class="ability-btn-img" alt="Bone Armor" draggable="false"/>
+          <span class="ability-btn-cost">${manaCost}</span>
+        </span>`
+      el.hudSlotC.title    = `Bone Armor — consume a corpse for armor (${manaCost} mana)`
+      el.hudSlotC.disabled = false
+      el.hudSlotC.classList.remove('is-placeholder')
+      el.hudSlotC.classList.add('is-bone-armor')
+    } else if (el.hudSlotC.classList.contains('is-bone-armor')) {
+      el.hudSlotC.textContent = '···'
+      el.hudSlotC.title       = 'Reserved'
+      el.hudSlotC.disabled    = true
+      el.hudSlotC.classList.add('is-placeholder')
+      el.hudSlotC.classList.remove('is-bone-armor', 'is-bone-armor-active')
+    }
+  },
+
+  setBoneArmorActive(active) {
+    el.hudSlotC?.classList.toggle('is-bone-armor-active', active)
+  },
+
   setTelekineticThrowBtn(visible, manaCost = 10) {
     if (!el.hudSlotB) return
     el.hudSlotB.classList.remove(
@@ -919,6 +945,20 @@ export const HudMethods = {
 
   hideActionPanel() {
     el.actionBtns.classList.add('hidden')
+    this.updateFleeBtn(false, 0)
+  },
+
+  updateFleeBtn(visible, hpCost = 0) {
+    if (!el.fleeBtn) return
+    if (visible) {
+      el.actionBtns.classList.remove('hidden')
+      el.fleeBtn.classList.remove('hidden')
+      el.fleeBtn.disabled = false
+      el.fleeBtn.textContent = `🏃 Flee (−${hpCost}❤)`
+      el.fleeBtn.title = `Instantly escape combat for ${hpCost} HP (10% max). The enemy stays alive; adjacent tiles remain locked.`
+    } else {
+      el.fleeBtn.classList.add('hidden')
+    }
   },
 
   setSpellTargeting(active, manaCost) {

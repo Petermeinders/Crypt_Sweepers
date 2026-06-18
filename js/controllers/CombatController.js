@@ -11,6 +11,9 @@ import { resolveEnemySpriteSrc } from '../data/tileIcons.js'
 import {
   setCombatEngagement,
   clearCombatEngagementForTile,
+  clearAllCombatEngagement,
+  isCombatCommitmentLocked,
+  getActiveTileAt,
   isInSubFloor,
 } from './TileTapRouter.js'
 import { handleGearPickup } from './GearController.js'
@@ -71,6 +74,41 @@ function setEnemySprite(tile, state) {
 
 // ── Combat ───────────────────────────────────────────────────
 
+/** Disengage from the focused enemy — costs HP; enemy and adjacent locks persist. */
+export function fleeCombatAction(ctx) {
+  if (session.tap.combatBusy) {
+    UI.setMessage('Not while combat is resolving.', true)
+    return
+  }
+  if (!isCombatCommitmentLocked()) {
+    UI.setMessage('You can only flee during an active fight.', true)
+    return
+  }
+  if (isInSubFloor()) {
+    UI.setMessage('Flee is not available in sub-floors.', true)
+    return
+  }
+  const pos = session.tap.combatEngagementTile
+  const tile = getActiveTileAt(pos.row, pos.col)
+  if (!tile?.enemyData || tile.enemyData._slain) {
+    clearAllCombatEngagement()
+    return
+  }
+
+  const { fleeDmg, message } = CombatResolver.resolveFlee(session.run.player)
+  const floatEl = tile.element ?? document.getElementById('hud-portrait')
+  UI.spawnFloat(floatEl, `🏃 −${fleeDmg}`, 'damage')
+  ctx.takeDamage(fleeDmg, floatEl, false, null, { deathCause: 'flee' })
+  if (GameState.is(States.DEATH)) return
+
+  clearAllCombatEngagement()
+  TileEngine.recomputeAllEnemyLocks(UI.lockTile.bind(UI), UI.unlockTile.bind(UI))
+  EventBus.emit('audio:play', { sfx: 'retreat' })
+  EventBus.emit('combat:flee', { hpCost: fleeDmg })
+  UI.setMessage(message, true)
+  ctx.saveActiveRun()
+}
+
 export function fightAction(ctx, tile) {
   session.tap.combatBusy = true; session.tap.combatBusySetAt = Date.now()
 
@@ -110,8 +148,10 @@ export function fightAction(ctx, tile) {
     }
   }
   if (ctx.charKey() === 'necromancer') {
-    const minionDmg = ctx.necroMinionTotalDmg()
+    const heroMelee = playerDmg
+    const minionDmg = ctx.necroMinionMeleeBonus?.() ?? 0
     if (minionDmg > 0) playerDmg += minionDmg
+    playerDmg += ctx.necroLegionMeleeBonus?.(heroMelee) ?? 0
   }
   const isUndead = tile.enemyData?.type === 'undead'
   const isBeast  = tile.enemyData?.type === 'beast'
@@ -167,6 +207,9 @@ export function fightAction(ctx, tile) {
   const hpBeforeStrike = tile.enemyData.currentHP
   const pd = Number(playerDmg)
   const safePd = Number.isFinite(pd) ? pd : ctx.scaleOutgoingDamageToEnemy(1)
+  if (ctx.charKey() === 'necromancer') {
+    ctx.necroTitansReachCleave?.(tile)
+  }
   let mitigatedHp = safePd
   if (!session.save.settings.cheats?.instantKill) {
     const mitigated = resolveVoidEnemyIncomingDamage(tile.enemyData, safePd)
