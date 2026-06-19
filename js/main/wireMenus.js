@@ -2,6 +2,7 @@ import { renderChangelogEntries } from '../ui/menus/Changelog.js'
 import { wireGoldShopPanel, openShop, openPassiveUpgrades } from '../ui/menus/GoldShopPanel.js'
 import { wireBlacksmithPanel } from '../ui/menus/BlacksmithPanel.js'
 import { wireCasinoPanel, openCasino } from '../ui/menus/CasinoPanel.js'
+import { wireCreditsPanel, openCredits } from '../ui/menus/CreditsPanel.js'
 import { openCheckpointSelect } from '../ui/menus/CheckpointPanel.js'
 import { wireHeroSelect, openHeroSelect, updateMenuHeroPreview } from '../ui/menus/HeroSelect.js'
 import { wireSettingsPanel } from '../ui/menus/SettingsPanel.js'
@@ -112,6 +113,7 @@ export function wireMenus(ctx) {
   wireGoldShopPanel(ctx)
   wireBlacksmithPanel(ctx)
   wireCasinoPanel(ctx)
+  wireCreditsPanel()
   wireHeroSelect(ctx)
   wireSettingsPanel(ctx)
 
@@ -191,6 +193,8 @@ export function wireMenus(ctx) {
     ov?.classList.add('hidden')
     ov?.setAttribute('aria-hidden', 'true')
   })
+
+  document.getElementById('credits-btn')?.addEventListener('click', () => openCredits())
 
   // Shops button (Gold Shop, Passives, Casino)
   document.getElementById('shops-btn')?.addEventListener('click', () => _openShopsTab(shopsLastTab, ctx))

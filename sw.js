@@ -3,7 +3,7 @@
 // Version bump CACHE_NAME to force cache refresh on deploy.
 // Keep in sync with APP_VERSION in js/appVersion.js and version.json.
 
-const CACHE_NAME = 'crypt-sweepers-v527'
+const CACHE_NAME = 'crypt-sweepers-v528'
 
 const PRECACHE_ASSETS = [
   './',
@@ -46,6 +46,7 @@ const PRECACHE_ASSETS = [
   './js/data/ranger.js',
   './js/data/mage.js',
   './js/data/changelog.js',
+  './js/data/credits.js',
   './js/data/characters.js',
   './js/data/gear.js',
   './js/boot/SaveMigrator.js',
@@ -60,6 +61,7 @@ const PRECACHE_ASSETS = [
   './js/ui/menus/GoldShopPanel.js',
   './js/ui/menus/BlacksmithPanel.js',
   './js/ui/menus/CasinoPanel.js',
+  './js/ui/menus/CreditsPanel.js',
   './js/ui/menus/CheckpointPanel.js',
   './js/ui/menus/BackpackPanel.js',
   './js/ui/menus/EquipmentOverlay.js',
@@ -159,7 +161,7 @@ const PRECACHE_ASSETS = [
   './assets/ui/htp-backpack.png',
   './assets/ui/menu-panel-wood-frame.png',
   './assets/ui/menu-btn-wood-bars.png',
-  './assets/ui/btn-new-run.png',
+  './assets/ui/credits-background.png',
   './assets/ui/menu-btn-wood-plaque.png',
   './assets/ui/menu-btn-crystal.png',
   './assets/ui/btn-void.png',

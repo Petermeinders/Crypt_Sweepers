@@ -943,6 +943,8 @@
         Tap <strong>Share</strong> ( <span style="font-size:1.1em">⎋</span> ) then <strong>Add to Home Screen</strong>
       </div>
     </div>
+
+    <button type="button" id="credits-btn" class="menu-credits-chip">Credits</button>
   </div>
 
   <!-- ── Settings overlay ── -->
@@ -1668,6 +1670,18 @@
         <p class="htp-disclaimer">Numbers, spawn rates, and unlock flow are under active balance. If something feels off after a patch, check here again — it may have changed.</p>
       </section>
 
+    </div>
+  </div>
+
+  <!-- ── Credits ── -->
+  <div id="credits-overlay" class="panel-overlay credits-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="credits-creator" aria-hidden="true">
+    <div class="panel-header credits-header">
+      <button type="button" class="panel-back-btn" id="credits-back">← Back</button>
+    </div>
+    <div class="credits-content">
+      <p id="credits-creator" class="credits-creator">Created by Peter Meinders</p>
+      <h2 class="credits-section-header">Testers</h2>
+      <ul id="credits-testers-list" class="credits-names-list" aria-label="Testers"></ul>
     </div>
   </div>
 
