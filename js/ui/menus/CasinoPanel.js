@@ -126,8 +126,8 @@ function _resetBetView(save) {
   _syncGold(100, maxGold)
   _syncScrap(0, maxScrap)
   const result = _el('casino-result')
-  result.classList.add('hidden')
-  result.classList.remove('casino-result--pearl')
+  result?.classList.add('hidden')
+  result?.classList.remove('casino-result--pearl')
   const tierEl = _el('casino-result-tier')
   if (tierEl) tierEl.style.color = ''
   _el('casino-spin-btn').disabled = false
@@ -224,7 +224,7 @@ export function wireCasinoPanel(deps) {
 
 export function openCasino(deps) {
   const save = deps.GameController.getSave()
+  _el('casino-overlay')?.classList.remove('hidden')
   _renderBalances(save)
   _resetBetView(save)
-  _el('casino-overlay').classList.remove('hidden')
 }

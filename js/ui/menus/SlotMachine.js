@@ -1,5 +1,5 @@
 // gsap loaded as UMD global via <script src="node_modules/gsap/dist/gsap.min.js">
-const gsap = window.gsap
+const gsap = typeof window !== 'undefined' ? window.gsap : null
 
 import EventBus from '../../core/EventBus.js'
 const _sfx = key => EventBus.emit('audio:play', { sfx: key })
@@ -46,6 +46,11 @@ function _spinReel(stripEl, symbols, delay) {
   const totalH    = symbols.length * SYMBOL_H
   const targetY   = -((symbols.length - 1) * SYMBOL_H)  // land on last symbol
 
+  if (!gsap) {
+    stripEl.style.transform = `translateY(${targetY}px)`
+    return Promise.resolve()
+  }
+
   // Start from top
   gsap.set(stripEl, { y: 0 })
 
@@ -63,7 +68,7 @@ function _spinReel(stripEl, symbols, delay) {
 // Flash the winning reel symbol
 function _flashSymbol(stripEl, tier) {
   const last = stripEl.lastElementChild
-  if (!last) return
+  if (!last || !gsap) return
   gsap.fromTo(last,
     { scale: 1 },
     { scale: 1.18, duration: 0.18, yoyo: true, repeat: 3, ease: 'power2.inOut',
@@ -111,7 +116,8 @@ export function resetSlots() {
   for (let i = 0; i < 3; i++) {
     const el = document.getElementById(`casino-strip-${i}`)
     if (el) {
-      gsap.set(el, { y: 0 })
+      if (gsap) gsap.set(el, { y: 0 })
+      else el.style.transform = ''
       el.innerHTML = SYMBOLS.map(s =>
         `<div class="casino-reel-symbol casino-reel-symbol--${s.tier}">
            <span class="casino-sym-emoji">${s.emoji}</span>
