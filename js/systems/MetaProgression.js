@@ -72,6 +72,8 @@ export function defaultSave() {
       difficulty:  'normal',
       childMode:   false,
       tileColors:  false,
+      /** Credits easter egg — reveals Debug & Cheats accordions in Settings */
+      devOptionsUnlocked: false,
       /** Feature flag: hidden passages / sub-floors (default on) */
       subLevelsEnabled: true,
       /** Shown once: full-screen war banner intro (bestiary-style) */

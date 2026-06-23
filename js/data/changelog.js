@@ -179,14 +179,10 @@ export const CHANGELOG = [
     dateLabel: 'Jun 2026',
     dateIso:   '2026-06-08',
     version:   'v500',
-    title:     'Ninja hero, bug fixes & polish',
+    title:     'Bug fixes & polish',
     summary:
-      'Ninja is now a fully playable hero. Three trinkets that were silently doing nothing are fixed. Chain Lightning no longer spams console errors. Enemy stat bars no longer clip. Leader flags now appear only after a tile is flipped.',
+      'Three trinkets that were silently doing nothing are fixed. Chain Lightning no longer spams console errors. Enemy stat bars no longer clip. Leader flags now appear only after a tile is flipped.',
     items: [
-      {
-        tag:  'Feature',
-        text: 'Ninja hero — fully playable with Shadowstrike, Smoke Bomb, Shuriken abilities and Shadow Step I/II passives. Unlock for 600 gold. Abilities designed around manipulating the parry block/counter window.',
-      },
       {
         tag:  'Fix',
         text: 'Lucky Rabbit Foot, Devil\'s Gambit, and Glass Cannon Shard were completely non-functional — hasItem checks had blank IDs. All three now work correctly.',

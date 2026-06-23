@@ -55,6 +55,7 @@ export function migrateSave(save) {
   }
 
   if (save.settings.tileColors === undefined) save.settings.tileColors = false
+  if (save.settings.devOptionsUnlocked === undefined) save.settings.devOptionsUnlocked = false
   if (save.settings.musicOn === undefined)    save.settings.musicOn    = true
   if (save.settings.sfxOn   === undefined)    save.settings.sfxOn      = true
   if (save.settings.subLevelsEnabled === undefined) save.settings.subLevelsEnabled = true

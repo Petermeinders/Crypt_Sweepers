@@ -4,6 +4,11 @@ import Logger from '../../core/Logger.js'
 import { applyImportedSave } from './saveTransfer.js'
 import { APP_VERSION, forceCheckForUpdates } from '../../boot/serviceWorker.js'
 
+export function applyDevOptionsVisibility(unlocked) {
+  document.getElementById('debug-accordion')?.classList.toggle('hidden', !unlocked)
+  document.getElementById('cheat-accordion')?.classList.toggle('hidden', !unlocked)
+}
+
 function _refreshRunBackupSection(ctx) {
   const section = document.getElementById('run-backup-section')
   const status  = document.getElementById('run-backup-status')
@@ -33,7 +38,6 @@ function _populateSettingsForm(s) {
   const c = s.settings.cheats ?? {}
   document.getElementById('setting-music').checked        = s.settings.musicOn    ?? true
   document.getElementById('setting-sfx').checked          = s.settings.sfxOn      ?? true
-  document.getElementById('setting-tile-colors').checked  = s.settings.tileColors ?? false
   document.getElementById('setting-haptic').checked       = s.settings.hapticFeedback ?? true
   document.getElementById('setting-sub-levels').checked   = s.settings.subLevelsEnabled ?? true
   document.getElementById('setting-auto-potions').checked = s.settings.autoPotions ?? false
@@ -51,7 +55,9 @@ function _populateSettingsForm(s) {
 }
 
 function _openSettingsOverlay(ctx) {
-  _populateSettingsForm(ctx.GameController.getSave())
+  const save = ctx.GameController.getSave()
+  _populateSettingsForm(save)
+  applyDevOptionsVisibility(!!save.settings?.devOptionsUnlocked)
   _refreshRunBackupSection(ctx)
   const versionEl = document.getElementById('settings-cache-version')
   if (versionEl) versionEl.textContent = `v${APP_VERSION}`
@@ -61,6 +67,8 @@ function _openSettingsOverlay(ctx) {
 
 export function wireSettingsPanel(ctx) {
   const { GameController, SaveManager, AudioManager } = ctx
+
+  applyDevOptionsVisibility(!!GameController.getSave()?.settings?.devOptionsUnlocked)
 
   document.getElementById('hud-settings-btn').addEventListener('click', () => _openSettingsOverlay(ctx))
   document.getElementById('settings-btn').addEventListener('click', () => _openSettingsOverlay(ctx))
@@ -92,14 +100,6 @@ export function wireSettingsPanel(ctx) {
     const s = GameController.getSave()
     s.settings.sfxOn = e.target.checked
     AudioManager.setSfxEnabled(e.target.checked)
-    SaveManager.save(s)
-  })
-
-  const tileColorsCb = document.getElementById('setting-tile-colors')
-  tileColorsCb.addEventListener('change', () => {
-    const s = GameController.getSave()
-    s.settings.tileColors = tileColorsCb.checked
-    document.body.classList.toggle('tile-colors', tileColorsCb.checked)
     SaveManager.save(s)
   })
 

@@ -40,23 +40,6 @@ const FEATURE_PANELS = [
   },
   {
     dateGroup: 'Jun 2026',
-    accent: '#4a9ed6',
-    icon: '🥷',
-    label: 'New Hero',
-    title: 'Ninja Hero',
-    bullets: [
-      'The seventh hero — built around timing, stealth, and exploiting the parry system',
-      'Shadowstrike (burst from stealth), Smoke Bomb (reposition + disrupt), Shuriken (ranged)',
-      'Shadow Step passives suppress enemy tile locks; manipulate the counter window',
-      'Unlock for 600 gold',
-    ],
-    images: [
-      { src: 'assets/sprites/Items/dagger.png', alt: 'Dagger' },
-      { src: 'assets/ui/rune-ring.png',          alt: 'Rune ring' },
-    ],
-  },
-  {
-    dateGroup: 'Jun 2026',
     accent: '#5daa6e',
     icon: '💀',
     label: 'Necromancer',

@@ -3,5 +3,6 @@ export const CREDITS = {
   creator: 'Peter Meinders',
   testers: [
     'Philip Hoff',
+    'Audrey Hoff'
   ],
 }

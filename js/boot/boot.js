@@ -48,7 +48,6 @@ export async function boot() {
   }
   document.body.classList.toggle('cheat-increase-stats', save.settings.cheats?.increaseStats === true)
 
-  if (save.settings.tileColors) document.body.classList.add('tile-colors')
   AudioManager.setMusicEnabled(save.settings.musicOn ?? true)
   AudioManager.setSfxEnabled(save.settings.sfxOn ?? true)
 

@@ -11,7 +11,9 @@ import { session } from '../core/RunContext.js'
 import { ITEMS } from '../data/items.js'
 import { BACKPACK_MAX_SLOTS } from '../systems/LootTables.js'
 import { isCombatCommitmentLocked } from './TileTapRouter.js'
-import { adjustScrap, trinketTrashScrapYield, trinketTrashGoldYield } from './GearController.js'
+import { adjustScrap, trinketTrashScrapYield, trinketTrashGoldYield, adjustPlayerStat } from './GearController.js'
+
+const HOLLOWED_ACORN_MANA_PCT = 10
 
 const MSG_COMBAT_ACTION_BLOCKED = 'Cannot perform action when in combat with enemy'
 
@@ -38,9 +40,9 @@ export function applyTrinketEquipEffects(ctx, id, { silent = false } = {}) {
     float('🗿 Max HP halved!', 'damage')
   }
   if (id === 'hollowed-acorn') {
-    session.run.player.maxMana = (session.run.player.maxMana ?? CONFIG.player.maxMana) + 10
+    adjustPlayerStat('maxManaPct', HOLLOWED_ACORN_MANA_PCT)
     UI.updateMana(session.run.player.mana, session.run.player.maxMana)
-    float('🌰 +10 Mana!', 'mana')
+    float('🌰 +10% Mana!', 'mana')
   }
   if (id === 'mana-crucible') {
     session.run.player.maxMana = (session.run.player.maxMana ?? CONFIG.player.maxMana) + 15
@@ -91,10 +93,9 @@ export function revertTrinketEquipEffects(ctx, id, { silent = false } = {}) {
     float('🗿 Max HP restored', 'heal')
   }
   if (id === 'hollowed-acorn') {
-    session.run.player.maxMana = Math.max(1, (session.run.player.maxMana ?? CONFIG.player.maxMana) - 10)
-    session.run.player.mana = Math.min(session.run.player.mana, session.run.player.maxMana)
+    adjustPlayerStat('maxManaPct', -HOLLOWED_ACORN_MANA_PCT)
     UI.updateMana(session.run.player.mana, session.run.player.maxMana)
-    float('🌰 −10 Mana', 'damage')
+    float('🌰 −10% Mana', 'damage')
   }
   if (id === 'mana-crucible') {
     session.run.player.maxMana = Math.max(1, (session.run.player.maxMana ?? CONFIG.player.maxMana) - 15)

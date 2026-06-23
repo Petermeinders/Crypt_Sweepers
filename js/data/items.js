@@ -740,7 +740,7 @@ export const ITEMS = {
     stackable: false,
     blurb:     'Carved into a vessel for arcane energy. Holds more — but the flow is sluggish.',
     details: [
-      { icon: '🔵', label: 'Passive', desc: '+10 max mana' },
+      { icon: '🔵', label: 'Passive', desc: '+10% max mana' },
       { icon: '💔', label: 'Cost',    desc: 'Mana potions restore half their usual amount' },
       { icon: '🎲', label: 'Rare',    desc: '2% chance from chests' },
     ],

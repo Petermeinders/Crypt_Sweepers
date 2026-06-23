@@ -1977,6 +1977,21 @@
   text-shadow:
     0 1px 2px rgba(0, 0, 0, 0.9),
     0 0 18px rgba(200, 168, 74, 0.25);
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  width: 100%;
+}
+
+.credits-dev-unlock-msg {
+  margin: -16px 0 24px;
+  font-family: var(--menu-font-body);
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #a8e6a0;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
 }
 
 .credits-section-header {

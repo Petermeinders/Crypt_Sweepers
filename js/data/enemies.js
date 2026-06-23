@@ -503,7 +503,7 @@ export const ENEMY_DEFS = {
     xpDrop:     15,
     isBoss:     true,
     blurb:      'Ruler of the warrens. What he lacks in size he makes up for in sheer cruelty.',
-    attributes: ['fast', 'boss'],
+    attributes: ['boss'],
     spawn:      'universal',
   },
   troll_warlord: {

@@ -999,17 +999,6 @@
 
       <div class="settings-row">
         <div class="settings-label">
-          <span class="settings-label-title">Tile Colors</span>
-          <span class="settings-label-desc">Color-code revealed tiles by type (enemy, gold, etc.)</span>
-        </div>
-        <label class="toggle-switch">
-          <input type="checkbox" id="setting-tile-colors">
-          <span class="toggle-track"><span class="toggle-thumb"></span></span>
-        </label>
-      </div>
-
-      <div class="settings-row">
-        <div class="settings-label">
           <span class="settings-label-title">Auto-Use Potions</span>
           <span class="settings-label-desc">Automatically drink a Red Potion when HP drops below 30%</span>
         </div>
@@ -1052,8 +1041,8 @@
         </label>
       </div>
 
-      <!-- ── Debug (feature flags) ── -->
-      <div class="settings-accordion" id="debug-accordion">
+      <!-- ── Debug (feature flags) — hidden until Credits easter egg ── -->
+      <div class="settings-accordion hidden" id="debug-accordion">
         <button type="button" class="accordion-header" id="debug-accordion-toggle">
           <span>🐛 Debug</span>
           <span class="accordion-chevron">▸</span>
@@ -1102,8 +1091,8 @@
         </div>
       </div>
 
-      <!-- ── Cheat accordion ── -->
-      <div class="settings-accordion" id="cheat-accordion">
+      <!-- ── Cheat accordion — hidden until Credits easter egg ── -->
+      <div class="settings-accordion hidden" id="cheat-accordion">
         <button class="accordion-header" id="cheat-accordion-toggle">
           <span>☠️ Cheats</span>
           <span class="accordion-chevron">▸</span>
@@ -1679,7 +1668,8 @@
       <button type="button" class="panel-back-btn" id="credits-back">← Back</button>
     </div>
     <div class="credits-content">
-      <p id="credits-creator" class="credits-creator">Created by Peter Meinders</p>
+      <p id="credits-creator" class="credits-creator" role="button" tabindex="0">Created by Peter Meinders</p>
+      <p id="credits-dev-unlock-msg" class="credits-dev-unlock-msg hidden" role="status" aria-live="polite"></p>
       <h2 class="credits-section-header">Testers</h2>
       <ul id="credits-testers-list" class="credits-names-list" aria-label="Testers"></ul>
     </div>

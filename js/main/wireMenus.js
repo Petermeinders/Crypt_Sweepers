@@ -113,7 +113,7 @@ export function wireMenus(ctx) {
   wireGoldShopPanel(ctx)
   wireBlacksmithPanel(ctx)
   wireCasinoPanel(ctx)
-  wireCreditsPanel()
+  wireCreditsPanel(ctx)
   wireHeroSelect(ctx)
   wireSettingsPanel(ctx)
 
