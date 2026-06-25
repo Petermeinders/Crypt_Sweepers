@@ -1,11 +1,17 @@
 import { ITEMS } from '../../data/items.js'
+import { GEMS } from '../../data/gems.js'
 import { adjustScrap, gearTrashScrapYield, trinketTrashScrapYield, trinketTrashDropSuffix } from '../../controllers/GearController.js'
 import { isPassiveTrinketId } from '../../controllers/SafePocketController.js'
+import { switchToTranWithItem, refreshTranPanelIfOpen } from '../../controllers/TransmutationController.js'
+import { wireMaterialsTab, _syncBackpackExpandBtn, renderMaterialsPanel, forceReplaceMaterialsAtIndex, getMaterialsPickupBlockReason, isMaterialsStackFull } from '../../controllers/MaterialsController.js'
+import { activateBackpackTab, resetBackpackTabOnOpen } from '../../controllers/BackpackTabs.js'
 
 const HOLD_HINT_KEY = 'cs_hint_hold_inspect'
 
 let _pendingPickupId = null
 let _pendingGearPiece = null
+let _pendingMaterialsId = null
+let _pendingMaterialsResolution = null
 
 const GEAR_IMGS = {
   weapon:     { default: 'assets/sprites/Items/sword.png', common: 'assets/sprites/gear/weapon/common.webp', rare: 'assets/sprites/gear/weapon/rare.webp', epic: 'assets/sprites/gear/weapon/epic.webp', legendary: 'assets/sprites/gear/weapon/legendary.webp' },
@@ -18,18 +24,36 @@ export function getPendingGearPiece() {
   return _pendingGearPiece
 }
 
+export function getPendingMaterialsId() {
+  return _pendingMaterialsId
+}
+
+const BACKPACK_ITEM_REGISTRY = { ...ITEMS, ...GEMS }
+
 export function renderBackpack(ctx, opts = {}) {
   const { GameController, UI } = ctx
   GameController.consolidateStackables()
   const replaceMode = _pendingPickupId !== null
+  const save = GameController.getSave?.()
+  const maxSlots = 9 + (save?.meta?.backpackBonusSlots ?? 0)
   UI.renderBackpack(
     GameController.getInventory(),
-    ITEMS,
+    BACKPACK_ITEM_REGISTRY,
     (index) => {
       if (replaceMode) return
       const id = GameController.getInventory()[index]?.id
       if (isPassiveTrinketId(id)) {
         ctx.openSafePocketCompareModal(index)
+        return
+      }
+      if (GEMS[id]) {
+        ctx.openGemCompareModal(index)
+        return
+      }
+      // Ingredient-only items open Transmutation instead of consuming
+      if (ITEMS[id]?.ingredientOnly) {
+        const entry = GameController.getInventory()[index]
+        switchToTranWithItem(ctx, id, entry?.qty ?? 1)
         return
       }
       GameController.useItemAtIndex(index)
@@ -44,7 +68,7 @@ export function renderBackpack(ctx, opts = {}) {
       if (replaceMode) return
       const entry = GameController.getInventory()[index]
       const id = entry?.id
-      const item = ITEMS[id]
+      const item = BACKPACK_ITEM_REGISTRY[id]
       if (!item) return
       const qty = entry?.qty ?? 1
       UI.showInfoCard(
@@ -66,6 +90,7 @@ export function renderBackpack(ctx, opts = {}) {
     replaceMode,
     {
       ...opts,
+      maxSlots,
       gearPickupMode: _pendingGearPiece !== null,
       onReplaceGearIndex: _pendingGearPiece
         ? (idx) => doReplaceGearAtIndex(ctx, idx)
@@ -99,6 +124,74 @@ function _showPendingBar({ artHtml, name, trashLabel = '🗑️ Trash', onTrash 
     trashBtn.replaceWith(fresh)
     fresh.addEventListener('click', onTrash)
   }
+}
+
+export function openMaterialsFull(ctx, payload) {
+  const { UI, GameController } = ctx
+  const itemId = payload?.id ?? payload
+  _pendingPickupId = null
+  _pendingGearPiece = null
+  _pendingMaterialsId = itemId
+  _pendingMaterialsResolution = payload?.resolution ?? null
+  const item = ITEMS[itemId]
+  const save = GameController.getSave?.()
+  const block = save ? getMaterialsPickupBlockReason(save, itemId) : null
+  const hintEl = document.getElementById('backpack-pending-hint')
+  let hint = 'Tap a slot to replace it, or trash this item.'
+  let message = 'Materials bag full! Tap a slot to replace it, or trash the new item.'
+  if (block?.type === 'stack_full') {
+    hint = `Already at max stack (${block.qty}/${block.maxStack}) — replace a different slot or trash.`
+    message = `${block.name} stack is full (${block.qty}/${block.maxStack}). Tap another slot to replace, or trash the new one.`
+  }
+  if (hintEl) hintEl.textContent = hint
+  _showPendingBar({
+    artHtml: item?.spriteSrc
+      ? `<img src="${item.spriteSrc}" alt="${item.name ?? ''}">`
+      : `<span>${item?.icon ?? '?'}</span>`,
+    name: item?.name ?? itemId,
+    trashLabel: '🗑️ Trash',
+    onTrash: () => clearPendingMaterials(ctx, { trashed: true }),
+  })
+
+  renderMaterialsPanel(ctx)
+  setBackpackOpen(ctx, true, { initialTab: 'tab-materials' })
+  UI.setMessage(message, true)
+}
+
+function doReplaceMaterialsAtIndex(ctx, index, existingEntry) {
+  const newId = _pendingMaterialsId
+  if (!newId) return
+  const incomingDef = ITEMS[newId]
+  const existingDef = existingEntry?.id ? ITEMS[existingEntry.id] : null
+  ctx.UI.renderBackpackReplaceModal(
+    incomingDef,
+    existingDef,
+    () => {
+      ctx.UI.hideCompareModal()
+      const save = ctx.GameController.getSave?.()
+      if (save) forceReplaceMaterialsAtIndex(save, index, newId)
+      const resolution = _pendingMaterialsResolution
+      clearPendingMaterials(ctx)
+      ctx.GameController.finalizePendingPickup?.(resolution, { skipAdd: true })
+      renderMaterialsPanel(ctx)
+    },
+    () => {
+      ctx.UI.hideCompareModal()
+    },
+  )
+}
+
+export function clearPendingMaterials(ctx, { trashed = false } = {}) {
+  const resolution = _pendingMaterialsResolution
+  _pendingMaterialsId = null
+  _pendingMaterialsResolution = null
+  if (!_pendingPickupId && !_pendingGearPiece) {
+    document.getElementById('backpack-pending-bar')?.classList.add('hidden')
+  }
+  if (trashed && resolution) {
+    ctx.GameController.finalizePendingPickup?.(resolution, { discarded: true })
+  }
+  renderMaterialsPanel(ctx)
 }
 
 export function openBackpackFull(ctx, newItemId) {
@@ -185,7 +278,7 @@ function clearPendingTrinket(ctx, { grantTrashScrap = false } = {}) {
     if (scrapGain) adjustScrap(scrapGain)
   }
   _pendingPickupId = null
-  if (!_pendingGearPiece) {
+  if (!_pendingGearPiece && !_pendingMaterialsId) {
     document.getElementById('backpack-pending-bar')?.classList.add('hidden')
   }
   renderBackpack(ctx)
@@ -193,7 +286,7 @@ function clearPendingTrinket(ctx, { grantTrashScrap = false } = {}) {
 
 export function clearPendingGear(ctx) {
   _pendingGearPiece = null
-  if (!_pendingPickupId) {
+  if (!_pendingPickupId && !_pendingMaterialsId) {
     document.getElementById('backpack-pending-bar')?.classList.add('hidden')
   }
   renderBackpack(ctx)
@@ -223,7 +316,7 @@ async function doReplaceAtIndex(ctx, index) {
   )
 }
 
-export function setBackpackOpen(ctx, open) {
+export function setBackpackOpen(ctx, open, opts = {}) {
   const { UI } = ctx
   const el = document.getElementById('backpack-overlay')
   const btn = document.getElementById('hud-backpack-btn')
@@ -233,16 +326,25 @@ export function setBackpackOpen(ctx, open) {
   btn?.setAttribute('aria-expanded', open ? 'true' : 'false')
   if (open) UI.hideEquipmentOverlay()
   if (open) clearBackpackBadge()
+  if (open) _syncBackpackExpandBtn(ctx.GameController?.getSave?.())
   if (open) {
     const banner = document.getElementById('backpack-hint-banner')
     if (banner && !localStorage.getItem(HOLD_HINT_KEY)) banner.classList.remove('hidden')
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (opts.initialTab) activateBackpackTab(opts.initialTab, { scrollBehavior: 'instant' })
+        else resetBackpackTabOnOpen()
+      })
+    })
   }
   if (!open) {
     ctx.GameController.consolidateStackables()
-    if (_pendingPickupId || _pendingGearPiece) {
-      UI.setMessage('Pickup discarded — backpack still full.', true)
+    if (_pendingPickupId || _pendingGearPiece || _pendingMaterialsId) {
+      UI.setMessage('Pickup discarded — inventory still full.', true)
       _pendingPickupId = null
       _pendingGearPiece = null
+      _pendingMaterialsId = null
+      _pendingMaterialsResolution = null
       document.getElementById('backpack-pending-bar')?.classList.add('hidden')
     }
   }
@@ -275,6 +377,9 @@ export function toggleBackpack(ctx) {
 export function wireBackpackPanel(ctx) {
   const { EventBus } = ctx
 
+  ctx.getPendingMaterialsId = getPendingMaterialsId
+  ctx.onMaterialsReplaceIndex = (index, entry) => doReplaceMaterialsAtIndex(ctx, index, entry)
+
   document.getElementById('hud-backpack-btn').addEventListener('click', () => toggleBackpack(ctx))
   document.getElementById('backpack-close-btn')?.addEventListener('click', () => setBackpackOpen(ctx, false))
   document.getElementById('backpack-hint-banner')?.querySelector('.eq-hint-close')?.addEventListener('click', () => {
@@ -292,7 +397,10 @@ export function wireBackpackPanel(ctx) {
 
   EventBus.on('inventory:changed', () => {
     const ov = document.getElementById('backpack-overlay')
-    if (ov?.classList.contains('is-open')) renderBackpack(ctx)
+    if (ov?.classList.contains('is-open')) {
+      renderBackpack(ctx)
+      refreshTranPanelIfOpen(ctx)
+    }
   })
 
   EventBus.on('gear:pickedUp', () => {
@@ -300,12 +408,18 @@ export function wireBackpackPanel(ctx) {
     if (!ov?.classList.contains('is-open')) showBackpackBadge()
   })
 
+  wireMaterialsTab(ctx)
+
   EventBus.on('backpack:full', (payload) => {
     if (payload.type === 'gear') {
       openBackpackFullGear(ctx, payload.piece)
     } else {
       openBackpackFull(ctx, payload.id ?? payload)
     }
+  })
+
+  EventBus.on('materials:full', (payload) => {
+    openMaterialsFull(ctx, payload)
   })
 }
 

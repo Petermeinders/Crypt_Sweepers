@@ -539,9 +539,22 @@ function forcePlayChestGif(img, gifSrc) {
 }
 
 export async function openChest(ctx, tile) {
+  const loot = tile.chestLoot
+  if (loot?.type !== 'smiths-tools' && loot?.type !== 'gold') {
+    const def = ITEMS[loot?.type]
+    if (def && !ctx.canAddToBackpack(loot.type)) {
+      const resolution = { source: 'chest', tile, loot }
+      if (def.ingredientOnly) {
+        EventBus.emit('materials:full', { id: loot.type, resolution })
+      } else {
+        EventBus.emit('backpack:full', { id: loot.type })
+      }
+      return
+    }
+  }
+
   tile.chestReady = false
   tile.element?.classList.remove('chest-ready')
-  const loot = tile.chestLoot
 
   EventBus.emit('audio:play', { sfx: 'chest' })
   if (loot.type === 'smiths-tools') {
@@ -560,10 +573,12 @@ export async function openChest(ctx, tile) {
   } else {
     const def = ITEMS[loot.type]
     if (def) {
-      await ctx.addToBackpack(loot.type)
-      const tag = def.effect?.type?.startsWith('passive') ? 'Passive' : 'Item'
+      const wasAdded = await ctx.addToBackpack(loot.type)
       UI.spawnFloat(tile.element, `${def.icon} ${def.name}`, 'xp')
-      UI.setMessage(`You pry it open — ${def.name}! (${tag})`)
+      if (wasAdded !== false) {
+        const tag = def.effect?.type?.startsWith('passive') ? 'Passive' : 'Item'
+        UI.setMessage(`You pry it open — ${def.name}! (${tag})`)
+      }
     } else {
       ctx.gainGold(loot.amount ?? 1, tile.element)
       UI.setMessage('You pry it open — something glitters inside.')
@@ -649,6 +664,21 @@ export function resolveEffect(ctx, tile) {
         UI.spawnFloat(tile.element, '🪢 Blocked!', 'heal')
         UI.showRetreat()
         break
+      }
+      // Floor buff: Trapfinder's Kit — negate up to N traps per stack
+      if (Array.isArray(session.run.floorBuffs)) {
+        const tkBuff = session.run.floorBuffs.find(b => b.effectType === 'trap-negate' && (b.trapNegatesLeft ?? (b.effectValue * b.stackCount)) > 0)
+        if (tkBuff) {
+          if (tkBuff.trapNegatesLeft == null) tkBuff.trapNegatesLeft = tkBuff.effectValue * tkBuff.stackCount
+          tkBuff.trapNegatesLeft--
+          if (tkBuff.trapNegatesLeft <= 0) session.run.floorBuffs = session.run.floorBuffs.filter(b => b !== tkBuff)
+          UI.updateFloorBuffs?.(session.run.floorBuffs)
+          EventBus.emit('audio:play', { sfx: 'trap' })
+          UI.setMessage('🪤 Trapfinder\'s Kit — the snare is neutralized!')
+          UI.spawnFloat(tile.element, '🪤 Blocked!', 'heal')
+          UI.showRetreat()
+          break
+        }
       }
       if ((p.trapDodgeChance ?? 0) > 0) {
         const r = tile._trapDodgeRoll != null ? tile._trapDodgeRoll : Math.random()

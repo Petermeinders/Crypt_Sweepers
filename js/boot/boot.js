@@ -27,6 +27,7 @@ import {
   closeEquipment,
   openCompareModal,
   openSafePocketCompareModal,
+  openGemCompareModal,
   openGearPickupCompareModal,
 } from '../ui/menus/EquipmentOverlay.js'
 
@@ -74,6 +75,7 @@ export async function boot() {
     openCompareModal: (idx) => openCompareModal(ctx, idx),
     openGearPickupCompareModal: (idx) => openGearPickupCompareModal(ctx, idx),
     openSafePocketCompareModal: (idx) => openSafePocketCompareModal(ctx, idx),
+    openGemCompareModal: (idx) => openGemCompareModal(ctx, idx),
     getPendingGearPiece,
     clearPendingGear: () => clearPendingGear(ctx),
     openEquipment: () => openEquipment(ctx),

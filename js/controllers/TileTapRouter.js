@@ -331,6 +331,70 @@ export function onTileTap(ctx, row, col) {
     return
   }
 
+  // Dual Strike targeting (out-of-combat)
+  if (session.tap.dualStrikeTargeting) {
+    session.tap.dualStrikeTargeting = false
+    UI.setMessage('')
+    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      const dmg = Math.max(1, CombatResolver.resolveFight(session.run.player, tile.enemyData).playerDmg)
+      for (let i = 0; i < 2; i++) {
+        tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - dmg)
+        UI.spawnFloat(tile.element, `⚔️ ${dmg}`, 'damage')
+      }
+      UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
+      EventBus.emit('audio:play', { sfx: 'attack' })
+      if (tile.enemyData.currentHP <= 0) {
+        ctx.gainGold(tile.enemyData.goldDrop ? ctx.rand(...tile.enemyData.goldDrop) : 1, tile.element, true)
+        ctx.gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
+        ctx.endCombatVictory(tile)
+        UI.setMessage(`⚔️ Dual Strike — enemy slain! No counter-attack.`)
+      } else {
+        UI.setMessage(`⚔️ Dual Strike — 2 × ${dmg} dealt. Enemy has ${tile.enemyData.currentHP} HP left.`)
+      }
+    }
+    return
+  }
+
+  // Festering Vial targeting (out-of-combat)
+  if (session.tap.festeringVialTargeting) {
+    session.tap.festeringVialTargeting = false
+    UI.setMessage('')
+    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      tile.enemyData.poisonTurns  = (tile.enemyData.poisonTurns ?? 0) + 8
+      tile.enemyData.poisonPctDmg = 8
+      UI.updateEnemyStatus(tile.element, tile.enemyData)
+      UI.spawnFloat(tile.element, '☠️ Poisoned!', 'damage')
+      UI.setMessage(`🧪 Festering Vial — ${tile.enemyData.label ?? 'Enemy'} poisoned for 8 turns at 8%/turn.`)
+      EventBus.emit('audio:play', { sfx: 'spell' })
+    }
+    return
+  }
+
+  // Serrated Blade targeting (out-of-combat)
+  if (session.tap.serratedBladeTargeting) {
+    session.tap.serratedBladeTargeting = false
+    UI.setMessage('')
+    if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {
+      const dmg = Math.max(1, Math.floor(CombatResolver.resolveFight(session.run.player, tile.enemyData).playerDmg * 0.25))
+      tile.enemyData.currentHP = Math.max(0, tile.enemyData.currentHP - dmg)
+      tile.enemyData.bleedTurns  = (tile.enemyData.bleedTurns ?? 0) + 3
+      tile.enemyData.bleedPctDmg = 5
+      UI.spawnFloat(tile.element, `-${dmg} + bleed`, 'damage')
+      UI.updateEnemyStatus(tile.element, tile.enemyData)
+      EventBus.emit('audio:play', { sfx: 'attack' })
+      if (tile.enemyData.currentHP <= 0) {
+        ctx.gainGold(tile.enemyData.goldDrop ? ctx.rand(...tile.enemyData.goldDrop) : 1, tile.element, true)
+        ctx.gainXP(tile.enemyData.xpDrop ?? 0, tile.element)
+        ctx.endCombatVictory(tile)
+        UI.setMessage(`🗡️ Serrated Blade — enemy slain! No counter-attack.`)
+      } else {
+        UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
+        UI.setMessage(`🗡️ Serrated Blade — ${dmg} dmg + bleeding (5%/turn × 3 turns). Enemy has ${tile.enemyData.currentHP} HP left.`)
+      }
+    }
+    return
+  }
+
   // Lantern targeting: any unrevealed tile (ignores reachable restriction)
   if (session.tap.lanternTargeting) {
     if (!tile.revealed) {
@@ -595,6 +659,7 @@ export function onTileTap(ctx, row, col) {
       UI.setMessage('You have already upgraded your damage at this anvil.', true)
     } else if (tile.revealed && tile.enemyData && tile.enemyData._slain && ctx.charKey() === 'necromancer') {
       if (session.tap.boneArmorSelecting) return
+      if (ctx.tryGargantuanCorpseAbsorb?.(tile)) return
       // Necromancer: tap ash pile to raise a minion
       ctx.necroRaiseMinion(tile)
     } else if (tile.revealed && tile.enemyData && !tile.enemyData._slain) {

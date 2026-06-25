@@ -293,6 +293,31 @@
   white-space: pre-line;
 }
 
+.card-effect-block {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(107, 79, 42, 0.35);
+}
+
+.card-effect-label {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold, #f5c850);
+  margin-bottom: 6px;
+}
+
+.card-effect-desc {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: #e8dcc8;
+  margin: 0;
+  white-space: pre-line;
+}
+
 .card-actions {
   margin-top: 16px;
   padding-top: 12px;
@@ -5296,9 +5321,9 @@
   left: 10px;
   transform: translateY(-50%);
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
 }
 
 .backpack-gold-scrap-row {
@@ -7873,6 +7898,71 @@ body.bestiary-detail-open #app {
 }
 .equipment-close-btn:active { opacity: 0.55; }
 
+/* Gem slots — stacked upper-left of hero panel (mirrors Safe Pocket) */
+.eq-gem-column {
+  position: absolute;
+  top: 0;
+  left: 38px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.eq-gem-slot {
+  width: 75px;
+  height: 65px;
+  padding: 6px 4px 5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(30, 20, 50, 0.88) 0%, rgba(8, 6, 16, 0.96) 100%);
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
+}
+.eq-gem-slot:active { opacity: 0.75; }
+.eq-gem-slot.filled { border-color: rgba(180, 120, 220, 0.55); }
+.eq-gem-slot-label {
+  font-size: 0.48rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold, #ffd700);
+  text-align: center;
+  line-height: 1.1;
+}
+.eq-gem-slot-icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.eq-gem-slot-icon img {
+  width: 33px;
+  height: 33px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.eq-gem-slot-name {
+  font-size: 0.52rem;
+  font-weight: 700;
+  color: #e8e0d4;
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eq-gem-slot-name.empty {
+  font-weight: 400;
+  font-style: italic;
+  color: #888;
+}
+
 /* Safe Pocket — upper-right of hero panel */
 .eq-safe-pocket {
   position: absolute;
@@ -7946,6 +8036,22 @@ body.bestiary-detail-open #app {
 .cmp-trinket-blurb { margin: 0 0 8px; line-height: 1.35; }
 .cmp-trinket-effects { display: flex; flex-direction: column; gap: 4px; }
 .cmp-trinket-effect { line-height: 1.3; }
+
+.cmp-gem-socket-label {
+  font-family: var(--cmp-font-title);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold, #f5c850);
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.cmp-gem-empty {
+  color: #888;
+  font-style: italic;
+}
 
 /* ── Gear card row ── */
 .equipment-gear-row {
@@ -10601,3 +10707,442 @@ body.bestiary-detail-open #app {
   background: rgba(201, 160, 80, 0.06);
 }
 
+
+/* ── Backpack Tabs ── */
+.backpack-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid rgba(201, 160, 80, 0.3);
+  margin: 4px 8px 0;
+  flex-shrink: 0;
+}
+.backpack-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: rgba(220, 200, 160, 0.55);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 7px 4px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.backpack-tab.active {
+  color: var(--gold, #c9a050);
+  border-bottom-color: var(--gold, #c9a050);
+}
+
+/* Swipeable panel carousel (Materials ← Backpack → Transmutation) */
+.backpack-panels-scroll {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.backpack-panels-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.backpack-panel-slide {
+  flex: 0 0 100%;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ── Transmutation Panel ── */
+.tran-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 10px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* ── Materials Panel ── */
+.materials-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 10px;
+  overflow-y: auto;
+  flex: 1;
+  width: 100%;
+}
+.materials-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  width: 100%;
+  max-width: 320px;
+}
+.materials-cell {
+  position: relative;
+  aspect-ratio: 1;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(201,160,80,0.3);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+  padding: 4px;
+}
+.materials-cell:hover { border-color: rgba(201,160,80,0.7); }
+.materials-cell img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.materials-cell-name {
+  font-size: 0.52rem;
+  color: #ddd;
+  text-align: center;
+  line-height: 1.1;
+  margin-top: 2px;
+  padding: 0 2px;
+}
+.materials-cell-stack {
+  position: absolute;
+  bottom: 3px;
+  right: 5px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #f0d080;
+  text-shadow: 0 0 3px #000;
+}
+.materials-empty {
+  color: rgba(180,160,130,0.6);
+  font-size: 0.78rem;
+  text-align: center;
+  padding: 20px;
+}
+.materials-empty.hidden { display: none; }
+
+.tran-result-area {
+  display: flex;
+  justify-content: center;
+}
+.tran-result-slot {
+  width: 80px;
+  height: 80px;
+  border: 2px dashed rgba(201, 160, 80, 0.5);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.35);
+  position: relative;
+}
+.tran-result-slot.filled {
+  border-style: solid;
+  border-color: var(--gold, #c9a050);
+}
+.tran-result-slot img { width: 52px; height: 52px; object-fit: contain; image-rendering: pixelated; }
+
+.tran-ingredient-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+.tran-ingredient-slot {
+  width: 62px;
+  height: 62px;
+  border: 1px dashed rgba(201, 160, 80, 0.35);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.25);
+  position: relative;
+  cursor: pointer;
+}
+.tran-ingredient-slot.filled {
+  border-style: solid;
+  border-color: rgba(201, 160, 80, 0.65);
+}
+.tran-ingredient-slot img { width: 34px; height: 34px; object-fit: contain; image-rendering: pixelated; }
+.tran-ingredient-slot .tran-ing-name {
+  font-size: 0.48rem;
+  color: #ccc;
+  text-align: center;
+  line-height: 1.1;
+  padding: 0 2px;
+  pointer-events: none;
+}
+.tran-ingredient-slot .tran-slot-stack {
+  position: absolute;
+  bottom: 2px;
+  right: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 0 3px #000;
+}
+
+.tran-slot-label {
+  font-size: 0.6rem;
+  color: rgba(200,180,140,0.4);
+  pointer-events: none;
+}
+
+.tran-craft-btn {
+  width: 80%;
+  padding: 9px 0;
+  border-radius: 6px;
+  border: 1px solid rgba(201,160,80,0.6);
+  background: rgba(100, 70, 10, 0.55);
+  color: var(--gold, #c9a050);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.tran-craft-btn:not([disabled]):hover { background: rgba(140,100,20,0.7); }
+.tran-craft-btn[disabled] { opacity: 0.4; cursor: default; }
+
+/* Recipe list */
+.tran-recipe-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tran-recipe-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(201,160,80,0.2);
+  border-radius: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  transition: border-color 0.1s;
+}
+.tran-recipe-card:hover { border-color: rgba(201,160,80,0.5); }
+.tran-recipe-card.tran-recipe-active { border-color: rgba(201,160,80,0.55); }
+.tran-recipe-card.tran-recipe-locked { opacity: 0.45; }
+.tran-recipe-card.tran-recipe-dimmed { opacity: 0.35; }
+.tran-recipe-card.gem-recipe { border-color: rgba(130,80,200,0.4); }
+.tran-recipe-card img { width: 34px; height: 34px; object-fit: contain; image-rendering: pixelated; }
+.tran-recipe-info { flex: 1; }
+.tran-recipe-name { font-size: 0.78rem; font-weight: 700; color: #ddd; }
+.tran-recipe-hint { font-size: 0.66rem; color: rgba(200,185,155,0.65); margin-top: 2px; }
+.tran-recipe-ingredients { font-size: 0.63rem; color: rgba(180,160,130,0.55); margin-top: 1px; }
+
+/* ── Simple Modal (gem prompts) ── */
+.simple-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.simple-modal {
+  background: #1a1510;
+  border: 1px solid rgba(201,160,80,0.5);
+  border-radius: 10px;
+  padding: 18px 20px;
+  max-width: 320px;
+  width: 90%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.simple-modal-title { font-size: 1rem; font-weight: 700; color: var(--gold, #c9a050); }
+.simple-modal-hint { font-size: 0.75rem; color: rgba(200,185,155,0.7); }
+.simple-modal-actions { display: flex; gap: 8px; }
+.simple-modal-btn {
+  flex: 1;
+  padding: 8px 0;
+  border-radius: 6px;
+  border: 1px solid rgba(201,160,80,0.4);
+  background: rgba(80,55,10,0.5);
+  color: var(--gold, #c9a050);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.simple-modal-btn:hover { background: rgba(120,85,20,0.65); }
+.gem-picker-list { display: flex; flex-direction: column; gap: 6px; }
+.gem-picker-btn {
+  text-align: left;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(130,80,200,0.35);
+  background: rgba(30,15,50,0.6);
+  color: #ddd;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.gem-picker-btn:hover { border-color: rgba(180,120,255,0.6); }
+
+/* ── Materials Panel ── */
+.materials-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  overflow-y: auto;
+  flex: 1;
+}
+.materials-panel.hidden { display: none; }
+
+/* Carousel slides must stay full viewport width (overrides panel flex:1 above) */
+.backpack-panels-scroll > .backpack-panel-slide {
+  flex: 0 0 100%;
+  width: 100%;
+  max-width: 100%;
+}
+
+.materials-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+
+.materials-slot {
+  aspect-ratio: 1;
+  border: 1px dashed rgba(201,160,80,0.3);
+  border-radius: 8px;
+  background: rgba(0,0,0,0.25);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  position: relative;
+  cursor: default;
+  transition: border-color 0.12s;
+}
+.materials-slot.occupied {
+  border-style: solid;
+  border-color: rgba(201,160,80,0.5);
+  cursor: pointer;
+}
+.materials-slot.occupied:hover { border-color: var(--gold, #c9a050); }
+
+#materials-grid.replace-mode .materials-slot.occupied.replace-target {
+  cursor: pointer;
+  animation: bp-replace-pulse 1.2s ease-in-out infinite;
+  box-shadow: 0 0 0 2px rgba(255, 150, 50, 0.7);
+}
+
+.materials-slot-stack-full {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.bp-stack-full-badge {
+  color: #aaa;
+}
+
+.materials-slot-img { width: 46px; height: 46px; object-fit: contain; image-rendering: pixelated; }
+.materials-slot-qty {
+  position: absolute;
+  bottom: 3px;
+  right: 5px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 0 3px #000;
+}
+.materials-slot-name {
+  font-size: 0.55rem;
+  color: rgba(200,185,155,0.65);
+  text-align: center;
+  padding: 0 3px;
+  line-height: 1.2;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.materials-slot-locked {
+  border-style: dashed;
+  border-color: rgba(100,90,70,0.4);
+  background: rgba(0,0,0,0.15);
+  cursor: pointer;
+  gap: 4px;
+}
+.materials-slot-locked:hover { border-color: rgba(201,160,80,0.4); }
+.materials-lock-icon { font-size: 1.1rem; }
+.materials-lock-label {
+  font-size: 0.55rem;
+  color: rgba(180,160,120,0.55);
+  text-align: center;
+  line-height: 1.3;
+}
+
+/* ── Slot expand button (backpack / materials) ── */
+.slot-expand-row {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 2px;
+}
+.slot-expand-btn {
+  padding: 6px 14px;
+  border-radius: 5px;
+  border: 1px solid rgba(201,160,80,0.4);
+  background: rgba(50,35,5,0.5);
+  color: rgba(200,180,130,0.8);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.slot-expand-btn:hover { border-color: var(--gold, #c9a050); color: var(--gold, #c9a050); }
+
+/* Tran recipe empty state */
+.tran-recipe-empty {
+  font-size: 0.72rem;
+  color: rgba(180,160,130,0.45);
+  text-align: center;
+  padding: 12px 0;
+}
+
+.card-btn-use {
+  background: rgba(50,120,50,0.35);
+  border-color: rgba(80,180,80,0.5);
+  color: #7ddb7d;
+}
+.card-btn-use:hover { background: rgba(50,140,50,0.5); border-color: #7ddb7d; }
+
+.materials-slot-exhausted {
+  opacity: 0.45;
+  cursor: default;
+}
+.materials-slot-exhausted .materials-slot-qty {
+  color: #e07070;
+}

@@ -3,7 +3,7 @@
 // Version bump CACHE_NAME to force cache refresh on deploy.
 // Keep in sync with APP_VERSION in js/appVersion.js and version.json.
 
-const CACHE_NAME = 'crypt-sweepers-v528'
+const CACHE_NAME = 'crypt-sweepers-v530'
 
 const PRECACHE_ASSETS = [
   './',
@@ -38,6 +38,8 @@ const PRECACHE_ASSETS = [
   './js/data/enemies.js',
   './js/data/items.js',
   './js/data/combinations.js',
+  './js/data/transmutation.js',
+  './js/data/gems.js',
   './js/data/events.js',
   './js/data/tileBlurbs.js',
   './js/data/tileIcons.js',
@@ -79,6 +81,10 @@ const PRECACHE_ASSETS = [
   './js/controllers/InventoryController.js',
   './js/controllers/SafePocketController.js',
   './js/controllers/ForgeController.js',
+  './js/controllers/TransmutationController.js',
+  './js/controllers/GemController.js',
+  './js/controllers/BackpackTabs.js',
+  './js/controllers/MaterialsController.js',
   './js/controllers/EventTileController.js',
   './js/controllers/SubFloorController.js',
   './js/heroes/warrior.js',

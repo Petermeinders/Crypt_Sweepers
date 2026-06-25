@@ -12,6 +12,14 @@ describe('migrateSave', () => {
     assert.equal(changed, false)
   })
 
+  test('adds missing equippedGems', () => {
+    const save = MetaProgression.defaultSave()
+    delete save.equippedGems
+    const { save: out, changed } = migrateSave(save)
+    assert.deepEqual(out.equippedGems, { block: null, counter: null })
+    assert.equal(changed, true)
+  })
+
   test('renames legacy gear stat keys', () => {
     const save = MetaProgression.defaultSave()
     save.equippedGear = {

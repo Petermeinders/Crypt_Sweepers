@@ -1,4 +1,5 @@
 import { CONFIG } from '../config.js'
+import { GEMS } from '../data/gems.js'
 import EventBus from '../core/EventBus.js'
 import SaveManager from '../save/SaveManager.js'
 import UI from '../ui/UI.js'
@@ -259,6 +260,24 @@ export function trashCompletionReward(piece) {
 }
 
 
+
+/** Scrap when dropping/trashing a gem from the backpack (0 if not a gem id). */
+export function gemTrashScrapYield(id) {
+  if (!id || !GEMS[id]) return 0
+  return CONFIG.blacksmith.gemTrashScrapYield ?? 10
+}
+
+/** Drop/trash button suffix for gems, e.g. " (+10 ⚙️ scrap)". */
+export function gemTrashDropSuffix(id) {
+  const scrap = gemTrashScrapYield(id)
+  return scrap ? ` (+${scrap} ⚙️ scrap)` : ''
+}
+
+/** Confirm copy for gems, e.g. "10 scrap". */
+export function gemTrashRewardText(id) {
+  const scrap = gemTrashScrapYield(id)
+  return scrap ? `${scrap} scrap` : ''
+}
 
 /** Passive trinket scrap when dropped/trashed in-run (0 for consumables / unknown rarities). */
 export function trinketTrashScrapYield(item) {

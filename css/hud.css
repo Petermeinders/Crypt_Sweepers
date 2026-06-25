@@ -5,6 +5,73 @@
   flex-shrink: 0;
 }
 
+/* Active floor buffs (consumables + gem effects) — pinned to bottom of grid */
+#grid-container .floor-buff-strip {
+  position: absolute;
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 12;
+  max-width: calc(100% - 16px);
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(8, 6, 16, 0.78);
+  border: 1px solid rgba(201, 160, 80, 0.4);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+}
+.floor-buff-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  min-height: 0;
+}
+.floor-buff-strip.hidden { display: none !important; }
+
+.floor-buff-chip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1.5px solid rgba(201,160,80,0.55);
+  border-radius: 6px;
+  background: rgba(0,0,0,0.5);
+  cursor: pointer;
+  font-size: 1.1rem;
+  box-shadow: 0 0 8px rgba(201,160,80,0.22);
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.floor-buff-chip:active { transform: scale(0.94); }
+.floor-buff-chip:hover {
+  border-color: rgba(255,215,0,0.75);
+  box-shadow: 0 0 10px rgba(255,215,0,0.35);
+}
+.floor-buff-chip img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.floor-buff-stack {
+  position: absolute;
+  bottom: -5px;
+  right: -5px;
+  font-size: 0.55rem;
+  font-weight: 800;
+  color: var(--gold, #ffd700);
+  background: rgba(20,12,4,0.92);
+  border: 1px solid rgba(201,160,80,0.6);
+  border-radius: 4px;
+  padding: 0 3px;
+  line-height: 1.25;
+  pointer-events: none;
+}
+
 /* ── Message log wrap — floating scroll ── */
 #message-log-wrap {
   position: relative;
@@ -337,11 +404,41 @@
 }
 
 /* Cheat: Increase stats — tap targets on HUD */
-body.cheat-increase-stats [data-hud-cheat-target] {
+body.cheat-increase-stats [data-hud-cheat-target]:not(.orb-tap) {
   cursor: pointer;
   pointer-events: auto;
   position: relative;
   z-index: 1;
+}
+
+body.cheat-increase-stats .orb-tap[data-hud-cheat-target] {
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+body.cheat-increase-stats [data-hud-cheat-target]:not(.orb-tap)::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 6px;
+  border: 1px dashed rgba(255, 180, 60, 0.55);
+  pointer-events: none;
+  animation: cheat-target-pulse 1.6s ease-in-out infinite;
+}
+
+body.cheat-increase-stats .orb-tap[data-hud-cheat-target]::after {
+  border-radius: 50%;
+  inset: -3px;
+}
+
+body.cheat-increase-stats #xp-bar-container::after {
+  inset: -3px 0;
+  border-radius: 4px;
+}
+
+@keyframes cheat-target-pulse {
+  0%, 100% { opacity: 0.35; }
+  50%       { opacity: 0.9; }
 }
 
 /* Disabled ability slots still capture clicks; let taps pass through to stats (mana row, etc.) */
@@ -1489,6 +1586,7 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
   object-position: right center;
   pointer-events: none;
   user-select: none;
+  z-index: 1;
 }
 
 /* Mana fill — covers right half, 2% overlap at center to eliminate gap */
@@ -1500,6 +1598,7 @@ body.cheat-increase-stats #xp-bar-container #xp-bar {
   object-position: left center;
   pointer-events: none;
   user-select: none;
+  z-index: 1;
 }
 
 /* Frame sits on top of everything, lets orb content show through its center */

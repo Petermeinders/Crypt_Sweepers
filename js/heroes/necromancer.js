@@ -20,6 +20,15 @@ import { session, charKey } from '../core/RunContext.js'
 
 let _nextMinionId = 1
 
+/** After resume/import, avoid reusing minion ids from the saved run. */
+export function restoreMinionIdCounter(minions) {
+  let maxId = 0
+  for (const m of minions ?? []) {
+    if (typeof m.id === 'number' && m.id > maxId) maxId = m.id
+  }
+  if (maxId >= _nextMinionId) _nextMinionId = maxId + 1
+}
+
 const MINION_MASTERY_MAX = NECROMANCER_MINION.hpPctByLevel.length
 
 function minionMasteryLevel() {
@@ -186,7 +195,9 @@ export function syncMinionVisual(minion) {
 export function syncAllMinionVisuals() {
   if (!session.run?.minions) return
   for (const m of session.run.minions) {
+    if (m.hp <= 0) continue
     syncMinionVisual(m)
+    TileEngine.getTile(m.row, m.col)?.element?.classList.add('enemy-alive')
   }
 }
 
@@ -281,6 +292,55 @@ export function necroRaiseMinion(ctx, tile) {
     UI.setMessage(`You raise a minion from the ashes! (❤️ ${maxHp}, ⚔️ ${dmg}) Mana: ${session.run.player.mana}/${session.run.player.maxMana}`)
   }
   ctx.saveActiveRun()
+}
+
+function _absorbCorpseIntoGargantuan(ctx, garg, corpse) {
+  const hpBoost = Math.max(1, Math.round(garg.maxHp * GARGANTUAN.hpMultPerExtraCorpse))
+  garg.corpsesMerged = (garg.corpsesMerged ?? 1) + 1
+  const dmgBoost = garg.corpsesMerged % 2 === 0 ? GARGANTUAN.dmgPerTwoExtraCorpses : 0
+  garg.maxHp += hpBoost
+  garg.hp    += hpBoost
+  garg.dmg   += dmgBoost
+  necroClearAshAfterMinionDeath(ctx, corpse.row, corpse.col)
+}
+
+/**
+ * If a Gargantuan is alive:
+ * - Tapping an enemy ash pile causes the Gargantuan to absorb it (gain HP/dmg).
+ * - Tapping the Gargantuan's own tile absorbs ALL ash piles on the floor.
+ * Returns true if the tap was consumed.
+ */
+export function tryGargantuanCorpseAbsorb(ctx, tile) {
+  if (charKey() !== 'necromancer') return false
+  const garg = (session.run?.minions ?? []).find(m => m.hp > 0 && m.isGargantuan)
+  if (!garg) return false
+
+  const isTappingGargantuan = garg.row === tile.row && garg.col === tile.col
+  const isTappingCorpse = tile.revealed && tile.enemyData?._slain && !tile.corpseExploded
+
+  if (isTappingGargantuan) {
+    const corpses = getFloorCorpseTiles().filter(c => c.row !== garg.row || c.col !== garg.col)
+    if (!corpses.length) return false
+    for (const corpse of corpses) _absorbCorpseIntoGargantuan(ctx, garg, corpse)
+    syncMinionVisual(garg)
+    const gTile = TileEngine.getTile(garg.row, garg.col)
+    if (gTile?.element) UI.spawnFloat(gTile.element, `👹 +${corpses.length} absorbed!`, 'xp')
+    UI.setMessage(`Gargantuan devours ${corpses.length} ash pile${corpses.length > 1 ? 's' : ''}! → ❤️ ${garg.hp}/${garg.maxHp}, ⚔️ ${garg.dmg}`)
+    ctx.saveActiveRun()
+    return true
+  }
+
+  if (isTappingCorpse) {
+    _absorbCorpseIntoGargantuan(ctx, garg, tile)
+    syncMinionVisual(garg)
+    const gTile = TileEngine.getTile(garg.row, garg.col)
+    if (gTile?.element) UI.spawnFloat(gTile.element, '👹 Absorbed!', 'xp')
+    UI.setMessage(`Gargantuan absorbs the ashes! → ❤️ ${garg.hp}/${garg.maxHp}, ⚔️ ${garg.dmg}`)
+    ctx.saveActiveRun()
+    return true
+  }
+
+  return false
 }
 
 export function tryGargantuanMergeTap(ctx, tile) {

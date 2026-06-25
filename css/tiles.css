@@ -377,6 +377,7 @@
 .tile-status-badge.status-bleed   { border-color: rgba(200,60,60,0.5);  color: #ff8888; }
 .tile-status-badge.status-poison  { border-color: rgba(80,180,80,0.5);  color: #88ee88; }
 .tile-status-badge.status-stun    { border-color: rgba(220,200,80,0.5); color: #ffe066; }
+.tile-status-badge.status-shocked { border-color: rgba(100,160,255,0.5); color: #99ccff; }
 
 /* Orthogonal threat clue (enemies + trap weight) — Mamono-style, N/E/S/W only */
 .tile-front .tile-threat-clue {

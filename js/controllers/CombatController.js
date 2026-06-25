@@ -1,4 +1,5 @@
 import { CONFIG } from '../config.js'
+import { GEM_IDS, INGREDIENT_IDS, pickRandom } from '../systems/LootTables.js'
 import GameState, { States } from '../core/GameState.js'
 import EventBus from '../core/EventBus.js'
 import TileEngine from '../systems/TileEngine.js'
@@ -20,6 +21,7 @@ import { handleGearPickup } from './GearController.js'
 import { generateGear, pickDropTier, pickDropSlot } from '../data/gear.js'
 import { rollParryFail, rollStrikeMiss } from '../systems/VoidCorruption.js'
 import { tryConsumeShocked } from '../systems/Thunderstruck.js'
+import { resolveParryGem, resetGemStreaks } from './GemController.js'
 
 const MSG_COMBAT_ACTION_BLOCKED = 'Cannot perform action when in combat with enemy'
 const RANGER_FIGHT_ATTACK_PORTRAIT_MS = 4000
@@ -131,6 +133,14 @@ export function fightAction(ctx, tile) {
   }
   setCombatEngagement(tile)
 
+  // Apply pre-stun from out-of-combat stun items (Smoke Bomb, Choking Cloud, Flash Powder)
+  if ((session.run.player.preStunTurns ?? 0) > 0) {
+    tile.enemyData.stunTurns = (tile.enemyData.stunTurns ?? 0) + session.run.player.preStunTurns
+    session.run.player.preStunTurns = 0
+    UI.spawnFloat(tile.element, `💨 Stunned!`, 'xp')
+    UI.updateEnemyStatus(tile.element, tile.enemyData)
+  }
+
   const result = CombatResolver.resolveFight(session.run.player, tile.enemyData)
 
   let playerDmg = result.playerDmg
@@ -178,6 +188,12 @@ export function fightAction(ctx, tile) {
   }
   // Ogre: 10% shield block — cancels entire melee attack
   if (checkShieldBlock(ctx, tile)) { session.tap.combatBusy = false; return }
+
+  // Floor buff: Honing Oil — +10% damage per stack
+  const honingBuff = session.run.floorBuffs?.find(b => b.effectType === 'damage-pct')
+  if (honingBuff) {
+    playerDmg = Math.round(playerDmg * (1 + (honingBuff.effectValue * honingBuff.stackCount) / 100))
+  }
 
   const shock = tryConsumeShocked(ctx, tile, { source: 'melee' })
   playerDmg = ctx.scaleOutgoingDamageToEnemy(playerDmg) + shock.bonus
@@ -293,11 +309,13 @@ export function fightAction(ctx, tile) {
       }
       tile.enemyData.currentHP = 0
       if (tile.enemyData?.enemyId === 'onion') ctx.applyTearyEyes()
-      UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp')
       UI.setMessage(`You strike for ${playerDmg}${bonusSuffix}! The enemy falls before they can strike back. +${enemyGoldDrop} gold.`)
-      ctx.gainGold(enemyGoldDrop, tile.element, true)
-      ctx.gainXP(result.xpDrop ?? 0, tile.element)
-      endCombatVictory(ctx, tile)
+      const _ks = _isBot ? 0 : 150
+      // Death animation fires immediately; damage/gold/XP stagger after it
+      endCombatVictory(ctx, tile, _ks * 4)
+      setTimeout(() => UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp'), _ks)
+      setTimeout(() => ctx.gainGold(enemyGoldDrop, tile.element, true), _ks * 2)
+      setTimeout(() => ctx.gainXP(result.xpDrop ?? 0, tile.element), _ks * 3)
       if (_stormProc) triggerStormcallerLightning(ctx, tile, playerDmg)
       afterAttackPortrait(() => {
         UI.setPortraitAnim('idle')
@@ -361,11 +379,12 @@ export function fightAction(ctx, tile) {
         tile.enemyData.burnTurns--
         UI.spawnFloat(tile.element, `🔥 ${burnDmg}`, 'damage')
         if (tile.enemyData.currentHP <= 0) {
-          UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp')
           UI.setMessage(`You strike for ${playerDmg}${bonusSuffix}! The enemy falls to flames before they can strike back. +${enemyGoldDrop} gold.`)
-          ctx.gainGold(enemyGoldDrop, tile.element, true)
-          ctx.gainXP(result.xpDrop ?? 0, tile.element)
-          endCombatVictory(ctx, tile)
+          const _ks = _isBot ? 0 : 150
+          endCombatVictory(ctx, tile, _ks * 4)
+          setTimeout(() => UI.spawnFloat(tile.element, `⚔️ ${playerDmg}`, 'xp'), _ks)
+          setTimeout(() => ctx.gainGold(enemyGoldDrop, tile.element, true), _ks * 2)
+          setTimeout(() => ctx.gainXP(result.xpDrop ?? 0, tile.element), _ks * 3)
           afterAttackPortrait(() => {
             UI.setPortraitAnim('idle')
           })
@@ -405,13 +424,22 @@ export function fightAction(ctx, tile) {
             // Failed block attempt: -1 mana, full damage
             session.run.player.mana = Math.max(0, (session.run.player.mana ?? 0) - 1)
             UI.updateMana(session.run.player.mana, session.run.player.maxMana)
+            resetGemStreaks('block')
           } else if (parryResult === 'miss-parry') {
             // Failed parry attempt: -2 mana, double damage
             session.run.player.mana = Math.max(0, (session.run.player.mana ?? 0) - 2)
             UI.updateMana(session.run.player.mana, session.run.player.maxMana)
             finalEnemyDmg = result.enemyDmg * 2
+            resetGemStreaks('counter')
           }
           // 'ignore': ring expired untouched — full damage, no mana change
+
+          // Parry gem effects
+          if (parrySuccessType) {
+            session.run._blockDamageNegated = false
+            resolveParryGem(ctx, tile, parrySuccessType, playerDmg)
+            if (session.run._blockDamageNegated && parrySuccessType === 'block') finalEnemyDmg = 0
+          }
 
           setEnemySprite(tile, 'attack')
           if (tile.enemyData?.freezingHit)   ctx.applyFreezingHit()
@@ -431,9 +459,10 @@ export function fightAction(ctx, tile) {
             UI.spawnFloat(tile.element, `⚡ ${bonusHitDmg}`, 'xp')
             UI.updateEnemyHP(tile.element, tile.enemyData.currentHP)
             if (tile.enemyData.currentHP <= 0) {
-              ctx.gainGold(enemyGoldDrop, tile.element, true)
-              ctx.gainXP(result.xpDrop ?? 0, tile.element)
-              endCombatVictory(ctx, tile)
+              const _ks = _isBot ? 0 : 150
+              endCombatVictory(ctx, tile, _ks * 2)
+              setTimeout(() => ctx.gainGold(enemyGoldDrop, tile.element, true), _ks)
+              setTimeout(() => ctx.gainXP(result.xpDrop ?? 0, tile.element), _ks * 2)
               afterAttackPortrait(() => UI.setPortraitAnim('idle'))
               session.tap.combatBusy = false
               return
@@ -511,11 +540,20 @@ export function fightAction(ctx, tile) {
         // Auto-block: only when parry is disabled and setting is on
         if (!(session.save?.settings?.parryEnabled ?? true) && (session.save?.settings?.autoBlockEnabled ?? true)) {
           const r = Math.random()
-          if (r < 0.20) autoBlockResult = 'parry'
-          else if (r < 0.70) autoBlockResult = 'block'
+          if (r < 0.10) autoBlockResult = 'parry'
+          else if (r < 0.30) autoBlockResult = 'block'
+        }
+
+        if (autoBlockResult === 'block') {
+          session.run._blockDamageNegated = false
+          resolveParryGem(ctx, tile, 'block', playerDmg)
+          if (session.run._blockDamageNegated) autoBlockResult = 'block-negated'
+        } else if (autoBlockResult === 'parry') {
+          resolveParryGem(ctx, tile, 'counter', playerDmg)
         }
 
         const effectiveEnemyDmg = autoBlockResult === 'parry' ? 0
+          : autoBlockResult === 'block-negated' ? 0
           : autoBlockResult === 'block' ? Math.floor(result.enemyDmg / 2)
           : result.enemyDmg
         if (effectiveEnemyDmg > 0) {
@@ -564,7 +602,7 @@ export function fightAction(ctx, tile) {
   }
 }
 
-export function endCombatVictory(ctx, tile) {
+export function endCombatVictory(ctx, tile, killFloatDelay = 0) {
   // Sub-floor kill path — bypass main-grid-specific cleanup (boss exit tile,
   // recompute adjacency locks on _grid, threat clue refresh, floor-cleared
   // check). Handle sub-floor-appropriate cleanup instead and still apply
@@ -655,16 +693,21 @@ export function endCombatVictory(ctx, tile) {
     }
   }
 
+  // Stagger helper — state changes happen immediately, only the float is deferred
+  let _fd = killFloatDelay
+  const sf = (text, type) => { const d = _fd; setTimeout(() => UI.spawnFloat(tile.element, text, type), d); _fd += 150 }
+
   // Tongue Snatch: return stolen gold on kill
   if ((tile.enemyData?.snatched ?? 0) > 0) {
-    ctx.gainGold(tile.enemyData.snatched, tile.element)
-    UI.spawnFloat(tile.element, `👅 +${tile.enemyData.snatched}💰 returned!`, 'heal')
+    const snatched = tile.enemyData.snatched
+    ctx.gainGold(snatched, tile.element)
+    sf(`👅 +${snatched}💰 returned!`, 'heal')
   }
 
   if (session.run.player.onKillHeal > 0) {
     session.run.player.hp = Math.min(session.run.player.maxHp, session.run.player.hp + session.run.player.onKillHeal)
-    UI.spawnFloat(tile.element, `+${session.run.player.onKillHeal} HP`, 'heal')
     UI.updateHP(session.run.player.hp, session.run.player.maxHp)
+    sf(`+${session.run.player.onKillHeal} HP`, 'heal')
   }
 
   // Engineer Turret Mastery III: heal 3% (min 1) on any kill while turret is active at level 3
@@ -674,29 +717,29 @@ export function endCombatVictory(ctx, tile) {
       const tkHeal = Math.max(1, Math.floor(session.run.player.maxHp * 0.03))
       session.run.player.hp = Math.min(session.run.player.maxHp, session.run.player.hp + tkHeal)
       UI.updateHP(session.run.player.hp, session.run.player.maxHp)
-      UI.spawnFloat(tile.element, `💚 +${tkHeal}`, 'xp')
+      sf(`💚 +${tkHeal}`, 'xp')
     }
   }
 
   if (session.run.player.inventory.some(e => e?.id === 'vampire-fang')) {
     session.run.player.hp = Math.min(session.run.player.maxHp, session.run.player.hp + 1)
-    UI.spawnFloat(tile.element, '+1 HP', 'heal')
     UI.updateHP(session.run.player.hp, session.run.player.maxHp)
+    sf('+1 HP', 'heal')
   }
   if (session.run.player.inventory.some(e => e?.id === 'sanguine-covenant')) {
     session.run.player.hp = Math.min(session.run.player.maxHp, session.run.player.hp + 2)
-    UI.spawnFloat(tile.element, '⚗️ +2 HP', 'heal')
     UI.updateHP(session.run.player.hp, session.run.player.maxHp)
+    sf('⚗️ +2 HP', 'heal')
   }
   if (session.run.player.inventory.some(e => e?.id === 'soul-candle') && Math.random() < 0.20) {
     session.run.player.mana = Math.min(session.run.player.maxMana, session.run.player.mana + 1)
-    UI.spawnFloat(tile.element, '🕯️ +1 MP', 'mana')
     UI.updateMana(session.run.player.mana, session.run.player.maxMana)
+    sf('🕯️ +1 MP', 'mana')
   }
   if (session.run.player.inventory.some(e => e?.id === 'temporal-wick') && Math.random() < 0.30) {
     session.run.player.mana = Math.min(session.run.player.maxMana, session.run.player.mana + 1)
-    UI.spawnFloat(tile.element, '⏳ +1 MP', 'mana')
     UI.updateMana(session.run.player.mana, session.run.player.maxMana)
+    sf('⏳ +1 MP', 'mana')
   }
   if (session.run.player.inventory.some(e => e?.id === 'resonance-core')) {
     for (const adj of TileEngine.getOrthogonalTiles(tile.row, tile.col)) {
@@ -711,7 +754,7 @@ export function endCombatVictory(ctx, tile) {
   // Deathmask: 25% chance next reveal is an instant kill
   if (!session.run.player.deathmaskPending && session.run.player.inventory.some(e => e?.id === 'deathmask') && Math.random() < 0.25) {
     session.run.player.deathmaskPending = true
-    UI.spawnFloat(tile.element, '💀 Marked!', 'xp')
+    sf('💀 Marked!', 'xp')
   }
   if (session.run.player.inventory.some(e => e?.id === 'greed-tooth')) {
     ctx.gainGold(1, tile.element, true)
@@ -730,7 +773,7 @@ export function endCombatVictory(ctx, tile) {
   // Eagle Eye: grant free flip (any tile, ignores adjacency)
   if (session.run.player.inventory.some(e => e?.id === 'eagle-eye')) {
     session.run.player.eagleEyeFreeFlip = true
-    UI.spawnFloat(tile.element, '🦅 Free flip!', 'xp')
+    sf('🦅 Free flip!', 'xp')
   }
   // Hunter's Instinct: reveal nearest adjacent hidden tile + echo hint all other adjacent tiles
   if (session.run.player.inventory.some(e => e?.id === 'hunters-instinct')) {
@@ -750,7 +793,7 @@ export function endCombatVictory(ctx, tile) {
           adj.element.dataset.echoHint = cat
         }
       }
-      UI.spawnFloat(tile.element, '🐾 Instinct!', 'xp')
+      sf('🐾 Instinct!', 'xp')
     }
   }
   // Soulbound Blade: +0.1 permanent damage per kill
@@ -759,7 +802,7 @@ export function endCombatVictory(ctx, tile) {
     if (Math.floor(session.run.player.soulboundBonus) > Math.floor(session.run.player.soulboundBonus - 0.1)) {
       const [d0, d1] = ctx.playerDamageRange(session.run.player)
       UI.updateDamageRange(d0, d1)
-      UI.spawnFloat(tile.element, '⚔️ +1 dmg!', 'xp')
+      sf('⚔️ +1 dmg!', 'xp')
     }
   }
 
@@ -771,13 +814,23 @@ export function endCombatVictory(ctx, tile) {
   if (session.run.floorModifier?.id === 'mana-spring' && session.run.player.mana < session.run.player.maxMana) {
     const gained = Math.min(2, session.run.player.maxMana - session.run.player.mana)
     session.run.player.mana += gained
-    UI.spawnFloat(tile.element, `🔮 +${gained} MP`, 'mana')
+    sf(`🔮 +${gained} MP`, 'mana')
     UI.updateMana(session.run.player.mana, session.run.player.maxMana)
   }
 
   // Gear drop: boss = guaranteed, normal enemy = 2% chance
   if (wasBoss) {
     ctx.tryGearDrop(session.run.floor, 1.0)
+    // 5% chance boss drops a gem
+    if (session.run.floor >= 10 && Math.random() < 0.05) {
+      const gemId = GEM_IDS[Math.floor(Math.random() * GEM_IDS.length)]
+      // Unlock gem recipe permanently (account-level discovery)
+      if (session.save?.meta && !session.save.meta.unlockedGemRecipes.includes(gemId)) {
+        session.save.meta.unlockedGemRecipes.push(gemId)
+      }
+      ctx.addItemToInventory?.(gemId)
+      sf('💎 Gem drop!', 'xp')
+    }
   } else {
     // Each drop is an independent roll — add more rolls here as needed
     if (Math.random() < CONFIG.gear.enemyDropChance) {
@@ -793,7 +846,12 @@ export function endCombatVictory(ctx, tile) {
       const id = potions[Math.floor(Math.random() * potions.length)]
       void ctx.addToBackpack(id)
       const icon = id === 'potion-red' ? '🧪' : id === 'potion-blue' ? '🔵' : '🤍'
-      UI.spawnFloat(tile.element, `${icon} Drop!`, 'heal')
+      sf(`${icon} Drop!`, 'heal')
+    }
+    if (Math.random() < 0.15) {
+      const id = pickRandom(INGREDIENT_IDS)
+      void ctx.addToBackpack(id)
+      sf('🧪 Ingredient!', 'xp')
     }
   }
 

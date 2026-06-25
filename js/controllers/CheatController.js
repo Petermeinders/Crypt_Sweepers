@@ -2,8 +2,11 @@
 
 import MetaProgression from '../systems/MetaProgression.js'
 import { generateGear, pickDropTier, pickDropSlot } from '../data/gear.js'
-import { pickTrinketIdForDropTier } from '../systems/LootTables.js'
+import { GEM_IDS, pickTrinketIdForDropTier } from '../systems/LootTables.js'
 import { ITEMS } from '../data/items.js'
+import { GEMS } from '../data/gems.js'
+
+import { adjustScrap } from './GearController.js'
 
 export function cheatSkipFloor(deps) {
   const { getSave, getRun, GameState, States, UI, EventBus, nextFloor, startFloor, runMusicTrack } = deps
@@ -67,6 +70,34 @@ export async function cheatGenerateGear(deps) {
   UI.setMessage(`[Cheat] Generated ${label}: ${name}.`)
 }
 
+export async function cheatGrantGem(deps) {
+  const { getSave, getRun, GameState, States, UI, addItemToInventory, SaveManager } = deps
+  const save = getSave()
+  const run = getRun()
+  if (!save?.settings?.cheats?.grantGemButton || !run) return
+
+  const playable =
+    GameState.is(States.FLOOR_EXPLORE) ||
+    GameState.is(States.COMBAT) ||
+    GameState.is(States.NPC_INTERACT) ||
+    GameState.is(States.LEVEL_UP) ||
+    GameState.is(States.RETREAT_CONFIRM)
+  if (!playable) {
+    UI.setMessage('[Cheat] Grant Gem only works during a run.', true)
+    return
+  }
+
+  const gemId = GEM_IDS[Math.floor(Math.random() * GEM_IDS.length)]
+  MetaProgression.ensureMeta(save)
+  if (!save.meta.unlockedGemRecipes.includes(gemId)) {
+    save.meta.unlockedGemRecipes.push(gemId)
+    await SaveManager.save(save).catch(() => {})
+  }
+  await addItemToInventory(gemId)
+  const name = GEMS[gemId]?.name ?? gemId
+  UI.setMessage(`[Cheat] Granted gem: ${name}.`)
+}
+
 export function cheatAddVoidPearl(deps) {
   const { getSave, UI, SaveManager } = deps
   const save = getSave()
@@ -86,7 +117,7 @@ export function applyCheat(deps, key, enabled) {
   if (!_save.settings.cheats) _save.settings.cheats = {}
   _save.settings.cheats[key] = enabled
 
-  if (key === 'skipFloorButton' || key === 'generateGearButton') {
+  if (key === 'skipFloorButton' || key === 'generateGearButton' || key === 'grantGemButton') {
     UI.refreshSkipFloorButton(_save)
   }
   if (key === 'increaseStats') {
@@ -105,8 +136,9 @@ export function applyCheat(deps, key, enabled) {
 }
 
 /**
- * Cheat "Increase stats": tap HUD HP/mana/gold (+10 each), attack (+1 damageBonus), XP bar (+10% to next level), or golden key slot (+1 key).
- * Caller should ensure main menu is hidden (in a run).
+ * Cheat "Increase stats" — tap HUD targets while enabled in Settings.
+ * HP/Mana orbs (+10), gold/scrap on portrait (+10), attack (+1 dmg bonus), armor (+1),
+ * XP bar (+10% toward next level), golden keys (+1).
  */
 export function cheatHudStatBoost(deps, stat) {
   const { getSave, getRun, GameState, States, UI, EventBus, xpNeeded, playerDamageRange, triggerLevelUp, syncMagicChestKeyGlow } = deps
@@ -142,6 +174,10 @@ export function cheatHudStatBoost(deps, stat) {
     EventBus.emit('player:goldChange', { amount: 10, newTotal: p.gold })
     return
   }
+  if (stat === 'scrap') {
+    adjustScrap(10)
+    return
+  }
   if (stat === 'goldenkey') {
     p.goldenKeys = (p.goldenKeys ?? 0) + 1
     UI.updateGoldenKeys(p.goldenKeys)
@@ -154,6 +190,11 @@ export function cheatHudStatBoost(deps, stat) {
       const [d0, d1] = playerDamageRange(p)
       UI.updateDamageRange(d0, d1)
     }
+    return
+  }
+  if (stat === 'armor') {
+    p.armor = (p.armor ?? 0) + 1
+    UI.updateArmor(p.armor)
     return
   }
   if (stat === 'xp') {

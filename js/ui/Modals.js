@@ -1,7 +1,8 @@
 import { CONFIG } from '../config.js'
 import { TD_PIECES as TD_PIECES_REF } from '../data/tdPieces.js'
 import { getRadiusCells as _tdGetRadius } from '../systems/TDPathfinder.js'
-import { trinketTrashDropSuffix, trinketTrashRewardText } from '../controllers/GearController.js'
+import { gemTrashDropSuffix, gemTrashRewardText, trinketTrashDropSuffix, trinketTrashRewardText } from '../controllers/GearController.js'
+import { GEMS } from '../data/gems.js'
 import TileEngine from '../systems/TileEngine.js'
 import { TILE_BLURBS } from '../data/tileBlurbs.js'
 import { ENEMY_DEFS } from '../data/enemies.js'
@@ -425,17 +426,31 @@ export const ModalsMethods = {
       </div>
       <div class="card-divider"></div>
       <p class="card-blurb">${data.blurb}</p>
+      ${data.hint ? `<div class="card-effect-block"><div class="card-effect-label">Effect</div><p class="card-effect-desc">${data.hint}</p></div>` : ''}
       ${detailsHTML ? `<div class="card-attrs">${detailsHTML}</div>` : ''}
       ${attrHTML ? `<div class="card-attrs">${attrHTML}</div>` : ''}
       ${forgeHTML}
-      ${typeof opts.onDrop === 'function'
+      ${(typeof opts.onDrop === 'function' || typeof opts.onUse === 'function')
         ? `<div class="card-actions"></div>`
         : ''}
     `
 
+    if (typeof opts.onUse === 'function') {
+      const actions = el.infoCard.querySelector('.card-actions')
+      if (actions) {
+        const useBtn = document.createElement('button')
+        useBtn.type = 'button'
+        useBtn.className = 'card-btn card-btn-use'
+        useBtn.textContent = 'Use'
+        useBtn.addEventListener('click', (e) => { e.stopPropagation(); opts.onUse() })
+        actions.appendChild(useBtn)
+      }
+    }
+
     if (typeof opts.onDrop === 'function') {
-      const dropSuffix = trinketTrashDropSuffix(data)
-      const rewardText = trinketTrashRewardText(data)
+      const isGem = !!(data.id && GEMS[data.id])
+      const dropSuffix = isGem ? gemTrashDropSuffix(data.id) : trinketTrashDropSuffix(data)
+      const rewardText = isGem ? gemTrashRewardText(data.id) : trinketTrashRewardText(data)
       const hasStack = typeof opts.onDropStack === 'function' && (data._qty ?? 1) > 1
       const _wireDropBtn = (actions) => {
         actions.innerHTML = `
@@ -620,7 +635,7 @@ export const ModalsMethods = {
     const grid = document.getElementById('backpack-grid')
     if (!grid) return
     const gearPickupMode = !!opts.gearPickupMode
-    const SLOTS = 9
+    const SLOTS = opts.maxSlots ?? 9
     const { filterSlot, filterTrinket, onCompare, onCompareTrinket, onUnequip, onReplaceIndex, onReplaceGearIndex, onSwapWithEquipped } = opts
     grid.innerHTML = ''
     grid.classList.toggle('replace-mode', replaceMode || gearPickupMode)
@@ -1155,6 +1170,66 @@ export const ModalsMethods = {
     cancelBtn.replaceWith(newCancelBtn)
     newEquipBtn.addEventListener('click', onEquip)
     newCancelBtn.addEventListener('click', onCancel)
+
+    modal.classList.remove('hidden')
+    modal.setAttribute('aria-hidden', 'false')
+  },
+
+  renderGemCompareModal(candidateDef, equippedDef, socketLabel, onSocket, onCancel, onTrash) {
+    const modal = el.gearCompareModal
+    if (!modal || !candidateDef) return
+    modal.querySelector('.cmp-stat-panel')?.classList.add('hidden')
+    modal.querySelector('.cmp-trash-row')?.classList.remove('hidden')
+
+    const _gemDetail = (def, label) => {
+      if (!def) {
+        return `<div class="cmp-replace-col"><div class="cmp-replace-col-label">${label}</div><em class="cmp-gem-empty">Empty</em></div>`
+      }
+      const effect = def.hint
+        ? `<div class="cmp-trinket-effect"><strong>Effect:</strong> ${def.hint}</div>`
+        : ''
+      return `<div class="cmp-replace-col">
+        <div class="cmp-replace-col-label">${label}</div>
+        <p class="cmp-trinket-blurb">${def.blurb ?? ''}</p>
+        ${effect}
+      </div>`
+    }
+
+    const detailsEl = document.getElementById('cmp-trinket-details')
+    if (detailsEl) {
+      detailsEl.classList.remove('hidden')
+      if (equippedDef) {
+        detailsEl.innerHTML = `
+          <div class="cmp-gem-socket-label">${socketLabel} gem socket</div>
+          <div class="cmp-replace-split">
+            ${_gemDetail(candidateDef, 'Incoming')}
+            ${_gemDetail(equippedDef, 'Currently socketed')}
+          </div>`
+      } else {
+        detailsEl.innerHTML = `
+          <div class="cmp-gem-socket-label">${socketLabel} gem socket</div>
+          <p class="cmp-trinket-blurb">${candidateDef.blurb ?? ''}</p>
+          ${candidateDef.hint ? `<div class="cmp-trinket-effect"><strong>Effect:</strong> ${candidateDef.hint}</div>` : ''}`
+      }
+    }
+
+    _renderCompareItemSide(modal.querySelector('.cmp-candidate'), candidateDef, 'trinket')
+    _renderCompareItemSide(modal.querySelector('.cmp-equipped'), equippedDef, 'trinket')
+
+    const equipBtn  = modal.querySelector('.cmp-equip-btn')
+    const cancelBtn = modal.querySelector('.cmp-cancel-btn')
+    const trashBtn  = modal.querySelector('.cmp-trash-btn')
+    const newEquipBtn  = equipBtn.cloneNode(true)
+    const newCancelBtn = cancelBtn.cloneNode(true)
+    const newTrashBtn  = trashBtn.cloneNode(true)
+    newEquipBtn.textContent = equippedDef ? 'Swap Gem' : 'Socket Gem'
+    newTrashBtn.textContent = `🗑 Trash this gem${gemTrashDropSuffix(candidateDef.id)}`
+    equipBtn.replaceWith(newEquipBtn)
+    cancelBtn.replaceWith(newCancelBtn)
+    trashBtn.replaceWith(newTrashBtn)
+    newEquipBtn.addEventListener('click', onSocket)
+    newCancelBtn.addEventListener('click', onCancel)
+    newTrashBtn.addEventListener('click', onTrash ?? onCancel)
 
     modal.classList.remove('hidden')
     modal.setAttribute('aria-hidden', 'false')

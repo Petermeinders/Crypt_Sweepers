@@ -118,6 +118,7 @@ describe('MetaProgression game completion', () => {
     assert.ok(save.meta.casino, 'meta.casino should exist')
     assert.equal(save.meta.casino.totalSpins, 0)
     assert.deepEqual(save.meta.casino.pendingGear, [])
+    assert.deepEqual(save.equippedGems, { block: null, counter: null })
   })
 })
 

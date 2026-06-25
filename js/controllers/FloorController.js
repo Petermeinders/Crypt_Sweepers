@@ -57,6 +57,16 @@ export function startFloor(ctx) {
   session.tap.twinBladesTargeting     = false
   if (session.run?.player) session.run.player.navigatorsChartUsed = false
   const resumeSnapshot = !!(session.run?._resumeGridSnapshot)
+  // Floor buff: Field Dressing — heal per floor
+  if (!resumeSnapshot && session.run && !session.run.atRest && Array.isArray(session.run.floorBuffs)) {
+    const dressingBuff = session.run.floorBuffs.find(b => b.effectType === 'heal-per-floor')
+    if (dressingBuff) {
+      const healAmt = Math.max(1, Math.floor(session.run.player.maxHp * dressingBuff.effectValue / 100))
+      session.run.player.hp = Math.min(session.run.player.maxHp, session.run.player.hp + healAmt)
+      UI.updateHP(session.run.player.hp, session.run.player.maxHp)
+      UI.spawnFloat(document.getElementById('hud-portrait'), `🌿 +${healAmt}`, 'heal')
+    }
+  }
   // Hunger Stone: costs 2 HP and grants +1 max damage each floor (skip sanctuary)
   if (!resumeSnapshot && session.run && !session.run.atRest && session.run.floor > 1 && session.run.player.inventory.some(e => e?.id === 'hunger-stone')) {
     session.run.player.damageBonus = (session.run.player.damageBonus ?? 0) + 1
@@ -103,7 +113,12 @@ export function startFloor(ctx) {
   TileEngine.renderGrid(UI.getGridEl(), ctx.onTileTap, ctx.onTileHold)
   if (gridRestored) EnemyLeaders.recomputeLeaderAuras(TileEngine.getGrid())
   if (session.run.turret) ctx.syncTurretVisual()
-  session.run.minions = []
+  if (!gridRestored) {
+    session.run.minions = []
+  } else if (session.run.minions?.length) {
+    session.run.minions = session.run.minions.filter(m => m.hp > 0)
+    ctx.syncAllMinionVisuals()
+  }
 
   // ── Floor modifier ─────────────────────────────────────────
   if (session.run.floorModifier?.clear) {
@@ -139,6 +154,7 @@ export function startFloor(ctx) {
     if (session.run.floorModifier) UI.setFloorModifier(session.run.floorModifier)
     else UI.clearFloorModifier()
   }
+  UI.updateFloorBuffs(session.run.floorBuffs ?? [])
   if (session.run._resumeEventTile) {
     session.run.eventTile = TileEngine.getTile(session.run._resumeEventTile.row, session.run._resumeEventTile.col)
     session.run._resumeEventTile = null
@@ -492,6 +508,16 @@ export function nextFloor(ctx) {
   UI.clearFloorModifier()
   session.run._ropeUsedThisSanctuary = false
   session.run.floorKeyAwarded = false
+  session.run.checkpointStart = false
+  // Tick floor-buff durations — single-floor buffs expire; multi-floor buffs decrement
+  if (Array.isArray(session.run.floorBuffs)) {
+    session.run.floorBuffs = session.run.floorBuffs.filter(b => {
+      if (b.floorsLeft == null) return false   // one-floor buffs consumed on exit
+      b.floorsLeft--
+      return b.floorsLeft > 0
+    })
+    UI.updateFloorBuffs?.(session.run.floorBuffs)
+  }
   session.run.floor++
   if (session.save?.meta && session.run.floor > (session.save.meta.deepestFloor ?? 1)) {
     session.save.meta.deepestFloor = session.run.floor

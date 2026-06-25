@@ -1,4 +1,6 @@
 import { ITEMS } from '../../data/items.js'
+import { GEMS } from '../../data/gems.js'
+import { wireGemSockets, renderGemSockets, socketGemAtIndex } from '../../controllers/GemController.js'
 
 let _comparePendingIndex = null
 
@@ -7,6 +9,7 @@ const HOLD_HINT_KEY = 'cs_hint_hold_inspect'
 export function openEquipment(ctx) {
   const { GameController, UI } = ctx
   ctx.setBackpackOpen(false)
+  renderGemSockets()
   UI.renderEquipmentSlots(
     GameController.getEquippedGear(),
     UI.getHudCharacterId(),
@@ -108,8 +111,42 @@ export function openSafePocketCompareModal(ctx, inventoryIndex) {
   )
 }
 
+export function openGemCompareModal(ctx, inventoryIndex) {
+  const { GameController, UI } = ctx
+  const inventory = GameController.getInventory()
+  const entry = inventory[inventoryIndex]
+  const gemId = entry?.id
+  const candidateDef = gemId ? GEMS[gemId] : null
+  if (!candidateDef) return
+
+  const socket = candidateDef.socket
+  const equippedGemId = GameController.getRun()?.equippedGems?.[socket] ?? null
+  const equippedDef = equippedGemId ? GEMS[equippedGemId] : null
+  const socketLabel = socket === 'block' ? '🛡️ Block' : '⚔️ Counter'
+
+  UI.renderGemCompareModal(
+    { ...candidateDef, id: gemId },
+    equippedDef,
+    socketLabel,
+    () => {
+      socketGemAtIndex(ctx, inventoryIndex)
+      UI.hideCompareModal()
+      ctx.renderBackpack?.()
+      renderGemSockets()
+    },
+    () => UI.hideCompareModal(),
+    () => {
+      GameController.dropItemAtIndex(inventoryIndex)
+      UI.hideCompareModal()
+      ctx.renderBackpack?.()
+    },
+  )
+}
+
 export function wireEquipmentOverlay(ctx) {
   const { GameController, EventBus, UI } = ctx
+
+  wireGemSockets(ctx)
 
   document.getElementById('hud-portrait-wrap')?.addEventListener('click', () => {
     if (GameController.divineLightSelecting) return
@@ -134,6 +171,23 @@ export function wireEquipmentOverlay(ctx) {
   }
 
   document.getElementById('equipment-overlay')?.addEventListener('pointerdown', (e) => {
+    // Safe pocket long-hold → info card
+    const spEl = e.target.closest('.eq-safe-pocket-filled')
+    if (spEl) {
+      _holdTarget = spEl
+      _holdFired = false
+      _holdStartX = e.clientX
+      _holdStartY = e.clientY
+      _holdTimer = setTimeout(() => {
+        _holdTimer = null
+        _holdFired = true
+        const trinket = GameController.getSafePocketTrinket()
+        const item = trinket?.id ? ITEMS[trinket.id] : null
+        if (!item) return
+        UI.showInfoCard({ ...item, id: trinket.id, _qty: 1 }, {})
+      }, 500)
+      return
+    }
     const card = e.target.closest('.eq-card[data-slot]')
     if (!card || card.classList.contains('eq-card-empty')) return
     _holdTarget = card

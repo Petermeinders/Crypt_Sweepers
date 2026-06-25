@@ -67,6 +67,7 @@ import * as FloorController from '../controllers/FloorController.js'
 import * as GearController from '../controllers/GearController.js'
 import * as SafePocketController from '../controllers/SafePocketController.js'
 import * as InventoryController from '../controllers/InventoryController.js'
+import { moveToMaterials as _moveToMaterials, canAddToMaterialsStash, addToMaterialsStash } from '../controllers/MaterialsController.js'
 import * as Warrior from '../heroes/warrior.js'
 import * as Ranger from '../heroes/ranger.js'
 import * as Mage from '../heroes/mage.js'
@@ -691,6 +692,7 @@ function _floorCtx() {
     cancelGargantuanMergeMode: _cancelGargantuanMergeMode,
     syncWarBannerCoordsFromGrid: _syncWarBannerCoordsFromGrid,
     syncTurretVisual: _syncTurretVisual,
+    syncAllMinionVisuals: _syncAllMinionVisuals,
     revealStartTile: _revealStartTile,
     restoreTreasureGoblinAfterResume: _restoreTreasureGoblinAfterResume,
     spawnSubFloorEntry: _spawnSubFloorEntry,
@@ -950,6 +952,7 @@ const _necroMinionMeleeBonus = () => Necromancer.necroMinionMeleeBonus()
 const _necroLegionMeleeBonus = (heroMelee) => Necromancer.necroLegionMeleeBonus(heroMelee)
 const _necroTitansReachCleave = (t) => Necromancer.necroTitansReachCleave(_combatCtx(), t)
 const _tryGargantuanMergeTap = (t) => Necromancer.tryGargantuanMergeTap(_necroCtx(), t)
+const _tryGargantuanCorpseAbsorb = (t) => Necromancer.tryGargantuanCorpseAbsorb(_necroCtx(), t)
 const _necroMinionAbsorbDamage = (a, b, c) => Necromancer.necroMinionAbsorbDamage(_necroCtx(), a, b, c)
 const _refreshNecroActiveHud = () => Necromancer.refreshNecroActiveHud(_necroCtx())
 const _executeCorpseExplosion = (t) => Necromancer.executeCorpseExplosion(_necroCtx(), t)
@@ -975,6 +978,7 @@ function _combatCtx() {
     engineerTurretDamage: _engineerTurretDamage,
     necroMinionMeleeBonus: _necroMinionMeleeBonus,
     necroLegionMeleeBonus: _necroLegionMeleeBonus,
+    getActiveTiles: _getActiveTiles,
     necroTitansReachCleave: _necroTitansReachCleave,
     scaleOutgoingDamageToEnemy: _scaleOutgoingDamageToEnemy,
     gainManaFromMeleeHit: _gainManaFromMeleeHit,
@@ -1110,6 +1114,7 @@ function _tapCtx() {
     climbThroughHazard: _climbThroughHazard,
     necroRaiseMinion: _necroRaiseMinion,
     tryGargantuanMergeTap: _tryGargantuanMergeTap,
+    tryGargantuanCorpseAbsorb: _tryGargantuanCorpseAbsorb,
     fightAction,
     hapticFromUserGesture: _hapticFromUserGesture,
     hasNecroMetaUpgrade: _hasNecroMetaUpgrade,
@@ -1877,6 +1882,20 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
     UI.spawnFloat(tileEl, '🐰 Lucky!', 'heal')
     return
   }
+  // Floor buff: Iron Resolve — absorb-pct% of incoming damage per stack
+  if (amount > 0 && Array.isArray(session.run.floorBuffs)) {
+    const absorbBuff = session.run.floorBuffs.find(b => b.effectType === 'absorb-pct')
+    if (absorbBuff) {
+      const absorbPct = (absorbBuff.effectValue * absorbBuff.stackCount) / 100
+      amount = Math.max(1, Math.round(amount * (1 - Math.min(0.9, absorbPct))))
+    }
+  }
+  // Floor buff: Fortifying Wrap — absorb next hit entirely
+  if (amount > 0 && session.run.player.nextHitAbsorb) {
+    session.run.player.nextHitAbsorb = false
+    UI.spawnFloat(tileEl, '🩹 Absorbed!', 'heal')
+    return
+  }
   let effective = _computeEffectiveDamageTaken(amount)
   // Mana Shield: absorb a portion of damage by draining mana
   if (_charKey() === 'mage' && session.run.player.manaShieldActive && session.run.player.mana > 0) {
@@ -1921,14 +1940,15 @@ function _takeDamage(amount, tileEl, skipPortraitAnim = false, killerData = null
     const hit = CombatResolver.resolveArmorHit({
       effective,
       armor: session.run.player.armor ?? 0,
-      negation: session.run.player.negation ?? 0,
+      negation: PlayerStats.playerNegationForArmorHit(session.run.player, session.run),
       negationCap: CONFIG.armor.negationCap,
     })
     if (hit.negated) {
       _narrativeNegated = true
+      const negPct = PlayerStats.playerNegationForArmorHit(session.run.player, session.run)
       const { narrative } = _buildEnemyHitNarrative({
         rawAmount: amount, negated: true,
-        negationPct: session.run.player.negation ?? 0,
+        negationPct: negPct,
       })
       session.run._lastEnemyHitNarrative = narrative
       UI.spawnFloat(tileEl, '🛡️ Blocked!', 'armor')
@@ -2094,6 +2114,11 @@ function _gainGold(amount, tileEl, fromEnemy = false, fromChest = false) {
   }
   // Fortune's Fool: also doubles chest gold
   if (fromChest && session.run.player.inventory.some(e => e?.id === 'fortunes-fool')) actual *= 2
+  // Floor buff: Gold Rush — +15% gold per stack from all sources
+  if (actual > 0 && Array.isArray(session.run.floorBuffs)) {
+    const goldBuff = session.run.floorBuffs.find(b => b.effectType === 'gold-pct')
+    if (goldBuff) actual = Math.round(actual * (1 + (goldBuff.effectValue * goldBuff.stackCount) / 100))
+  }
   // Floor modifiers: Ancient Cache (chest double gold) and Hungry Dungeon (halve enemy/chest gold)
   if (session.run.floorModifier?.id === 'ancient-cache' && fromChest) actual *= 2
   if (session.run.floorModifier?.id === 'hungry-dungeon' && (fromEnemy || fromChest)) actual = Math.max(0, Math.floor(actual / 2))
@@ -2447,9 +2472,21 @@ function _inventoryCtx() {
   }
 }
 
-async function _addToBackpack(id) { return InventoryController.addToBackpack(_inventoryCtx(), id) }
+async function _addToBackpack(id) {
+  if (ITEMS[id]?.ingredientOnly) {
+    const save = session.save
+    if (addToMaterialsStash(save, id)) return true
+    return false
+  }
+  return InventoryController.addToBackpack(_inventoryCtx(), id)
+}
 function _useOrbPotion(type) { InventoryController.useOrbPotion(_inventoryCtx(), type) }
-function _canAddToBackpack(id) { return InventoryController.canAddToBackpack(_inventoryCtx(), id) }
+function _canAddToBackpack(id) {
+  if (ITEMS[id]?.ingredientOnly) {
+    return canAddToMaterialsStash(session.save, id)
+  }
+  return InventoryController.canAddToBackpack(_inventoryCtx(), id)
+}
 function useItem(id, inventoryIndex = null) { InventoryController.useItem(_inventoryCtx(), id, inventoryIndex) }
 function useItemAtIndex(index) { InventoryController.useItemAtIndex(_inventoryCtx(), index) }
 function dropItem(id, inventoryIndex = null) { InventoryController.dropItem(_inventoryCtx(), id, inventoryIndex) }
@@ -2501,6 +2538,7 @@ function _openMagicChest(tile) {
     return
   }
   const loot = tile.pendingLoot ?? _rollMagicChestLoot()
+  tile.pendingLoot = loot
   const item = ITEMS[loot.type]
   if (loot.type === 'gold') {
     const amt = loot.amount ?? _rand(...CONFIG.chest.goldDrop)
@@ -2534,20 +2572,90 @@ function _openMagicChest(tile) {
     UI.setMessage(`The Magic Chest grants ${def.name}! +${amt} attack damage. (${session.run.player.goldenKeys} keys left)`)
     return
   }
+  if (!_canAddToBackpack(loot.type)) {
+    const resolution = { source: 'magic_chest', tile, loot }
+    if (ITEMS[loot.type]?.ingredientOnly) {
+      EventBus.emit('materials:full', { id: loot.type, resolution })
+    } else {
+      EventBus.emit('backpack:full', { id: loot.type })
+    }
+    return
+  }
+  _finalizeMagicChestLoot(tile, loot)
+}
+
+function _finalizeMagicChestLoot(tile, loot, { skipAdd = false, discarded = false } = {}) {
   session.run.player.goldenKeys--
   UI.updateGoldenKeys(session.run.player.goldenKeys)
   _syncMagicChestKeyGlow()
   tile.pendingLoot = null
-  const floatLabel = item ? `${item.icon} ${item.name}` : `✨ ${loot.type}`
+  const item = ITEMS[loot.type]
+  const floatLabel = discarded ? null : (item ? `${item.icon} ${item.name}` : `✨ ${loot.type}`)
   EventBus.emit('audio:play', { sfx: 'chest' })
   _animateMagicChestOpenClose(tile, floatLabel)
-  if (!_canAddToBackpack(loot.type)) {
-    EventBus.emit('backpack:full', { id: loot.type })
+  if (!discarded && !skipAdd) {
+    _addToBackpack(loot.type)
+    EventBus.emit('inventory:changed')
+  }
+  if (discarded) {
+    UI.setMessage(`Trashed ${item?.name ?? loot.type}. (${session.run.player.goldenKeys} keys left)`)
+  } else {
+    UI.setMessage(`✨ The Magic Chest bestows: ${item?.name ?? loot.type}! (${session.run.player.goldenKeys} keys left)`)
+  }
+}
+
+function finalizePendingPickup(resolution, opts = {}) {
+  if (!resolution) return
+  if (resolution.source === 'magic_chest') {
+    _finalizeMagicChestLoot(resolution.tile, resolution.loot, opts)
     return
   }
-  _addToBackpack(loot.type)
-  EventBus.emit('inventory:changed')
-  UI.setMessage(`✨ The Magic Chest bestows: ${item?.name ?? loot.type}! (${session.run.player.goldenKeys} keys left)`)
+  if (resolution.source === 'chest') {
+    _finalizeChestLoot(resolution.tile, resolution.loot, opts)
+  }
+}
+
+function _finalizeChestLoot(tile, loot, { skipAdd = false, discarded = false } = {}) {
+  tile.chestReady = false
+  tile.chestLooted = true
+  tile.element?.classList.remove('chest-ready')
+  EventBus.emit('audio:play', { sfx: 'chest' })
+
+  const def = ITEMS[loot.type]
+  if (loot.type === 'smiths-tools') {
+    const amt = def?.effect?.amount ?? 1
+    session.run.player.damageBonus = (session.run.player.damageBonus ?? 0) + amt
+    {
+      const [d0, d1] = _playerDamageRange(session.run.player)
+      UI.updateDamageRange(d0, d1)
+    }
+    UI.spawnFloat(tile.element, `🔧 ${def.name}`, 'xp')
+    UI.setMessage(`You pry it open — ${def.name}! +${amt} attack damage for this run.`)
+  } else if (loot.type === 'gold') {
+    // gold handled inline in openChest — not expected here
+  } else if (def && !discarded) {
+    if (!skipAdd) _addToBackpack(loot.type)
+    UI.spawnFloat(tile.element, `${def.icon} ${def.name}`, 'xp')
+    const tag = def.effect?.type?.startsWith('passive') ? 'Passive' : 'Item'
+    UI.setMessage(`You pry it open — ${def.name}! (${tag})`)
+  } else if (discarded && def) {
+    UI.setMessage(`Trashed ${def.name}.`)
+  }
+
+  const chestImg = tile.element?.querySelector('.tile-icon-img')
+  const iconWrap = tile.element?.querySelector('.tile-icon-wrap')
+  const GIF_DURATION = 750
+  if (chestImg) _forcePlayChestGif(chestImg, ITEM_ICONS_BASE + 'chest.gif?t=' + Date.now())
+  setTimeout(() => {
+    if (chestImg) chestImg.remove()
+    if (iconWrap) {
+      iconWrap.classList.add('collecting')
+      setTimeout(() => {
+        iconWrap.innerHTML = ''
+        iconWrap.classList.remove('collecting')
+      }, 560)
+    }
+  }, GIF_DURATION)
 }
 
 function _animateMagicChestOpenClose(tile, floatText) {
@@ -2595,6 +2703,25 @@ function _animateMagicChestOpenClose(tile, floatText) {
 }
 
 function getInventory() { return session.run?.player.inventory ?? [] }
+
+function consumeItemQty(itemId, qty = 1) {
+  const inv = session.run?.player.inventory
+  if (!inv) return
+  let remaining = qty
+  for (let i = 0; i < inv.length && remaining > 0; i++) {
+    const slot = inv[i]
+    if (!slot || slot.id !== itemId) continue
+    const take = Math.min(slot.qty ?? 1, remaining)
+    slot.qty = (slot.qty ?? 1) - take
+    remaining -= take
+    if (slot.qty <= 0) inv[i] = null
+  }
+  EventBus.emit('inventory:changed')
+}
+
+function addItemToInventory(itemId) {
+  return InventoryController.addToBackpack(_inventoryCtx(), itemId)
+}
 
 function getLevelUpLog() {
   return session.run?.levelUpLog ? [...session.run.levelUpLog] : []
@@ -2759,6 +2886,7 @@ function _cheatDeps() {
     startFloor: _startFloor,
     runMusicTrack: _runMusicTrack,
     addToBackpack: _addToBackpack,
+    addItemToInventory,
     handleGearPickup: (piece) => GearController.handleGearPickup(_gearCtx(), piece),
   }
 }
@@ -2813,6 +2941,10 @@ function cheatSkipFloor() {
 
 function cheatGenerateGear() {
   return CheatController.cheatGenerateGear(_cheatDeps())
+}
+
+function cheatGrantGem() {
+  return CheatController.cheatGrantGem(_cheatDeps())
 }
 
 function cheatHudStatBoost(stat) {
@@ -3029,6 +3161,7 @@ export default {
   cheatAddVoidPearl,
   cheatSkipFloor,
   cheatGenerateGear,
+  cheatGrantGem,
   cheatHudStatBoost,
   useOrbPotion: _useOrbPotion,
   useItem,
@@ -3042,7 +3175,10 @@ export default {
   forceReplaceItemAtIndex,
   acceptPendingGearAtSlot,
   swapPendingGearWithEquipped,
+  finalizePendingPickup,
   getInventory,
+  consumeItemQty,
+  addItemToInventory,
   getArmor()        { return session.run?.player?.armor    ?? 0 },
   getNegation()     { return session.run?.player?.negation  ?? 0 },
   getEquippedGear() { return session.run?.player?.equippedGear ?? { weapon: null, breastplate: null, offhand: null } },

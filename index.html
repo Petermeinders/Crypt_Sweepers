@@ -74,6 +74,7 @@
     <div id="cheat-debug-stack" class="cheat-debug-stack hidden" aria-hidden="true">
       <button type="button" id="skip-floor-btn" class="cheat-debug-btn hidden" aria-hidden="true" title="Cheat: advance to next floor">Skip floor</button>
       <button type="button" id="generate-gear-btn" class="cheat-debug-btn hidden" aria-hidden="true" title="Cheat: random gear or trinket for this floor">Generate Gear</button>
+      <button type="button" id="grant-gem-btn" class="cheat-debug-btn hidden" aria-hidden="true" title="Cheat: random gem into backpack loot">Grant Gem</button>
     </div>
 
     <!-- Freezing Hit screen border overlay -->
@@ -93,6 +94,7 @@
 
     <div id="grid-container">
       <div id="grid"></div>
+      <div id="floor-buff-strip" class="floor-buff-strip hidden" aria-hidden="true" aria-label="Active floor buffs"></div>
       <!-- Sub-floor overlay lives here so it only covers the grid, not the HUD -->
       <div id="sub-floor-overlay" class="sub-floor-overlay hidden" aria-hidden="true">
         <div class="sub-floor-modal">
@@ -192,9 +194,9 @@
         <div id="hud-portrait" class="hud-portrait" aria-hidden="true">
           <div class="hud-portrait-gear-tab">⚔ GEAR</div>
           <img id="hud-portrait-img" src="assets/sprites/Heroes/Warrior/__Idle.gif" alt="Paladin">
-          <div class="hud-gold-scrap-stack" data-hud-cheat-target="gold">
-            <span class="hud-gold-inline"><span class="gold-icon">🪙</span> <span id="gold-value">0</span></span>
-            <span class="hud-scrap-inline"><span class="scrap-icon">⚙️</span> <span id="scrap-value">0</span></span>
+          <div class="hud-gold-scrap-stack">
+            <span class="hud-gold-inline" data-hud-cheat-target="gold"><span class="gold-icon">🪙</span> <span id="gold-value">0</span></span>
+            <span class="hud-scrap-inline" data-hud-cheat-target="scrap"><span class="scrap-icon">⚙️</span> <span id="scrap-value">0</span></span>
           </div>
         </div>
         <button id="hud-teary-eyes" class="hud-debuff-btn hidden" title="Teary Eyes debuff">💧</button>
@@ -264,7 +266,20 @@
       </div>
       <button type="button" id="backpack-pending-trash" class="backpack-pending-trash-btn">🗑️ Trash</button>
     </div>
-    <div class="backpack-content">
+    <!-- Tab row: Materials | Backpack | Transmutation -->
+    <div class="backpack-tabs" role="tablist">
+      <button type="button" class="backpack-tab" id="tab-materials" role="tab" aria-selected="false" aria-controls="materials-panel">🧪 Materials</button>
+      <button type="button" class="backpack-tab active" id="tab-backpack" role="tab" aria-selected="true" aria-controls="backpack-content-panel">Loot</button>
+      <button type="button" class="backpack-tab" id="tab-tran" role="tab" aria-selected="false" aria-controls="tran-panel">⚗️ Transmutation</button>
+    </div>
+    <div id="backpack-panels-scroll" class="backpack-panels-scroll">
+    <!-- Materials panel -->
+    <div class="materials-panel backpack-panel-slide" id="materials-panel" role="tabpanel">
+      <div class="materials-grid" id="materials-grid"></div>
+      <div class="materials-empty hidden" id="materials-empty">No materials collected yet.</div>
+    </div>
+    <!-- Backpack panel -->
+    <div class="backpack-content backpack-panel-slide" id="backpack-content-panel" role="tabpanel">
       <div id="backpack-filter-label" class="backpack-filter-label hidden"></div>
       <div id="backpack-grid">
         <div class="backpack-slot"></div>
@@ -277,6 +292,10 @@
         <div class="backpack-slot"></div>
         <div class="backpack-slot"></div>
       </div>
+      <!-- Shown when bonus backpack slots are available to purchase -->
+      <div id="backpack-expand-row" class="slot-expand-row hidden">
+        <button type="button" id="backpack-expand-btn" class="slot-expand-btn">🔓 +1 slot (50 ⚙️) — 0/3 unlocked</button>
+      </div>
       <div id="backpack-levelup-accordion" class="backpack-accordion">
         <button type="button" class="backpack-accordion-header" id="backpack-levelup-toggle" aria-expanded="false">
           <span>Level-up log</span>
@@ -286,6 +305,22 @@
           <div id="backpack-levelup-list" class="backpack-levelup-list"></div>
         </div>
       </div>
+    </div>
+    <!-- Transmutation panel -->
+    <div class="tran-panel backpack-panel-slide" id="tran-panel" role="tabpanel">
+      <div class="tran-result-area">
+        <div class="tran-result-slot" id="tran-result-slot">
+          <span class="tran-slot-label">Result</span>
+        </div>
+      </div>
+      <div class="tran-ingredient-row">
+        <div class="tran-ingredient-slot" id="tran-ing-0"><span class="tran-slot-label">Ingredient</span></div>
+        <div class="tran-ingredient-slot" id="tran-ing-1"><span class="tran-slot-label">Ingredient</span></div>
+        <div class="tran-ingredient-slot" id="tran-ing-2"><span class="tran-slot-label">Ingredient</span></div>
+      </div>
+      <button type="button" id="tran-craft-btn" class="tran-craft-btn" disabled>Craft</button>
+      <div class="tran-recipe-list" id="tran-recipe-list"></div>
+    </div>
     </div>
   </div>
 
@@ -297,6 +332,18 @@
       <button type="button" id="equipment-close-btn" class="equipment-close-btn" aria-label="Close">✕</button>
       <div class="hero-particles" id="equipment-hero-particles" aria-hidden="true"></div>
       <img id="equipment-hero-img" class="equipment-hero-portrait" src="" alt="" aria-hidden="true">
+      <div class="eq-gem-column">
+        <button type="button" class="eq-gem-slot" id="gem-slot-block" data-socket="block" aria-label="Block gem socket">
+          <div class="eq-gem-slot-label">Block Gem</div>
+          <div class="eq-gem-slot-icon" id="gem-socket-gem-block"></div>
+          <div class="eq-gem-slot-name" id="gem-slot-name-block"></div>
+        </button>
+        <button type="button" class="eq-gem-slot" id="gem-slot-counter" data-socket="counter" aria-label="Counter gem socket">
+          <div class="eq-gem-slot-label">Counter Gem</div>
+          <div class="eq-gem-slot-icon" id="gem-socket-gem-counter"></div>
+          <div class="eq-gem-slot-name" id="gem-slot-name-counter"></div>
+        </button>
+      </div>
       <button type="button" id="equipment-safe-pocket" class="eq-safe-pocket eq-safe-pocket-empty" data-slot="safe-pocket" aria-label="Safe Pocket trinket"></button>
       <div class="equipment-title-overlay">
         <span class="equipment-drawer-title">Equipment</span>
@@ -1160,8 +1207,18 @@
           </div>
           <div class="settings-row">
             <div class="settings-label">
+              <span class="settings-label-title">Grant Gem Button</span>
+              <span class="settings-label-desc">Shows an in-game button to add a random gem to your loot tab (testing)</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="cheat-grant-gem-btn">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label">
               <span class="settings-label-title">Increase stats</span>
-              <span class="settings-label-desc">In-game: tap HP, mana, or gold for +10 each; tap attack for +1 damage; tap the XP bar for +10% progress toward the next level</span>
+              <span class="settings-label-desc">In-game: tap HP/Mana orbs (+10), gold or scrap on portrait (+10 each), attack or armor (+1), XP bar (+10% to next level), golden keys in backpack header (+1)</span>
             </div>
             <label class="toggle-switch">
               <input type="checkbox" id="cheat-increase-stats">

@@ -13,6 +13,10 @@ export function migrateSave(save) {
 
   if (save.scrap == null) save.scrap = 0
   if (save.safePocketTrinket === undefined) save.safePocketTrinket = null
+  if (!save.equippedGems) {
+    save.equippedGems = { block: null, counter: null }
+    changed = true
+  }
 
   if (!save.meta) {
     save.meta = {
@@ -112,6 +116,10 @@ export function migrateSave(save) {
     if (!Array.isArray(save.meta.casino.pendingGear)) { save.meta.casino.pendingGear = []; changed = true }
   }
   if (save.meta.deepestFloor == null) { save.meta.deepestFloor = 1; changed = true }
+  if (!Array.isArray(save.meta.unlockedGemRecipes)) { save.meta.unlockedGemRecipes = []; changed = true }
+  if (!Array.isArray(save.meta.ingredientStash)) { save.meta.ingredientStash = []; changed = true }
+  if (save.meta.backpackBonusSlots == null) { save.meta.backpackBonusSlots = 0; changed = true }
+  if (save.meta.materialsBonusSlots == null) { save.meta.materialsBonusSlots = 0; changed = true }
 
   MetaProgression.normalizeUnlockedHeroes(save)
   {

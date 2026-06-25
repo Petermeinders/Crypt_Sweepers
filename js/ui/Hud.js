@@ -1,4 +1,6 @@
 import { CONFIG } from '../config.js'
+import { ITEMS } from '../data/items.js'
+import { GEMS } from '../data/gems.js'
 import { el, logHistory, PORTRAIT_ANIM } from './uiShared.js'
 import {
   initPotionOrb,
@@ -35,6 +37,7 @@ export function cacheHudElements() {
     el.hudHowToPlayBtn = document.getElementById('hud-how-to-play-btn')
     el.skipFloorBtn = document.getElementById('skip-floor-btn')
     el.generateGearBtn = document.getElementById('generate-gear-btn')
+    el.grantGemBtn = document.getElementById('grant-gem-btn')
     el.cheatDebugStack = document.getElementById('cheat-debug-stack')
     el.floorBanner = document.getElementById('floor-banner')
     el.floorBannerText = document.getElementById('floor-banner-text')
@@ -46,6 +49,7 @@ export function cacheHudElements() {
     el.msgLogWrap         = document.getElementById('message-log-wrap')
     el.msgLogExpanded     = document.getElementById('message-log-expanded')
     el.msgLogScroll       = document.getElementById('message-log-scroll')
+    el.floorBuffStrip     = document.getElementById('floor-buff-strip')
     el.hudCharacterId     = 'warrior'
     initPotionOrb()
 
@@ -95,6 +99,48 @@ export function wireHudListeners() {
       el.msgLogExpanded.classList.add('hidden')
     }
   })
+}
+
+function _floorBuffEffectText(buff) {
+  const stacks = buff.stackCount ?? 1
+  const val = (buff.effectValue ?? 0) * stacks
+  switch (buff.effectType) {
+    case 'damage-pct':
+      return `+${val}% damage this floor`
+    case 'gold-pct':
+      return `+${val}% gold from all sources this floor`
+    case 'absorb-pct':
+      return `Absorb ${val}% of incoming damage this floor`
+    case 'debuff-duration-pct':
+      return `Debuffs last ${Math.abs(val)}% fewer turns this floor`
+    case 'trap-negate': {
+      const left = buff.trapNegatesLeft ?? (buff.effectValue * stacks)
+      return `Negates the next ${left} trap(s) this floor`
+    }
+    case 'heal-per-floor': {
+      const floorsLeft = buff.floorsLeft ?? buff.floors ?? stacks * 3
+      return `Heal ${buff.effectValue}% max HP at floor start (${floorsLeft} floor(s) remaining)`
+    }
+    case 'block-chance-pct':
+      return `+${val}% block chance this floor`
+    default:
+      return buff.name ? `${buff.name} is active.` : 'Floor buff active.'
+  }
+}
+
+const GEM_FLOOR_BUFF_IDS = {
+  'gem-steadfast-block-chance': 'gem-steadfast-shard',
+}
+
+function _floorBuffDisplayMeta(buff) {
+  const itemDef = buff.type ? ITEMS[buff.type] : null
+  const gemId = GEM_FLOOR_BUFF_IDS[buff.type]
+  const gemDef = gemId ? GEMS[gemId] : null
+  return {
+    name: buff.name ?? itemDef?.name ?? gemDef?.name ?? 'Floor buff',
+    spriteSrc: buff.spriteSrc ?? itemDef?.spriteSrc ?? gemDef?.spriteSrc ?? null,
+    icon: buff.icon ?? itemDef?.icon ?? gemDef?.icon ?? '⚗️',
+  }
 }
 
 export const HudMethods = {
@@ -849,11 +895,13 @@ export const HudMethods = {
     const stack = el.cheatDebugStack
     const skipBtn = el.skipFloorBtn
     const genBtn = el.generateGearBtn
+    const gemBtn = el.grantGemBtn
     const cheats = save?.settings?.cheats ?? {}
     const skipOn = cheats.skipFloorButton === true
     const genOn = cheats.generateGearButton === true
+    const gemOn = cheats.grantGemButton === true
     const inGame = el.mainMenu?.classList.contains('hidden')
-    const showStack = inGame && (skipOn || genOn)
+    const showStack = inGame && (skipOn || genOn || gemOn)
 
     if (stack) {
       stack.classList.toggle('hidden', !showStack)
@@ -868,6 +916,11 @@ export const HudMethods = {
       const show = genOn && inGame
       genBtn.classList.toggle('hidden', !show)
       genBtn.setAttribute('aria-hidden', show ? 'false' : 'true')
+    }
+    if (gemBtn) {
+      const show = gemOn && inGame
+      gemBtn.classList.toggle('hidden', !show)
+      gemBtn.setAttribute('aria-hidden', show ? 'false' : 'true')
     }
   },
 
@@ -1072,5 +1125,56 @@ export const HudMethods = {
         }))
       }, SLIDE_OUT_MS + PAUSE_MS)
     })
-  }
+  },
+
+  updateFloorBuffs(buffs) {
+    const strip = el.floorBuffStrip
+    if (!strip) return
+    const list = Array.isArray(buffs) ? buffs.filter(Boolean) : []
+    if (!list.length) {
+      strip.classList.add('hidden')
+      strip.innerHTML = ''
+      strip.setAttribute('aria-hidden', 'true')
+      return
+    }
+    strip.classList.remove('hidden')
+    strip.setAttribute('aria-hidden', 'false')
+    strip.innerHTML = ''
+    for (const buff of list) {
+      const { name, spriteSrc, icon } = _floorBuffDisplayMeta(buff)
+
+      const chip = document.createElement('button')
+      chip.type = 'button'
+      chip.className = 'floor-buff-chip'
+      chip.title = `${name} — ${_floorBuffEffectText(buff)} (tap for details)`
+
+      if (spriteSrc) {
+        const img = document.createElement('img')
+        img.src = spriteSrc
+        img.alt = name
+        chip.appendChild(img)
+      } else {
+        chip.textContent = icon
+      }
+
+      const stacks = buff.stackCount ?? 1
+      if (stacks > 1) {
+        const badge = document.createElement('span')
+        badge.className = 'floor-buff-stack'
+        badge.textContent = `×${stacks}`
+        chip.appendChild(badge)
+      }
+
+      chip.addEventListener('click', () => {
+        this.showInfoCard({
+          name,
+          icon,
+          spriteSrc,
+          details: [{ icon: '⚗️', label: 'Floor Buff', desc: _floorBuffEffectText(buff) }],
+        }, {})
+      })
+
+      strip.appendChild(chip)
+    }
+  },
 }

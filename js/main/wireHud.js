@@ -36,17 +36,11 @@ export function wireHud(ctx) {
     ctx.GameController.cheatGenerateGear()
   })
 
-  document.getElementById('app').addEventListener('click', (e) => {
-    const s = ctx.GameController.getSave()
-    if (!s.settings.cheats?.increaseStats) return
-    if (!document.getElementById('main-menu').classList.contains('hidden')) return
-    const row = e.target.closest('[data-hud-cheat-target]')
-    if (!row) return
-    // dataset.* is unreliable for multi-segment names like data-hud-cheat-target in some browsers
-    const stat = row.getAttribute('data-hud-cheat-target')?.trim().toLowerCase()
-    if (!stat) return
-    ctx.GameController.cheatHudStatBoost(stat)
+  document.getElementById('grant-gem-btn')?.addEventListener('click', () => {
+    ctx.GameController.cheatGrantGem()
   })
+
+  wireCheatHudTargets(ctx)
 
   wireAbilityHold(
     document.getElementById('hud-btn-slot-a'),
@@ -474,5 +468,21 @@ function wireAbilityHold(btn, onTap, onHold) {
   btn.addEventListener('contextmenu', e => e.preventDefault())
 
   btn.addEventListener('click', () => { if (!_didHold) onTap() })
+}
+
+/** Cheat "Increase stats": capture-phase taps on HUD + backpack cheat targets. */
+function wireCheatHudTargets(ctx) {
+  const cheatEnabled = () => ctx.GameController.getSave()?.settings?.cheats?.increaseStats === true
+  const inRun = () => document.getElementById('main-menu')?.classList.contains('hidden')
+
+  document.addEventListener('click', (e) => {
+    if (!cheatEnabled() || !inRun()) return
+    const target = e.target.closest('[data-hud-cheat-target]')
+    if (!target) return
+    e.preventDefault()
+    e.stopPropagation()
+    const stat = target.getAttribute('data-hud-cheat-target')?.trim().toLowerCase()
+    if (stat) ctx.GameController.cheatHudStatBoost(stat)
+  }, true)
 }
 

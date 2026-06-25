@@ -64,6 +64,7 @@ export function isVoidPreBossSanctuaryFloor(run, floor) {
 export function isBossFloorForRun(run, floor) {
   if (!run) return CONFIG.bossFloors.includes(floor)
   if (isVoidTrialRun(run)) return isVoidBossFloor(run, floor)
+  if (run.checkpointStart && CONFIG.bossFloors.includes(floor)) return false
   return CONFIG.bossFloors.includes(floor) && !run.atRest
 }
 

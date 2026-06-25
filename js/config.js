@@ -433,6 +433,8 @@ export const CONFIG = {
       legendary: 30,
       void:      50,
     },
+    // Fixed scrap when dropping/trashing a gem from the backpack
+    gemTrashScrapYield: 10,
     // Fixed scrap when dropping/trashing passive trinkets (by item rarity)
     trinketTrashScrapYield: {
       rare:      2,

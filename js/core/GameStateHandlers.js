@@ -17,6 +17,61 @@ import { VAMPIRE_BASE } from '../data/vampire.js'
 import { NECROMANCER_BASE } from '../data/necromancer.js'
 import { resolveEnemySpriteSrc } from '../data/tileIcons.js'
 import { createInitialTelemetry } from '../balance/runTelemetry.js'
+import { ITEMS } from '../data/items.js'
+import { getMaterialsStash, getMaterialsMaxSlots } from '../controllers/MaterialsController.js'
+import { cloneSavedEquippedGems, mergeEquippedGemsForResume, applyEquippedGemsToRun } from '../controllers/GemController.js'
+import { restoreMinionIdCounter } from '../heroes/necromancer.js'
+
+/** Move any ingredientOnly items already in the backpack into the materials stash. */
+function _sweepIngredientsFromInventory() {
+  const save = session.save
+  if (!save) return
+  const inv   = session.run?.player?.inventory
+  if (!Array.isArray(inv)) return
+  const stash    = getMaterialsStash(save)
+  const maxSlots = getMaterialsMaxSlots(save)
+
+  for (let i = inv.length - 1; i >= 0; i--) {
+    const entry = inv[i]
+    if (!entry?.id) continue
+    const item = ITEMS[entry.id]
+    if (!item?.ingredientOnly) continue
+
+    let qty = entry.qty ?? 1
+    // Try to merge into stash
+    if (item.stackable) {
+      const maxS = item.maxStack ?? 99
+      const existing = stash.find(s => s?.id === entry.id && s.qty < maxS)
+      if (existing) {
+        const take = Math.min(qty, maxS - existing.qty)
+        existing.qty += take
+        qty -= take
+      }
+    }
+    while (qty > 0 && stash.filter(Boolean).length < maxSlots) {
+      stash.push({ id: entry.id, qty: Math.min(qty, item.maxStack ?? 99) })
+      qty -= Math.min(qty, item.maxStack ?? 99)
+    }
+    // Remove from backpack regardless (if stash was full, items are lost — acceptable edge case)
+    inv.splice(i, 1)
+  }
+  SaveManager.save(save).catch(() => {})
+}
+
+/** Copy worn gear, socketed gems, and safe pocket to meta save + IndexedDB. */
+function _persistMetaEquipmentFromRun() {
+  if (!session.save || !session.run) return
+  if (session.run.player?.equippedGear) {
+    session.save.equippedGear = structuredClone(session.run.player.equippedGear)
+  }
+  if (session.run.equippedGems) {
+    session.save.equippedGems = structuredClone(session.run.equippedGems)
+  }
+  session.save.safePocketTrinket = session.run.player?.safePocketTrinket
+    ? structuredClone(session.run.player.safePocketTrinket)
+    : null
+  SaveManager.save(session.save).catch(() => {})
+}
 
 export function buildRunState(ctx) {
   const isRanger      = ctx.charKey() === 'ranger'
@@ -165,6 +220,12 @@ export function buildRunState(ctx) {
     corruption:       null,
     _voidSanctuaryPearlOffer: false,
     _voidSanctuaryPearlSold: false,
+    /** Active floor buffs from crafted consumables: [{ type, effectType, effectValue, stackCount }] */
+    floorBuffs:     [],
+    /** Socketed gems by slot: { block: gemId|null, counter: gemId|null } */
+    equippedGems:   cloneSavedEquippedGems(),
+    /** Per-gem streak counters for streak-based effects: { [gemId]: number } */
+    gemStreaks:      {},
   }
 }
 
@@ -197,12 +258,17 @@ export function newGame(ctx, opts = {}) {
   UI.hideRunSummary()
   clearActiveRun(ctx)
   session.run = buildRunState(ctx)
+  applyEquippedGemsToRun(session.run)
   ctx.applySafePocket(session.run.player)
   if (opts.voidTier >= 1 && opts.voidTier <= 3) {
     applyVoidTrialToRun(session.run, opts.voidTier)
   }
   if (opts.startFloor && opts.startFloor > 1) {
     session.run.floor = Math.max(1, Math.floor(opts.startFloor))
+    // Skip boss on checkpoint starting floors (25/50/75) — next boss at 30/60/80
+    if (opts.startFloor === 25 || opts.startFloor === 50 || opts.startFloor === 75) {
+      session.run.checkpointStart = true
+    }
   }
   TileEngine.setDiagonalMovement((session.save.selectedCharacter ?? 'warrior') === 'mage')
   UI.hideMainMenu()
@@ -275,6 +341,15 @@ export function saveActiveRun(ctx) {
       : null,
     _voidSanctuaryPearlOffer: !!session.run._voidSanctuaryPearlOffer,
     _voidSanctuaryPearlSold: !!session.run._voidSanctuaryPearlSold,
+    floorBuffs: Array.isArray(session.run.floorBuffs)
+      ? structuredClone(session.run.floorBuffs)
+      : [],
+    equippedGems: session.run.equippedGems
+      ? structuredClone(session.run.equippedGems)
+      : { block: null, counter: null },
+    gemStreaks: session.run.gemStreaks
+      ? structuredClone(session.run.gemStreaks)
+      : {},
   }
   SaveManager.save(session.save).catch(() => {})
 }
@@ -334,7 +409,11 @@ export function resumeRun(ctx) {
       : { stacks: {}, pickedFloors: [] },
     _voidSanctuaryPearlOffer: !!saved._voidSanctuaryPearlOffer,
     _voidSanctuaryPearlSold: !!saved._voidSanctuaryPearlSold,
+    floorBuffs:   Array.isArray(saved.floorBuffs) ? structuredClone(saved.floorBuffs) : [],
+    equippedGems: mergeEquippedGemsForResume(saved.equippedGems),
+    gemStreaks:   saved.gemStreaks ? structuredClone(saved.gemStreaks) : {},
   }
+  restoreMinionIdCounter(session.run.minions)
   const ch = session.save.selectedCharacter ?? 'warrior'
   if (ch === 'engineer' && (session.run.player.seismicPingLevel == null || session.run.player.seismicPingLevel < 1)) {
     session.run.player.seismicPingLevel = ENGINEER_SEISMIC_PING.defaultLevel
@@ -346,6 +425,7 @@ export function resumeRun(ctx) {
   session.run.player.isNecromancer = ch === 'necromancer'
   MetaProgression.applyShopCartToPlayer(session.run.player, session.save)
   TileEngine.setDiagonalMovement(ch === 'mage')
+  _sweepIngredientsFromInventory()
   UI.hideMainMenu()
   EventBus.emit('audio:crossfade', { track: runMusicTrack(ctx), duration: 1500 })
   ctx.startFloor()
@@ -413,10 +493,7 @@ export function doRetreat(ctx, reason = 'player') {
   })
   const { xpEarned, xpRetained, xpLost, goldBanked } = MetaProgression.endRun(session.save, stats, 'retreat')
 
-  if (session.run?.player?.equippedGear) session.save.equippedGear = structuredClone(session.run.player.equippedGear)
-  session.save.safePocketTrinket = session.run?.player?.safePocketTrinket
-    ? structuredClone(session.run.player.safePocketTrinket)
-    : null
+  _persistMetaEquipmentFromRun()
   // End run immediately
   clearActiveRun(ctx)
   session.run = null
@@ -468,10 +545,7 @@ export function die(ctx, killerData = null, opts = {}) {
   }
   if (killerInferred && !killerData?.enemyId) deathExtras.killerInferred = true
   finalizeRunTelemetry(ctx, 'death', deathExtras)
-  if (session.run?.player?.equippedGear) session.save.equippedGear = structuredClone(session.run.player.equippedGear)
-  session.save.safePocketTrinket = session.run?.player?.safePocketTrinket
-    ? structuredClone(session.run.player.safePocketTrinket)
-    : null
+  _persistMetaEquipmentFromRun()
   clearActiveRun(ctx)
   UI.setPortraitAnim('death')
   GameState.transition(States.DEATH)
@@ -479,6 +553,7 @@ export function die(ctx, killerData = null, opts = {}) {
   UI.hideRetreat()
   UI.hideEventOverlays()
   UI.clearFloorModifier()
+  UI.updateFloorBuffs([])
   UI.setMessage('💀 You have perished in the depths...', true)
   EventBus.emit('audio:play', { sfx: 'death' })
 
@@ -604,12 +679,7 @@ export function tryGameCompletion(ctx) {
   const { pearlGranted } = MetaProgression.completeGame(session.save)
 
   finalizeRunTelemetry(ctx, 'complete', {})
-  if (session.run?.player?.equippedGear) {
-    session.save.equippedGear = structuredClone(session.run.player.equippedGear)
-  }
-  session.save.safePocketTrinket = session.run?.player?.safePocketTrinket
-    ? structuredClone(session.run.player.safePocketTrinket)
-    : null
+  _persistMetaEquipmentFromRun()
 
   const stats = runStats(ctx)
   MetaProgression.endRun(session.save, stats, 'complete')

@@ -87,6 +87,7 @@ function applyTierOtherUnlocks(target, source) {
 function applyTierRemainder(target, source) {
   if (source.version != null) target.version = String(source.version)
   if (source.equippedGear != null) target.equippedGear = source.equippedGear
+  if (source.equippedGems != null) target.equippedGems = source.equippedGems
   if (source.safePocketTrinket !== undefined) target.safePocketTrinket = source.safePocketTrinket
   if (source.settings && typeof source.settings === 'object') {
     target.settings = { ...target.settings, ...source.settings }

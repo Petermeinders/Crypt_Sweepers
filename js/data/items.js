@@ -11,10 +11,10 @@ export const ITEMS = {
     maxStack:  5,
     blurb:     'A vial of concentrated arcane essence. The liquid hums faintly against your fingers. Restores focus and magical reserves.',
     details: [
-      { icon: '🔵', label: 'Restore',   desc: 'Restores 20 mana when used'      },
+      { icon: '🔵', label: 'Restore',   desc: 'Restores 10% max mana when used' },
       { icon: '📦', label: 'Stackable', desc: 'Multiple potions share a slot'   },
     ],
-    effect: { type: 'mana', amount: 20 },
+    effect: { type: 'mana', pct: 0.10 },
   },
 
   'potion-red': {
@@ -26,10 +26,10 @@ export const ITEMS = {
     maxStack:  5,
     blurb:     'A small vial of crimson restorative. Smells of iron and elderberries. Drink it when the shadows close in.',
     details: [
-      { icon: '❤️', label: 'Restore',  desc: 'Heals 5 HP when used'         },
+      { icon: '❤️', label: 'Restore',  desc: 'Heals 10% max HP when used'   },
       { icon: '📦', label: 'Stackable', desc: 'Multiple potions share a slot' },
     ],
-    effect: { type: 'heal', amount: 5 },
+    effect: { type: 'heal', pct: 0.10 },
   },
 
   'potion-mystery': {
@@ -93,20 +93,18 @@ export const ITEMS = {
   },
 
   'dowsing-rod': {
-    name:      'Dowsing Rod',
-    icon:      '🪄',
-    spriteSrc: 'assets/sprites/Items/wand.png',
-    rarity:    'common',
-    stackable: true,
-    maxStack:  10,
-    blurb:     'A forked branch that twitches toward hidden danger. One use reveals the nearest trap lurking in the dungeon.',
+    name:         'Dowsing Rod',
+    icon:         '🪄',
+    spriteSrc:    'assets/sprites/Items/wand.png',
+    rarity:       'common',
+    stackable:    true,
+    maxStack:     10,
+    blurb:        'A forked branch attuned to hidden energies. Prized by alchemists as a catalyst.',
     details: [
-      { icon: '🪄', label: 'Use',     desc: 'Instantly reveals the closest unrevealed trap on the floor' },
-      { icon: '⚡', label: 'One-time', desc: 'Consumed on use' },
-      { icon: '📦', label: 'Stack',   desc: 'Stacks up to 10 per slot' },
-      { icon: '🎲', label: 'Common',  desc: 'Drops from chests like a Lantern' },
+      { icon: '⚗️', label: 'Ingredient', desc: 'Used in Transmutation recipes' },
+      { icon: '📦', label: 'Stack',      desc: 'Stacks up to 10 per slot' },
     ],
-    effect: { type: 'dowsing-rod' },
+    ingredientOnly: true,
   },
 
   'mana-ring': {
@@ -276,13 +274,14 @@ export const ITEMS = {
     spriteSrc: 'assets/sprites/Items/rope-coil.png',
     rarity:    'common',
     stackable: true,
-    maxStack:  3,
+    maxStack:  10,
     blurb:     'A length of sturdy rope. Lash it across a pit, loop it round a snare — whatever it takes.',
     details: [
       { icon: '🪤', label: 'Use',      desc: 'Completely negate the next trap you reveal — no damage taken' },
-      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 3' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 10' },
     ],
     effect: { type: 'rope-coil' },
+    ingredientOnly: true,
   },
 
   'bandage-roll': {
@@ -291,13 +290,14 @@ export const ITEMS = {
     spriteSrc: 'assets/sprites/Items/bandage-roll.png',
     rarity:    'common',
     stackable: true,
-    maxStack:  3,
+    maxStack:  10,
     blurb:     'Clean linen and a steady hand. Stops the bleeding now and keeps mending for the next few steps.',
     details: [
       { icon: '❤️', label: 'Heal',     desc: 'Restores 3 HP immediately, then 1 HP per turn for 3 more turns' },
-      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 3' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 10' },
     ],
     effect: { type: 'bandage-roll' },
+    ingredientOnly: true,
   },
 
   'shield-shard': {
@@ -306,13 +306,14 @@ export const ITEMS = {
     spriteSrc: 'assets/sprites/Items/shield-shard.png',
     rarity:    'common',
     stackable: true,
-    maxStack:  3,
+    maxStack:  10,
     blurb:     'A broken piece of a palladin\'s shield. Just enough left to catch one blow.',
     details: [
       { icon: '🛡️', label: 'Use',      desc: 'Absorbs the very next enemy hit entirely — then it shatters' },
-      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 3' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 10' },
     ],
     effect: { type: 'shield-shard' },
+    ingredientOnly: true,
   },
 
   'smelling-salts': {
@@ -321,13 +322,14 @@ export const ITEMS = {
     spriteSrc: 'assets/sprites/Items/smelling-salts.png',
     rarity:    'common',
     stackable: true,
-    maxStack:  3,
+    maxStack:  10,
     blurb:     'A sharp ammonia snap that cuts through fog and curse alike.',
     details: [
       { icon: '💨', label: 'Use',      desc: 'Instantly clears all active debuffs (Teary Eyes, burn, poison)' },
-      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 3' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 10' },
     ],
     effect: { type: 'smelling-salts' },
+    ingredientOnly: true,
   },
 
   'sonic-ear': {
@@ -336,13 +338,14 @@ export const ITEMS = {
     spriteSrc: 'assets/sprites/Items/sonic-ear.png',
     rarity:    'common',
     stackable: true,
-    maxStack:  3,
+    maxStack:  10,
     blurb:     'Press it to the stone and count the heartbeats. The dungeon doesn\'t lie.',
     details: [
       { icon: '👂', label: 'Use',      desc: 'Reveals the exact number of living enemies still hidden on this floor' },
-      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 3' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 10' },
     ],
     effect: { type: 'sonic-ear' },
+    ingredientOnly: true,
   },
 
   'throwing-knife': {
@@ -351,13 +354,14 @@ export const ITEMS = {
     spriteSrc: 'assets/sprites/Items/throwing-knife.png',
     rarity:    'common',
     stackable: true,
-    maxStack:  3,
+    maxStack:  10,
     blurb:     'Balanced for the throw, not the follow-up. Strike from a distance — no counter.',
     details: [
       { icon: '🗡️', label: 'Use',      desc: 'Tap to activate, then tap any revealed living enemy — deal 3 damage with no counter-attack' },
-      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 3' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 10' },
     ],
     effect: { type: 'throwing-knife' },
+    ingredientOnly: true,
   },
 
   'flash-powder': {
@@ -366,13 +370,14 @@ export const ITEMS = {
     spriteSrc: 'assets/sprites/Items/flash-powder.png',
     rarity:    'common',
     stackable: true,
-    maxStack:  3,
+    maxStack:  10,
     blurb:     'A pinch of alchemist\'s dust. Blind them for two turns — that\'s all you need.',
     details: [
       { icon: '✨', label: 'Use',      desc: 'Stuns the enemy in your current fight for 2 turns — they cannot counter-attack' },
-      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 3' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 10' },
     ],
     effect: { type: 'flash-powder' },
+    ingredientOnly: true,
   },
 
   'rusty-nail': {
@@ -381,13 +386,14 @@ export const ITEMS = {
     spriteSrc: 'assets/sprites/Items/rusty-nail.png',
     rarity:    'common',
     stackable: true,
-    maxStack:  3,
+    maxStack:  10,
     blurb:     'Corroded iron, still sharp enough. What it lacks in damage it makes up for in persistence.',
     details: [
       { icon: '📌', label: 'Use',      desc: 'Tap to activate, then tap any revealed living enemy — poisons them for 1 damage per turn for 5 turns' },
-      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 3' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 10' },
     ],
     effect: { type: 'rusty-nail' },
+    ingredientOnly: true,
   },
 
   'loose-pouch': {
@@ -396,13 +402,14 @@ export const ITEMS = {
     spriteSrc: 'assets/sprites/Items/loose-pouch.png',
     rarity:    'common',
     stackable: true,
-    maxStack:  3,
+    maxStack:  10,
     blurb:     'Someone dropped it in a hurry. Their loss.',
     details: [
       { icon: '🪙', label: 'Use',      desc: 'Spills 3–6 gold directly into your purse' },
-      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 3' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 10' },
     ],
     effect: { type: 'loose-pouch' },
+    ingredientOnly: true,
   },
 
   'whetstone': {
@@ -411,13 +418,14 @@ export const ITEMS = {
     spriteSrc: 'assets/sprites/Items/whetstone.png',
     rarity:    'common',
     stackable: true,
-    maxStack:  3,
+    maxStack:  10,
     blurb:     'A few strokes on the stone and the edge bites again. Good for three swings.',
     details: [
       { icon: '⚔️', label: 'Use',      desc: '+1 bonus damage on your next 3 melee hits' },
-      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 3' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 10' },
     ],
     effect: { type: 'whetstone' },
+    ingredientOnly: true,
   },
 
   // ── Legendary consumable ────────────────────────────────────
@@ -1196,5 +1204,219 @@ export const ITEMS = {
       { icon: '⚒️', label: 'Forged',    desc: 'Mending Moss + Thorn Wrap' },
     ],
     effect: { type: 'passive-living-bramble' },
+  },
+
+  // ── Transmutation Crafted Consumables ────────────────────────
+  // Floor buffs (buffType: 'floor') last until exit tile is taken.
+  // All values are percent-based to scale with floor depth.
+
+  'honing-oil': {
+    name:      'Honing Oil',
+    icon:      '🫙',
+    spriteSrc: 'assets/sprites/Items/honing-oil-consumable.webp',
+    rarity:    'uncommon',
+    stackable: false,
+    buffType:  'floor',
+    blurb:     'A slick of oil on the blade and it bites deeper. The dungeon notices.',
+    details: [
+      { icon: '⚔️', label: 'Floor Buff', desc: '+10% damage this floor (stacks up to ×3)' },
+      { icon: '⚗️', label: 'Crafted',    desc: 'Transmute: Whetstone + Whetstone' },
+    ],
+    effect: { type: 'honing-oil', effectType: 'damage-pct', effectValue: 10 },
+  },
+
+  'iron-resolve': {
+    name:      'Iron Resolve',
+    icon:      '🛡️',
+    spriteSrc: 'assets/sprites/Items/iron-resolve-consumable.webp',
+    rarity:    'uncommon',
+    stackable: false,
+    buffType:  'floor',
+    blurb:     'Crush it in your fist and feel the blows soften. The pain doesn\'t stop — it just matters less.',
+    details: [
+      { icon: '🛡️', label: 'Floor Buff', desc: 'Absorb 10% of all incoming damage this floor (stacks up to ×3)' },
+      { icon: '⚗️', label: 'Crafted',    desc: 'Transmute: Shield Shard + Shield Shard' },
+    ],
+    effect: { type: 'iron-resolve', effectType: 'absorb-pct', effectValue: 10 },
+  },
+
+  'ward-wrap': {
+    name:      'Ward Wrap',
+    icon:      '🧣',
+    spriteSrc: 'assets/sprites/Items/ward-wrap-consumable.webp',
+    rarity:    'uncommon',
+    stackable: false,
+    buffType:  'floor',
+    blurb:     'Wrapped tight with rune-stitched cloth. Whatever they put on you fades faster.',
+    details: [
+      { icon: '✨', label: 'Floor Buff', desc: 'All debuffs last 50% fewer turns this floor (stacks up to ×3)' },
+      { icon: '⚗️', label: 'Crafted',    desc: 'Transmute: Smelling Salts + Rope Coil' },
+    ],
+    effect: { type: 'ward-wrap', effectType: 'debuff-duration-pct', effectValue: 50 },
+  },
+
+  'gold-rush': {
+    name:      'Gold Rush',
+    icon:      '💰',
+    spriteSrc: 'assets/sprites/Items/gold-rush-consumable.webp',
+    rarity:    'uncommon',
+    stackable: false,
+    buffType:  'floor',
+    blurb:     'Greed sharpens the eye. Every kill, every step — the dungeon pays out more.',
+    details: [
+      { icon: '🪙', label: 'Floor Buff', desc: '+15% gold from all sources this floor (stacks up to ×3)' },
+      { icon: '⚗️', label: 'Crafted',    desc: 'Transmute: Loose Pouch + Loose Pouch' },
+    ],
+    effect: { type: 'gold-rush', effectType: 'gold-pct', effectValue: 15 },
+  },
+
+  'trapfinders-kit': {
+    name:      "Trapfinder's Kit",
+    icon:      '🪤',
+    spriteSrc: 'assets/sprites/Items/trapfinders-kit-consumable.webp',
+    rarity:    'uncommon',
+    stackable: false,
+    buffType:  'floor',
+    blurb:     'A coil of rope and a trained eye. The next two snares don\'t even slow you down.',
+    details: [
+      { icon: '🪤', label: 'Floor Buff', desc: 'Negate the next 2 traps on this floor (stacks up to ×3 = 6 traps)' },
+      { icon: '⚗️', label: 'Crafted',    desc: 'Transmute: Rope Coil + Rope Coil' },
+    ],
+    effect: { type: 'trapfinders-kit', effectType: 'trap-negate', effectValue: 2 },
+  },
+
+  'choking-cloud': {
+    name:      'Choking Cloud',
+    icon:      '💨',
+    spriteSrc: 'assets/sprites/Items/smoke-bomb-consumable.webp',
+    rarity:    'uncommon',
+    stackable: false,
+    blurb:     'Powder and cloth — strike the floor and the air goes grey. Three turns of silence.',
+    details: [
+      { icon: '💨', label: 'Use',      desc: 'Stun the enemy in your current fight for 3 turns — no counter-attack' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; only usable during combat' },
+      { icon: '⚗️', label: 'Crafted',  desc: 'Transmute: Flash Powder + Bandage Roll' },
+    ],
+    effect: { type: 'choking-cloud' },
+  },
+
+  'dual-strike': {
+    name:      'Dual Strike',
+    icon:      '⚔️',
+    spriteSrc: 'assets/sprites/Items/twin-blades-consumable.webp',
+    rarity:    'uncommon',
+    stackable: false,
+    blurb:     'Two throws in a breath. Neither waits for an answer.',
+    details: [
+      { icon: '🗡️', label: 'Use',      desc: 'Deal 2 quick strikes of 15% player damage each — no counter-attack' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; only usable during combat' },
+      { icon: '⚗️', label: 'Crafted',  desc: 'Transmute: Throwing Knife + Loose Pouch' },
+    ],
+    effect: { type: 'dual-strike' },
+  },
+
+  'festering-vial': {
+    name:      'Festering Vial',
+    icon:      '🧪',
+    spriteSrc: 'assets/sprites/Items/festering-vial-consumable.webp',
+    rarity:    'uncommon',
+    stackable: false,
+    blurb:     'Two nails dissolved in something green. Eight turns of rot.',
+    details: [
+      { icon: '☠️', label: 'Use',      desc: 'Poison the current enemy for 8 turns at 8% damage per turn' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; only usable during combat' },
+      { icon: '⚗️', label: 'Crafted',  desc: 'Transmute: Rusty Nail + Rusty Nail' },
+    ],
+    effect: { type: 'festering-vial' },
+  },
+
+  'medics-kit': {
+    name:      "Medic's Kit",
+    icon:      '🧰',
+    spriteSrc: 'assets/sprites/Items/medic-kit-consumable.webp',
+    rarity:    'uncommon',
+    stackable: false,
+    blurb:     'A roll of clean linen and a sharp snap of something acrid. Back on your feet.',
+    details: [
+      { icon: '❤️', label: 'Use',      desc: 'Heal 20% max HP and clear all active debuffs' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use' },
+      { icon: '⚗️', label: 'Crafted',  desc: 'Transmute: Bandage Roll + Smelling Salts' },
+    ],
+    effect: { type: 'medics-kit' },
+  },
+
+  'plague-grenade': {
+    name:      'Plague Grenade',
+    icon:      '💣',
+    spriteSrc: 'assets/sprites/Items/plague-grenade-consumable.webp',
+    rarity:    'uncommon',
+    stackable: false,
+    blurb:     'Powder and rust, bound in a flash. Everyone in the room gets a taste.',
+    details: [
+      { icon: '☠️', label: 'Use',      desc: 'Poison ALL revealed enemies for 4 turns at 6% damage per turn' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use' },
+      { icon: '⚗️', label: 'Crafted',  desc: 'Transmute: Flash Powder + Rusty Nail' },
+    ],
+    effect: { type: 'plague-grenade' },
+  },
+
+  'serrated-blade': {
+    name:      'Serrated Blade',
+    icon:      '🗡️',
+    spriteSrc: 'assets/sprites/Items/serrated-blade-consumable.webp',
+    rarity:    'uncommon',
+    stackable: false,
+    blurb:     'A jagged edge that keeps working after the throw. The wound does the rest.',
+    details: [
+      { icon: '🗡️', label: 'Use',      desc: 'Deal 25% player damage — target bleeds 5% damage per turn for 3 turns' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use; only usable during combat' },
+      { icon: '⚗️', label: 'Crafted',  desc: 'Transmute: Throwing Knife + Whetstone' },
+    ],
+    effect: { type: 'serrated-blade' },
+  },
+
+  'fortifying-wrap': {
+    name:      'Fortifying Wrap',
+    icon:      '🩹',
+    spriteSrc: 'assets/sprites/Items/fortifying-wrap-consumable.webp',
+    rarity:    'uncommon',
+    stackable: false,
+    blurb:     'Bandage over the shard, shard under the bandage. Heals and holds.',
+    details: [
+      { icon: '❤️', label: 'Use',      desc: 'Heal 10% max HP and absorb the very next hit entirely' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed on use' },
+      { icon: '⚗️', label: 'Crafted',  desc: 'Transmute: Bandage Roll + Shield Shard' },
+    ],
+    effect: { type: 'fortifying-wrap' },
+  },
+
+  'counter-shard': {
+    name:      'Counter Shard',
+    icon:      '🔷',
+    spriteSrc: 'assets/sprites/Items/counter-shard-consumable.webp',
+    rarity:    'uncommon',
+    stackable: false,
+    blurb:     'A sliver of something sharp that waits. The next blow lands — and so does yours.',
+    details: [
+      { icon: '🔷', label: 'Use',      desc: 'The next time you are hit, instantly counter for 20% player damage' },
+      { icon: '⚡', label: 'One-time', desc: 'Consumed when triggered' },
+      { icon: '⚗️', label: 'Crafted',  desc: 'Transmute: Shield Shard + Throwing Knife' },
+    ],
+    effect: { type: 'counter-shard' },
+  },
+
+  'field-dressing': {
+    name:      'Field Dressing',
+    icon:      '🌿',
+    spriteSrc: 'assets/sprites/Items/field-dressing-consumables.webp',
+    rarity:    'uncommon',
+    stackable: false,
+    buffType:  'floor',
+    blurb:     'Rope, linen, and a handful of herbs. Keeps working for three floors.',
+    details: [
+      { icon: '❤️', label: 'Floor Buff', desc: 'Heal 8% max HP at the start of each new floor for 3 floors (stacks add more floors)' },
+      { icon: '⚗️', label: 'Crafted',    desc: 'Transmute: Rope Coil + Bandage Roll' },
+    ],
+    effect: { type: 'field-dressing', effectType: 'heal-per-floor', effectValue: 8, floors: 3 },
   },
 }

@@ -13,14 +13,14 @@ export function initPotionOrb() {
       <img class="orb-fill orb-fill--hp"   id="pc-orb-hp"   src="assets/sprites/hud/orb-hp.gif"    alt="" draggable="false">
       <img class="orb-fill orb-fill--mana" id="pc-orb-mana" src="assets/sprites/hud/orb-mana.gif"  alt="" draggable="false">
       <img class="orb-frame"               src="assets/sprites/hud/orb-frame.png" alt=""            draggable="false">
-      <button class="orb-tap orb-tap--hp"   id="pc-tap-hp"   aria-label="Use HP Potion">
+      <button class="orb-tap orb-tap--hp"   id="pc-tap-hp"   data-hud-cheat-target="hp"   aria-label="Use HP Potion">
         <span class="orb-val orb-val--hp">
           <span class="orb-val-cur" id="pc-val-hp-cur"></span>
           <span class="orb-val-max" id="pc-val-hp-max"></span>
         </span>
         <span class="orb-badge" id="pc-hp-badge">0</span>
       </button>
-      <button class="orb-tap orb-tap--mana" id="pc-tap-mana" aria-label="Use Mana Potion">
+      <button class="orb-tap orb-tap--mana" id="pc-tap-mana" data-hud-cheat-target="mana" aria-label="Use Mana Potion">
         <span class="orb-val orb-val--mana">
           <span class="orb-val-cur" id="pc-val-mana-cur"></span>
           <span class="orb-val-max" id="pc-val-mana-max"></span>

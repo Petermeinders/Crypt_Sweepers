@@ -23,6 +23,19 @@ export function playerOutgoingDamageMult(ctx) {
   return mult
 }
 
+/** Gear negation + active floor block-chance buffs (e.g. Steadfast Shard). */
+export function playerNegationForArmorHit(player, run = session.run) {
+  if (!player) return 0
+  let neg = player.negation ?? 0
+  for (const b of run?.floorBuffs ?? []) {
+    if (b?.effectType === 'block-chance-pct') {
+      neg += (b.effectValue ?? 0) / 100
+    }
+  }
+  neg += player.blockChanceBonus ?? 0
+  return Math.min(Math.max(0, neg), CONFIG.armor.negationCap ?? 1)
+}
+
 export function scaleOutgoingDamageToEnemy(ctx, dmg) {
   const raw = Number(dmg)
   const base = Number.isFinite(raw) ? raw : 1

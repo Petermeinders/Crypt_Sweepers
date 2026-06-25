@@ -18,6 +18,7 @@ export function defaultSave() {
     persistentGold: 0,
     scrap:          0,
     equippedGear:   null,
+    equippedGems:   { block: null, counter: null },
     safePocketTrinket: null,
     /** @type {string[]} enemyId keys from ENEMY_DEFS */
     bestiarySeen:  [],
@@ -67,6 +68,14 @@ export function defaultSave() {
       casino: { totalSpins: 0, totalGoldSpent: 0, totalScrapSpent: 0, voidFragments: 0, pendingGear: [] },
       /** Deepest floor reached across all runs — used for casino gear scaling and checkpoint unlocks. */
       deepestFloor: 1,
+      /** Gem IDs whose crafting recipes have been unlocked (account-level, permanent). */
+      unlockedGemRecipes: [],
+      /** Ingredient items stashed between runs (shared pool for Transmutation). */
+      ingredientStash: [],
+      /** Extra backpack slots unlocked (base 9, each purchase adds 3, max 12 total). */
+      backpackBonusSlots: 0,
+      /** Extra materials stash slots unlocked (base 6, each purchase adds 3, max 9 total). */
+      materialsBonusSlots: 0,
     },
     settings: {
       difficulty:  'normal',
