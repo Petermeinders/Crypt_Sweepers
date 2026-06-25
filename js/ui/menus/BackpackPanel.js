@@ -408,6 +408,27 @@ export function wireBackpackPanel(ctx) {
     if (!ov?.classList.contains('is-open')) showBackpackBadge()
   })
 
+  // Swipe down to close when scroll is at the top
+  const overlay = document.getElementById('backpack-overlay')
+  if (overlay) {
+    let _swipeTouchId = null
+    let _swipeStartY = 0
+    overlay.addEventListener('touchstart', (e) => {
+      const t = e.changedTouches[0]
+      _swipeTouchId = t.identifier
+      _swipeStartY = t.clientY
+    }, { passive: true })
+    overlay.addEventListener('touchend', (e) => {
+      const t = Array.from(e.changedTouches).find(c => c.identifier === _swipeTouchId)
+      if (!t) return
+      const dy = t.clientY - _swipeStartY
+      const scroll = document.getElementById('backpack-panels-scroll')
+      const atTop = !scroll || scroll.scrollTop === 0
+      if (atTop && dy > 60) setBackpackOpen(ctx, false)
+      _swipeTouchId = null
+    }, { passive: true })
+  }
+
   wireMaterialsTab(ctx)
 
   EventBus.on('backpack:full', (payload) => {

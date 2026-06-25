@@ -1048,6 +1048,7 @@ function _revealCtx() {
     refreshAllEnemyStatusDisplays: _refreshAllEnemyStatusDisplays,
     playerDamageRange: _playerDamageRange,
     addToBackpack: _addToBackpack,
+    canAddToBackpack: _canAddToBackpack,
     rollChestLoot: _rollChestLoot,
     tryGearDrop: _tryGearDrop,
     openForge: _openForge,

@@ -611,6 +611,9 @@ function endRun(save, runStats, outcome) {
   // Clear shop cart — items were consumed this run
   save.warrior.shopCart = []
 
+  // Clear ingredient stash — materials are lost like loot on death/flee
+  if (save.meta) save.meta.ingredientStash = []
+
   Logger.info(`[MetaProgression] Run ended: +${xpEarned} XP earned, +${xpRetained} XP retained (${xpLost} lost), +${goldBanked} gold banked`)
   return { xpEarned, xpRetained, xpLost, goldBanked }
 }
