@@ -624,8 +624,10 @@ export function useItem(ctx, id, inventoryIndex = null) {
     return
   }
   if (effect.type === 'smelling-salts') {
-    session.run.player.tearyEyesTurns = 0
-    UI.setTearyEyes(0)
+    session.run.player.tearyEyesTurns = 0; UI.setTearyEyes(0)
+    session.run.player.burnStacks = 0; UI.setBurnOverlay(0)
+    session.run.player.poisonStacks = 0; UI.setPlayerPoison(0)
+    session.run.player.freezingHitStacks = 0; UI.setFreezingHit(0)
     const grid = TileEngine.getGrid()
     for (const row of grid) {
       for (const t of row) {

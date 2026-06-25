@@ -325,7 +325,7 @@ export const ITEMS = {
     maxStack:  10,
     blurb:     'A sharp ammonia snap that cuts through fog and curse alike.',
     details: [
-      { icon: '💨', label: 'Use',      desc: 'Instantly clears all active debuffs (Teary Eyes, burn, poison)' },
+      { icon: '💨', label: 'Use',      desc: 'Instantly clears all active debuffs (Teary Eyes, burn, poison, freeze)' },
       { icon: '⚡', label: 'One-time', desc: 'Consumed on use; stacks up to 10' },
     ],
     effect: { type: 'smelling-salts' },

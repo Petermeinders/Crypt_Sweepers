@@ -413,18 +413,19 @@ export function wireBackpackPanel(ctx) {
   if (overlay) {
     let _swipeTouchId = null
     let _swipeStartY = 0
+    let _swipeStartedAtTop = false
     overlay.addEventListener('touchstart', (e) => {
       const t = e.changedTouches[0]
       _swipeTouchId = t.identifier
       _swipeStartY = t.clientY
+      const scroll = document.getElementById('backpack-panels-scroll')
+      _swipeStartedAtTop = !scroll || scroll.scrollTop === 0
     }, { passive: true })
     overlay.addEventListener('touchend', (e) => {
       const t = Array.from(e.changedTouches).find(c => c.identifier === _swipeTouchId)
       if (!t) return
       const dy = t.clientY - _swipeStartY
-      const scroll = document.getElementById('backpack-panels-scroll')
-      const atTop = !scroll || scroll.scrollTop === 0
-      if (atTop && dy > 60) setBackpackOpen(ctx, false)
+      if (_swipeStartedAtTop && dy > 60) setBackpackOpen(ctx, false)
       _swipeTouchId = null
     }, { passive: true })
   }
