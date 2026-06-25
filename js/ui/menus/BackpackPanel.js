@@ -415,11 +415,15 @@ export function wireBackpackPanel(ctx) {
     let _swipeStartY = 0
     let _swipeStartedAtTop = false
     overlay.addEventListener('touchstart', (e) => {
+      const scroll = document.getElementById('backpack-panels-scroll')
+      // If the touch started inside the scroll container, don't track — let it scroll normally
+      if (scroll && scroll.contains(e.target)) { _swipeTouchId = null; return }
+      const atTop = !scroll || scroll.scrollTop === 0
+      if (!atTop) { _swipeTouchId = null; return }
       const t = e.changedTouches[0]
       _swipeTouchId = t.identifier
       _swipeStartY = t.clientY
-      const scroll = document.getElementById('backpack-panels-scroll')
-      _swipeStartedAtTop = !scroll || scroll.scrollTop === 0
+      _swipeStartedAtTop = true
     }, { passive: true })
     overlay.addEventListener('touchend', (e) => {
       const t = Array.from(e.changedTouches).find(c => c.identifier === _swipeTouchId)
